@@ -328,6 +328,11 @@ async function build_keyring(
   return { has_pq: pq.all.length > 0, write, read };
 }
 
+export function clear_calendar_v3_keyring(): void {
+  cached_keyring = null;
+  cached_signature = null;
+}
+
 export function calendar_v3_keyring(
   vault: EncryptedVault,
 ): Promise<CalendarV3Keyring> {

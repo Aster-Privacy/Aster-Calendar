@@ -479,6 +479,9 @@ describe("round 16 invite hardening", () => {
       mail_item_provenance({ ...item, is_external: false, dmarc_result: undefined }).trusted,
     ).toBe(true);
     expect(mail_item_provenance({ ...item, item_type: "sent" }).trusted).toBe(false);
+    expect(
+      mail_item_provenance({ ...item, is_external: false, system_origin: true }).trusted,
+    ).toBe(false);
     expect(mail_item_provenance(null)).toEqual({ trusted: false, received_at: null });
   });
 

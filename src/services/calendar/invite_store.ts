@@ -162,7 +162,9 @@ export function message_to_draft(
       same_address(candidate.email, attendee.email),
     );
     const claimed =
-      !trusted && attendee.is_organizer && is_own_address(attendee.email, self_email)
+      !trusted &&
+      attendee.is_organizer &&
+      is_own_address(attendee.email, self_email)
         ? { ...attendee, is_organizer: false }
         : attendee;
 
@@ -314,10 +316,14 @@ export const UNTRUSTED_PROVENANCE: InviteProvenance = {
 export function mail_item_provenance(
   item: Pick<
     MailItem,
-    "item_type" | "is_external" | "dmarc_result" | "created_at"
+    | "item_type"
+    | "is_external"
+    | "system_origin"
+    | "dmarc_result"
+    | "created_at"
   > | null,
 ): InviteProvenance {
-  if (!item || item.item_type !== "received") {
+  if (!item || item.item_type !== "received" || item.system_origin) {
     return UNTRUSTED_PROVENANCE;
   }
 
@@ -347,7 +353,9 @@ export function update_from_organizer(
     return false;
   }
 
-  return same_address(organizer, sender_email) && same_address(known, organizer);
+  return (
+    same_address(organizer, sender_email) && same_address(known, organizer)
+  );
 }
 
 export async function uid_held_by_other_organizer(
