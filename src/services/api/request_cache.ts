@@ -1,0 +1,314 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+
+const DEFAULT_CACHE_TTL = 15_000;
+const MAX_CACHE_ENTRIES = 200;
+const SWEEP_GRACE_MS = 500;
+const FRESH_JOIN_WINDOW_MS = 250;
+
+interface CacheEntry {
+  response: unknown;
+  timestamp: number;
+  ttl: number;
+}
+
+interface FreshInFlightEntry {
+  promise: Promise<unknown>;
+  started_at: number;
+}
+
+function private_copy<T>(value: T): T {
+  if (value === null || typeof value !== "object") return value;
+
+  try {
+    return structuredClone(value);
+  } catch {
+    return value;
+  }
+}
+
+export class RequestCache {
+  private response_cache = new Map<string, CacheEntry>();
+  private in_flight = new Map<string, Promise<unknown>>();
+  private fresh_in_flight = new Map<string, FreshInFlightEntry>();
+  private generation = 0;
+  private sweep_timer: ReturnType<typeof setTimeout> | null = null;
+
+  async get_or_fetch<T>(
+    cache_key: string,
+    fetcher: () => Promise<T>,
+    ttl: number = DEFAULT_CACHE_TTL,
+    skip_cache: boolean = false,
+    skip_dedup: boolean = false,
+  ): Promise<T> {
+    const generation = this.generation;
+
+    if (!skip_cache && ttl > 0) {
+      const cached = this.response_cache.get(cache_key);
+
+      if (cached) {
+        if (Date.now() - cached.timestamp < cached.ttl) {
+          return cached.response as T;
+        }
+
+        this.response_cache.delete(cache_key);
+      }
+    }
+
+    if (skip_dedup) {
+      const result = await fetcher();
+
+      this.store_if_current(cache_key, result, ttl, generation);
+
+      return result;
+    }
+
+    if (skip_cache) {
+      const fresh = this.fresh_in_flight.get(cache_key);
+
+      if (fresh && Date.now() - fresh.started_at < FRESH_JOIN_WINDOW_MS) {
+        return (fresh.promise as Promise<T>).then(private_copy);
+      }
+
+      const entry: FreshInFlightEntry = {
+        started_at: Date.now(),
+        promise: fetcher().then(
+          (result) => {
+            this.release_fresh(cache_key, entry);
+            this.store_if_current(cache_key, result, ttl, generation);
+
+            return result;
+          },
+          (error) => {
+            this.release_fresh(cache_key, entry);
+            throw error;
+          },
+        ),
+      };
+
+      this.fresh_in_flight.set(cache_key, entry);
+
+      return entry.promise as Promise<T>;
+    }
+
+    const pending = this.in_flight.get(cache_key);
+
+    if (pending) {
+      return pending as Promise<T>;
+    }
+
+    const promise = fetcher()
+      .then((result) => {
+        this.in_flight.delete(cache_key);
+
+        if (
+          generation === this.generation &&
+          ttl > 0 &&
+          this.is_cacheable_response(result)
+        ) {
+          this.set_entry(cache_key, result, ttl);
+        }
+
+        return result;
+      })
+      .catch((error) => {
+        this.in_flight.delete(cache_key);
+        throw error;
+      });
+
+    this.in_flight.set(cache_key, promise);
+
+    return promise;
+  }
+
+  private store_if_current(
+    cache_key: string,
+    result: unknown,
+    ttl: number,
+    generation: number,
+  ): void {
+    if (
+      generation === this.generation &&
+      ttl > 0 &&
+      this.is_cacheable_response(result)
+    ) {
+      this.set_entry(cache_key, result, ttl);
+    }
+  }
+
+  private release_fresh(cache_key: string, entry: FreshInFlightEntry): void {
+    if (this.fresh_in_flight.get(cache_key) === entry) {
+      this.fresh_in_flight.delete(cache_key);
+    }
+  }
+
+  invalidate(pattern?: string | RegExp): number {
+    this.generation++;
+
+    if (!pattern) {
+      const count = this.response_cache.size;
+
+      this.response_cache.clear();
+      this.in_flight.clear();
+      this.fresh_in_flight.clear();
+
+      return count;
+    }
+
+    let count = 0;
+
+    for (const key of [...this.response_cache.keys()]) {
+      if (this.key_matches(key, pattern)) {
+        this.response_cache.delete(key);
+        count++;
+      }
+    }
+
+    for (const key of [...this.in_flight.keys()]) {
+      if (this.key_matches(key, pattern)) {
+        this.in_flight.delete(key);
+      }
+    }
+
+    for (const key of [...this.fresh_in_flight.keys()]) {
+      if (this.key_matches(key, pattern)) {
+        this.fresh_in_flight.delete(key);
+      }
+    }
+
+    return count;
+  }
+
+  private key_matches(key: string, pattern: string | RegExp): boolean {
+    return typeof pattern === "string"
+      ? key.includes(pattern)
+      : pattern.test(key);
+  }
+
+  end_fresh_joins(): void {
+    this.fresh_in_flight.clear();
+  }
+
+  invalidate_for_mutation(endpoint: string): void {
+    this.fresh_in_flight.clear();
+
+    const resource_base = this.extract_resource_base(endpoint);
+
+    if (resource_base) {
+      this.invalidate(resource_base);
+    }
+  }
+
+  clear(): void {
+    this.response_cache.clear();
+    this.in_flight.clear();
+    this.fresh_in_flight.clear();
+    this.generation++;
+
+    if (this.sweep_timer !== null) {
+      clearTimeout(this.sweep_timer);
+      this.sweep_timer = null;
+    }
+  }
+
+  get size(): number {
+    return this.response_cache.size;
+  }
+
+  get pending_count(): number {
+    return this.in_flight.size + this.fresh_in_flight.size;
+  }
+
+  private is_cacheable_response(result: unknown): boolean {
+    if (result && typeof result === "object" && "error" in result) {
+      return !(result as { error?: unknown }).error;
+    }
+
+    return true;
+  }
+
+  private sweep_expired(): void {
+    const now = Date.now();
+
+    for (const [key, entry] of this.response_cache) {
+      if (now - entry.timestamp >= entry.ttl) {
+        this.response_cache.delete(key);
+      }
+    }
+  }
+
+  private schedule_sweep(ttl: number): void {
+    if (this.sweep_timer !== null) return;
+
+    this.sweep_timer = setTimeout(
+      () => {
+        this.sweep_timer = null;
+        this.sweep_expired();
+      },
+      Math.max(ttl, 1_000) + SWEEP_GRACE_MS,
+    );
+  }
+
+  private set_entry(key: string, response: unknown, ttl: number): void {
+    this.sweep_expired();
+
+    if (this.response_cache.size >= MAX_CACHE_ENTRIES) {
+      const oldest_key = this.response_cache.keys().next().value;
+
+      if (oldest_key) {
+        this.response_cache.delete(oldest_key);
+      }
+    }
+
+    this.response_cache.set(key, {
+      response,
+      timestamp: Date.now(),
+      ttl,
+    });
+    this.schedule_sweep(ttl);
+  }
+
+  private extract_resource_base(endpoint: string): string | null {
+    const match = endpoint.match(/^(\/[^/?]+\/v\d+)(?:\/([^/?]+))?/);
+
+    if (!match) return null;
+
+    const segment = match[2];
+
+    if (segment && !this.is_id_segment(segment)) {
+      return `${match[1]}/${segment}`;
+    }
+
+    return match[1];
+  }
+
+  private is_id_segment(segment: string): boolean {
+    return (
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        segment,
+      ) ||
+      /^[0-9a-f]{16,}$/i.test(segment) ||
+      /^\d+$/.test(segment)
+    );
+  }
+}
+
+export const request_cache = new RequestCache();

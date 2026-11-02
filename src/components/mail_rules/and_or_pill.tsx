@@ -1,0 +1,99 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { MatchMode } from "@/services/api/mail_rules";
+
+import * as React from "react";
+
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown_menu";
+import { use_chip_layout } from "@/components/mail_rules/chip_pill";
+import { use_i18n } from "@/lib/i18n/context";
+
+interface AndOrPillProps {
+  mode: MatchMode;
+  on_change: (mode: MatchMode) => void;
+  read_only?: boolean;
+}
+
+export function AndOrPill({ mode, on_change, read_only }: AndOrPillProps) {
+  const { t } = use_i18n();
+  const [open, set_open] = React.useState(false);
+  const is_row = use_chip_layout() === "row";
+  const label =
+    mode === "all" ? t("mail_rules.and_label") : t("mail_rules.or_label");
+
+  const pill = (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[var(--aster-field-bg)] text-txt-muted text-[11px] font-medium uppercase tracking-wide select-none">
+      {label}
+    </span>
+  );
+
+  if (read_only) return pill;
+
+  const trigger = (
+    <DropdownMenuTrigger asChild>
+      <button className="cursor-pointer" type="button">
+        {pill}
+      </button>
+    </DropdownMenuTrigger>
+  );
+
+  return (
+    <DropdownMenu open={open} onOpenChange={set_open}>
+      {is_row ? (
+        <div className="relative flex h-0 items-center justify-center">
+          <div className="absolute inset-x-0 top-0 border-t border-[var(--aster-floating-divider,var(--border-secondary))]" />
+          <div className="relative -my-3 bg-modal-bg px-1.5">{trigger}</div>
+        </div>
+      ) : (
+        trigger
+      )}
+      <DropdownMenuContent
+        align="center"
+        className="z-[200] w-32"
+        sideOffset={6}
+      >
+        <DropdownMenuItem
+          className="text-[12.5px]"
+          onSelect={() => {
+            on_change("all");
+            set_open(false);
+          }}
+        >
+          {t("mail_rules.and_label")}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="text-[12.5px]"
+          onSelect={() => {
+            on_change("any");
+            set_open(false);
+          }}
+        >
+          {t("mail_rules.or_label")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}

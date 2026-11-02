@@ -1,0 +1,76 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+
+// Aster Mail
+// Copyright (C) 2026 Aster Privacy
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { TranslationKey } from "@/lib/i18n/types";
+import type { PlanBadgeTier } from "@aster/ui";
+
+import { PlanBadgeView, plan_badge_tier } from "@aster/ui";
+
+import { use_translation } from "@/lib/i18n";
+
+export type { PlanBadgeTier };
+export { plan_badge_tier };
+
+const TIER_LABEL_KEYS: Record<PlanBadgeTier, TranslationKey> = {
+  star: "settings.plan_badge_star",
+  nova: "settings.plan_badge_nova",
+  supernova: "settings.plan_badge_supernova",
+};
+
+interface PlanBadgeProps {
+  plan_code: string | null | undefined;
+  className?: string;
+}
+
+export function PlanBadge({ plan_code, className }: PlanBadgeProps) {
+  const { t } = use_translation();
+  const tier = plan_badge_tier(plan_code);
+
+  if (!tier) return null;
+
+  const label = t(TIER_LABEL_KEYS[tier]);
+
+  return (
+    <PlanBadgeView
+      aria_label={t("settings.plan_badge_aria", { plan: label })}
+      className={className}
+      label={label}
+      tier={tier}
+      title={t("settings.plan_badge_thanks", { plan: label })}
+    />
+  );
+}

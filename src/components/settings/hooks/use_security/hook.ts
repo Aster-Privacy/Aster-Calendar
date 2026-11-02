@@ -1,0 +1,1044 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { EncryptedVault } from "@/services/crypto/key_manager";
+
+import type { TotpStatusResponse } from "@/services/api/totp";
+
+import { useState, useEffect, useRef } from "react";
+
+import { resolve_password_change_error } from "../password_change_error";
+
+import { LogoutOthersResponse, SESSION_TIMEOUT_OPTIONS } from "./options";
+import { use_security_fetchers } from "./fetchers";
+
+import { reprotect_vault_keys_for_password_change } from "@/services/crypto/identity_key_materials";
+import { collect_vault_key_fingerprints } from "@/services/crypto/vault_key_fingerprints";
+import { use_preferences } from "@/contexts/preferences_context";
+import { use_auth } from "@/contexts/auth_context";
+import { use_settings_cache } from "@/contexts/settings_cache_context";
+import {
+  change_password,
+  get_user_salt,
+  set_login_alerts,
+  type LoginEventEntry,
+} from "@/services/api/auth";
+import { api_client } from "@/services/api/client";
+import {
+  list_sessions,
+  revoke_session,
+  revoke_all_sessions,
+  type Session,
+} from "@/services/api/sessions";
+import { type SecurityStatusResponse } from "@/services/api/account";
+import { compute_password_strength_tier } from "@/services/password_strength_score";
+import {
+  hash_email,
+  derive_password_hash,
+  encrypt_vault,
+  base64_to_array,
+} from "@/services/crypto/key_manager";
+import {
+  derive_kek_from_password,
+  serialize_kek_for_vault,
+  prepend_kek_to_list,
+} from "@/services/crypto/legacy_keks";
+import {
+  get_preferences,
+  save_preferences,
+  derive_preferences_key_raw,
+  derive_dev_mode_key_raw,
+  get_dev_mode,
+  save_dev_mode,
+} from "@/services/api/preferences";
+import { reencrypt_all_sent_mail } from "@/services/send_queue_encryption";
+import {
+  convert_before_password_change,
+  sent_mail_needs_password_reseal,
+} from "@/services/account_data_conversion";
+import { re_encrypt_user_data } from "@/services/crypto/password_change_reencrypt";
+import {
+  reencrypt_settings_password_change,
+  reencrypt_identity_scoped_password_change,
+} from "@/services/crypto/recovery_reencrypt";
+import {
+  get_vault_from_memory,
+  store_vault_in_memory,
+  is_master_key_vault,
+  MASTER_KEY_VAULT_FORMAT,
+  get_storage_kdf_version,
+} from "@/services/crypto/memory_key_store";
+import { upgrade_vault_to_master_key } from "@/services/crypto/vault_master_key_upgrade";
+import {
+  is_session_passphrase_on_device,
+  store_encrypted_vault,
+  store_session_passphrase,
+} from "@/contexts/auth/session_passphrase";
+
+import { reset_vault_refresh_state } from "@/services/crypto/vault_refresh";
+import { with_vault_write_lock } from "@/services/crypto/vault_write_lock";
+import { refresh_recovery_backup } from "@/services/crypto/recovery_backup_refresh";
+import {
+  ensure_ratchet_keys,
+  publish_vaulted_prekey_bundle,
+  sync_vault_with_server,
+} from "@/services/crypto/ensure_ratchet_keys";
+import { carry_displaced_ratchet_keys } from "@/services/crypto/ratchet_key_continuity";
+import {
+  load_password_change_vault,
+  PASSWORD_CHANGE_VAULT_ERROR_KEYS,
+} from "./password_change_vault";
+import { use_key_rotation } from "@/hooks/use_key_rotation";
+import { check_password_breach } from "@/services/breach_check";
+import { use_i18n } from "@/lib/i18n/context";
+import { generate_auth_salt } from "@/services/crypto/auth_salt_guard";
+import { show_toast } from "@/components/toast/simple_toast";
+import { ignore_error } from "@/lib/ignore_error";
+import { write_locked_sent_mail } from "@/services/locked_sent_mail_store";
+import {
+  derive_current_account_proof,
+  read_kdf_version,
+  user_hash_pin_key,
+} from "@/services/crypto/login_proof";
+
+export function use_security() {
+  const { t } = use_i18n();
+  const { preferences, update_preference } = use_preferences();
+  const { user } = use_auth();
+  const cache = use_settings_cache();
+  const {
+    key_age_hours,
+    key_fingerprint,
+    perform_rotation,
+    show_manual_rotation_modal,
+    show_modal: show_rotation_modal,
+    close_modal: close_rotation_modal,
+  } = use_key_rotation({ auto_check: true });
+
+  const [totp_status, set_totp_status] = useState<TotpStatusResponse | null>(
+    null,
+  );
+  const [totp_status_failed, set_totp_status_failed] = useState(false);
+  const [security_score_loaded, set_security_score_loaded] = useState(false);
+  const [forward_secrecy_working, set_forward_secrecy_working] =
+    useState(false);
+  const forward_secrecy_working_ref = useRef(false);
+  const [show_totp_setup_modal, set_show_totp_setup_modal] = useState(false);
+  const [show_totp_disable_modal, set_show_totp_disable_modal] =
+    useState(false);
+  const [login_alerts_enabled, set_login_alerts_enabled] = useState(false);
+  const [login_alerts_loaded, set_login_alerts_loaded] = useState(false);
+  const [login_alerts_failed, set_login_alerts_failed] = useState(false);
+  const [login_alerts_loading, set_login_alerts_loading] = useState(false);
+  const [login_events, set_login_events] = useState<LoginEventEntry[]>([]);
+  const [login_events_loading, set_login_events_loading] = useState(false);
+  const [login_events_failed, set_login_events_failed] = useState(false);
+  const [show_password_section, set_show_password_section] = useState(false);
+  const [current_password, set_current_password] = useState("");
+  const [new_password, set_new_password] = useState("");
+  const [confirm_password, set_confirm_password] = useState("");
+  const [show_current_password, set_show_current_password] = useState(false);
+  const [show_new_password, set_show_new_password] = useState(false);
+  const [password_loading, set_password_loading] = useState(false);
+  const [password_error, set_password_error] = useState("");
+  const [password_success, set_password_success] = useState(false);
+  const [password_unreadable_notice, set_password_unreadable_notice] =
+    useState("");
+  const [password_breach_warning, set_password_breach_warning] =
+    useState(false);
+  const [logout_others_loading, set_logout_others_loading] = useState(false);
+  const [logout_others_result, set_logout_others_result] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
+  const [ipfs_available, set_ipfs_available] = useState(false);
+  const [ipfs_storage_enabled, set_ipfs_storage_enabled] = useState(false);
+  const [ipfs_status_loaded, set_ipfs_status_loaded] = useState(false);
+  const [ipfs_loading, set_ipfs_loading] = useState(false);
+  const [sessions, set_sessions] = useState<Session[]>([]);
+  const [sessions_loading, set_sessions_loading] = useState(true);
+  const [sessions_error, set_sessions_error] = useState<string | null>(null);
+  const [recovery_email_verified, set_recovery_email_verified] =
+    useState(false);
+  const [security_status, set_security_status] =
+    useState<SecurityStatusResponse | null>(null);
+
+  const {
+    fetch_totp_status,
+    fetch_login_events,
+    fetch_ipfs_status,
+    fetch_security_status,
+    hydrate_security_status,
+    hydrate_totp_status,
+    hydrate_login_alerts_status,
+    fetch_login_alerts_status,
+    hydrate_recovery_email_status,
+    fetch_sessions,
+  } = use_security_fetchers({
+    t,
+    cache,
+    set_totp_status,
+    set_totp_status_failed,
+    set_login_alerts_enabled,
+    set_login_alerts_loaded,
+    set_login_alerts_failed,
+    set_login_events,
+    set_login_events_loading,
+    set_login_events_failed,
+    set_ipfs_available,
+    set_ipfs_storage_enabled,
+    set_ipfs_status_loaded,
+    set_sessions,
+    set_sessions_loading,
+    set_sessions_error,
+    set_recovery_email_verified,
+    set_security_status,
+  });
+
+  useEffect(() => {
+    Promise.all([
+      hydrate_totp_status(),
+      hydrate_login_alerts_status(),
+      hydrate_recovery_email_status(),
+      hydrate_security_status(),
+    ]).then(() => set_security_score_loaded(true));
+    fetch_ipfs_status();
+    fetch_sessions();
+    fetch_login_events();
+  }, [
+    hydrate_totp_status,
+    hydrate_login_alerts_status,
+    hydrate_recovery_email_status,
+    hydrate_security_status,
+    fetch_ipfs_status,
+    fetch_sessions,
+    fetch_login_events,
+  ]);
+
+  const handle_login_alerts_toggle = async () => {
+    if (login_alerts_loading) return;
+    if (!login_alerts_loaded) return;
+
+    set_login_alerts_loading(true);
+    const new_value = !login_alerts_enabled;
+
+    set_login_alerts_enabled(new_value);
+
+    try {
+      const response = await set_login_alerts(new_value);
+
+      if (response.error || !response.data?.success) {
+        set_login_alerts_enabled(!new_value);
+        show_toast(response.error || t("common.something_went_wrong"), "error");
+      }
+    } catch (error) {
+      if (import.meta.env.DEV) console.error(error);
+      set_login_alerts_enabled(!new_value);
+      show_toast(t("common.something_went_wrong"), "error");
+    } finally {
+      set_login_alerts_loading(false);
+    }
+  };
+
+  const handle_ipfs_toggle = async () => {
+    if (ipfs_loading) return;
+    if (!ipfs_status_loaded) return;
+
+    set_ipfs_loading(true);
+    const new_value = !ipfs_storage_enabled;
+
+    set_ipfs_storage_enabled(new_value);
+
+    try {
+      const response = await api_client.put<{
+        success: boolean;
+        settings: { ipfs_storage_enabled: boolean };
+      }>("/settings/v1/encryption", {
+        ipfs_storage_enabled: new_value,
+      });
+
+      if (response.error || !response.data?.success) {
+        set_ipfs_storage_enabled(!new_value);
+        show_toast(response.error || t("common.something_went_wrong"), "error");
+      }
+    } catch (error) {
+      if (import.meta.env.DEV) console.error(error);
+      set_ipfs_storage_enabled(!new_value);
+      show_toast(t("common.something_went_wrong"), "error");
+    } finally {
+      set_ipfs_loading(false);
+    }
+  };
+
+  const handle_two_factor_toggle = () => {
+    if (totp_status?.enabled) {
+      set_show_totp_disable_modal(true);
+    } else {
+      set_show_totp_setup_modal(true);
+    }
+  };
+
+  const handle_totp_disable_success = () => {
+    set_totp_status((prev) => (prev ? { ...prev, enabled: false } : null));
+    fetch_totp_status();
+  };
+
+  const handle_totp_setup_success = () => {
+    set_totp_status((prev) => ({
+      enabled: true,
+      backup_codes_remaining: prev?.backup_codes_remaining ?? 8,
+    }));
+    fetch_totp_status();
+  };
+
+  const handle_change_password = async () => {
+    set_password_error("");
+    set_password_success(false);
+    set_password_unreadable_notice("");
+
+    let unreadable_item_count = 0;
+
+    if (!user?.email) {
+      set_password_error(t("settings.user_not_found"));
+
+      return;
+    }
+
+    if (new_password !== confirm_password) {
+      set_password_error(t("settings.passwords_do_not_match"));
+
+      return;
+    }
+
+    if (new_password.length < 8) {
+      set_password_error(t("settings.password_min_length"));
+
+      return;
+    }
+
+    if (new_password.length > 128) {
+      set_password_error(t("settings.password_max_length"));
+
+      return;
+    }
+
+    set_password_loading(true);
+
+    try {
+      const user_hash = await hash_email(user.email);
+
+      const salt_response = await get_user_salt({ user_hash });
+
+      if (salt_response.error || !salt_response.data) {
+        set_password_error(
+          salt_response.error || t("settings.failed_get_auth_data"),
+        );
+        set_password_loading(false);
+
+        return;
+      }
+
+      const salt = base64_to_array(salt_response.data.salt);
+      const current_password_hash = await derive_current_account_proof(
+        current_password,
+        salt,
+        read_kdf_version(salt_response.data.kdf_version),
+        [user_hash_pin_key(user_hash)],
+      );
+
+      let vault!: EncryptedVault;
+      let sent_mail_conversion!: Awaited<
+        ReturnType<typeof convert_before_password_change>
+      >;
+      let master_key_mode = false;
+      let old_identity_key = "";
+      let response!: Awaited<ReturnType<typeof change_password>>;
+      const new_password_strength_tier =
+        compute_password_strength_tier(new_password);
+
+      const committed = await with_vault_write_lock(async () => {
+        const loaded = await load_password_change_vault(
+          user.id,
+          current_password,
+        );
+
+        if (loaded.kind === "error") {
+          set_password_error(
+            t(PASSWORD_CHANGE_VAULT_ERROR_KEYS[loaded.reason]),
+          );
+          set_password_loading(false);
+
+          return false;
+        }
+
+        vault = loaded.vault;
+
+        const memory_vault = get_vault_from_memory();
+
+        if (!is_master_key_vault(vault) && is_master_key_vault(memory_vault)) {
+          vault.data_kek = memory_vault?.data_kek;
+          vault.vault_format = memory_vault?.vault_format;
+          vault.mk_created_at = memory_vault?.mk_created_at;
+          vault.legacy_identity_keys = memory_vault?.legacy_identity_keys
+            ? [...memory_vault.legacy_identity_keys]
+            : vault.legacy_identity_keys;
+          vault.legacy_keks = memory_vault?.legacy_keks
+            ? [...memory_vault.legacy_keks]
+            : vault.legacy_keks;
+        }
+
+        vault = carry_displaced_ratchet_keys(vault, memory_vault);
+
+        if (
+          memory_vault?.ratchet_regen_v4_done &&
+          memory_vault.ratchet_identity_public === vault.ratchet_identity_public
+        ) {
+          vault.ratchet_regen_v4_done = true;
+        }
+
+        sent_mail_conversion = await convert_before_password_change({
+          identity_key: vault.identity_key,
+          passphrase: current_password,
+        });
+
+        await upgrade_vault_to_master_key(vault, current_password);
+
+        master_key_mode = is_master_key_vault(vault);
+
+        old_identity_key = vault.identity_key;
+
+        const old_prefs_key_raw =
+          await derive_preferences_key_raw(old_identity_key);
+        const old_dev_mode_key_raw =
+          await derive_dev_mode_key_raw(old_identity_key);
+
+        await reprotect_vault_keys_for_password_change(
+          vault,
+          current_password,
+          new_password,
+        );
+
+        const new_salt = generate_auth_salt();
+        const {
+          hash: new_password_hash,
+          salt: new_password_salt,
+          hash_v2: new_password_hash_v2,
+        } = await derive_password_hash(new_password, new_salt);
+
+        if (!master_key_mode) {
+          const old_kek_raw = await derive_kek_from_password(current_password);
+
+          vault.legacy_keks = prepend_kek_to_list(
+            vault.legacy_keks,
+            serialize_kek_for_vault(old_kek_raw),
+          );
+        }
+
+        vault.legacy_keks = prepend_kek_to_list(
+          vault.legacy_keks,
+          serialize_kek_for_vault(old_prefs_key_raw),
+        );
+        vault.legacy_keks = prepend_kek_to_list(
+          vault.legacy_keks,
+          serialize_kek_for_vault(old_dev_mode_key_raw),
+        );
+
+        const old_folder_material = new TextEncoder().encode(
+          old_identity_key + "astermail-labels-v1",
+        );
+        const old_folder_hash = new Uint8Array(
+          await crypto.subtle.digest("SHA-256", old_folder_material),
+        );
+
+        vault.legacy_keks = prepend_kek_to_list(
+          vault.legacy_keks,
+          serialize_kek_for_vault(old_folder_hash),
+        );
+
+        const old_tag_material = new TextEncoder().encode(
+          old_identity_key + "astermail-tags-v1",
+        );
+        const old_tag_hash = new Uint8Array(
+          await crypto.subtle.digest("SHA-256", old_tag_material),
+        );
+
+        vault.legacy_keks = prepend_kek_to_list(
+          vault.legacy_keks,
+          serialize_kek_for_vault(old_tag_hash),
+        );
+
+        const vault_key_fingerprints =
+          await collect_vault_key_fingerprints(vault);
+        const fingerprint_field = vault_key_fingerprints.length
+          ? { vault_key_fingerprints }
+          : {};
+
+        const {
+          encrypted_vault: new_encrypted_vault,
+          vault_nonce: new_vault_nonce,
+        } = await encrypt_vault(vault, new_password);
+
+        if (master_key_mode) {
+          response = await change_password({
+            current_password_hash,
+            new_password_hash,
+            new_password_hash_v2,
+            new_password_salt,
+            new_encrypted_vault,
+            new_vault_nonce,
+            vault_format: MASTER_KEY_VAULT_FORMAT,
+            new_password_strength_tier,
+            ...fingerprint_field,
+          });
+        } else {
+          const {
+            re_encrypted_aliases,
+            re_encrypted_contacts,
+            re_encrypted_pins,
+            re_encrypted_alias_contacts,
+            re_encrypted_destinations,
+            re_encrypted_directories,
+            re_encrypted_domain_addresses,
+            skipped,
+          } = await re_encrypt_user_data(current_password, new_password, {
+            data_kek: vault.data_kek,
+            legacy_keks: vault.legacy_keks,
+            kdf_version: get_storage_kdf_version(vault),
+          });
+
+          unreadable_item_count =
+            skipped.alias_ids.length +
+            skipped.contact_ids.length +
+            skipped.domain_address_ids.length +
+            skipped.unreadable_field_count;
+
+          response = await change_password({
+            current_password_hash,
+            new_password_hash,
+            new_password_hash_v2,
+            new_password_salt,
+            new_encrypted_vault,
+            new_vault_nonce,
+            re_encrypted_aliases,
+            re_encrypted_contacts,
+            re_encrypted_pins,
+            re_encrypted_alias_contacts,
+            re_encrypted_destinations,
+            re_encrypted_directories,
+            re_encrypted_domain_addresses,
+            unreadable_alias_ids: skipped.alias_ids,
+            new_password_strength_tier,
+            ...fingerprint_field,
+          });
+        }
+
+        if (response.error) {
+          set_password_error(
+            resolve_password_change_error(
+              response.error,
+              t,
+              response.server_code,
+            ),
+          );
+          set_password_loading(false);
+
+          return false;
+        }
+
+        try {
+          store_encrypted_vault(user.id, new_encrypted_vault, new_vault_nonce);
+        } catch (caught) {
+          ignore_error(
+            "components/settings/hooks/use_security/hook:handle_change_password",
+            caught,
+          );
+        }
+
+        reset_vault_refresh_state();
+        await store_vault_in_memory(vault, new_password);
+        void refresh_recovery_backup(vault, new_password);
+
+        return true;
+      });
+
+      if (!committed) return;
+
+      try {
+        await store_session_passphrase(
+          user.id,
+          new_password,
+          is_session_passphrase_on_device(user.id),
+        );
+      } catch (caught) {
+        ignore_error(
+          "components/settings/hooks/use_security/hook:handle_change_password",
+          caught,
+        );
+      }
+
+      if (response.data?.csrf_token) {
+        api_client.set_csrf(response.data.csrf_token);
+      }
+      if (response.data?.access_token) {
+        api_client.set_dev_token(
+          response.data.access_token,
+          response.data.refresh_token,
+        );
+      }
+
+      try {
+        const prefs_result = await get_preferences(vault);
+
+        if (
+          prefs_result.loaded_from_server &&
+          !prefs_result.server_blob_unusable
+        ) {
+          await save_preferences(preferences, vault);
+        }
+      } catch (caught) {
+        ignore_error(
+          "components/settings/hooks/use_security/hook:handle_change_password",
+          caught,
+        );
+      }
+
+      try {
+        const dev_mode_result = await get_dev_mode(vault);
+
+        if (dev_mode_result.data !== null) {
+          await save_dev_mode(dev_mode_result.data, vault);
+        }
+      } catch (caught) {
+        ignore_error(
+          "components/settings/hooks/use_security/hook:handle_change_password",
+          caught,
+        );
+      }
+
+      const note_reencrypt_failure = (caught: unknown) => {
+        const message = t(
+          "settings.password_change_background_reencrypt_failed",
+        );
+
+        set_password_unreadable_notice((prev) => {
+          if (prev.includes(message)) return prev;
+
+          return prev ? `${prev} ${message}` : message;
+        });
+        ignore_error(
+          "components/settings/hooks/use_security/hook:handle_change_password",
+          caught,
+        );
+      };
+
+      sent_mail_needs_password_reseal(sent_mail_conversion)
+        .then((needed) =>
+          needed
+            ? reencrypt_all_sent_mail(current_password, new_password)
+            : null,
+        )
+        .then((summary) => {
+          if (!summary) return;
+
+          write_locked_sent_mail(user.id, summary.unreadable);
+
+          if (summary.failed > 0) {
+            note_reencrypt_failure(
+              new Error(`sent mail reseal failed for ${summary.failed} items`),
+            );
+          }
+
+          if (summary.unreadable > 0) {
+            const message = t(
+              "settings.password_change_sent_mail_locked",
+            ).replace("{{count}}", String(summary.unreadable));
+
+            set_password_unreadable_notice((prev) =>
+              prev ? `${prev} ${message}` : message,
+            );
+          }
+        })
+        .catch(note_reencrypt_failure);
+
+      if (master_key_mode) {
+        reencrypt_identity_scoped_password_change(
+          old_identity_key,
+          vault.identity_key,
+        ).catch(note_reencrypt_failure);
+      } else {
+        reencrypt_settings_password_change(
+          current_password,
+          new_password,
+          old_identity_key,
+          vault.identity_key,
+        ).catch(note_reencrypt_failure);
+      }
+
+      set_security_status((prev) => ({
+        two_factor_enabled: prev?.two_factor_enabled ?? false,
+        recovery_email_set: prev?.recovery_email_set ?? false,
+        last_password_change: new Date().toISOString(),
+        password_strength_tier: new_password_strength_tier,
+      }));
+      fetch_security_status();
+
+      if (unreadable_item_count > 0) {
+        set_password_unreadable_notice((prev) => {
+          const message = t(
+            "settings.password_changed_items_unreadable",
+          ).replace("{{count}}", String(unreadable_item_count));
+
+          return prev ? `${prev} ${message}` : message;
+        });
+      }
+
+      set_password_success(true);
+      show_toast(t("settings.password_changed_success"), "success");
+      set_show_password_section(false);
+      set_current_password("");
+      set_new_password("");
+      set_confirm_password("");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+
+      if (msg.startsWith("alias_reencrypt_failed:")) {
+        set_password_error(t("settings.alias_reencrypt_failed"));
+      } else if (msg.startsWith("contact_reencrypt_failed:")) {
+        set_password_error(t("settings.contact_reencrypt_failed"));
+      } else {
+        set_password_error(t("settings.failed_change_password"));
+      }
+    } finally {
+      set_password_loading(false);
+    }
+  };
+
+  const handle_timeout_toggle = () => {
+    update_preference(
+      "session_timeout_enabled",
+      !preferences.session_timeout_enabled,
+      true,
+    );
+  };
+
+  const handle_timeout_change = (minutes: number) => {
+    update_preference("session_timeout_minutes", minutes, true);
+  };
+
+  const publish_ratchet_keys = async (): Promise<boolean> => {
+    if (!get_vault_from_memory()) return false;
+
+    const freshness = await sync_vault_with_server();
+
+    if (freshness.status === "unverified") return false;
+
+    const vault =
+      freshness.status === "adopted"
+        ? freshness.vault
+        : get_vault_from_memory();
+
+    if (!vault) return false;
+
+    if (vault.ratchet_identity_key) {
+      return publish_vaulted_prekey_bundle(vault);
+    }
+
+    if (!(await ensure_ratchet_keys())) return false;
+
+    const ensured = get_vault_from_memory();
+
+    if (!ensured?.ratchet_identity_key) return false;
+
+    return publish_vaulted_prekey_bundle(ensured);
+  };
+
+  const handle_forward_secrecy_toggle = async () => {
+    if (forward_secrecy_working_ref.current) return;
+
+    const enabling = !preferences.forward_secrecy_enabled;
+
+    if (!enabling) {
+      update_preference("forward_secrecy_enabled", false, true);
+
+      return;
+    }
+
+    forward_secrecy_working_ref.current = true;
+    set_forward_secrecy_working(true);
+
+    let published = false;
+
+    try {
+      published = await publish_ratchet_keys();
+    } catch (error) {
+      if (import.meta.env.DEV) console.error(error);
+    } finally {
+      forward_secrecy_working_ref.current = false;
+      set_forward_secrecy_working(false);
+    }
+
+    if (!published) {
+      show_toast(t("settings.forward_secrecy_setup_failed"), "error");
+
+      return;
+    }
+
+    update_preference("forward_secrecy_enabled", true, true);
+  };
+
+  const get_timeout_description = () => {
+    if (!preferences.session_timeout_enabled) {
+      return t("settings.session_timeout_disabled");
+    }
+    const option = SESSION_TIMEOUT_OPTIONS.find(
+      (opt) => opt.value === preferences.session_timeout_minutes,
+    );
+
+    return t("settings.auto_lock_after").replace(
+      "{{duration}}",
+      option
+        ? t(option.label_key)
+        : t("settings.n_minutes", {
+            count: preferences.session_timeout_minutes,
+          }),
+    );
+  };
+
+  const handle_logout_others = async () => {
+    set_logout_others_loading(true);
+    set_logout_others_result(null);
+
+    try {
+      const response = await api_client.post<LogoutOthersResponse>(
+        "/core/v1/auth/logout-others",
+        {},
+      );
+
+      if (response.error) {
+        set_logout_others_result({
+          success: false,
+          message: response.error || t("settings.failed_sign_out"),
+        });
+      } else if (response.data) {
+        set_logout_others_result({
+          success: true,
+          message: t("settings.sign_out_everywhere_success", {
+            count: response.data.sessions_revoked ?? 0,
+          }),
+        });
+      }
+    } catch (error) {
+      if (import.meta.env.DEV) console.error(error);
+      set_logout_others_result({
+        success: false,
+        message: t("settings.failed_sign_out"),
+      });
+    } finally {
+      set_logout_others_loading(false);
+
+      setTimeout(() => {
+        set_logout_others_result(null);
+      }, 5000);
+    }
+  };
+
+  const handle_revoke_session = async (session_id: string) => {
+    set_sessions_error(null);
+
+    try {
+      const timeout = new Promise<{ error: string }>((resolve) =>
+        setTimeout(
+          () => resolve({ error: t("settings.failed_sign_out") }),
+          10000,
+        ),
+      );
+      const response = await Promise.race([
+        revoke_session(session_id),
+        timeout,
+      ]);
+
+      if ("data" in response && response.data?.success) {
+        set_sessions((prev) => prev.filter((s) => s.id !== session_id));
+      } else {
+        const err = "error" in response ? response.error : undefined;
+        const recheck = await list_sessions();
+
+        if (recheck.data) {
+          set_sessions(recheck.data.sessions);
+          if (recheck.data.sessions.some((s) => s.id === session_id)) {
+            set_sessions_error(err || t("settings.failed_sign_out"));
+          }
+        } else {
+          set_sessions_error(err || t("settings.failed_sign_out"));
+        }
+      }
+    } catch (error) {
+      if (import.meta.env.DEV) console.error(error);
+      set_sessions_error(t("settings.failed_sign_out"));
+    }
+  };
+
+  const handle_revoke_all_sessions = async () => {
+    set_sessions_error(null);
+
+    try {
+      const timeout = new Promise<{ error: string }>((resolve) =>
+        setTimeout(
+          () => resolve({ error: t("settings.failed_sign_out") }),
+          10000,
+        ),
+      );
+      const response = await Promise.race([revoke_all_sessions(), timeout]);
+
+      if ("data" in response && response.data?.success) {
+        const revoked_count = sessions.filter((s) => !s.is_current).length;
+
+        set_sessions((prev) => prev.filter((s) => s.is_current));
+        show_toast(
+          t("settings.sign_out_everywhere_success", {
+            count: response.data?.revoked_count ?? revoked_count,
+          }),
+          "success",
+        );
+      } else {
+        const err = "error" in response ? response.error : undefined;
+
+        set_sessions_error(err || t("settings.failed_sign_out"));
+      }
+    } catch (error) {
+      if (import.meta.env.DEV) console.error(error);
+      set_sessions_error(t("settings.failed_sign_out"));
+    }
+  };
+
+  const handle_new_password_blur = async () => {
+    if (new_password.length >= 8) {
+      const result = await check_password_breach(new_password);
+
+      set_password_breach_warning(result.is_breached);
+    }
+  };
+
+  const handle_set_new_password = (val: string) => {
+    set_new_password(val);
+    set_password_breach_warning(false);
+  };
+
+  const toggle_password_section = (show: boolean) => {
+    if (show) {
+      set_password_success(false);
+      set_password_error("");
+    }
+    set_show_password_section(show);
+  };
+
+  const handle_password_cancel = () => {
+    set_password_success(false);
+    set_show_password_section(false);
+    set_current_password("");
+    set_new_password("");
+    set_confirm_password("");
+    set_password_error("");
+    set_password_breach_warning(false);
+  };
+
+  return {
+    t,
+    preferences,
+    update_preference,
+
+    recovery_email_verified,
+    security_score_loaded,
+    last_password_change: security_status?.last_password_change ?? null,
+    password_strength_tier: security_status?.password_strength_tier ?? null,
+
+    totp_status,
+    totp_status_failed,
+    fetch_totp_status,
+    show_totp_setup_modal,
+    set_show_totp_setup_modal,
+    show_totp_disable_modal,
+    set_show_totp_disable_modal,
+    handle_two_factor_toggle,
+    handle_totp_disable_success,
+    handle_totp_setup_success,
+
+    login_alerts_enabled,
+    login_alerts_loaded,
+    login_alerts_failed,
+    fetch_login_alerts_status,
+    handle_login_alerts_toggle,
+    login_events,
+    login_events_loading,
+    login_events_failed,
+    fetch_login_events,
+
+    ipfs_available,
+    ipfs_storage_enabled,
+    ipfs_status_loaded,
+    handle_ipfs_toggle,
+
+    show_password_section,
+    set_show_password_section: toggle_password_section,
+    current_password,
+    set_current_password,
+    new_password,
+    set_new_password: handle_set_new_password,
+    password_breach_warning,
+    handle_new_password_blur,
+    confirm_password,
+    set_confirm_password,
+    show_current_password,
+    set_show_current_password,
+    show_new_password,
+    set_show_new_password,
+    password_loading,
+    password_error,
+    password_success,
+    password_unreadable_notice,
+    handle_change_password,
+    handle_password_cancel,
+
+    handle_timeout_toggle,
+    handle_timeout_change,
+    get_timeout_description,
+
+    handle_forward_secrecy_toggle,
+    forward_secrecy_working,
+
+    key_age_hours,
+    key_fingerprint,
+    perform_rotation,
+    show_manual_rotation_modal,
+    show_rotation_modal,
+    close_rotation_modal,
+
+    logout_others_loading,
+    logout_others_result,
+    handle_logout_others,
+
+    sessions,
+    sessions_loading,
+    sessions_error,
+    fetch_sessions,
+    handle_revoke_session,
+    handle_revoke_all_sessions,
+  };
+}

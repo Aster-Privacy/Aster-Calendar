@@ -1,0 +1,93 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { TranslationKey } from "@/lib/i18n/types";
+
+export const MAX_PASSWORD_LENGTH = 128;
+
+export function clamp_password(password: string): string {
+  if (password.length <= MAX_PASSWORD_LENGTH) return password;
+
+  return password.slice(0, MAX_PASSWORD_LENGTH);
+}
+
+export function sanitize_username(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9._]/g, "")
+    .slice(0, 40);
+}
+
+export function sanitize_username_input(input: string): string {
+  return sanitize_username(input);
+}
+
+export const MAX_DISPLAY_NAME_LENGTH = 100;
+
+export function sanitize_display_name(input: string): string {
+  return input
+    .replace(/[<>\u0000-\u001f\u007f]/g, "")
+    .trim()
+    .slice(0, MAX_DISPLAY_NAME_LENGTH);
+}
+
+export type PasswordRule = "length" | "uppercase" | "lowercase" | "number";
+
+export const PASSWORD_RULE_MESSAGE_KEYS = {
+  length: "auth.password_error_length",
+  uppercase: "auth.password_error_uppercase",
+  lowercase: "auth.password_error_lowercase",
+  number: "auth.password_error_number",
+} as const satisfies Record<PasswordRule, TranslationKey>;
+
+export function validate_password_strength(password: string): {
+  valid: boolean;
+  errors: PasswordRule[];
+} {
+  const errors: PasswordRule[] = [];
+
+  if (password.length < 8) {
+    errors.push("length");
+  }
+
+  if (!/[A-Z]/.test(password)) {
+    errors.push("uppercase");
+  }
+
+  if (!/[a-z]/.test(password)) {
+    errors.push("lowercase");
+  }
+
+  if (!/[0-9]/.test(password)) {
+    errors.push("number");
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+export async function timing_safe_delay(): Promise<void> {
+  const base_delay = 200;
+  const random_bytes = new Uint32Array(1);
+
+  crypto.getRandomValues(random_bytes);
+  const jitter = random_bytes[0] % 100;
+
+  await new Promise((resolve) => setTimeout(resolve, base_delay + jitter));
+}

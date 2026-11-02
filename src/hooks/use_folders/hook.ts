@@ -1,0 +1,1070 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { useState, useCallback, useEffect, useRef } from "react";
+
+import {
+  DeleteFolderOutcome,
+  broadcast_folders_changed,
+  cached_folders,
+  get_folder_broadcast_channel,
+  notify_folders_loaded,
+  on_folders_loaded,
+} from "./cache";
+import {
+  build_undecryptable_folder,
+  decrypt_folder,
+  encrypt_folder_field,
+  generate_folder_token,
+} from "./crypto";
+import {
+  append_sort_order,
+  get_child_folders,
+  place_folder_among_siblings,
+  resort_after_rename,
+  sort_folder_tree_a_z,
+  type FolderOrderEntry,
+} from "./sort";
+import {
+  DecryptedFolder,
+  FolderCounts,
+  FoldersState,
+  has_sibling_named,
+  is_system_folder_type,
+} from "./tree";
+import { CreateFolderOptions, UseFoldersReturn } from "./types";
+
+import {
+  list_all_folders,
+  create_folder,
+  update_folder,
+  delete_folder,
+  bulk_reorder_folders,
+  get_folder_counts,
+  type FolderDefinition,
+  type CreateFolderRequest,
+  type UpdateFolderRequest,
+  type ListFoldersParams,
+  type DeleteFolderRequest,
+} from "@/services/api/folders";
+import {
+  add_mail_item_folder,
+  remove_mail_item_folder,
+} from "@/services/api/mail";
+import {
+  get_vault_from_memory,
+  has_passphrase_in_memory,
+  on_keys_ready,
+} from "@/services/crypto/memory_key_store";
+import {
+  emit_folders_changed,
+  emit_mail_items_removed,
+  emit_protected_folders_ready,
+  MAIL_EVENTS,
+  type MailItemUpdatedEventDetail,
+} from "@/hooks/mail_events";
+import { use_auth_safe } from "@/contexts/auth_context";
+import { use_i18n } from "@/lib/i18n/context";
+
+const COUNTS_DEBOUNCE_MS = 500;
+const COUNTS_CONFIRM_MS = 4_000;
+const FOLDERS_REFETCH_DEBOUNCE_MS = 300;
+const FOLDER_RETRY_DELAYS_MS = [400, 1_200, 3_000];
+const FOLDER_BACKGROUND_RETRY_DELAYS_MS = [8_000, 20_000, 45_000];
+const FOLDER_FAILED_FETCH_RETRY_MS = 60_000;
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const PENDING_FOLDER_ID = "pending_folder";
+
+function placement_after_update(
+  snapshot: DecryptedFolder[],
+  current: DecryptedFolder | undefined,
+  name: string | undefined,
+  sort_order: number | undefined,
+  parent_token: string | undefined,
+): FolderOrderEntry[] {
+  if (!current || sort_order !== undefined) return [];
+
+  const next_name = name ?? current.name;
+
+  if (
+    parent_token !== undefined &&
+    (parent_token || undefined) !== (current.parent_token || undefined)
+  ) {
+    return place_folder_among_siblings(
+      get_child_folders(snapshot, parent_token || undefined),
+      { ...current, name: next_name, parent_token },
+    );
+  }
+
+  if (name !== undefined && name.trim() !== current.name.trim()) {
+    return resort_after_rename(snapshot, current.id, name.trim());
+  }
+
+  return [];
+}
+
+export function use_folders(): UseFoldersReturn {
+  const { t } = use_i18n();
+  const auth = use_auth_safe();
+  const user = auth?.user ?? null;
+  const [state, set_state] = useState<FoldersState>({
+    folders: cached_folders.data,
+    is_loading: cached_folders.data.length === 0 && !cached_folders.has_loaded,
+    error: null,
+    total: cached_folders.total,
+  });
+  const [counts, set_counts] = useState<FolderCounts>({});
+  const [unread_counts, set_unread_counts] = useState<FolderCounts>({});
+  const abort_ref = useRef<AbortController | null>(null);
+  const prev_user_id_ref = useRef<string | null>(null);
+  const fetch_generation_ref = useRef(0);
+  const counts_generation_ref = useRef(0);
+  const counts_adjusted_at_ref = useRef(0);
+
+  const fetch_folders = useCallback(
+    async (params: ListFoldersParams = {}): Promise<void> => {
+      if (
+        !has_passphrase_in_memory() ||
+        !get_vault_from_memory()?.identity_key
+      ) {
+        set_state((prev) =>
+          prev.folders.length > 0 || (prev.is_loading && prev.error === null)
+            ? prev
+            : { ...prev, is_loading: true, error: null },
+        );
+
+        return;
+      }
+
+      abort_ref.current?.abort();
+      abort_ref.current = new AbortController();
+
+      const this_generation = ++fetch_generation_ref.current;
+
+      set_state((prev) => {
+        if (prev.folders.length === 0 && !cached_folders.has_loaded) {
+          return { ...prev, is_loading: true, error: null };
+        }
+
+        return prev;
+      });
+
+      const attempt_fetch = async (
+        show_unreadable: boolean,
+      ): Promise<"done" | "stale" | "retry" | "unreadable"> => {
+        const vault = get_vault_from_memory();
+
+        if (!has_passphrase_in_memory() || !vault?.identity_key) return "retry";
+
+        try {
+          const response = await list_all_folders({
+            include_system: true,
+            include_counts: true,
+            ...params,
+          });
+
+          if (this_generation !== fetch_generation_ref.current) return "stale";
+
+          if (response.error || !response.data) return "retry";
+
+          const decrypted_results = await Promise.all(
+            response.data.folders.map((folder: FolderDefinition) =>
+              decrypt_folder(folder, vault.identity_key),
+            ),
+          );
+
+          if (this_generation !== fetch_generation_ref.current) return "stale";
+
+          const decrypted_folders = decrypted_results.filter(
+            (f): f is DecryptedFolder => f !== null,
+          );
+
+          const none_readable =
+            decrypted_folders.length === 0 &&
+            response.data.folders.some(
+              (folder: FolderDefinition) =>
+                !folder.is_system && !is_system_folder_type(folder.folder_type),
+            );
+
+          if (none_readable && !show_unreadable) return "retry";
+
+          const undecryptable_folders = response.data.folders.filter(
+            (_folder: FolderDefinition, index: number) =>
+              decrypted_results[index] === null,
+          );
+
+          const visible_folders = [
+            ...decrypted_folders,
+            ...undecryptable_folders.map((folder: FolderDefinition) =>
+              build_undecryptable_folder(folder, t("common.unable_to_decrypt")),
+            ),
+          ];
+
+          cached_folders.data = visible_folders;
+          cached_folders.total = visible_folders.length;
+          cached_folders.has_loaded = !none_readable;
+
+          set_state({
+            folders: visible_folders,
+            is_loading: false,
+            error: null,
+            total: response.data.total,
+          });
+          notify_folders_loaded();
+
+          const has_protected = visible_folders.some(
+            (f) => f.is_password_protected && f.password_set,
+          );
+
+          if (has_protected) {
+            emit_protected_folders_ready();
+          }
+
+          return none_readable ? "unreadable" : "done";
+        } catch {
+          if (this_generation !== fetch_generation_ref.current) return "stale";
+
+          return "retry";
+        }
+      };
+
+      let fetch_failed = false;
+
+      for (let attempt = 0; ; attempt += 1) {
+        const is_last_attempt = attempt >= FOLDER_RETRY_DELAYS_MS.length;
+        const outcome = await attempt_fetch(is_last_attempt);
+
+        if (outcome === "done" || outcome === "stale") return;
+
+        if (is_last_attempt) {
+          fetch_failed = outcome === "retry";
+          break;
+        }
+
+        await wait(FOLDER_RETRY_DELAYS_MS[attempt]);
+
+        if (this_generation !== fetch_generation_ref.current) return;
+      }
+
+      if (fetch_failed) {
+        set_state((prev) =>
+          cached_folders.has_loaded
+            ? {
+                folders: cached_folders.data,
+                is_loading: false,
+                error: null,
+                total: cached_folders.total,
+              }
+            : {
+                ...prev,
+                is_loading: false,
+                error:
+                  prev.folders.length > 0
+                    ? null
+                    : t("common.failed_to_fetch_folders"),
+              },
+        );
+      }
+
+      const retry_in_background = async (): Promise<void> => {
+        for (const delay of FOLDER_BACKGROUND_RETRY_DELAYS_MS) {
+          await wait(delay);
+
+          if (this_generation !== fetch_generation_ref.current) return;
+          const outcome = await attempt_fetch(true);
+
+          if (outcome === "done" || outcome === "stale") return;
+        }
+
+        if (!fetch_failed) return;
+
+        for (;;) {
+          await wait(FOLDER_FAILED_FETCH_RETRY_MS);
+
+          if (this_generation !== fetch_generation_ref.current) return;
+          if (!has_passphrase_in_memory()) return;
+          if (!navigator.onLine || document.visibilityState === "hidden") {
+            continue;
+          }
+
+          const outcome = await attempt_fetch(true);
+
+          if (outcome !== "retry") return;
+        }
+      };
+
+      void retry_in_background();
+    },
+    [t],
+  );
+
+  useEffect(() => {
+    return on_folders_loaded(() => {
+      set_state((prev) =>
+        prev.error === null
+          ? prev
+          : {
+              folders: cached_folders.data,
+              is_loading: false,
+              error: null,
+              total: cached_folders.total,
+            },
+      );
+    });
+  }, []);
+
+  const fetch_counts = useCallback(async (): Promise<void> => {
+    const this_generation = ++counts_generation_ref.current;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const fetch_started_at = Date.now();
+
+      try {
+        const response = await get_folder_counts();
+
+        if (this_generation !== counts_generation_ref.current) return;
+
+        if (!response.data) {
+          if (attempt === 2) return;
+
+          await new Promise((resolve) =>
+            setTimeout(resolve, 1000 * (attempt + 1)),
+          );
+
+          if (this_generation !== counts_generation_ref.current) return;
+
+          continue;
+        }
+
+        if (counts_adjusted_at_ref.current > fetch_started_at) {
+          await new Promise((resolve) => setTimeout(resolve, 400));
+
+          if (this_generation !== counts_generation_ref.current) return;
+
+          continue;
+        }
+
+        const new_counts: FolderCounts = {};
+        const new_unread_counts: FolderCounts = {};
+
+        for (const folder of cached_folders.data) {
+          new_counts[folder.folder_token] = 0;
+          new_unread_counts[folder.folder_token] = 0;
+        }
+
+        for (const item of response.data.counts) {
+          new_counts[item.folder_token] = item.count;
+          new_unread_counts[item.folder_token] = item.unread_count;
+        }
+        set_counts(new_counts);
+        set_unread_counts(new_unread_counts);
+
+        return;
+      } catch {
+        return;
+      }
+    }
+  }, []);
+
+  const reorder_folders = useCallback(
+    async (entries: FolderOrderEntry[]): Promise<boolean> => {
+      if (entries.length === 0) return true;
+
+      const order_map = new Map(entries.map((e) => [e.id, e.sort_order]));
+      const previous_orders = new Map(
+        cached_folders.data
+          .filter((folder) => order_map.has(folder.id))
+          .map((folder) => [folder.id, folder.sort_order]),
+      );
+
+      const apply_orders = (orders: Map<string, number>) => {
+        const with_orders = (folders: DecryptedFolder[]) =>
+          folders.map((folder) => {
+            const next_order = orders.get(folder.id);
+
+            return next_order === undefined
+              ? folder
+              : { ...folder, sort_order: next_order };
+          });
+
+        cached_folders.data = with_orders(cached_folders.data);
+
+        set_state((prev) => {
+          const updated_folders = with_orders(prev.folders);
+
+          cached_folders.data = updated_folders;
+
+          return {
+            ...prev,
+            folders: updated_folders,
+          };
+        });
+      };
+
+      apply_orders(order_map);
+
+      let saved = false;
+
+      try {
+        const response = await bulk_reorder_folders(entries);
+
+        saved = !response.error;
+      } catch {
+        saved = false;
+      }
+
+      if (!saved) {
+        apply_orders(previous_orders);
+      }
+
+      emit_folders_changed();
+      broadcast_folders_changed();
+
+      return saved;
+    },
+    [],
+  );
+
+  const sort_folders_a_z = useCallback(async (): Promise<boolean> => {
+    return reorder_folders(sort_folder_tree_a_z(cached_folders.data));
+  }, [reorder_folders]);
+
+  const create_new_folder = useCallback(
+    async (
+      name: string,
+      color?: string,
+      parent_token?: string,
+      options?: CreateFolderOptions,
+    ): Promise<{
+      folder: DecryptedFolder | null;
+      error?: string;
+      code?: string;
+    }> => {
+      const trimmed_name = name.trim();
+
+      if (!trimmed_name || trimmed_name.length > 100) {
+        return { folder: null, code: "INVALID_NAME" };
+      }
+
+      const vault = get_vault_from_memory();
+
+      if (!vault?.identity_key) {
+        return { folder: null, code: "NO_VAULT" };
+      }
+
+      if (has_sibling_named(cached_folders.data, trimmed_name, parent_token)) {
+        return { folder: null, code: "DUPLICATE" };
+      }
+
+      try {
+        const folder_token = generate_folder_token();
+
+        const { encrypted: encrypted_name, nonce: name_nonce } =
+          await encrypt_folder_field(trimmed_name, vault.identity_key);
+
+        const request: CreateFolderRequest = {
+          folder_token: folder_token,
+          encrypted_name,
+          name_nonce,
+        };
+
+        if (color) {
+          const { encrypted: encrypted_color, nonce: color_nonce } =
+            await encrypt_folder_field(color, vault.identity_key);
+
+          request.encrypted_color = encrypted_color;
+          request.color_nonce = color_nonce;
+        }
+
+        if (parent_token) {
+          request.parent_token = parent_token;
+        }
+
+        const created_at = new Date().toISOString();
+        const siblings = get_child_folders(cached_folders.data, parent_token);
+        const placement = options?.append
+          ? []
+          : place_folder_among_siblings(siblings, {
+              id: PENDING_FOLDER_ID,
+              folder_token,
+              name: trimmed_name,
+              is_system: false,
+              is_locked: false,
+              folder_type: "custom",
+              is_password_protected: false,
+              password_set: false,
+              sort_order: 0,
+              parent_token,
+              created_at,
+              updated_at: created_at,
+            });
+        const sort_order =
+          placement.find((entry) => entry.id === PENDING_FOLDER_ID)
+            ?.sort_order ?? append_sort_order(siblings);
+        const sibling_entries = placement.filter(
+          (entry) => entry.id !== PENDING_FOLDER_ID,
+        );
+
+        request.sort_order = sort_order;
+
+        const response = await create_folder(request);
+
+        if (response.error || !response.data) {
+          return {
+            folder: null,
+            error: response.error,
+            code: response.server_code || response.code,
+          };
+        }
+
+        const new_folder: DecryptedFolder = {
+          id: response.data.id,
+          folder_token: response.data.folder_token,
+          name: trimmed_name,
+          color,
+          is_system: false,
+          is_locked: false,
+          folder_type: "custom",
+          is_password_protected: false,
+          password_set: false,
+          sort_order,
+          parent_token,
+          item_count: 0,
+          created_at,
+          updated_at: created_at,
+        };
+
+        cached_folders.data = [...cached_folders.data, new_folder];
+        cached_folders.total = cached_folders.data.length;
+
+        set_state((prev) => {
+          const updated_folders = [...prev.folders, new_folder];
+
+          cached_folders.data = updated_folders;
+          cached_folders.total = updated_folders.length;
+
+          return {
+            ...prev,
+            folders: updated_folders,
+            total: updated_folders.length,
+          };
+        });
+
+        emit_folders_changed();
+        broadcast_folders_changed();
+
+        if (sibling_entries.length > 0) {
+          void reorder_folders(sibling_entries);
+        }
+
+        return { folder: new_folder };
+      } catch {
+        return { folder: null, code: "ENCRYPTION_ERROR" };
+      }
+    },
+    [reorder_folders],
+  );
+
+  const update_existing_folder = useCallback(
+    async (
+      folder_id: string,
+      name?: string,
+      color?: string,
+      sort_order?: number,
+      parent_token?: string,
+    ): Promise<boolean> => {
+      const vault = get_vault_from_memory();
+
+      if (!vault?.identity_key) {
+        return false;
+      }
+
+      const snapshot = cached_folders.data;
+      const current = snapshot.find((folder) => folder.id === folder_id);
+
+      try {
+        const request: UpdateFolderRequest = {};
+
+        if (name !== undefined) {
+          const { encrypted, nonce } = await encrypt_folder_field(
+            name,
+            vault.identity_key,
+          );
+
+          request.encrypted_name = encrypted;
+          request.name_nonce = nonce;
+        }
+
+        if (color !== undefined) {
+          const { encrypted, nonce } = await encrypt_folder_field(
+            color,
+            vault.identity_key,
+          );
+
+          request.encrypted_color = encrypted;
+          request.color_nonce = nonce;
+        }
+
+        if (sort_order !== undefined) {
+          request.sort_order = sort_order;
+        }
+
+        if (parent_token !== undefined) {
+          request.parent_token = parent_token;
+        }
+
+        const response = await update_folder(folder_id, request);
+
+        if (response.error) {
+          return false;
+        }
+
+        const updated_at = new Date().toISOString();
+        const with_update = (folders: DecryptedFolder[]) =>
+          folders.map((folder) =>
+            folder.id === folder_id
+              ? {
+                  ...folder,
+                  ...(name !== undefined && { name }),
+                  ...(color !== undefined && { color }),
+                  ...(sort_order !== undefined && { sort_order }),
+                  ...(parent_token !== undefined && { parent_token }),
+                  updated_at,
+                }
+              : folder,
+          );
+
+        cached_folders.data = with_update(cached_folders.data);
+
+        set_state((prev) => {
+          const updated_folders = with_update(prev.folders);
+
+          cached_folders.data = updated_folders;
+          cached_folders.total = updated_folders.length;
+
+          return {
+            ...prev,
+            folders: updated_folders,
+          };
+        });
+
+        emit_folders_changed();
+        broadcast_folders_changed();
+
+        const placement = placement_after_update(
+          snapshot,
+          current,
+          name,
+          sort_order,
+          parent_token,
+        );
+
+        if (placement.length > 0) {
+          void reorder_folders(placement);
+        }
+
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [reorder_folders],
+  );
+
+  const delete_existing_folder = useCallback(
+    async (
+      folder_id: string,
+      options?: DeleteFolderRequest,
+    ): Promise<DeleteFolderOutcome> => {
+      try {
+        const response = await delete_folder(folder_id, options);
+
+        if (response.error && response.code !== "NOT_FOUND") {
+          return {
+            success: false,
+            error: response.error,
+            code: response.code,
+          };
+        }
+
+        set_state((prev) => {
+          const updated_folders = prev.folders.filter(
+            (folder) => folder.id !== folder_id,
+          );
+
+          cached_folders.data = updated_folders;
+          cached_folders.total = updated_folders.length;
+
+          return {
+            ...prev,
+            folders: updated_folders,
+            total: updated_folders.length,
+          };
+        });
+
+        emit_folders_changed();
+        broadcast_folders_changed();
+
+        return {
+          success: true,
+          purged_items: response.data?.purged_items ?? 0,
+        };
+      } catch {
+        return { success: false };
+      }
+    },
+    [],
+  );
+
+  const adjust_folder_counts = useCallback(
+    (folder_token: string, delta: number, unread_delta: number) => {
+      counts_adjusted_at_ref.current = Date.now();
+      set_counts((prev) => ({
+        ...prev,
+        [folder_token]: Math.max(0, (prev[folder_token] || 0) + delta),
+      }));
+
+      if (unread_delta === 0) return;
+
+      set_unread_counts((prev) => ({
+        ...prev,
+        [folder_token]: Math.max(0, (prev[folder_token] || 0) + unread_delta),
+      }));
+    },
+    [],
+  );
+
+  const add_folder_to_email = useCallback(
+    async (
+      email_id: string,
+      folder_token: string,
+      is_unread = false,
+    ): Promise<boolean> => {
+      const unread_delta = is_unread ? 1 : 0;
+
+      adjust_folder_counts(folder_token, 1, unread_delta);
+
+      try {
+        const response = await add_mail_item_folder(email_id, { folder_token });
+
+        if (response.error) {
+          adjust_folder_counts(folder_token, -1, -unread_delta);
+
+          return false;
+        }
+
+        counts_adjusted_at_ref.current = Date.now();
+
+        const target_folder = cached_folders.data.find(
+          (f) => f.folder_token === folder_token,
+        );
+
+        if (
+          target_folder?.is_password_protected &&
+          target_folder?.password_set
+        ) {
+          emit_mail_items_removed({ ids: [email_id] });
+        }
+
+        return true;
+      } catch {
+        adjust_folder_counts(folder_token, -1, -unread_delta);
+
+        return false;
+      }
+    },
+    [adjust_folder_counts],
+  );
+
+  const remove_folder_from_email = useCallback(
+    async (
+      email_id: string,
+      folder_token: string,
+      is_unread = false,
+    ): Promise<boolean> => {
+      const unread_delta = is_unread ? 1 : 0;
+
+      adjust_folder_counts(folder_token, -1, -unread_delta);
+
+      try {
+        const response = await remove_mail_item_folder(email_id, folder_token);
+
+        if (response.error) {
+          adjust_folder_counts(folder_token, 1, unread_delta);
+
+          return false;
+        }
+
+        counts_adjusted_at_ref.current = Date.now();
+
+        return true;
+      } catch {
+        adjust_folder_counts(folder_token, 1, unread_delta);
+
+        return false;
+      }
+    },
+    [adjust_folder_counts],
+  );
+
+  const get_folder_by_token = useCallback(
+    (folder_token: string): DecryptedFolder | undefined => {
+      return state.folders.find(
+        (folder) => folder.folder_token === folder_token,
+      );
+    },
+    [state.folders],
+  );
+
+  const get_folder_by_id = useCallback(
+    (folder_id: string): DecryptedFolder | undefined => {
+      return state.folders.find((folder) => folder.id === folder_id);
+    },
+    [state.folders],
+  );
+
+  const toggle_folder_lock = useCallback(
+    async (folder_id: string, is_locked: boolean): Promise<boolean> => {
+      try {
+        const response = await update_folder(folder_id, { is_locked });
+
+        if (response.error) {
+          return false;
+        }
+
+        set_state((prev) => {
+          const updated_folders = prev.folders.map((folder) =>
+            folder.id === folder_id
+              ? { ...folder, is_locked, updated_at: new Date().toISOString() }
+              : folder,
+          );
+
+          cached_folders.data = updated_folders;
+          cached_folders.total = updated_folders.length;
+
+          return {
+            ...prev,
+            folders: updated_folders,
+          };
+        });
+
+        emit_folders_changed();
+        broadcast_folders_changed();
+
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [],
+  );
+
+  const refresh = useCallback(async (): Promise<void> => {
+    await fetch_folders();
+  }, [fetch_folders]);
+
+  useEffect(() => {
+    const current_user_id = user?.id || null;
+    const prev_user_id = prev_user_id_ref.current;
+
+    if (
+      prev_user_id !== null &&
+      current_user_id !== null &&
+      prev_user_id !== current_user_id
+    ) {
+      fetch_generation_ref.current += 1;
+      counts_generation_ref.current += 1;
+      cached_folders.data = [];
+      cached_folders.total = 0;
+      cached_folders.has_loaded = false;
+      set_state({
+        folders: [],
+        is_loading: true,
+        error: null,
+        total: 0,
+      });
+      set_counts({});
+      set_unread_counts({});
+    }
+
+    if (current_user_id !== null) {
+      prev_user_id_ref.current = current_user_id;
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    return on_keys_ready(() => {
+      refresh();
+      fetch_counts();
+    });
+  }, [refresh, fetch_counts]);
+
+  useEffect(() => {
+    return () => {
+      abort_ref.current?.abort();
+      fetch_generation_ref.current += 1;
+    };
+  }, []);
+
+  useEffect(() => {
+    let counts_debounce: ReturnType<typeof setTimeout> | null = null;
+    let counts_confirm: ReturnType<typeof setTimeout> | null = null;
+    let folders_debounce: ReturnType<typeof setTimeout> | null = null;
+
+    const counts_handler = () => {
+      if (counts_debounce) clearTimeout(counts_debounce);
+      counts_debounce = setTimeout(() => {
+        if (has_passphrase_in_memory()) {
+          fetch_counts();
+        }
+      }, COUNTS_DEBOUNCE_MS);
+    };
+
+    const schedule_counts_confirm = () => {
+      if (counts_confirm) clearTimeout(counts_confirm);
+      counts_confirm = setTimeout(() => {
+        counts_confirm = null;
+        if (has_passphrase_in_memory()) {
+          fetch_counts();
+        }
+      }, COUNTS_CONFIRM_MS);
+    };
+
+    const item_update_handler = (event: Event) => {
+      const detail = (event as CustomEvent<MailItemUpdatedEventDetail>).detail;
+
+      if (
+        detail?.is_read !== undefined ||
+        detail?.is_trashed !== undefined ||
+        detail?.is_archived !== undefined ||
+        detail?.is_spam !== undefined ||
+        detail?.snoozed_until !== undefined ||
+        detail?.folders !== undefined ||
+        detail?.tags !== undefined
+      ) {
+        counts_handler();
+        schedule_counts_confirm();
+      }
+    };
+
+    const folders_handler = () => {
+      if (folders_debounce) clearTimeout(folders_debounce);
+      folders_debounce = setTimeout(() => {
+        folders_debounce = null;
+        if (has_passphrase_in_memory()) {
+          fetch_folders();
+        }
+      }, FOLDERS_REFETCH_DEBOUNCE_MS);
+    };
+
+    const reload_handler = () => {
+      if (has_passphrase_in_memory()) {
+        fetch_folders();
+        fetch_counts();
+      }
+    };
+
+    const visibility_handler = () => {
+      if (
+        document.visibilityState === "visible" &&
+        has_passphrase_in_memory()
+      ) {
+        fetch_folders();
+        fetch_counts();
+      }
+    };
+
+    const channel = get_folder_broadcast_channel();
+    const broadcast_handler = (event: MessageEvent) => {
+      if (
+        event.data?.type === "folders_changed" &&
+        has_passphrase_in_memory()
+      ) {
+        fetch_folders();
+      }
+    };
+
+    window.addEventListener(MAIL_EVENTS.MAIL_CHANGED, counts_handler);
+    window.addEventListener(MAIL_EVENTS.EMAIL_RECEIVED, counts_handler);
+    window.addEventListener(MAIL_EVENTS.EMAIL_SENT, counts_handler);
+    window.addEventListener(MAIL_EVENTS.MAIL_ACTION, counts_handler);
+    window.addEventListener(MAIL_EVENTS.MAIL_STATS_STALE, counts_handler);
+    window.addEventListener(MAIL_EVENTS.MAIL_SOFT_REFRESH, counts_handler);
+    window.addEventListener(MAIL_EVENTS.MAIL_ITEM_UPDATED, item_update_handler);
+    window.addEventListener(MAIL_EVENTS.FOLDERS_CHANGED, folders_handler);
+    window.addEventListener(MAIL_EVENTS.DEFINITIONS_STALE, folders_handler);
+    window.addEventListener(MAIL_EVENTS.AUTH_READY, reload_handler);
+    document.addEventListener("visibilitychange", visibility_handler);
+    window.addEventListener("online", reload_handler);
+    channel?.addEventListener("message", broadcast_handler);
+
+    return () => {
+      if (counts_debounce) clearTimeout(counts_debounce);
+      if (counts_confirm) clearTimeout(counts_confirm);
+      if (folders_debounce) clearTimeout(folders_debounce);
+      window.removeEventListener(MAIL_EVENTS.MAIL_CHANGED, counts_handler);
+      window.removeEventListener(MAIL_EVENTS.EMAIL_RECEIVED, counts_handler);
+      window.removeEventListener(MAIL_EVENTS.EMAIL_SENT, counts_handler);
+      window.removeEventListener(MAIL_EVENTS.MAIL_ACTION, counts_handler);
+      window.removeEventListener(MAIL_EVENTS.MAIL_STATS_STALE, counts_handler);
+      window.removeEventListener(MAIL_EVENTS.MAIL_SOFT_REFRESH, counts_handler);
+      window.removeEventListener(
+        MAIL_EVENTS.MAIL_ITEM_UPDATED,
+        item_update_handler,
+      );
+      window.removeEventListener(MAIL_EVENTS.FOLDERS_CHANGED, folders_handler);
+      window.removeEventListener(
+        MAIL_EVENTS.DEFINITIONS_STALE,
+        folders_handler,
+      );
+      window.removeEventListener(MAIL_EVENTS.AUTH_READY, reload_handler);
+      document.removeEventListener("visibilitychange", visibility_handler);
+      window.removeEventListener("online", reload_handler);
+      channel?.removeEventListener("message", broadcast_handler);
+    };
+  }, [fetch_counts, fetch_folders]);
+
+  return {
+    state,
+    counts,
+    unread_counts,
+    fetch_folders,
+    fetch_counts,
+    create_new_folder,
+    update_existing_folder,
+    reorder_folders,
+    sort_folders_a_z,
+    delete_existing_folder,
+    toggle_folder_lock,
+    add_folder_to_email,
+    remove_folder_from_email,
+    get_folder_by_token,
+    get_folder_by_id,
+    refresh,
+  };
+}
+
+export type { FolderCounts, FoldersState };
+
+export { encrypt_folder_field, generate_folder_token };

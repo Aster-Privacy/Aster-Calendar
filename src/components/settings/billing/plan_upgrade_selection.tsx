@@ -1,0 +1,1011 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { TranslationKey } from "@/lib/i18n";
+import type { AvailablePlan } from "@/services/api/billing";
+
+import { useState, useEffect, useCallback } from "react";
+import {
+  ArrowTopRightOnSquareIcon,
+  UserGroupIcon,
+} from "@heroicons/react/24/outline";
+import {
+  Button,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@aster/ui";
+
+import { checkout_error_text } from "./checkout_error_text";
+
+import { safe_local_set } from "@/lib/safe_storage";
+import { calendar_booking_available, is_calendar_app } from "@/lib/app_kind";
+import { calendar_plan_limits } from "@/lib/calendar_plan_limits";
+import { use_i18n } from "@/lib/i18n/context";
+import { LoadFailedNotice } from "@/components/settings/load_failed_notice";
+import { Spinner } from "@/components/ui/spinner";
+import { pricing_comparison_url } from "@/lib/canonical_urls";
+import { PlanPaymentMethodModal } from "@/components/settings/billing/plan_payment_method_modal";
+import { CryptoTermModal } from "@/components/settings/billing/crypto_term_modal";
+import {
+  get_available_plans,
+  format_price,
+  open_payment_url,
+  start_hosted_checkout,
+} from "@/services/api/billing";
+import { create_family_group } from "@/services/api/family";
+import {
+  show_toast,
+  TOAST_DURATION_BILLING_MS,
+} from "@/components/toast/simple_toast";
+import {
+  PLAN_TIERS,
+  FAMILY_PLAN_TIERS,
+  family_yearly_savings_cents,
+  FAMILY_PLAN_DUO_FEATURES,
+  FAMILY_PLAN_FAMILY_FEATURES,
+  type PlanTier,
+  type FamilyPlanTier,
+  convert_cents,
+  detect_currency_from_locale,
+  SUPPORTED_CURRENCIES,
+  CURRENCY_STORAGE_KEY,
+} from "@/components/settings/billing/billing_constants";
+import { use_currency_rates } from "@/components/settings/billing/use_currency_rates";
+import { DatedCalendarLogo } from "@/components/calendar/dated_calendar_logo";
+
+type TFunc = (
+  key: TranslationKey,
+  params?: Record<string, string | number>,
+) => string;
+
+interface FeatureRow {
+  on: boolean;
+  text: React.ReactNode;
+}
+
+function bold(text: string): React.ReactNode {
+  return <strong className="font-bold">{text}</strong>;
+}
+
+function with_bold(prefix: string, rest: string): React.ReactNode {
+  return (
+    <>
+      {bold(prefix)} {rest}
+    </>
+  );
+}
+
+const TIER_DESCRIPTION_KEYS: Record<string, TranslationKey> = {
+  star: "auth.plan_star_description",
+  nova: "auth.plan_nova_description",
+  supernova: "auth.plan_supernova_description",
+};
+
+export function calendar_feature_list_for_tier(
+  tier_id: string,
+  t: TFunc,
+): FeatureRow[] {
+  const storage =
+    tier_id === "star" ? "50 GB" : tier_id === "nova" ? "500 GB" : "5 TB";
+  const accounts = tier_id === "star" ? "3" : tier_id === "nova" ? "5" : "20";
+  const limits = calendar_plan_limits(tier_id);
+
+  return [
+    {
+      on: true,
+      text: with_bold(storage, t("settings.encrypted_storage_suffix")),
+    },
+    {
+      on: true,
+      text: t("settings.cal_plan_feat_calendars", {
+        value: String(limits.calendars),
+      }),
+    },
+    ...(calendar_booking_available()
+      ? [
+          {
+            on: true,
+            text: t("settings.cal_plan_feat_booking", {
+              value: String(limits.booking_pages),
+            }),
+          },
+          { on: true, text: t("settings.cal_plan_feat_no_branding") },
+        ]
+      : []),
+    { on: true, text: t("settings.plan_f_calendar_invites") },
+    { on: true, text: t("settings.plan_f_calendar_reminders") },
+    { on: true, text: t("settings.plan_f_calendar_subscriptions") },
+    { on: true, text: t("settings.plan_f_calendar_import_export") },
+    {
+      on: true,
+      text: t("settings.plan_f_multi_accounts", { value: accounts }),
+    },
+    { on: true, text: t("settings.f_e2ee") },
+    { on: true, text: t("settings.f_zero_knowledge") },
+    { on: true, text: t("settings.plan_f_support_priority") },
+    {
+      on: tier_id === "supernova",
+      text: t("settings.plan_f_support_dedicated"),
+    },
+    { on: tier_id === "supernova", text: t("settings.plan_f_early_access") },
+  ];
+}
+
+function feature_list_for_tier(tier_id: string, t: TFunc): FeatureRow[] {
+  if (is_calendar_app()) return calendar_feature_list_for_tier(tier_id, t);
+
+  const unlimited = t("settings.unlimited");
+
+  if (tier_id === "star") {
+    return [
+      {
+        on: true,
+        text: with_bold("50 GB", t("settings.encrypted_storage_suffix")),
+      },
+      { on: true, text: with_bold("15", t("settings.email_aliases_suffix")) },
+      { on: true, text: with_bold("5", t("settings.custom_domains_suffix")) },
+      { on: true, text: with_bold("50 MB", t("settings.attachments_suffix")) },
+      { on: true, text: with_bold(unlimited, t("settings.mail_rules_suffix")) },
+      { on: true, text: t("settings.f_e2ee") },
+      { on: true, text: t("settings.f_zero_knowledge") },
+      { on: true, text: t("settings.f_tracker_protection_long") },
+      { on: true, text: t("settings.plan_f_alias_avatars") },
+      { on: true, text: t("settings.plan_f_catch_all") },
+      { on: true, text: t("settings.f_auto_forward") },
+      { on: true, text: t("settings.plan_f_support_priority") },
+      { on: true, text: t("settings.plan_f_imap_smtp_bridge") },
+      { on: false, text: t("settings.f_folder_lock") },
+      { on: false, text: t("settings.plan_f_smart_folders") },
+      { on: false, text: t("settings.lockdown_title") },
+    ];
+  }
+  if (tier_id === "nova") {
+    return [
+      {
+        on: true,
+        text: with_bold("500 GB", t("settings.encrypted_storage_suffix")),
+      },
+      {
+        on: true,
+        text: with_bold(unlimited, t("settings.email_aliases_suffix")),
+      },
+      { on: true, text: with_bold("30", t("settings.custom_domains_suffix")) },
+      { on: true, text: with_bold("100 MB", t("settings.attachments_suffix")) },
+      { on: true, text: with_bold(unlimited, t("settings.mail_rules_suffix")) },
+      { on: true, text: t("settings.f_e2ee") },
+      { on: true, text: t("settings.f_zero_knowledge") },
+      { on: true, text: t("settings.f_tracker_protection_long") },
+      { on: true, text: t("settings.plan_f_alias_avatars") },
+      { on: true, text: t("settings.plan_f_catch_all") },
+      { on: true, text: t("settings.f_auto_forward") },
+      { on: true, text: t("settings.plan_f_support_priority") },
+      { on: true, text: t("settings.plan_f_imap_smtp_bridge") },
+      { on: true, text: t("settings.f_folder_lock") },
+      { on: true, text: t("settings.plan_f_smart_folders") },
+      { on: true, text: t("settings.lockdown_title") },
+    ];
+  }
+
+  return [
+    {
+      on: true,
+      text: with_bold("5 TB", t("settings.encrypted_storage_suffix")),
+    },
+    {
+      on: true,
+      text: with_bold(unlimited, t("settings.email_aliases_suffix")),
+    },
+    {
+      on: true,
+      text: with_bold(unlimited, t("settings.custom_domains_suffix")),
+    },
+    { on: true, text: with_bold("250 MB", t("settings.attachments_suffix")) },
+    { on: true, text: with_bold(unlimited, t("settings.mail_rules_suffix")) },
+    { on: true, text: t("settings.f_e2ee") },
+    { on: true, text: t("settings.f_zero_knowledge") },
+    { on: true, text: t("settings.f_tracker_protection_long") },
+    { on: true, text: t("settings.plan_f_alias_avatars") },
+    { on: true, text: t("settings.plan_f_catch_all") },
+    { on: true, text: t("settings.f_auto_forward") },
+    { on: true, text: t("settings.plan_f_support_priority") },
+    { on: true, text: t("settings.plan_f_imap_smtp_bridge") },
+    { on: true, text: t("settings.f_folder_lock") },
+    { on: true, text: t("settings.plan_f_smart_folders") },
+    { on: true, text: t("settings.lockdown_title") },
+  ];
+}
+
+const CHECK_SVG = (
+  <svg
+    fill="none"
+    height="18"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    viewBox="0 0 24 24"
+    width="18"
+  >
+    <path
+      d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const CROSS_SVG = (
+  <svg
+    fill="none"
+    height="18"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    viewBox="0 0 24 24"
+    width="18"
+  >
+    <path
+      d="M9.75 9.75 14.25 14.25M14.25 9.75 9.75 14.25M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+interface PlanUpgradeSelectionProps {
+  heading: string;
+  subheading: string;
+  back_label: string;
+  on_back: () => void;
+}
+
+export function PlanUpgradeSelection({
+  heading,
+  subheading,
+  back_label,
+  on_back,
+}: PlanUpgradeSelectionProps) {
+  const { t } = use_i18n();
+  const [plan_type, set_plan_type] = useState<"individual" | "family">(
+    "individual",
+  );
+  const [billing_period, set_billing_period] = useState<"monthly" | "yearly">(
+    "monthly",
+  );
+
+  const yearly_save_percent = Math.max(
+    0,
+    ...(plan_type === "family" ? FAMILY_PLAN_TIERS : PLAN_TIERS)
+      .filter((tier) => tier.monthly_cents > 0)
+      .map((tier) =>
+        Math.round(
+          ((tier.monthly_cents * 12 - tier.yearly_cents) /
+            (tier.monthly_cents * 12)) *
+            100,
+        ),
+      ),
+  );
+
+  const [currency, set_currency] = useState<string>("usd");
+  const [plans, set_plans] = useState<AvailablePlan[]>([]);
+  const [is_loading, set_is_loading] = useState(true);
+  const [plans_load_failed, set_plans_load_failed] = useState(false);
+  const [is_finalizing, set_is_finalizing] = useState(false);
+  const [pending_tier, set_pending_tier] = useState<{
+    tier: PlanTier;
+    plan: AvailablePlan;
+  } | null>(null);
+  const [crypto_tier, set_crypto_tier] = useState<{
+    tier: PlanTier;
+    plan: AvailablePlan;
+  } | null>(null);
+  const [crypto_term_months, set_crypto_term_months] = useState(1);
+  const [pending_family_tier, set_pending_family_tier] =
+    useState<FamilyPlanTier | null>(null);
+  const [crypto_family_tier, set_crypto_family_tier] =
+    useState<FamilyPlanTier | null>(null);
+
+  use_currency_rates();
+
+  useEffect(() => {
+    set_currency(detect_currency_from_locale());
+  }, []);
+
+  useEffect(() => {
+    const handle_page_show = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        set_is_finalizing(false);
+        set_pending_tier(null);
+        set_crypto_tier(null);
+        set_pending_family_tier(null);
+        set_crypto_family_tier(null);
+      }
+    };
+
+    window.addEventListener("pageshow", handle_page_show);
+
+    return () => window.removeEventListener("pageshow", handle_page_show);
+  }, []);
+
+  const load_plans = useCallback(async () => {
+    set_is_loading(true);
+    set_plans_load_failed(false);
+
+    const res = await get_available_plans();
+
+    if (res.data) {
+      set_plans(res.data.plans);
+    } else {
+      set_plans([]);
+      set_plans_load_failed(true);
+    }
+    set_is_loading(false);
+  }, []);
+
+  useEffect(() => {
+    void load_plans();
+  }, [load_plans]);
+
+  const billing_interval: "month" | "year" =
+    billing_period === "yearly" ? "year" : "month";
+
+  const handle_currency_change = (next: string) => {
+    set_currency(next);
+    safe_local_set(CURRENCY_STORAGE_KEY, next);
+  };
+
+  const handle_select_tier = useCallback(
+    (tier: PlanTier) => {
+      const api_plan = plans.find((p) => p.code === tier.id);
+
+      if (!api_plan) return;
+      set_pending_tier({ tier, plan: api_plan });
+    },
+    [plans],
+  );
+
+  const handle_pay_with_card = useCallback(
+    async (term_id?: string) => {
+      if (!pending_tier) return;
+
+      const tier = pending_tier;
+
+      set_pending_tier(null);
+      set_is_finalizing(true);
+
+      const interval =
+        term_id === "biennial"
+          ? "biennial"
+          : term_id === "monthly"
+            ? "month"
+            : term_id === "yearly"
+              ? "year"
+              : billing_interval;
+
+      const result = await start_hosted_checkout(
+        tier.plan.code,
+        interval,
+        currency,
+      ).catch(() => ({
+        ok: false,
+        error: undefined,
+        server_code: undefined,
+      }));
+
+      if (!result.ok) {
+        set_is_finalizing(false);
+        show_toast(
+          checkout_error_text(t, result.server_code),
+          "error",
+          TOAST_DURATION_BILLING_MS,
+        );
+
+        return;
+      }
+
+      // On web, start_hosted_checkout navigates this tab to Stripe and the
+      // overlay is torn down with the page. On desktop, checkout opens in an
+      // external browser and this window stays put, so clear the overlay here
+      // instead of leaving it spinning forever.
+      if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+        set_is_finalizing(false);
+      }
+    },
+    [pending_tier, billing_interval, currency, t],
+  );
+
+  const handle_pay_with_crypto = useCallback(
+    (term_id?: string) => {
+      if (!pending_tier) return;
+      set_crypto_term_months(
+        term_id === "monthly" ? 1 : term_id === "biennial" ? 24 : 12,
+      );
+      set_crypto_tier(pending_tier);
+      set_pending_tier(null);
+    },
+    [pending_tier],
+  );
+
+  const handle_family_card = useCallback(
+    async (term_id?: string) => {
+      if (!pending_family_tier) return;
+      const tier = pending_family_tier;
+
+      set_pending_family_tier(null);
+      set_is_finalizing(true);
+
+      const interval: "month" | "year" =
+        term_id === "monthly"
+          ? "month"
+          : term_id === "yearly"
+            ? "year"
+            : billing_interval;
+
+      const res = await create_family_group(tier.id, interval).catch(() => ({
+        data: undefined,
+        error: undefined,
+        server_code: undefined,
+      }));
+
+      if (res.data?.checkout_url) {
+        try {
+          await open_payment_url(res.data.checkout_url);
+
+          if (
+            typeof window !== "undefined" &&
+            "__TAURI_INTERNALS__" in window
+          ) {
+            set_is_finalizing(false);
+          }
+        } catch {
+          set_is_finalizing(false);
+          show_toast(
+            t("settings.failed_checkout"),
+            "error",
+            TOAST_DURATION_BILLING_MS,
+          );
+        }
+      } else {
+        set_is_finalizing(false);
+        show_toast(
+          checkout_error_text(t, res.server_code),
+          "error",
+          TOAST_DURATION_BILLING_MS,
+        );
+      }
+    },
+    [pending_family_tier, billing_interval, t],
+  );
+
+  const handle_family_crypto = useCallback(
+    (term_id?: string) => {
+      if (!pending_family_tier) return;
+      set_crypto_term_months(
+        term_id === "monthly" ? 1 : term_id === "biennial" ? 24 : 12,
+      );
+      set_crypto_family_tier(pending_family_tier);
+      set_pending_family_tier(null);
+    },
+    [pending_family_tier],
+  );
+
+  return (
+    <div className="fixed inset-0 overflow-y-auto bg-surf-primary">
+      <div className="min-h-full flex flex-col items-center px-4 py-10">
+        {is_calendar_app() ? (
+          <DatedCalendarLogo
+            alt={t("calendar.aster_calendar_brand")}
+            className="mb-6 h-9 w-auto object-contain"
+          />
+        ) : (
+          <img
+            alt="Aster"
+            className="h-10 mb-6"
+            decoding="async"
+            draggable={false}
+            src="/text_logo.png"
+          />
+        )}
+
+        <h1 className="text-xl font-semibold text-txt-primary text-center">
+          {heading}
+        </h1>
+        <p className="text-sm mt-2 leading-relaxed text-txt-tertiary text-center max-w-md">
+          {subheading}
+        </p>
+
+        <div className="flex flex-col items-center gap-3 mt-6">
+          <div className="inline-flex rounded-full p-[5px] gap-1 bg-surf-secondary">
+            {(["individual", "family"] as const).map((type) => {
+              const active = plan_type === type;
+
+              return (
+                <button
+                  key={type}
+                  className="flex items-center gap-1.5 px-[18px] py-[8px] rounded-full text-[13px] font-medium transition-colors"
+                  style={{
+                    backgroundColor: active
+                      ? "var(--accent-blue)"
+                      : "transparent",
+                    color: active ? "#fff" : "var(--text-tertiary)",
+                  }}
+                  type="button"
+                  onClick={() => set_plan_type(type)}
+                >
+                  {type === "family" && <UserGroupIcon className="w-4 h-4" />}
+                  {type === "individual"
+                    ? t("settings.plan_type_individual")
+                    : t("settings.plan_type_family")}
+                </button>
+              );
+            })}
+          </div>
+
+          <div
+            className="inline-flex items-center rounded-full p-[5px] gap-1 bg-surf-secondary"
+            role="tablist"
+          >
+            {(["monthly", "yearly"] as const).map((p) => {
+              const active = billing_period === p;
+
+              return (
+                <button
+                  key={p}
+                  aria-selected={active}
+                  className="inline-flex items-center px-[18px] py-[8px] rounded-full text-[13px] font-medium transition-colors"
+                  role="tab"
+                  style={{
+                    backgroundColor: active
+                      ? "var(--accent-blue)"
+                      : "transparent",
+                    color: active ? "#ffffff" : "var(--text-tertiary)",
+                  }}
+                  type="button"
+                  onClick={() => set_billing_period(p)}
+                >
+                  {p === "yearly"
+                    ? t("settings.billing_yearly")
+                    : t("settings.billing_monthly")}
+                  {p === "yearly" && yearly_save_percent > 0 && (
+                    <span
+                      className="ms-1.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                      style={{
+                        backgroundColor: active
+                          ? "rgba(255,255,255,0.22)"
+                          : "var(--accent-blue)",
+                        color: "var(--accent-fg, #ffffff)",
+                      }}
+                    >
+                      {t("settings.save_percent", {
+                        percent: yearly_save_percent,
+                      })}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
+          <p className="text-xs text-txt-muted text-center max-w-md">
+            {currency === "usd"
+              ? t("settings.prices_in_usd_note")
+              : t("settings.prices_converted_note")}
+          </p>
+          <Select value={currency} onValueChange={handle_currency_change}>
+            <SelectTrigger
+              aria-label={t("settings.currency")}
+              className="h-8 w-auto text-xs"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SUPPORTED_CURRENCIES.map((c) => (
+                <SelectItem key={c.code} value={c.code}>
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {is_loading ? (
+          <div className="flex items-center gap-2 mt-10 text-txt-tertiary">
+            <Spinner size="md" />
+            <span className="text-sm">{t("auth.plan_loading")}</span>
+          </div>
+        ) : plans_load_failed ? (
+          <div className="w-full max-w-md mt-10">
+            <LoadFailedNotice on_retry={() => void load_plans()} />
+          </div>
+        ) : plan_type === "family" ? (
+          <div className="w-full grid gap-5 mt-10 md:grid-cols-2 max-w-3xl items-stretch">
+            {FAMILY_PLAN_TIERS.map((tier) => {
+              const price_cents =
+                billing_period === "yearly"
+                  ? tier.yearly_cents
+                  : tier.monthly_cents;
+              const features = (
+                tier.max_members === 2
+                  ? FAMILY_PLAN_DUO_FEATURES
+                  : FAMILY_PLAN_FAMILY_FEATURES
+              ).map((feature) => ({
+                label: t(feature.label_key),
+                on: feature.on,
+                icon: feature.icon,
+              }));
+
+              return (
+                <div
+                  key={tier.id}
+                  className="relative rounded-3xl border flex flex-col gap-6 p-7 transition-colors duration-300 hover:border-edge-primary"
+                  style={{
+                    borderColor: tier.is_recommended
+                      ? "var(--accent-blue)"
+                      : "var(--border-primary)",
+                    backgroundColor: tier.is_recommended
+                      ? "var(--accent-blue-subtle, var(--bg-hover))"
+                      : "var(--bg-hover)",
+                  }}
+                >
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <UserGroupIcon className="w-5 h-5 text-txt-primary" />
+                      <h3 className="text-lg font-bold text-txt-primary">
+                        {tier.name}
+                      </h3>
+                    </div>
+                    <div className="flex items-baseline gap-1.5 flex-wrap">
+                      <span className="text-[40px] font-bold leading-none tracking-tight text-txt-primary">
+                        {format_price(
+                          convert_cents(price_cents, currency),
+                          currency,
+                        )}
+                      </span>
+                      <span className="text-sm text-txt-muted">
+                        {billing_period === "monthly"
+                          ? t("settings.per_month_short")
+                          : t("settings.per_year_short")}
+                      </span>
+                      {billing_period === "yearly" && (
+                        <span
+                          className="ms-1 px-2 py-[3px] rounded-full text-[10px] font-bold uppercase tracking-wider text-[var(--accent-fg,#ffffff)]"
+                          style={{ backgroundColor: "var(--accent-blue)" }}
+                        >
+                          {t("settings.save_yearly", {
+                            amount: format_price(
+                              convert_cents(
+                                family_yearly_savings_cents(tier),
+                                currency,
+                              ),
+                              currency,
+                            ),
+                          })}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[13px] leading-relaxed text-txt-tertiary">
+                      {tier.max_members === 2
+                        ? t("settings.family_duo_tagline")
+                        : t("settings.family_plan_tagline")}
+                    </p>
+                  </div>
+                  <ul className="flex flex-col gap-3 flex-1">
+                    {features.map((feat, i) => (
+                      <li
+                        key={i}
+                        className="flex items-start gap-2.5 text-[13px] leading-snug"
+                        style={{
+                          color: feat.on
+                            ? "var(--text-primary)"
+                            : "var(--text-muted)",
+                        }}
+                      >
+                        <span
+                          className="shrink-0 mt-[1px]"
+                          style={{
+                            color: feat.on ? "var(--accent-blue)" : "#dc2626",
+                          }}
+                        >
+                          {feat.on ? CHECK_SVG : CROSS_SVG}
+                        </span>
+                        <span className="flex-1">{feat.label}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button
+                    className="w-full"
+                    disabled={is_finalizing}
+                    size="xl"
+                    variant={tier.is_recommended ? "depth" : "outline"}
+                    onClick={() => set_pending_family_tier(tier)}
+                  >
+                    {t("auth.plan_select")}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="w-full grid gap-5 mt-10 md:grid-cols-3 max-w-5xl items-stretch">
+            {PLAN_TIERS.map((tier) => {
+              const cents =
+                billing_period === "yearly"
+                  ? tier.yearly_cents
+                  : tier.monthly_cents;
+              const display_price = format_price(
+                convert_cents(cents, currency),
+                currency,
+              );
+              const saves =
+                billing_period === "yearly" ? tier.savings_cents : 0;
+              const has_api_plan = plans.some((p) => p.code === tier.id);
+              const features = feature_list_for_tier(tier.id, t);
+              const description = t(TIER_DESCRIPTION_KEYS[tier.id]);
+
+              return (
+                <div
+                  key={tier.id}
+                  className="relative rounded-3xl border flex flex-col gap-6 p-7 transition-colors duration-300 hover:border-edge-primary"
+                  style={{
+                    borderColor: tier.is_recommended
+                      ? "var(--accent-blue)"
+                      : "var(--border-primary)",
+                    backgroundColor: tier.is_recommended
+                      ? "var(--accent-blue-subtle, var(--bg-hover))"
+                      : "var(--bg-hover)",
+                  }}
+                >
+                  <div className="flex flex-col gap-3">
+                    <h3 className="text-lg font-bold leading-tight text-txt-primary">
+                      {tier.name}
+                    </h3>
+                    <div className="flex items-baseline gap-1.5 flex-wrap">
+                      <span className="text-[40px] font-bold leading-none tracking-tight text-txt-primary">
+                        {display_price}
+                      </span>
+                      <span className="text-sm text-txt-muted">
+                        {billing_period === "monthly"
+                          ? t("settings.per_month_short")
+                          : t("settings.per_year_short")}
+                      </span>
+                      {saves > 0 && (
+                        <span
+                          className="ms-1 px-2 py-[3px] rounded-full text-[10px] font-bold uppercase tracking-wider text-[var(--accent-fg,#ffffff)]"
+                          style={{ backgroundColor: "var(--accent-blue)" }}
+                        >
+                          {t("settings.save_yearly", {
+                            amount: format_price(
+                              convert_cents(saves, currency),
+                              currency,
+                            ),
+                          })}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[13px] leading-relaxed text-txt-tertiary">
+                      {description}
+                    </p>
+                  </div>
+
+                  <ul className="flex flex-col gap-3 flex-1">
+                    {features.map((f, i) => (
+                      <li
+                        key={i}
+                        className="flex items-start gap-2.5 text-[13px] leading-snug"
+                        style={{
+                          color: f.on
+                            ? "var(--text-primary)"
+                            : "var(--text-muted)",
+                        }}
+                      >
+                        <span
+                          className="shrink-0 mt-[1px]"
+                          style={{
+                            color: f.on ? "var(--accent-blue)" : "#dc2626",
+                          }}
+                        >
+                          {f.on ? CHECK_SVG : CROSS_SVG}
+                        </span>
+                        <span className="flex-1">{f.text}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <Button
+                    className="w-full"
+                    disabled={!has_api_plan || is_finalizing}
+                    size="xl"
+                    variant={tier.is_recommended ? "depth" : "outline"}
+                    onClick={() => handle_select_tier(tier)}
+                  >
+                    {t("auth.plan_select")}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {!is_loading && (
+          <div className="w-full flex flex-col items-center mt-8 mb-4 gap-3">
+            <Button as_child variant="outline">
+              <a
+                href={pricing_comparison_url()}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                <span>{t("auth.plan_view_full_features")}</span>
+                <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+              </a>
+            </Button>
+            <button
+              className="text-sm font-medium hover:underline disabled:opacity-60"
+              disabled={is_finalizing}
+              style={{ color: "var(--text-tertiary)" }}
+              type="button"
+              onClick={on_back}
+            >
+              {back_label}
+            </button>
+          </div>
+        )}
+
+        {is_finalizing && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            style={{ backgroundColor: "rgba(0,0,0,0.45)" }}
+          >
+            <div className="flex flex-col items-center gap-3">
+              <Spinner size="lg" />
+            </div>
+          </div>
+        )}
+
+        {pending_tier && (
+          <PlanPaymentMethodModal
+            busy={is_finalizing}
+            on_choose_card={handle_pay_with_card}
+            on_choose_crypto={handle_pay_with_crypto}
+            on_close={() => set_pending_tier(null)}
+            open={!!pending_tier}
+            plan_name={pending_tier.tier.name}
+            selected_term={billing_period}
+            term_options={[
+              {
+                id: "monthly",
+                label: t("settings.billing_monthly"),
+                per_month_cents: pending_tier.tier.monthly_cents,
+                total_cents: pending_tier.tier.monthly_cents,
+                save_cents: 0,
+              },
+              {
+                id: "yearly",
+                label: t("settings.billing_yearly"),
+                per_month_cents: Math.round(
+                  pending_tier.tier.yearly_cents / 12,
+                ),
+                total_cents: pending_tier.tier.yearly_cents,
+                save_cents:
+                  pending_tier.tier.monthly_cents * 12 -
+                  pending_tier.tier.yearly_cents,
+              },
+              {
+                id: "biennial",
+                label: t("settings.biennial"),
+                per_month_cents: Math.round(
+                  pending_tier.tier.biennial_cents / 24,
+                ),
+                total_cents: pending_tier.tier.biennial_cents,
+                save_cents:
+                  pending_tier.tier.monthly_cents * 24 -
+                  pending_tier.tier.biennial_cents,
+                crypto_only: true,
+              },
+            ]}
+          />
+        )}
+
+        {crypto_tier && (
+          <CryptoTermModal
+            initial_term_months={crypto_term_months}
+            is_open={!!crypto_tier}
+            monthly_price_cents={crypto_tier.tier.monthly_cents}
+            on_close={() => {
+              const tier = crypto_tier;
+
+              set_crypto_tier(null);
+              set_pending_tier(tier);
+            }}
+            on_finished={() => set_crypto_tier(null)}
+            plan_code={crypto_tier.plan.code}
+            plan_name={crypto_tier.tier.name}
+            preferred_currency={currency}
+            yearly_price_cents={crypto_tier.tier.yearly_cents}
+          />
+        )}
+
+        {pending_family_tier && (
+          <PlanPaymentMethodModal
+            busy={is_finalizing}
+            on_choose_card={handle_family_card}
+            on_choose_crypto={handle_family_crypto}
+            on_close={() => set_pending_family_tier(null)}
+            open={!!pending_family_tier}
+            plan_name={pending_family_tier.name}
+            selected_term={billing_period}
+            term_options={[
+              {
+                id: "monthly",
+                label: t("settings.billing_monthly"),
+                per_month_cents: pending_family_tier.monthly_cents,
+                total_cents: pending_family_tier.monthly_cents,
+                save_cents: 0,
+              },
+              {
+                id: "yearly",
+                label: t("settings.billing_yearly"),
+                per_month_cents: Math.round(
+                  pending_family_tier.yearly_cents / 12,
+                ),
+                total_cents: pending_family_tier.yearly_cents,
+                save_cents:
+                  pending_family_tier.monthly_cents * 12 -
+                  pending_family_tier.yearly_cents,
+              },
+              {
+                id: "biennial",
+                label: t("settings.biennial"),
+                per_month_cents: Math.round(
+                  pending_family_tier.biennial_cents / 24,
+                ),
+                total_cents: pending_family_tier.biennial_cents,
+                save_cents:
+                  pending_family_tier.monthly_cents * 24 -
+                  pending_family_tier.biennial_cents,
+                crypto_only: true,
+              },
+            ]}
+          />
+        )}
+
+        {crypto_family_tier && (
+          <CryptoTermModal
+            initial_term_months={crypto_term_months}
+            is_open={!!crypto_family_tier}
+            monthly_price_cents={crypto_family_tier.monthly_cents}
+            on_close={() => {
+              const tier = crypto_family_tier;
+
+              set_crypto_family_tier(null);
+              set_pending_family_tier(tier);
+            }}
+            on_finished={() => set_crypto_family_tier(null)}
+            plan_code={crypto_family_tier.id}
+            plan_name={crypto_family_tier.name}
+            preferred_currency={currency}
+            yearly_price_cents={crypto_family_tier.yearly_cents}
+          />
+        )}
+      </div>
+    </div>
+  );
+}

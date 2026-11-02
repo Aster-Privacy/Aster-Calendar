@@ -1,0 +1,145 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+const WIN_RESERVED = new Set([
+  "CON",
+  "PRN",
+  "AUX",
+  "NUL",
+  "COM1",
+  "COM2",
+  "COM3",
+  "COM4",
+  "COM5",
+  "COM6",
+  "COM7",
+  "COM8",
+  "COM9",
+  "LPT1",
+  "LPT2",
+  "LPT3",
+  "LPT4",
+  "LPT5",
+  "LPT6",
+  "LPT7",
+  "LPT8",
+  "LPT9",
+]);
+
+function pad2(n: number): string {
+  return n < 10 ? "0" + n : String(n);
+}
+
+function utc_stamp(d: Date): string {
+  return (
+    d.getUTCFullYear().toString() +
+    pad2(d.getUTCMonth() + 1) +
+    pad2(d.getUTCDate()) +
+    "-" +
+    pad2(d.getUTCHours()) +
+    pad2(d.getUTCMinutes()) +
+    pad2(d.getUTCSeconds())
+  );
+}
+
+async function sha1_hex_prefix(
+  input: string,
+  prefix_chars: number,
+): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const buf = await crypto.subtle.digest("SHA-1", data);
+  const bytes = new Uint8Array(buf);
+  let hex = "";
+
+  for (let i = 0; i < bytes.length; i++) {
+    hex += bytes[i].toString(16).padStart(2, "0");
+  }
+
+  return hex.slice(0, prefix_chars);
+}
+
+function slug(subject: string, max_len: number): string {
+  const nfkc = subject.normalize("NFKC");
+  const stripped = nfkc.replace(/[\x00-\x1f<>:"/\\|?*]/g, "");
+  const collapsed = stripped
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  if (collapsed.length === 0) return "no-subject";
+  if (collapsed.length <= max_len) return collapsed;
+
+  return collapsed.slice(0, max_len).replace(/-+$/g, "");
+}
+
+export interface FilenameInputs {
+  sent_at: string;
+  message_id?: string;
+  subject?: string;
+}
+
+export async function sanitize_eml_filename(
+  input: FilenameInputs,
+): Promise<string> {
+  const d = new Date(input.sent_at);
+  const stamp = utc_stamp(Number.isNaN(d.getTime()) ? new Date(0) : d);
+  const id_source =
+    input.message_id ?? input.subject ?? Math.random().toString();
+  const id_hash = await sha1_hex_prefix(id_source, 10);
+  const subject_slug = slug(input.subject ?? "", 40);
+  let base = `${stamp}_${id_hash}_${subject_slug}`;
+  const upper = base.toUpperCase();
+
+  if (WIN_RESERVED.has(upper.split(".")[0])) base = "_" + base;
+
+  return base + ".eml";
+}
+
+export class FilenameAllocator {
+  private used = new Set<string>();
+
+  async allocate(input: FilenameInputs): Promise<string> {
+    const base = await sanitize_eml_filename(input);
+
+    if (!this.used.has(base)) {
+      this.used.add(base);
+
+      return base;
+    }
+    const dot = base.lastIndexOf(".");
+    const stem = dot >= 0 ? base.slice(0, dot) : base;
+    const ext = dot >= 0 ? base.slice(dot) : "";
+
+    for (let n = 2; n < 100000; n++) {
+      const candidate = `${stem}_${n}${ext}`;
+
+      if (!this.used.has(candidate)) {
+        this.used.add(candidate);
+
+        return candidate;
+      }
+    }
+    const fallback = `${stem}_${Date.now()}${ext}`;
+
+    this.used.add(fallback);
+
+    return fallback;
+  }
+}

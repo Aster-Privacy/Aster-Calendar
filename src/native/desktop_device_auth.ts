@@ -1,0 +1,449 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { TranslationKey } from "@/lib/i18n/types";
+
+import { ignore_error } from "@/lib/ignore_error";
+
+export type DeviceAuthErrorCode =
+  "challenge_failed" | "login_failed" | "code_generation_failed";
+
+export class DeviceAuthError extends Error {
+  code: DeviceAuthErrorCode;
+  status: number | undefined;
+  i18n_key: TranslationKey;
+  constructor(code: DeviceAuthErrorCode, status?: number) {
+    super(code);
+    this.code = code;
+    this.status = status;
+    this.i18n_key =
+      code === "challenge_failed"
+        ? "errors.device_challenge_mismatch"
+        : code === "login_failed"
+          ? "errors.device_repair_required"
+          : "auth.pair_device_failed";
+  }
+}
+
+export interface DevicePubkeys {
+  device_id: string | null;
+  ed25519_pk: string;
+  mlkem_pk: string;
+  x25519_pk: string;
+  machine_name: string;
+}
+
+export interface DeviceCodeResult {
+  code: string;
+  expires_in: number;
+}
+
+export interface DeviceCodeStatus {
+  status: "pending" | "confirmed" | "expired";
+  device_id?: string;
+  sealed_envelope?: string;
+}
+
+export function is_tauri(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+async function invoke<T>(
+  cmd: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
+  const core = await import("@tauri-apps/api/core");
+
+  return core.invoke<T>(cmd, args);
+}
+
+function base64url_decode_to_bytes(input: string): Uint8Array {
+  const pad = input.length % 4 === 0 ? "" : "=".repeat(4 - (input.length % 4));
+  const b64 = input.replace(/-/g, "+").replace(/_/g, "/") + pad;
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+  return bytes;
+}
+
+export async function device_challenge(
+  device_id: string,
+): Promise<{ challenge_id: string; nonce: string }> {
+  const { api_client } = await import("@/services/api/client");
+  const result = await api_client.post<{
+    challenge_id: string;
+    nonce: string;
+  }>("/core/v1/auth/device/challenge", { device_id });
+
+  if (result.error || !result.data) {
+    throw new DeviceAuthError("challenge_failed", result.status);
+  }
+
+  return result.data;
+}
+
+export async function device_login(
+  challenge_id: string,
+  signature: string,
+): Promise<unknown> {
+  const { api_client } = await import("@/services/api/client");
+  const result = await api_client.post<unknown>("/core/v1/auth/device/login", {
+    challenge_id,
+    signature,
+  });
+
+  if (result.error || !result.data) {
+    throw new DeviceAuthError("login_failed", result.status);
+  }
+
+  return result.data;
+}
+
+async function silent_device_login(
+  device_id: string,
+  notify = true,
+): Promise<void> {
+  const challenge = await device_challenge(device_id);
+  const signature = await invoke<string>("device_sign_challenge", {
+    nonceB64: challenge.nonce,
+  });
+  const login_response = await device_login(challenge.challenge_id, signature);
+  const resp = login_response as {
+    access_token?: string;
+    csrf_token?: string;
+    refresh_token?: string;
+  };
+
+  if (resp.access_token) {
+    const { api_client } = await import("@/services/api/client");
+
+    api_client.set_dev_token(resp.access_token, resp.refresh_token);
+    if (resp.csrf_token) {
+      api_client.set_csrf(resp.csrf_token);
+    }
+    api_client.set_authenticated(true);
+  }
+
+  const raw_b64 = await invoke<string | null>("device_get_stored_passphrase", {
+    deviceId: device_id,
+  });
+
+  if (!raw_b64) {
+    throw new Error("passphrase_null");
+  }
+
+  const passphrase = new TextDecoder().decode(
+    base64url_decode_to_bytes(raw_b64),
+  );
+
+  pending_device_login = { login_response, passphrase, device_id };
+
+  if (notify) {
+    window.dispatchEvent(new CustomEvent("astermail:device-login-success"));
+  }
+}
+
+export type DeviceReloginOutcome = "signed_in" | "rejected" | "unavailable";
+
+export function is_device_pairing_rejected(error: unknown): boolean {
+  if (error instanceof DeviceAuthError) {
+    return error.code === "login_failed" && error.status === 401;
+  }
+
+  return error instanceof Error && error.message === "passphrase_null";
+}
+
+export async function attempt_device_relogin(
+  device_id: string,
+): Promise<DeviceReloginOutcome> {
+  if (!is_tauri()) return "unavailable";
+
+  try {
+    await silent_device_login(device_id);
+
+    return "signed_in";
+  } catch (caught) {
+    return is_device_pairing_rejected(caught) ? "rejected" : "unavailable";
+  }
+}
+
+const RELOGIN_ATTEMPTS = 3;
+const REJECTIONS_BEFORE_FORGET = 2;
+
+function wait_ms(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function relogin_with_retries(
+  device_id: string,
+  is_cancelled: () => boolean,
+  wait: (ms: number) => Promise<void> = wait_ms,
+): Promise<DeviceReloginOutcome> {
+  let rejections = 0;
+
+  for (let attempt = 0; attempt < RELOGIN_ATTEMPTS; attempt++) {
+    if (is_cancelled()) return "unavailable";
+    const outcome = await attempt_device_relogin(device_id);
+
+    if (outcome === "signed_in") return outcome;
+    rejections = outcome === "rejected" ? rejections + 1 : 0;
+    if (rejections >= REJECTIONS_BEFORE_FORGET) return "rejected";
+    if (attempt < RELOGIN_ATTEMPTS - 1 && !is_cancelled()) {
+      await wait(1000 * (attempt + 1));
+    }
+  }
+
+  return "unavailable";
+}
+
+const EXPIRY_RELOGIN_WINDOW_MS = 10 * 60_000;
+const EXPIRY_RELOGINS_PER_WINDOW = 3;
+let expiry_relogins: number[] = [];
+
+export function keep_pairing_after_session_expiry(now = Date.now()): boolean {
+  if (!is_tauri()) return false;
+  expiry_relogins = expiry_relogins.filter(
+    (at) => now - at < EXPIRY_RELOGIN_WINDOW_MS,
+  );
+  if (expiry_relogins.length >= EXPIRY_RELOGINS_PER_WINDOW) return false;
+  expiry_relogins.push(now);
+
+  return true;
+}
+
+export async function release_device_after_sign_out(options: {
+  keep_pairing: boolean;
+  keep_other_accounts: boolean;
+  device_id: string | null | undefined;
+}): Promise<void> {
+  if (options.keep_pairing) return;
+  if (options.keep_other_accounts) {
+    await forget_device_account(options.device_id);
+
+    return;
+  }
+  await clear_device_session();
+}
+
+let explicit_sign_out = false;
+
+export function mark_explicit_sign_out(): void {
+  if (!is_tauri()) return;
+  explicit_sign_out = true;
+}
+
+export function clear_explicit_sign_out(): void {
+  explicit_sign_out = false;
+}
+
+export function take_explicit_sign_out(): boolean {
+  const value = explicit_sign_out;
+
+  explicit_sign_out = false;
+
+  return value;
+}
+
+export async function request_device_code(
+  pubkeys: DevicePubkeys,
+): Promise<DeviceCodeResult> {
+  const { api_client } = await import("@/services/api/client");
+  const result = await api_client.post<DeviceCodeResult>(
+    "/core/v1/auth/device/code",
+    {
+      ed25519_pk: pubkeys.ed25519_pk,
+      mlkem_pk: pubkeys.mlkem_pk,
+      x25519_pk: pubkeys.x25519_pk,
+      machine_name: pubkeys.machine_name,
+    },
+  );
+
+  if (result.error || !result.data) {
+    throw new DeviceAuthError("code_generation_failed");
+  }
+
+  return result.data;
+}
+
+export async function poll_device_code_status(
+  code: string,
+): Promise<DeviceCodeStatus> {
+  const normalized = code.replace(/-/g, "");
+  const { api_client } = await import("@/services/api/client");
+  const result = await api_client.get<DeviceCodeStatus>(
+    `/core/v1/auth/device/code/status?code=${encodeURIComponent(normalized)}`,
+  );
+
+  if (result.error || !result.data) {
+    throw new Error("device_code_status_unavailable");
+  }
+
+  return result.data;
+}
+
+export interface DevicePairingResult {
+  login_response: Record<string, unknown> | null;
+  passphrase: string | null;
+  device_id: string;
+  error: string | null;
+}
+
+export async function complete_device_pairing(
+  device_id: string,
+  sealed_envelope: string,
+): Promise<DevicePairingResult> {
+  let login_response: Record<string, unknown> | null = null;
+  let passphrase: string | null = null;
+  let error: string | null = null;
+
+  try {
+    await invoke("device_set_id", { deviceId: device_id });
+    await invoke<string>("device_unseal_vault_envelope", {
+      envelopeB64: sealed_envelope,
+      deviceId: device_id,
+    });
+
+    await silent_device_login(device_id, false);
+    const pending = consume_pending_device_login();
+
+    if (pending) {
+      login_response = pending.login_response as Record<string, unknown>;
+      passphrase = pending.passphrase;
+    }
+  } catch (err) {
+    error = err instanceof Error ? err.message : String(err);
+    await forget_device_account(device_id).catch((caught) =>
+      ignore_error(
+        "native/desktop_device_auth:complete_device_pairing",
+        caught,
+      ),
+    );
+  }
+
+  window.dispatchEvent(new CustomEvent("astermail:device-paired"));
+
+  return { login_response, passphrase, device_id, error };
+}
+
+export interface PendingDeviceLogin {
+  login_response: unknown;
+  passphrase: string | null;
+  device_id: string;
+}
+
+let pending_device_login: PendingDeviceLogin | null = null;
+
+export function consume_pending_device_login(): PendingDeviceLogin | null {
+  const data = pending_device_login;
+
+  pending_device_login = null;
+
+  return data;
+}
+
+let desktop_device_auth_run: Promise<void> | null = null;
+
+async function run_desktop_device_auth(
+  account_device_id?: string | null,
+): Promise<void> {
+  try {
+    const pubkeys = await invoke<DevicePubkeys>("device_get_pubkeys");
+    const device_id = account_device_id || pubkeys.device_id;
+
+    if (!device_id) {
+      window.dispatchEvent(
+        new CustomEvent("astermail:device-needs-pairing", {
+          detail: { pubkeys },
+        }),
+      );
+
+      return;
+    }
+
+    await silent_device_login(device_id);
+  } catch (caught) {
+    ignore_error("native/desktop_device_auth:init", caught);
+  }
+}
+
+export function init_desktop_device_auth(
+  account_device_id?: string | null,
+): Promise<void> {
+  if (!is_tauri()) return Promise.resolve();
+  if (desktop_device_auth_run) return desktop_device_auth_run;
+  desktop_device_auth_run = run_desktop_device_auth(account_device_id);
+
+  return desktop_device_auth_run;
+}
+
+export async function read_device_passphrase(
+  device_id: string | null | undefined,
+): Promise<string | null> {
+  if (!is_tauri()) return null;
+
+  try {
+    const raw_b64 = await invoke<string | null>(
+      "device_get_stored_passphrase",
+      { deviceId: device_id ?? null },
+    );
+
+    if (!raw_b64) return null;
+
+    return new TextDecoder().decode(base64url_decode_to_bytes(raw_b64));
+  } catch {
+    return null;
+  }
+}
+
+export async function forget_device_account(
+  device_id: string | null | undefined,
+): Promise<void> {
+  if (!is_tauri()) return;
+  desktop_device_auth_run = null;
+  pending_device_login = null;
+
+  let target = device_id ?? null;
+
+  if (!target) {
+    const pubkeys = await invoke<DevicePubkeys>("device_get_pubkeys");
+
+    target = pubkeys.device_id;
+  }
+  if (!target) return;
+
+  await invoke("device_forget_account", { deviceId: target });
+}
+
+async function reset_device_auth(command: string): Promise<void> {
+  if (!is_tauri()) return;
+  desktop_device_auth_run = null;
+  pending_device_login = null;
+  await invoke(command);
+}
+
+export async function clear_device_session(): Promise<void> {
+  await reset_device_auth("device_clear_session");
+}
+
+export async function clear_device_identity(): Promise<void> {
+  await reset_device_auth("device_clear_identity");
+}

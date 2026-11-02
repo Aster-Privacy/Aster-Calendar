@@ -1,0 +1,224 @@
+// SPDX-FileCopyrightText: 2026 Aster Communications Inc.
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { useState } from "react";
+import { ChevronRightIcon } from "@heroicons/react/24/outline";
+import { Island } from "@aster/ui";
+
+import {
+  Modal,
+  ModalHeader,
+  ModalTitle,
+  ModalBody,
+} from "@/components/ui/modal";
+import {
+  SecurityLockIcon,
+  security_status_from_percent,
+  type SecurityStatus,
+} from "@/components/settings/security/security_lock_icon";
+import {
+  build_security_criteria,
+  SECURITY_CRITERION_IDS,
+  security_percent,
+} from "@/lib/security_criteria";
+import { use_i18n } from "@/lib/i18n/context";
+import { use_preferences } from "@/contexts/preferences_context";
+
+const STATUS_BUTTON_STYLES: Record<SecurityStatus, string> = {
+  weak: "bg-red-600 hover:bg-red-700 text-white",
+  fair: "bg-orange-500 hover:bg-orange-600 text-white",
+  partial: "bg-blue-600 hover:bg-blue-700 text-white",
+  strong: "bg-green-600 hover:bg-green-700 text-white",
+};
+
+interface AccountProtectionScoreProps {
+  totp_enabled: boolean;
+  passkey_registered: boolean;
+  recovery_codes_saved: boolean;
+  recovery_email_verified: boolean;
+  login_alerts_enabled: boolean;
+  block_tracking_pixels: boolean;
+  block_remote_images: boolean;
+  strip_exif_on_compose: boolean;
+  security_loaded?: boolean;
+  account_only?: boolean;
+  on_criterion_click?: Array<(() => void) | undefined>;
+}
+
+
+export function AccountProtectionScore({
+  totp_enabled,
+  passkey_registered,
+  recovery_codes_saved,
+  recovery_email_verified,
+  login_alerts_enabled,
+  block_tracking_pixels,
+  block_remote_images,
+  strip_exif_on_compose,
+  security_loaded = true,
+  account_only = false,
+  on_criterion_click,
+}: AccountProtectionScoreProps) {
+  const { t } = use_i18n();
+  const { preferences, update_preference } = use_preferences();
+  const [popover_open, set_popover_open] = useState(false);
+  const [dismissed, set_dismissed] = useState(false);
+
+  const criteria = build_security_criteria(
+    {
+      totp_enabled,
+      passkey_registered,
+      recovery_codes_saved,
+      recovery_email_verified,
+      login_alerts_enabled,
+      block_tracking_pixels,
+      block_remote_images,
+      strip_exif_on_compose,
+    },
+    account_only,
+  );
+
+  const bar_pct = security_percent(criteria);
+  const status = security_status_from_percent(bar_pct);
+
+  if (!security_loaded) {
+    return (
+      <Island className="animate-pulse" padding="md">
+        <div className="flex items-start gap-2.5">
+          <div className="h-5 w-5 rounded-full bg-surf-tertiary flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <div className="h-4 w-56 max-w-full rounded bg-surf-tertiary mb-2" />
+            <div className="h-3.5 w-72 max-w-full rounded bg-surf-tertiary" />
+          </div>
+        </div>
+      </Island>
+    );
+  }
+
+  if (dismissed || preferences.account_security_banner_dismissed) return null;
+
+  return (
+    <Island padding="md">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex-1 min-w-[12rem]">
+          <div className="flex items-center gap-2">
+            <SecurityLockIcon
+              className="h-5 w-5 flex-shrink-0"
+              status={status}
+            />
+            <p className="text-sm font-semibold text-txt-primary">
+              {t("settings.account_security_percent_title", {
+                percent: bar_pct,
+              })}
+            </p>
+          </div>
+          <p className="text-sm text-txt-muted mt-1 ms-7">
+            {t("settings.account_security_review_subtitle")}
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <button
+              className="px-3 py-1.5 rounded-[var(--aster-radius-control)] text-sm font-medium text-txt-primary bg-[var(--aster-field-bg)] hover:bg-[var(--aster-island-hover)] transition-colors"
+              type="button"
+              onClick={() => set_dismissed(true)}
+            >
+              {t("settings.account_security_dismiss")}
+            </button>
+            <button
+              className={`px-3 py-1.5 rounded-[var(--aster-radius-control)] text-sm font-medium transition-colors ${STATUS_BUTTON_STYLES[status]}`}
+              type="button"
+              onClick={() => set_popover_open(true)}
+            >
+              {t("settings.account_security_review_cta")}
+            </button>
+          </div>
+          <button
+            className="text-xs text-txt-muted hover:text-txt-primary transition-colors"
+            type="button"
+            onClick={() =>
+              update_preference("account_security_banner_dismissed", true, true)
+            }
+          >
+            {t("settings.account_security_dont_show_again")}
+          </button>
+        </div>
+      </div>
+
+      <div className="relative z-10">
+        <Modal
+          is_open={popover_open}
+          on_close={() => set_popover_open(false)}
+          size="sm"
+        >
+          <ModalHeader>
+            <ModalTitle>{t("settings.protection_breakdown_title")}</ModalTitle>
+          </ModalHeader>
+          <ModalBody>
+            <ul className="space-y-0.5">
+              {criteria.map((criterion) => {
+                const click_handler =
+                  on_criterion_click?.[
+                    SECURITY_CRITERION_IDS.indexOf(criterion.id)
+                  ];
+                const is_clickable = !!click_handler;
+
+                return (
+                  <li key={criterion.id}>
+                    <button
+                      className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-[var(--aster-radius-control)] transition-colors text-start ${is_clickable ? "hover:bg-edge-secondary/60 cursor-pointer" : "cursor-default"}`}
+                      disabled={!is_clickable}
+                      type="button"
+                      onClick={() => {
+                        if (!click_handler) return;
+                        set_popover_open(false);
+                        click_handler();
+                      }}
+                    >
+                      <SecurityLockIcon
+                        className="w-4 h-4 flex-shrink-0"
+                        status={criterion.met ? "strong" : "weak"}
+                      />
+                      <span
+                        className={`text-sm flex-1 ${criterion.met ? "text-txt-primary" : "text-txt-muted"}`}
+                      >
+                        {t(criterion.label_key)}
+                      </span>
+                      {!criterion.met && (
+                        <span className="text-xs font-semibold text-txt-muted tabular-nums">
+                          +1
+                        </span>
+                      )}
+                      {is_clickable && (
+                        <ChevronRightIcon className="w-3.5 h-3.5 text-txt-muted flex-shrink-0 rtl:-scale-x-100" />
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </ModalBody>
+        </Modal>
+      </div>
+    </Island>
+  );
+}

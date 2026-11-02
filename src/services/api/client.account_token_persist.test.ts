@@ -1,0 +1,388 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+vi.mock("@/services/routing/routing_provider", () => ({
+  routed_fetch: vi.fn(),
+  get_effective_base_url: (default_base_url: string) => default_base_url,
+  get_effective_timeout: (default_timeout: number) => default_timeout,
+  get_effective_retry_count: () => 0,
+  get_effective_retry_delay: () => 1,
+}));
+
+const account_tokens = new Map<
+  string,
+  { access_token: string | null; refresh_token: string | null }
+>();
+
+const update_account_tokens = vi.fn(
+  async (
+    account_id: string,
+    access_token: string | null,
+    refresh_token: string | null | undefined,
+  ) => {
+    const current = account_tokens.get(account_id) ?? {
+      access_token: null,
+      refresh_token: null,
+    };
+
+    account_tokens.set(account_id, {
+      access_token,
+      refresh_token:
+        refresh_token === undefined ? current.refresh_token : refresh_token,
+    });
+
+    return true;
+  },
+);
+
+let current_account_id: string | null = null;
+
+vi.mock("@/services/account_manager", () => ({
+  update_account_tokens: (
+    account_id: string,
+    access_token: string | null,
+    refresh_token: string | null | undefined,
+  ) => update_account_tokens(account_id, access_token, refresh_token),
+  get_current_account_id: async () => current_account_id,
+  read_stored_refresh_token: async (account_id: string) =>
+    account_tokens.get(account_id)?.refresh_token ?? null,
+  get_account_tokens: async (account_id: string) =>
+    account_tokens.get(account_id) ?? {
+      access_token: null,
+      refresh_token: null,
+    },
+}));
+
+const { routed_fetch } = await import("@/services/routing/routing_provider");
+const { api_client } = await import("./client");
+
+const OWNER = "3c74a773-b6e8-40ed-a375-c9a26fe97d04";
+const OTHER = "1c2eabd0-ebdf-4f68-90d9-305cab7bc69a";
+
+function json_response(status: number, body: unknown): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: { get: () => null },
+    text: () => Promise.resolve(JSON.stringify(body)),
+  } as unknown as Response;
+}
+
+function fake_jwt(sub: string): string {
+  const encode = (value: unknown) =>
+    btoa(JSON.stringify(value))
+      .replace(/=+$/, "")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_");
+
+  return `${encode({ alg: "HS256", typ: "JWT" })}.${encode({ sub, iat: Date.now() })}.sig`;
+}
+
+let clock_offset_ms = 0;
+
+function use_fresh_clock(): void {
+  clock_offset_ms += 60_000;
+  vi.useFakeTimers();
+  vi.setSystemTime(Date.now() + clock_offset_ms);
+}
+
+function unauthorized(): Response {
+  return json_response(401, { error: "unauthorized" });
+}
+
+describe("per account token persistence", () => {
+  beforeEach(() => {
+    vi.mocked(routed_fetch).mockReset();
+    update_account_tokens.mockClear();
+    account_tokens.clear();
+    current_account_id = null;
+    api_client.end_account_add();
+    api_client.resume_account_persist();
+    api_client.set_authenticated(false);
+    api_client.set_expected_user_id(null);
+    api_client.clear_dev_token();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    api_client.end_account_add();
+    api_client.resume_account_persist();
+    api_client.set_authenticated(false);
+    api_client.set_expected_user_id(null);
+    api_client.clear_dev_token();
+  });
+
+  it("writes a rotated token to the account that owned the refresh, not the account that is active when it lands", async () => {
+    use_fresh_clock();
+    api_client.set_expected_user_id(OWNER);
+    current_account_id = OWNER;
+    api_client.set_authenticated(true);
+    await vi.advanceTimersByTimeAsync(6000);
+
+    let switched = false;
+
+    vi.mocked(routed_fetch).mockImplementation(async () => {
+      if (!switched) {
+        switched = true;
+        api_client.suspend_account_persist();
+        api_client.begin_account_add();
+        api_client.set_expected_user_id(OTHER);
+        current_account_id = OTHER;
+      }
+
+      return json_response(200, {
+        csrf_token: "csrf_new",
+        access_token: "access_rotated",
+        refresh_token: "refresh_rotated",
+      });
+    });
+
+    await api_client.refresh_session();
+
+    expect(update_account_tokens).not.toHaveBeenCalled();
+
+    api_client.end_account_add();
+    api_client.resume_account_persist();
+    await vi.advanceTimersByTimeAsync(7000);
+
+    expect(update_account_tokens).toHaveBeenCalledWith(
+      OWNER,
+      "access_rotated",
+      "refresh_rotated",
+    );
+    expect(account_tokens.get(OTHER)).toBeUndefined();
+  });
+
+  it("writes rotated tokens to the account named in the token subject", async () => {
+    use_fresh_clock();
+    api_client.set_expected_user_id(OWNER);
+    current_account_id = OWNER;
+    api_client.set_authenticated(true);
+
+    const access = fake_jwt(OTHER);
+    const refresh = fake_jwt(OTHER);
+
+    vi.mocked(routed_fetch).mockImplementation(async () =>
+      json_response(200, {
+        csrf_token: "csrf_new",
+        access_token: access,
+        refresh_token: refresh,
+      }),
+    );
+
+    await api_client.refresh_session();
+
+    expect(update_account_tokens).toHaveBeenCalledWith(OTHER, access, refresh);
+    expect(update_account_tokens).not.toHaveBeenCalledWith(
+      OWNER,
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it("stores the outgoing account's newest refresh token before switching away", async () => {
+    use_fresh_clock();
+    account_tokens.set(OWNER, {
+      access_token: null,
+      refresh_token: "refresh_rotated_elsewhere",
+    });
+    api_client.set_expected_user_id(OWNER);
+    current_account_id = OWNER;
+    api_client.set_authenticated(true);
+
+    const access = fake_jwt(OWNER);
+    const refresh = fake_jwt(OWNER);
+    const refresh_bodies: unknown[] = [];
+
+    vi.mocked(routed_fetch).mockImplementation(
+      async (url: string, init: RequestInit) => {
+        if (url.includes("/auth/refresh")) {
+          refresh_bodies.push(JSON.parse(String(init.body)));
+        }
+
+        return json_response(200, {
+          csrf_token: "csrf_new",
+          access_token: access,
+          refresh_token: refresh,
+        });
+      },
+    );
+
+    api_client.suspend_account_persist();
+    api_client.begin_account_add();
+    await api_client.prepare_for_account_switch();
+
+    expect(refresh_bodies).toHaveLength(1);
+    expect(refresh_bodies[0]).toMatchObject({
+      refresh_token: "refresh_rotated_elsewhere",
+      expected_user_id: OWNER,
+    });
+    expect(update_account_tokens).toHaveBeenCalledWith(OWNER, access, refresh);
+    expect(account_tokens.get(OWNER)?.refresh_token).toBe(refresh);
+  });
+
+  it("ignores a checkpoint answer that belongs to another account", async () => {
+    use_fresh_clock();
+    account_tokens.set(OWNER, {
+      access_token: null,
+      refresh_token: "refresh_owner",
+    });
+    api_client.set_expected_user_id(OWNER);
+    current_account_id = OWNER;
+    api_client.set_authenticated(true);
+
+    vi.mocked(routed_fetch).mockImplementation(async () =>
+      json_response(200, {
+        csrf_token: "csrf_new",
+        access_token: fake_jwt(OTHER),
+        refresh_token: fake_jwt(OTHER),
+      }),
+    );
+
+    api_client.suspend_account_persist();
+    api_client.begin_account_add();
+    await api_client.prepare_for_account_switch();
+
+    expect(update_account_tokens).not.toHaveBeenCalled();
+    expect(account_tokens.get(OWNER)?.refresh_token).toBe("refresh_owner");
+  });
+
+  it("leaves the shared session alone when following a switch made in another app", async () => {
+    use_fresh_clock();
+    account_tokens.set(OWNER, {
+      access_token: null,
+      refresh_token: "refresh_owner",
+    });
+    api_client.set_expected_user_id(OWNER);
+    current_account_id = OWNER;
+    api_client.set_authenticated(true);
+
+    vi.mocked(routed_fetch).mockImplementation(async () =>
+      json_response(200, { csrf_token: "csrf_new" }),
+    );
+
+    api_client.begin_account_add(false);
+    api_client.suspend_account_persist();
+    api_client.begin_account_add();
+    await api_client.prepare_for_account_switch();
+
+    expect(routed_fetch).not.toHaveBeenCalled();
+    expect(account_tokens.get(OWNER)?.refresh_token).toBe("refresh_owner");
+  });
+
+  it("recovers a session whose stored access token is stale by refreshing before giving up", async () => {
+    account_tokens.set(OWNER, {
+      access_token: "access_stale",
+      refresh_token: "refresh_good",
+    });
+
+    let me_calls = 0;
+
+    vi.mocked(routed_fetch).mockImplementation(async (url: string) => {
+      if (url.includes("/auth/refresh")) {
+        return json_response(200, {
+          csrf_token: "csrf_new",
+          access_token: "access_fresh",
+          refresh_token: "refresh_fresh",
+        });
+      }
+
+      me_calls += 1;
+
+      if (me_calls === 1) return unauthorized();
+
+      return json_response(200, { user_id: OWNER });
+    });
+
+    const result = await api_client.reestablish_session_for_account(OWNER);
+
+    expect(result).toBe("ok");
+    expect(update_account_tokens).not.toHaveBeenCalledWith(OWNER, null, null);
+    expect(account_tokens.get(OWNER)?.refresh_token).toBe("refresh_fresh");
+  });
+
+  it("only clears stored tokens when the refresh for that account is itself denied", async () => {
+    account_tokens.set(OWNER, {
+      access_token: "access_stale",
+      refresh_token: "refresh_dead",
+    });
+
+    vi.mocked(routed_fetch).mockImplementation(async () => unauthorized());
+
+    const result = await api_client.reestablish_session_for_account(OWNER);
+
+    expect(result).toBe("expired");
+    expect(update_account_tokens).toHaveBeenCalledWith(OWNER, null, null);
+  });
+
+  it("keeps stored tokens when the account cannot be verified for a transient reason", async () => {
+    account_tokens.set(OWNER, {
+      access_token: "access_stale",
+      refresh_token: "refresh_good",
+    });
+
+    vi.mocked(routed_fetch).mockImplementation(async (url: string) => {
+      if (url.includes("/auth/refresh")) {
+        return json_response(503, { error: "unavailable" });
+      }
+
+      return json_response(503, { error: "unavailable" });
+    });
+
+    const result = await api_client.reestablish_session_for_account(OWNER);
+
+    expect(result).toBe("unavailable");
+    expect(update_account_tokens).not.toHaveBeenCalledWith(OWNER, null, null);
+    expect(account_tokens.get(OWNER)?.refresh_token).toBe("refresh_good");
+  });
+
+  it("refreshes the session before signing out when the csrf token has expired", async () => {
+    use_fresh_clock();
+    api_client.set_expected_user_id(OWNER);
+    current_account_id = OWNER;
+    api_client.set_authenticated(true);
+
+    const called: string[] = [];
+
+    vi.mocked(routed_fetch).mockImplementation(async (url: string) => {
+      called.push(url);
+
+      if (url.includes("/auth/refresh")) {
+        return json_response(200, {
+          csrf_token: "csrf_new",
+          access_token: fake_jwt(OWNER),
+          refresh_token: fake_jwt(OWNER),
+        });
+      }
+
+      return json_response(200, {});
+    });
+
+    await api_client.post("/core/v1/auth/logout", {});
+
+    const refresh_index = called.findIndex((u) => u.includes("/auth/refresh"));
+    const logout_index = called.findIndex((u) => u.includes("/auth/logout"));
+
+    expect(refresh_index).toBeGreaterThanOrEqual(0);
+    expect(logout_index).toBeGreaterThan(refresh_index);
+  });
+});

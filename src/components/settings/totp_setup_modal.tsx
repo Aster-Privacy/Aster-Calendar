@@ -1,0 +1,387 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { useState, useCallback, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  ClipboardDocumentIcon,
+  ShieldCheckIcon,
+  ExclamationTriangleIcon,
+  ArrowDownTrayIcon,
+  QuestionMarkCircleIcon,
+} from "@heroicons/react/24/outline";
+
+import { Button } from "@/components/ui/button";
+import { trigger_download } from "@/utils/download_blob";
+import { RoundedQrCode } from "@/components/ui/rounded_qr_code";
+import { spoken_secret } from "@/utils/spoken_secret";
+import { show_toast } from "@/components/toast/simple_toast";
+import {
+  Modal,
+  ModalHeader,
+  ModalTitle,
+  ModalDescription,
+  ModalBody,
+  ModalFooter,
+} from "@/components/ui/modal";
+import { OtpInput } from "@/components/ui/otp_input";
+import {
+  initiate_totp_setup,
+  verify_totp_setup,
+  TotpSetupInitiateResponse,
+} from "@/services/api/totp";
+import { use_should_reduce_motion } from "@/provider";
+import { use_i18n } from "@/lib/i18n/context";
+import { Spinner } from "@/components/ui/spinner";
+import mail_logo_url from "@/assets/mail_logo.webp";
+import { copy_text } from "@/utils/copy_text";
+
+interface TotpSetupModalProps {
+  is_open: boolean;
+  on_close: () => void;
+  on_success: () => void;
+}
+
+type SetupStep = "setup" | "backup_codes";
+
+export function TotpSetupModal({
+  is_open,
+  on_close,
+  on_success,
+}: TotpSetupModalProps) {
+  const { t } = use_i18n();
+  const reduce_motion = use_should_reduce_motion();
+  const [step, set_step] = useState<SetupStep>("setup");
+  const [setup_data, set_setup_data] =
+    useState<TotpSetupInitiateResponse | null>(null);
+  const [verification_code, set_verification_code] = useState("");
+  const [backup_codes, set_backup_codes] = useState<string[]>([]);
+  const [is_loading, set_is_loading] = useState(false);
+  const [error, set_error] = useState("");
+  const verifying_ref = useRef(false);
+
+  const reset_state = useCallback(() => {
+    set_step("setup");
+    set_setup_data(null);
+    set_verification_code("");
+    set_backup_codes([]);
+    set_is_loading(false);
+    set_error("");
+  }, []);
+
+  useEffect(() => {
+    if (is_open && !setup_data) {
+      initiate_setup();
+    }
+    if (!is_open) {
+      reset_state();
+    }
+  }, [is_open, setup_data, reset_state]);
+
+  const initiate_setup = async () => {
+    set_is_loading(true);
+    set_error("");
+
+    const response = await initiate_totp_setup();
+
+    if (response.error) {
+      set_error(response.error);
+      set_is_loading(false);
+
+      return;
+    }
+
+    if (response.data) {
+      set_setup_data(response.data);
+    }
+
+    set_is_loading(false);
+  };
+
+  const handle_verify = async (code = verification_code) => {
+    if (!setup_data || code.length !== 6 || verifying_ref.current) return;
+
+    verifying_ref.current = true;
+    set_is_loading(true);
+    set_error("");
+
+    const response = await verify_totp_setup({
+      code,
+      setup_token: setup_data.setup_token,
+    });
+
+    if (response.error) {
+      set_error(response.error);
+      verifying_ref.current = false;
+      set_is_loading(false);
+
+      return;
+    }
+
+    if (response.data) {
+      set_backup_codes(response.data.backup_codes);
+      set_step("backup_codes");
+    }
+
+    verifying_ref.current = false;
+    set_is_loading(false);
+  };
+
+  const handle_code_change = (value: string) => {
+    set_verification_code(value);
+    if (error) set_error("");
+  };
+
+  const copy_secret = async () => {
+    if (!setup_data) return;
+    if (await copy_text(setup_data.secret)) {
+      show_toast(t("common.copied_to_clipboard"), "success");
+    } else {
+      show_toast(t("common.failed_to_copy"), "error");
+    }
+  };
+
+  const copy_single_code = async (code: string) => {
+    if (await copy_text(code)) {
+      show_toast(t("common.copied_to_clipboard"), "success");
+    } else {
+      show_toast(t("common.failed_to_copy"), "error");
+    }
+  };
+
+  const copy_backup_codes = async () => {
+    if (await copy_text(backup_codes.join("\n"))) {
+      show_toast(t("common.copied_to_clipboard"), "success");
+    } else {
+      show_toast(t("common.failed_to_copy"), "error");
+    }
+  };
+
+  const handle_done = () => {
+    on_success();
+    on_close();
+  };
+
+  const handle_modal_close = useCallback(() => {
+    if (verifying_ref.current) return;
+    if (step === "backup_codes") {
+      on_success();
+    }
+    on_close();
+  }, [step, on_success, on_close]);
+
+  const render_setup_step = () => (
+    <>
+      <ModalHeader>
+        <div className="flex items-center justify-between gap-3">
+          <ModalTitle>{t("settings.setup_two_factor_auth")}</ModalTitle>
+          <a
+            className="flex items-center gap-1 text-xs font-medium text-txt-muted hover:text-txt-primary transition-colors flex-shrink-0"
+            href="https://astermail.org/blog/how-to-set-up-two-factor-authentication"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            <QuestionMarkCircleIcon className="w-4 h-4" />
+            {t("settings.view_guide")}
+          </a>
+        </div>
+        <ModalDescription>
+          {t("settings.scan_qr_code_description")}
+        </ModalDescription>
+      </ModalHeader>
+      <ModalBody>
+        {is_loading && !setup_data ? (
+          <div className="flex items-center justify-center py-12">
+            <Spinner className="text-txt-muted" size="lg" />
+          </div>
+        ) : error && !setup_data ? (
+          <div className="flex flex-col items-center justify-center py-8 space-y-4">
+            <ExclamationTriangleIcon className="w-12 h-12 text-red-500" />
+            <p className="text-sm text-center text-red-500">{error}</p>
+            <Button variant="secondary" onClick={initiate_setup}>
+              {t("settings.try_again")}
+            </Button>
+          </div>
+        ) : setup_data ? (
+          <div className="space-y-5">
+            <div aria-hidden="true" className="flex justify-center">
+              <RoundedQrCode
+                logo_src={mail_logo_url}
+                size={240}
+                value={setup_data.otpauth_uri}
+              />
+            </div>
+            <div className="text-center">
+              <p className="text-xs mb-2 text-txt-muted">
+                {t("settings.cant_scan_enter_manually")}
+              </p>
+              <div className="flex items-center justify-center gap-2">
+                <code
+                  aria-label={spoken_secret(setup_data.secret)}
+                  className="px-3 py-2 rounded-lg text-sm font-mono break-all bg-surf-secondary text-txt-primary"
+                >
+                  {setup_data.secret}
+                </code>
+                <button
+                  aria-label={t("common.copy")}
+                  className="p-2 rounded-[14px] transition-colors hover:bg-[var(--aster-hover)]"
+                  type="button"
+                  onClick={copy_secret}
+                >
+                  <ClipboardDocumentIcon className="w-4 h-4 text-txt-muted" />
+                </button>
+              </div>
+            </div>
+            <div className="h-px bg-edge-secondary" />
+            <div>
+              <p className="text-xs font-medium mb-2 text-txt-muted">
+                {t("common.verify_setup")}
+              </p>
+              <OtpInput
+                disabled={is_loading}
+                status={error ? "error" : "default"}
+                value={verification_code}
+                onChange={handle_code_change}
+                onComplete={handle_verify}
+              />
+              {error && (
+                <p className="text-sm text-center text-red-500 mt-2">{error}</p>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </ModalBody>
+      <ModalFooter>
+        <Button variant="outline" onClick={handle_modal_close}>
+          {t("common.cancel")}
+        </Button>
+        <Button
+          disabled={verification_code.length !== 6 || is_loading || !setup_data}
+          is_loading={is_loading}
+          variant="depth"
+          onClick={() => handle_verify()}
+        >
+          {t("common.verify")}
+        </Button>
+      </ModalFooter>
+    </>
+  );
+
+  const render_backup_codes_step = () => (
+    <>
+      <ModalHeader>
+        <div className="flex items-center gap-3">
+          <ShieldCheckIcon className="w-6 h-6 text-txt-primary flex-shrink-0" />
+          <ModalTitle>{t("settings.two_factor_auth_enabled")}</ModalTitle>
+        </div>
+        <ModalDescription>
+          {t("settings.save_backup_codes_description")}
+        </ModalDescription>
+        <ModalDescription>
+          {t("settings.two_factor_other_devices_signed_out")}
+        </ModalDescription>
+      </ModalHeader>
+      <ModalBody>
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg border bg-surf-tertiary border-edge-secondary">
+            <div className="grid grid-cols-2 gap-2">
+              {backup_codes.map((code, index) => (
+                <button
+                  key={index}
+                  className="px-3 py-2 text-sm font-mono text-center rounded cursor-pointer transition-colors hover:opacity-80 bg-surf-secondary text-txt-primary"
+                  type="button"
+                  onClick={() => copy_single_code(code)}
+                >
+                  {code}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex justify-center gap-2">
+            <Button variant="secondary" onClick={copy_backup_codes}>
+              <ClipboardDocumentIcon className="w-4 h-4 me-2" />
+              {t("settings.copy_all_codes")}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                trigger_download(
+                  new Blob([backup_codes.join("\n")], {
+                    type: "application/octet-stream",
+                  }),
+                  "aster-backup-codes.txt",
+                );
+              }}
+            >
+              <ArrowDownTrayIcon className="w-4 h-4 me-2" />
+              {t("common.download")}
+            </Button>
+          </div>
+          <div
+            className="flex items-center gap-2 p-3 rounded-lg"
+            style={{
+              backgroundColor: "var(--accent-color-hover)",
+              color: "var(--accent-fg, #ffffff)",
+            }}
+          >
+            <ExclamationTriangleIcon
+              className="w-5 h-5 flex-shrink-0"
+              style={{ color: "var(--accent-fg, #ffffff)" }}
+            />
+            <p className="text-xs" style={{ color: "#fff" }}>
+              {t("settings.backup_code_security_note")}
+            </p>
+          </div>
+        </div>
+      </ModalBody>
+      <ModalFooter>
+        <Button variant="depth" onClick={handle_done}>
+          {t("common.done")}
+        </Button>
+      </ModalFooter>
+    </>
+  );
+
+  return (
+    <>
+      <Modal
+        close_on_escape={step === "setup"}
+        close_on_overlay={false}
+        is_open={is_open}
+        on_close={handle_modal_close}
+        show_close_button={step === "setup"}
+        size="md"
+      >
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={step}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            initial={reduce_motion ? false : { opacity: 0 }}
+            transition={{ duration: reduce_motion ? 0 : 0.15 }}
+          >
+            {step === "setup" && render_setup_step()}
+            {step === "backup_codes" && render_backup_codes_step()}
+          </motion.div>
+        </AnimatePresence>
+      </Modal>
+    </>
+  );
+}

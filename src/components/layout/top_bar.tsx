@@ -1,0 +1,516 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { ReactNode } from "react";
+
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Bars3Icon,
+  Cog6ToothIcon,
+  ChatBubbleLeftRightIcon,
+  DocumentTextIcon,
+  EnvelopeIcon,
+  LifebuoyIcon,
+  QuestionMarkCircleIcon,
+  ShieldCheckIcon,
+} from "@heroicons/react/24/outline";
+import { TagIcon } from "@heroicons/react/24/solid";
+import { Button, Tooltip } from "@aster/ui";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown_menu";
+import { ProfileAvatar } from "@/components/ui/profile_avatar";
+import { SearchBar } from "@/components/search/search_bar";
+import { WorkspaceSwitcher } from "@/components/layout/workspace_switcher";
+import { AppSwitcher } from "@/components/layout/app_switcher";
+import { use_auth } from "@/contexts/auth_context";
+import { use_i18n } from "@/lib/i18n/context";
+import { use_plan_limits } from "@/hooks/use_plan_limits";
+import { use_preferences } from "@/contexts/preferences_context";
+import { use_primary_identity } from "@/lib/primary_identity";
+import { open_external } from "@/utils/open_link";
+import { show_upgrade_plans } from "@/stores/upgrade_store";
+import { show_special_offer } from "@/stores/special_offer_store";
+import { use_special_offer_status } from "@/stores/special_offer_status";
+import { is_special_offer_available } from "@/lib/special_offer";
+import { use_dated_calendar_icon } from "@/lib/dated_calendar_icon";
+
+const HELP_CENTER_URL = "https://astermail.org/help";
+const SUPPORT_ADDRESS = "hello@astermail.org";
+const PRIVACY_URL = "https://astermail.org/privacy";
+const TERMS_URL = "https://astermail.org/terms";
+
+interface TopBarProps {
+  brand?: "mail" | "calendar";
+  is_settings_view?: boolean;
+  on_mobile_menu_toggle: () => void;
+  on_search_result_click?: (id: string) => void;
+  on_search_submit?: (query: string) => void;
+  on_settings_click: () => void;
+  on_shortcuts_click: () => void;
+  search_context?: string;
+  search_slot?: ReactNode;
+}
+
+function KeyboardIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect height="12" rx="2" strokeLinejoin="round" width="20" x="2" y="6" />
+      <path
+        d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M18 14h.01M9 14h6"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function IconButton({
+  children,
+  label,
+  on_click,
+  onboarding_key,
+}: {
+  children: React.ReactNode;
+  label: string;
+  on_click: () => void;
+  onboarding_key?: string;
+}) {
+  return (
+    <Tooltip tip={label}>
+      <button
+        aria-label={label}
+        className="flex items-center justify-center w-9 h-9 rounded-full transition-colors text-[var(--text-primary)] hover:bg-[var(--bg-hover)] focus:outline-none"
+        data-onboarding={onboarding_key}
+        type="button"
+        onClick={on_click}
+      >
+        {children}
+      </button>
+    </Tooltip>
+  );
+}
+
+function top_bar_base({
+  brand = "mail",
+  is_settings_view = false,
+  on_mobile_menu_toggle,
+  on_search_result_click,
+  on_search_submit,
+  on_settings_click,
+  on_shortcuts_click,
+  search_context,
+  search_slot,
+}: TopBarProps) {
+  const is_calendar = brand === "calendar";
+  const { t } = use_i18n();
+  const { user } = use_auth();
+  const { preferences, update_preference } = use_preferences();
+  const { plan_code } = use_plan_limits();
+  const is_free_plan = plan_code === "free";
+  const is_paid_plan = plan_code !== null && plan_code !== "free";
+  const { status: special_offer_status } = use_special_offer_status();
+  const has_special_offer =
+    (special_offer_status?.available ?? false) &&
+    is_special_offer_available({ plan_code, is_dismissed: false });
+  const navigate = useNavigate();
+  const is_mounted = useRef(true);
+  const [is_accounts_open, set_is_accounts_open] = useState(false);
+  const [is_mobile, set_is_mobile] = useState(false);
+  const [is_tablet, set_is_tablet] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.innerWidth >= 768 &&
+      window.innerWidth < 1024,
+  );
+  const [show_account_tip, set_show_account_tip] = useState(false);
+  const account_tip_timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const account_tip_blocked = useRef(false);
+  const account_tip_anchor = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    is_mounted.current = true;
+
+    return () => {
+      is_mounted.current = false;
+    };
+  }, []);
+
+  const open_special_offer = useCallback(() => {
+    show_special_offer("manual");
+  }, []);
+
+  const close_account_tip = useCallback(() => {
+    if (account_tip_timer.current) clearTimeout(account_tip_timer.current);
+    set_show_account_tip(false);
+  }, []);
+
+  const open_account_tip = useCallback(() => {
+    if (account_tip_blocked.current) return;
+    if (account_tip_timer.current) clearTimeout(account_tip_timer.current);
+    account_tip_timer.current = setTimeout(() => {
+      if (!account_tip_anchor.current?.matches(":hover")) return;
+      set_show_account_tip(true);
+    }, 500);
+  }, []);
+
+  const open_feedback_settings = useCallback(() => {
+    window.dispatchEvent(
+      new CustomEvent("navigate-settings", { detail: "feedback" }),
+    );
+  }, []);
+
+  const open_support_compose = useCallback(() => {
+    if (is_calendar) {
+      open_external(`mailto:${SUPPORT_ADDRESS}`);
+
+      return;
+    }
+    if (window.location.pathname.startsWith("/settings")) {
+      navigate("/");
+    }
+    window.dispatchEvent(
+      new CustomEvent("aster:open-compose-prefilled", {
+        detail: { to: [SUPPORT_ADDRESS], subject: "", body: "" },
+      }),
+    );
+  }, [is_calendar, navigate]);
+
+  const leave_account_tip = useCallback(() => {
+    account_tip_blocked.current = false;
+    close_account_tip();
+  }, [close_account_tip]);
+
+  const handle_accounts_open_change = useCallback(
+    (next_open: boolean) => {
+      account_tip_blocked.current = true;
+      close_account_tip();
+      set_is_accounts_open(next_open);
+    },
+    [close_account_tip],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (account_tip_timer.current) clearTimeout(account_tip_timer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const check_breakpoint = () => {
+      const width = window.innerWidth;
+
+      set_is_mobile(width < 768);
+      set_is_tablet(width >= 768 && width < 1024);
+    };
+
+    check_breakpoint();
+    window.addEventListener("resize", check_breakpoint);
+
+    return () => window.removeEventListener("resize", check_breakpoint);
+  }, []);
+
+  const account_email = user?.email ?? "";
+  const primary_identity = use_primary_identity(account_email);
+  const display_name =
+    user?.display_name ||
+    user?.username ||
+    (primary_identity.email || account_email).split("@")[0];
+
+  const brand_label = is_calendar
+    ? t("calendar.aster_calendar_brand")
+    : t("common.aster_mail");
+  const dated_logo_light_src = use_dated_calendar_icon("logo_light");
+  const dated_logo_dark_src = use_dated_calendar_icon("logo_dark");
+  const dated_mark_src = use_dated_calendar_icon("mark");
+  const logo_light_src = is_calendar
+    ? dated_logo_light_src
+    : "/aster_mail_logo_light.png";
+  const logo_dark_src = is_calendar
+    ? dated_logo_dark_src
+    : "/aster_mail_logo_dark.png";
+
+  const sidebar_expanded_width = Math.min(
+    360,
+    Math.max(200, preferences.sidebar_width ?? 256),
+  );
+  const is_rail_header =
+    !is_calendar &&
+    !is_mobile &&
+    !is_settings_view &&
+    (is_tablet || (preferences.sidebar_minimized ?? false));
+  const left_cluster_width = is_rail_header ? 64 : sidebar_expanded_width;
+
+  const go_home = useCallback(() => {
+    navigate("/");
+    window.dispatchEvent(
+      new CustomEvent(
+        is_calendar ? "aster-calendar-home" : "astermail:inbox-home",
+      ),
+    );
+  }, [is_calendar, navigate]);
+
+  const handle_menu_click = useCallback(() => {
+    if (is_mobile) {
+      on_mobile_menu_toggle();
+
+      return;
+    }
+    update_preference(
+      "sidebar_minimized",
+      !(preferences.sidebar_minimized ?? false),
+      true,
+    );
+  }, [
+    is_mobile,
+    on_mobile_menu_toggle,
+    preferences.sidebar_minimized,
+    update_preference,
+  ]);
+
+  return (
+    <header
+      className="flex items-center h-14 pe-2 sm:pe-3 flex-shrink-0 select-none"
+      style={{ backgroundColor: "var(--bg-secondary)" }}
+    >
+      <div
+        className={
+          is_rail_header
+            ? "flex items-center justify-center flex-shrink-0"
+            : "flex items-center gap-2 flex-shrink-0 px-2 sm:ps-[22px] sm:pe-3"
+        }
+        style={is_mobile ? undefined : { width: left_cluster_width }}
+      >
+        {is_mobile && (
+          <IconButton
+            label={t("common.open_menu")}
+            on_click={handle_menu_click}
+          >
+            <Bars3Icon className="w-5 h-5" />
+          </IconButton>
+        )}
+        <Tooltip delay={1200} tip={brand_label}>
+          <button
+            aria-label={brand_label}
+            className="hidden sm:flex items-center select-none overflow-hidden px-2 py-2 -mx-2 outline-none focus:outline-none"
+            type="button"
+            onClick={go_home}
+          >
+            {is_rail_header ? (
+              <img
+                alt={brand_label}
+                className="h-9 w-9 object-contain"
+                decoding="async"
+                draggable={false}
+                src={is_calendar ? dated_mark_src : "/mail_logo.png"}
+              />
+            ) : (
+              <>
+                <img
+                  alt={brand_label}
+                  className="h-6 w-auto max-w-full object-contain object-left dark:hidden"
+                  decoding="async"
+                  draggable={false}
+                  src={logo_light_src}
+                />
+                <img
+                  alt={brand_label}
+                  className="h-6 w-auto max-w-full object-contain object-left hidden dark:block"
+                  decoding="async"
+                  draggable={false}
+                  src={logo_dark_src}
+                />
+              </>
+            )}
+          </button>
+        </Tooltip>
+        {is_calendar && !is_rail_header && (
+          <div className="hidden sm:block">
+            <AppSwitcher on_open_current={go_home} />
+          </div>
+        )}
+      </div>
+
+      <div
+        className={`flex-1 min-w-0 flex items-center ${is_rail_header ? "ps-2" : "ps-1 md:ps-2"}`}
+      >
+        {is_settings_view ? (
+          <div className="w-full" id="settings_search_slot" />
+        ) : search_slot !== undefined ? (
+          search_slot
+        ) : (
+          <SearchBar
+            is_full_width={is_mobile || is_rail_header}
+            is_pill
+            on_result_click={on_search_result_click}
+            on_search_submit={on_search_submit}
+            search_context={search_context}
+          />
+        )}
+      </div>
+
+      <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0 ms-auto ps-2">
+        <DropdownMenu>
+          <Tooltip tip={t("common.help")}>
+            <DropdownMenuTrigger asChild>
+              <button
+                aria-label={t("common.help")}
+                className={`${is_calendar ? "hidden sm:flex" : "flex"} items-center justify-center w-9 h-9 rounded-full transition-colors text-[var(--text-primary)] hover:bg-[var(--bg-hover)] focus:outline-none`}
+                type="button"
+              >
+                <QuestionMarkCircleIcon className="w-5 h-5" />
+              </button>
+            </DropdownMenuTrigger>
+          </Tooltip>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem onClick={() => open_external(HELP_CENTER_URL)}>
+              <LifebuoyIcon className="w-4 h-4 me-2" />
+              {t("settings.bridge_support_help")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={on_shortcuts_click}>
+              <KeyboardIcon className="w-4 h-4 me-2" />
+              {t("common.keyboard_shortcuts")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={open_support_compose}>
+              <EnvelopeIcon className="w-4 h-4 me-2" />
+              {t("common.contact_support")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={open_feedback_settings}>
+              <ChatBubbleLeftRightIcon className="w-4 h-4 me-2" />
+              {t("common.send_feedback_to_aster")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => open_external(PRIVACY_URL)}>
+              <ShieldCheckIcon className="w-4 h-4 me-2" />
+              {t("auth.privacy_policy")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => open_external(TERMS_URL)}>
+              <DocumentTextIcon className="w-4 h-4 me-2" />
+              {t("auth.terms_of_service")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <IconButton
+          label={t("settings.title")}
+          on_click={on_settings_click}
+          onboarding_key="settings-button"
+        >
+          <Cog6ToothIcon className="w-5 h-5" />
+        </IconButton>
+
+        {is_free_plan && has_special_offer && (
+          <span className="hidden sm:inline-flex">
+            <Tooltip tip={t("settings.special_offer_subtitle")}>
+              <Button
+                className="special_offer_pill !h-9 !rounded-[var(--aster-radius-control)] !text-[14px] !font-medium !px-5 ms-1 gap-1.5"
+                size="sm"
+                variant="depth"
+                onClick={open_special_offer}
+              >
+                <TagIcon className="w-4 h-4" />
+                {t("settings.special_offer_button")}
+              </Button>
+            </Tooltip>
+          </span>
+        )}
+
+        {is_free_plan && !has_special_offer && (
+          <span className="hidden sm:inline-flex">
+            <Tooltip tip={t("common.upgrade_tooltip")}>
+              <Button
+                className="!h-9 !rounded-[var(--aster-radius-control)] !text-[14px] !font-medium !px-5 ms-1"
+                size="sm"
+                variant="depth"
+                onClick={() => show_upgrade_plans()}
+              >
+                {t("common.upgrade")}
+              </Button>
+            </Tooltip>
+          </span>
+        )}
+
+        <div
+          ref={account_tip_anchor}
+          className={`relative ${is_free_plan ? "" : "ms-1.5"}`}
+          onMouseEnter={open_account_tip}
+          onMouseLeave={leave_account_tip}
+          onPointerDownCapture={close_account_tip}
+        >
+          <WorkspaceSwitcher
+            align="end"
+            is_open={is_accounts_open}
+            on_open_change={handle_accounts_open_change}
+            trigger={
+              <button
+                aria-label={t("auth.your_accounts")}
+                className="account_avatar_button flex flex-shrink-0 items-center justify-center w-9 h-9 rounded-full p-0 leading-none outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0"
+                type="button"
+                onClick={close_account_tip}
+              >
+                <span
+                  className={`account_avatar_ring inline-flex leading-none ${is_paid_plan ? "plan_ring" : ""}`}
+                >
+                  <ProfileAvatar
+                    className="block"
+                    email={account_email}
+                    image_url={user?.profile_picture}
+                    name={display_name}
+                    profile_color={
+                      user?.profile_color || preferences.profile_color
+                    }
+                    size="sm"
+                  />
+                </span>
+              </button>
+            }
+          />
+          {show_account_tip && !is_accounts_open && (
+            <div className="aster_tip_portal pointer-events-none absolute end-0 top-full mt-1.5 z-[70] text-start">
+              <p className="font-medium text-[var(--text-primary)]">
+                {t("common.aster_account")}
+              </p>
+              <p>{display_name}</p>
+              <p className="text-[var(--text-muted)]">
+                {primary_identity.email || account_email}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+export const TopBar = memo(top_bar_base);

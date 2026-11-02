@@ -1,0 +1,2813 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { Capacitor } from "@capacitor/core";
+
+import {
+  get_csrf_token_from_cookie,
+  set_csrf_token,
+  clear_csrf_cache,
+  is_state_changing_method,
+} from "../csrf";
+import { request_cache } from "../request_cache";
+import { token_subject } from "./token_subject";
+import {
+  is_app_network_locked,
+  is_endpoint_allowed_while_locked,
+} from "../../app_lock_network_gate";
+
+import {
+  ACCOUNTS_ROSTER_KEY,
+  API_BASE_URL,
+  ApiErrorCode,
+  ApiResponse,
+  CLIENT_PLATFORM_HEADER,
+  CachedUserInfo,
+  DEFAULT_RETRY_COUNT,
+  DEFAULT_RETRY_DELAY,
+  DEFAULT_TIMEOUT,
+  DEV_TOKEN_KEY,
+  FOLDER_UNLOCK_HEADER,
+  IDENTITY_CHECK_MIN_INTERVAL_MS,
+  NATIVE_CSRF_KEY,
+  NATIVE_REFRESH_TOKEN_KEY,
+  NATIVE_TOKEN_KEY,
+  PENDING_DELETION_EVENT,
+  PENDING_DELETION_SERVER_CODE,
+  PROACTIVE_REFRESH_THRESHOLD_MINUTES,
+  PendingTokenWrite,
+  REFRESH_INTERVAL_MINUTES,
+  RequestConfig,
+  SessionReestablishResult,
+  TAURI_AUTH_SLOT_ACCESS,
+  TAURI_AUTH_SLOT_CSRF,
+  FAMILY_2FA_EVENT,
+  FAMILY_2FA_SERVER_CODE,
+  TAURI_CSRF_KEY,
+  TAURI_TOKEN_KEY,
+  clear_last_auth_ms,
+  dev_token_storage_allowed,
+  get_error_code_from_status,
+  is_auth_endpoint,
+  is_identity_establishing_endpoint,
+  is_session_check_endpoint,
+  is_offline_tombstoned,
+  is_pending_deletion_error,
+  is_tauri_env,
+  parse_retry_after_header,
+  refresh_backoff_ms,
+  unlock_token_cache_suffix,
+  with_declared_platform,
+  write_last_auth_ms,
+} from "./helpers";
+import { should_show_server_message } from "./server_message";
+import {
+  MAX_PREEMPTIONS_PER_REQUEST,
+  track_background_request,
+  wait_for_foreground_idle,
+  type BackgroundRequest,
+} from "./request_priority";
+
+import { get_active_translations } from "@/lib/i18n/translations";
+import { is_calendar_app } from "@/lib/app_kind";
+import { calendar_plan_limit_resource } from "@/lib/calendar_plan_limit_resource";
+import { extend_passphrase_timeout } from "@/services/crypto/memory_key_store";
+import { get_device_id } from "@/services/device_id";
+import { ignore_error } from "@/lib/ignore_error";
+import {
+  routed_fetch,
+  get_effective_base_url,
+  get_effective_timeout,
+  get_effective_retry_count,
+  get_effective_retry_delay,
+} from "@/services/routing/routing_provider";
+import {
+  feature_of_endpoint,
+  http_error_code,
+  report_client_error,
+} from "@/services/error_reporter";
+
+const RATE_LIMIT_DEFAULT_HOLD_MS = 2000;
+const RATE_LIMIT_MAX_HOLD_MS = 15_000;
+const RATE_LIMIT_RETRY_MAX_HOLD_MS = 5000;
+const REFRESH_MIN_GAP_MS = 5000;
+const REFRESH_LOCK_WAIT_MS = 20_000;
+const OUTGOING_CHECKPOINT_TIMEOUT_MS = 6000;
+const REFRESH_LOCK_PREFIX = "aster-session-refresh";
+
+interface TimedResponse {
+  response: Response;
+  read_text: () => Promise<string>;
+  release: () => void;
+}
+
+function is_abort_error(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+export class ApiClient {
+  private refresh_timeout: number | null = null;
+  private is_authenticated_flag: boolean = false;
+  private auth_check_promise: Promise<boolean> | null = null;
+  private request_hold: {
+    settled: Promise<boolean | null>;
+    release: () => void;
+  } | null = null;
+  private dev_access_token: string | null = null;
+  private active_refresh_token: string | null = null;
+  private suspend_account_persist_flag: boolean = false;
+  private initial_auth_verified: boolean = false;
+  private refresh_promise: Promise<void> | null = null;
+  private outgoing_session_checkpoint: Promise<void> | null = null;
+  private _cached_user_info: CachedUserInfo | null = null;
+  private last_refresh_timestamp: number = 0;
+  private last_refresh_attempt_at: number = 0;
+  private refresh_failures: number = 0;
+  private refresh_retry_at: number = 0;
+  private session_expired_dispatched: boolean = false;
+  private intentional_logout: boolean = false;
+  private shared_session_end_allowed: boolean = false;
+  private has_ever_authenticated: boolean = false;
+  private account_add_in_progress: boolean = false;
+  private expected_user_id: string | null = null;
+  private identity_mismatch_dispatched: boolean = false;
+  private identity_mismatch_user_id: string | null = null;
+  private last_identity_check_timestamp: number = 0;
+  private rate_limited_until: number = 0;
+  private pending_account_token_writes: Map<string, PendingTokenWrite> =
+    new Map();
+  private tauri_auth_hydration: Promise<void> | null = null;
+  private tauri_auth_written_since_boot: boolean = false;
+
+  constructor() {
+    this.load_stored_tokens();
+    if (is_tauri_env()) {
+      this.tauri_auth_hydration = this.hydrate_tauri_auth();
+    }
+    this.setup_visibility_refresh();
+  }
+
+  private setup_visibility_refresh(): void {
+    document.addEventListener("visibilitychange", () => {
+      if (
+        document.visibilityState === "visible" &&
+        this.is_authenticated_flag
+      ) {
+        this.verify_identity();
+
+        const minutes_since_refresh =
+          (Date.now() - this.last_refresh_timestamp) / 60_000;
+
+        if (minutes_since_refresh >= REFRESH_INTERVAL_MINUTES / 2) {
+          this.refresh_session();
+        }
+      }
+    });
+  }
+
+  set_expected_user_id(user_id: string | null): void {
+    if (user_id && this.expected_user_id !== user_id) {
+      this.identity_mismatch_dispatched = false;
+      this.identity_mismatch_user_id = null;
+    }
+    this.expected_user_id = user_id;
+  }
+
+  get_expected_user_id(): string | null {
+    return this.expected_user_id;
+  }
+
+  get_identity_mismatch_user_id(): string | null {
+    return this.identity_mismatch_user_id;
+  }
+
+  private is_identity_mismatch(actual_user_id: string | undefined): boolean {
+    if (!this.expected_user_id) return false;
+    if (!actual_user_id) return false;
+    if (this.account_add_in_progress) return false;
+    if (this.intentional_logout) return false;
+
+    return actual_user_id !== this.expected_user_id;
+  }
+
+  private dispatch_identity_mismatch(actual_user_id: string): void {
+    this.is_authenticated_flag = false;
+    request_cache.clear();
+    this._cached_user_info = null;
+    if (this.refresh_timeout) {
+      clearTimeout(this.refresh_timeout);
+      this.refresh_timeout = null;
+    }
+    if (this.identity_mismatch_dispatched) return;
+    this.identity_mismatch_dispatched = true;
+    this.identity_mismatch_user_id = actual_user_id;
+    try {
+      window.dispatchEvent(
+        new CustomEvent("astermail:identity-mismatch", {
+          detail: {
+            expected_user_id: this.expected_user_id,
+            actual_user_id,
+          },
+        }),
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async confirm_session_identity(): Promise<boolean> {
+    if (!this.expected_user_id) return false;
+    if (this.account_add_in_progress || this.intentional_logout) return false;
+
+    try {
+      const response = await this.get<CachedUserInfo>("/core/v1/auth/me", {
+        skip_cache: true,
+        skip_dedup: true,
+      });
+      const user_id = response.data?.user_id;
+
+      if (!user_id) return false;
+      if (user_id !== this.expected_user_id) {
+        if (this.is_identity_mismatch(user_id)) {
+          this.dispatch_identity_mismatch(user_id);
+        }
+
+        return false;
+      }
+
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async verify_identity(force: boolean = false): Promise<boolean> {
+    if (!this.expected_user_id) return true;
+    if (!this.is_authenticated_flag) return true;
+    if (this.account_add_in_progress || this.intentional_logout) return true;
+    if (!navigator.onLine) return true;
+
+    const elapsed = Date.now() - this.last_identity_check_timestamp;
+
+    if (!force && elapsed < IDENTITY_CHECK_MIN_INTERVAL_MS) {
+      return true;
+    }
+
+    this.last_identity_check_timestamp = Date.now();
+
+    return this.check_auth_status();
+  }
+
+  private load_stored_tokens(): void {
+    if (is_tauri_env()) return;
+    if (!dev_token_storage_allowed()) return;
+    const stored_token = sessionStorage.getItem(DEV_TOKEN_KEY);
+
+    if (stored_token) {
+      this.dev_access_token = stored_token;
+    }
+  }
+
+  private async auth_store_set(slot: string, value: string): Promise<void> {
+    if (!value) return;
+    this.tauri_auth_written_since_boot = true;
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+
+      await invoke("device_auth_store_set", { slot, value });
+    } catch (caught) {
+      ignore_error("services/api/client/api_client:auth_store_set", caught);
+    }
+  }
+
+  private async auth_store_get(slot: string): Promise<string | null> {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const value = await invoke<string | null>("device_auth_store_get", {
+        slot,
+      });
+
+      return value ?? null;
+    } catch (caught) {
+      ignore_error("services/api/client/api_client:auth_store_get", caught);
+
+      return null;
+    }
+  }
+
+  private async auth_store_clear(): Promise<void> {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+
+      await invoke("device_auth_store_clear");
+    } catch (caught) {
+      ignore_error("services/api/client/api_client:auth_store_clear", caught);
+    }
+  }
+
+  private async hydrate_tauri_auth(): Promise<void> {
+    const superseded = (): boolean => this.tauri_auth_written_since_boot;
+
+    let token = await this.auth_store_get(TAURI_AUTH_SLOT_ACCESS);
+    let csrf = await this.auth_store_get(TAURI_AUTH_SLOT_CSRF);
+
+    if (superseded()) return;
+
+    try {
+      const legacy_token = localStorage.getItem(TAURI_TOKEN_KEY);
+      const legacy_csrf = localStorage.getItem(TAURI_CSRF_KEY);
+
+      if (!token && legacy_token) {
+        token = legacy_token;
+        await this.auth_store_set(TAURI_AUTH_SLOT_ACCESS, legacy_token);
+      }
+      if (!csrf && legacy_csrf) {
+        csrf = legacy_csrf;
+        await this.auth_store_set(TAURI_AUTH_SLOT_CSRF, legacy_csrf);
+      }
+      if (legacy_token) localStorage.removeItem(TAURI_TOKEN_KEY);
+      if (legacy_csrf) localStorage.removeItem(TAURI_CSRF_KEY);
+    } catch (caught) {
+      ignore_error("services/api/client/api_client:hydrate_tauri_auth", caught);
+    }
+
+    if (token && !this.dev_access_token) {
+      this.dev_access_token = token;
+    }
+    if (csrf) {
+      set_csrf_token(csrf);
+    }
+  }
+
+  private async persist_native_token(token: string): Promise<void> {
+    try {
+      const { Preferences } = await import("@capacitor/preferences");
+
+      await Preferences.set({ key: NATIVE_TOKEN_KEY, value: token });
+    } catch (caught) {
+      ignore_error("services/api/client/api_client:verify_identity", caught);
+    }
+  }
+
+  private async clear_native_token(): Promise<void> {
+    try {
+      const { Preferences } = await import("@capacitor/preferences");
+
+      await Preferences.remove({ key: NATIVE_TOKEN_KEY });
+    } catch (caught) {
+      ignore_error("services/api/client/api_client:verify_identity", caught);
+    }
+  }
+
+  private async persist_native_refresh_token(token: string): Promise<void> {
+    try {
+      const { Preferences } = await import("@capacitor/preferences");
+
+      await Preferences.set({ key: NATIVE_REFRESH_TOKEN_KEY, value: token });
+    } catch (caught) {
+      ignore_error("services/api/client/api_client:verify_identity", caught);
+    }
+  }
+
+  private async load_native_refresh_token(): Promise<string | null> {
+    try {
+      const { Preferences } = await import("@capacitor/preferences");
+      const result = await Preferences.get({ key: NATIVE_REFRESH_TOKEN_KEY });
+
+      return result.value;
+    } catch {
+      return null;
+    }
+  }
+
+  private async clear_native_refresh_token(): Promise<void> {
+    try {
+      const { Preferences } = await import("@capacitor/preferences");
+
+      await Preferences.remove({ key: NATIVE_REFRESH_TOKEN_KEY });
+    } catch (caught) {
+      ignore_error("services/api/client/api_client:verify_identity", caught);
+    }
+  }
+
+  private async load_native_token(): Promise<string | null> {
+    try {
+      const { Preferences } = await import("@capacitor/preferences");
+      const result = await Preferences.get({ key: NATIVE_TOKEN_KEY });
+
+      return result.value;
+    } catch {
+      return null;
+    }
+  }
+
+  private async persist_native_csrf(token: string): Promise<void> {
+    try {
+      const { Preferences } = await import("@capacitor/preferences");
+
+      await Preferences.set({ key: NATIVE_CSRF_KEY, value: token });
+    } catch (caught) {
+      ignore_error("services/api/client/api_client:verify_identity", caught);
+    }
+  }
+
+  private async load_native_csrf(): Promise<string | null> {
+    try {
+      const { Preferences } = await import("@capacitor/preferences");
+      const result = await Preferences.get({ key: NATIVE_CSRF_KEY });
+
+      return result.value;
+    } catch {
+      return null;
+    }
+  }
+
+  private async clear_native_csrf(): Promise<void> {
+    try {
+      const { Preferences } = await import("@capacitor/preferences");
+
+      await Preferences.remove({ key: NATIVE_CSRF_KEY });
+    } catch (caught) {
+      ignore_error("services/api/client/api_client:verify_identity", caught);
+    }
+  }
+
+  private async recover_session_from_refresh_cookie(): Promise<boolean> {
+    if (Capacitor.isNativePlatform() || is_tauri_env()) {
+      return false;
+    }
+
+    try {
+      if (localStorage.getItem(ACCOUNTS_ROSTER_KEY) === null) {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+
+    try {
+      const body: { refresh_token?: string; expected_user_id?: string } = {};
+
+      if (this.expected_user_id) {
+        body.expected_user_id = this.expected_user_id;
+
+        const stored_refresh_token = await this.read_latest_refresh_token(
+          this.expected_user_id,
+        );
+
+        if (stored_refresh_token) body.refresh_token = stored_refresh_token;
+      }
+
+      const response = await this.post<{
+        csrf_token: string;
+        access_token?: string;
+        refresh_token?: string;
+      }>("/core/v1/auth/refresh", body, { skip_session_refresh: true });
+
+      if (!response.data?.csrf_token) {
+        return false;
+      }
+
+      clear_csrf_cache();
+      this.set_csrf(response.data.csrf_token);
+      this.last_refresh_timestamp = Date.now();
+
+      if (response.data.access_token) {
+        this.set_dev_token(
+          response.data.access_token,
+          response.data.refresh_token,
+        );
+      }
+
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async verify_initial_auth(): Promise<boolean> {
+    if (this.initial_auth_verified) {
+      return this.is_authenticated_flag;
+    }
+
+    if (this.tauri_auth_hydration) {
+      await this.tauri_auth_hydration;
+      this.tauri_auth_hydration = null;
+    }
+
+    if (Capacitor.isNativePlatform() && !this.dev_access_token) {
+      const persisted = await this.load_native_token();
+
+      if (persisted) {
+        this.dev_access_token = persisted;
+      }
+      const persisted_csrf = await this.load_native_csrf();
+
+      if (persisted_csrf) {
+        set_csrf_token(persisted_csrf);
+      }
+    }
+
+    const csrf_token = get_csrf_token_from_cookie();
+    const has_stored_token = !!this.dev_access_token;
+
+    if (!csrf_token && !has_stored_token) {
+      const recovered = await this.recover_session_from_refresh_cookie();
+
+      if (!recovered) {
+        this.initial_auth_verified = true;
+
+        return false;
+      }
+    }
+
+    this.is_authenticated_flag = true;
+
+    if (!navigator.onLine) {
+      if (is_offline_tombstoned()) {
+        this.is_authenticated_flag = false;
+        this.initial_auth_verified = true;
+        this._cached_user_info = null;
+        request_cache.clear();
+        this.dispatch_session_expired(true);
+
+        return false;
+      }
+      this.initial_auth_verified = true;
+      this.schedule_token_refresh();
+
+      return true;
+    }
+
+    this.initial_auth_verified = true;
+
+    let is_valid = await this.check_auth_status();
+
+    if (!is_valid) {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      is_valid = await this.check_auth_status();
+    }
+
+    if (is_valid) {
+      this.schedule_token_refresh();
+    } else {
+      this.is_authenticated_flag = false;
+      clear_csrf_cache();
+      this.clear_dev_token();
+      if (!Capacitor.isNativePlatform() && !is_tauri_env()) {
+        try {
+          await this.clear_session_cookies();
+        } catch (caught) {
+          ignore_error(
+            "services/api/client/api_client:verify_initial_auth",
+            caught,
+          );
+        }
+      }
+    }
+
+    return is_valid;
+  }
+
+  has_session_hint(): boolean {
+    return !!this.dev_access_token || !!get_csrf_token_from_cookie();
+  }
+
+  hold_requests_until(verdict: Promise<boolean>): Promise<boolean | null> {
+    this.release_request_hold();
+
+    let release: () => void = () => undefined;
+    const released = new Promise<null>((resolve) => {
+      release = () => resolve(null);
+    });
+    const settled = Promise.race([verdict.catch(() => false), released]);
+    const hold = { settled, release };
+
+    this.request_hold = hold;
+
+    return settled.finally(() => {
+      if (this.request_hold === hold) this.request_hold = null;
+    });
+  }
+
+  private release_request_hold(): void {
+    this.request_hold?.release();
+    this.request_hold = null;
+  }
+
+  set_dev_token(
+    token: string,
+    refresh_token?: string,
+    owner_account_id?: string | null,
+  ): void {
+    void this.store_tokens(token, refresh_token, owner_account_id);
+  }
+
+  private store_tokens(
+    token: string,
+    refresh_token: string | undefined,
+    owner_account_id: string | null | undefined,
+  ): Promise<void> {
+    this.dev_access_token = token;
+    if (refresh_token) {
+      this.active_refresh_token = refresh_token;
+      this.reset_refresh_backoff();
+    }
+    if (dev_token_storage_allowed()) {
+      sessionStorage.setItem(DEV_TOKEN_KEY, token);
+    }
+    if (Capacitor.isNativePlatform()) {
+      this.persist_native_token(token);
+      if (refresh_token) {
+        this.persist_native_refresh_token(refresh_token);
+      }
+    }
+    if (is_tauri_env()) {
+      void this.auth_store_set(TAURI_AUTH_SLOT_ACCESS, token);
+    }
+
+    return this.persist_to_active_account(
+      token,
+      refresh_token,
+      owner_account_id,
+    );
+  }
+
+  suspend_account_persist(): void {
+    this.suspend_account_persist_flag = true;
+  }
+
+  resume_account_persist(): void {
+    this.suspend_account_persist_flag = false;
+    void this.flush_pending_account_token_writes();
+  }
+
+  private token_owner_account_id(): string | null {
+    if (this.account_add_in_progress) return null;
+
+    return this.expected_user_id;
+  }
+
+  private queue_account_token_write(
+    account_id: string,
+    access_token: string | null,
+    refresh_token?: string | null,
+  ): void {
+    const existing = this.pending_account_token_writes.get(account_id);
+
+    this.pending_account_token_writes.set(account_id, {
+      access_token,
+      refresh_token:
+        refresh_token === undefined ? existing?.refresh_token : refresh_token,
+    });
+  }
+
+  private async write_account_tokens(
+    account_id: string,
+    access_token: string | null,
+    refresh_token?: string | null,
+  ): Promise<void> {
+    try {
+      const { update_account_tokens } =
+        await import("@/services/account_manager");
+
+      if (this.intentional_logout) return;
+
+      await update_account_tokens(account_id, access_token, refresh_token);
+    } catch (caught) {
+      ignore_error(
+        "services/api/client/api_client:resume_account_persist",
+        caught,
+      );
+    }
+  }
+
+  private async flush_pending_account_token_writes(): Promise<void> {
+    if (this.suspend_account_persist_flag) return;
+    if (this.intentional_logout) {
+      this.pending_account_token_writes.clear();
+
+      return;
+    }
+    if (this.pending_account_token_writes.size === 0) return;
+
+    const entries = Array.from(this.pending_account_token_writes.entries());
+
+    this.pending_account_token_writes.clear();
+
+    for (const [account_id, write] of entries) {
+      await this.write_account_tokens(
+        account_id,
+        write.access_token,
+        write.refresh_token,
+      );
+    }
+  }
+
+  private async persist_to_active_account(
+    access_token: string | null,
+    refresh_token?: string | null,
+    owner_account_id?: string | null,
+  ): Promise<void> {
+    if (this.intentional_logout) return;
+
+    const subject = token_subject(access_token) ?? token_subject(refresh_token);
+
+    if (owner_account_id === null && !subject) return;
+
+    const owner_id =
+      subject ?? owner_account_id ?? this.token_owner_account_id();
+
+    if (this.suspend_account_persist_flag) {
+      if (owner_id) {
+        this.queue_account_token_write(owner_id, access_token, refresh_token);
+      }
+
+      return;
+    }
+
+    if (owner_id) {
+      await this.write_account_tokens(owner_id, access_token, refresh_token);
+
+      return;
+    }
+
+    try {
+      const { get_current_account_id, update_account_tokens } =
+        await import("@/services/account_manager");
+
+      if (this.intentional_logout) return;
+      const id = await get_current_account_id();
+
+      if (!id) return;
+      if (this.intentional_logout) return;
+      await update_account_tokens(id, access_token, refresh_token);
+    } catch (caught) {
+      ignore_error(
+        "services/api/client/api_client:resume_account_persist",
+        caught,
+      );
+    }
+  }
+
+  async load_tokens_for_account(account_id: string): Promise<boolean> {
+    try {
+      const { get_account_tokens } = await import("@/services/account_manager");
+      const tokens = await get_account_tokens(account_id);
+
+      this.active_refresh_token = tokens.refresh_token;
+      this.reset_refresh_backoff();
+
+      if (tokens.access_token) {
+        this.dev_access_token = tokens.access_token;
+        if (Capacitor.isNativePlatform()) {
+          await this.persist_native_token(tokens.access_token);
+          if (tokens.refresh_token) {
+            await this.persist_native_refresh_token(tokens.refresh_token);
+          }
+        }
+        if (is_tauri_env()) {
+          await this.auth_store_set(
+            TAURI_AUTH_SLOT_ACCESS,
+            tokens.access_token,
+          );
+        }
+        if (dev_token_storage_allowed()) {
+          sessionStorage.setItem(DEV_TOKEN_KEY, tokens.access_token);
+        }
+
+        return true;
+      }
+
+      if (tokens.refresh_token) {
+        return true;
+      }
+    } catch (caught) {
+      ignore_error(
+        "services/api/client/api_client:load_tokens_for_account",
+        caught,
+      );
+    }
+
+    return false;
+  }
+
+  clear_in_memory_token(): void {
+    this.dev_access_token = null;
+    this.active_refresh_token = null;
+    if (import.meta.env.DEV) {
+      sessionStorage.removeItem(DEV_TOKEN_KEY);
+    }
+  }
+
+  set_csrf(token: string): void {
+    set_csrf_token(token);
+    if (Capacitor.isNativePlatform()) {
+      this.persist_native_csrf(token);
+    }
+    if (is_tauri_env()) {
+      void this.auth_store_set(TAURI_AUTH_SLOT_CSRF, token);
+    }
+  }
+
+  clear_dev_token(): void {
+    this.dev_access_token = null;
+    this.active_refresh_token = null;
+    this.reset_refresh_backoff();
+    if (import.meta.env.DEV) {
+      sessionStorage.removeItem(DEV_TOKEN_KEY);
+    }
+    if (Capacitor.isNativePlatform()) {
+      this.clear_native_token();
+      this.clear_native_csrf();
+      this.clear_native_refresh_token();
+    }
+    if (is_tauri_env()) {
+      this.tauri_auth_written_since_boot = true;
+      void this.auth_store_clear();
+      try {
+        localStorage.removeItem(TAURI_TOKEN_KEY);
+        localStorage.removeItem(TAURI_CSRF_KEY);
+      } catch (caught) {
+        ignore_error("services/api/client/api_client:clear_dev_token", caught);
+      }
+    }
+  }
+
+  private schedule_token_refresh(delay_ms?: number): void {
+    if (this.refresh_timeout) {
+      clearTimeout(this.refresh_timeout);
+    }
+
+    if (!this.last_refresh_timestamp) {
+      this.last_refresh_timestamp = Date.now();
+    }
+
+    this.refresh_timeout = window.setTimeout(
+      () => {
+        this.refresh_session();
+      },
+      delay_ms ?? REFRESH_INTERVAL_MINUTES * 60 * 1000,
+    );
+  }
+
+  private reset_refresh_backoff(): void {
+    this.refresh_failures = 0;
+    this.refresh_retry_at = 0;
+  }
+
+  private note_refresh_failure(): void {
+    this.refresh_failures += 1;
+    const wait_ms = refresh_backoff_ms(this.refresh_failures);
+
+    this.refresh_retry_at = Date.now() + wait_ms;
+    this.schedule_token_refresh(wait_ms);
+  }
+
+  async refresh_session(
+    options: { after_unauthorized?: boolean } = {},
+  ): Promise<void> {
+    if (!this.is_authenticated_flag) return;
+    if (!this.initial_auth_verified) return;
+
+    if (!navigator.onLine) {
+      this.schedule_token_refresh();
+
+      return;
+    }
+
+    if (this.refresh_promise) {
+      return this.refresh_promise;
+    }
+
+    const now = Date.now();
+
+    if (now - this.last_refresh_attempt_at < REFRESH_MIN_GAP_MS) return;
+    if (!options.after_unauthorized && now < this.refresh_retry_at) return;
+
+    this.last_refresh_attempt_at = now;
+    this.refresh_promise = this.refresh_session_exclusively().finally(() => {
+      this.refresh_promise = null;
+    });
+
+    return this.refresh_promise;
+  }
+
+  async refresh_session_if_due(): Promise<void> {
+    const since_refresh_ms = Date.now() - this.last_refresh_timestamp;
+
+    if (since_refresh_ms < REFRESH_INTERVAL_MINUTES * 60 * 1000) return;
+
+    return this.refresh_session();
+  }
+
+  async recover_session(): Promise<boolean> {
+    if (this.refresh_promise) {
+      await this.refresh_promise.catch(() => undefined);
+    }
+
+    const refreshed_at = this.last_refresh_timestamp;
+    let is_fresh = Date.now() - refreshed_at < REFRESH_MIN_GAP_MS;
+
+    if (!is_fresh) {
+      const gap_left_ms =
+        REFRESH_MIN_GAP_MS - (Date.now() - this.last_refresh_attempt_at);
+
+      if (gap_left_ms > 0) {
+        await this.delay(gap_left_ms);
+      }
+
+      try {
+        await this.refresh_session({ after_unauthorized: true });
+      } catch (caught) {
+        ignore_error("services/api/client/api_client:recover_session", caught);
+      }
+
+      is_fresh = this.last_refresh_timestamp !== refreshed_at;
+    }
+
+    return (
+      is_fresh &&
+      this.is_authenticated_flag &&
+      get_csrf_token_from_cookie() !== null
+    );
+  }
+
+  private async refresh_session_exclusively(): Promise<void> {
+    const locks =
+      typeof navigator !== "undefined" ? navigator.locks : undefined;
+
+    if (!locks) {
+      return this.refresh_session_impl();
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REFRESH_LOCK_WAIT_MS);
+    let acquired = false;
+
+    try {
+      await locks.request(
+        `${REFRESH_LOCK_PREFIX}:${this.expected_user_id ?? "anonymous"}`,
+        { signal: controller.signal },
+        () => {
+          acquired = true;
+          clearTimeout(timer);
+
+          return this.refresh_session_impl();
+        },
+      );
+    } catch (caught) {
+      if (acquired) throw caught;
+      this.note_refresh_failure();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private async read_latest_refresh_token(
+    owner_account_id: string | null | undefined,
+  ): Promise<string | null> {
+    if (Capacitor.isNativePlatform()) {
+      return (
+        (await this.load_native_refresh_token()) ?? this.active_refresh_token
+      );
+    }
+
+    if (!owner_account_id) return this.active_refresh_token;
+
+    try {
+      const { read_stored_refresh_token } =
+        await import("@/services/account_manager");
+
+      return (
+        (await read_stored_refresh_token(owner_account_id)) ??
+        this.active_refresh_token
+      );
+    } catch {
+      return this.active_refresh_token;
+    }
+  }
+
+  private async adopt_refreshed_session(
+    data: { csrf_token: string; access_token?: string; refresh_token?: string },
+    owner_account_id: string | null | undefined,
+  ): Promise<void> {
+    this.is_authenticated_flag = true;
+    this.last_refresh_timestamp = Date.now();
+    this.reset_refresh_backoff();
+    clear_csrf_cache();
+    this.set_csrf(data.csrf_token);
+
+    if (data.access_token) {
+      await this.store_tokens(
+        data.access_token,
+        data.refresh_token,
+        owner_account_id,
+      );
+    } else if (data.refresh_token) {
+      this.active_refresh_token = data.refresh_token;
+      if (Capacitor.isNativePlatform()) {
+        await this.persist_native_refresh_token(data.refresh_token);
+      }
+      await this.persist_to_active_account(
+        this.dev_access_token,
+        data.refresh_token,
+        owner_account_id,
+      );
+    }
+
+    this.schedule_token_refresh();
+  }
+
+  private is_transient_error_code(code: ApiErrorCode | undefined): boolean {
+    return (
+      code === "NETWORK_ERROR" ||
+      code === "TIMEOUT_ERROR" ||
+      code === "SERVER_ERROR" ||
+      code === "UNKNOWN_ERROR"
+    );
+  }
+
+  private async shared_session_moved(
+    owner_account_id: string | null | undefined,
+  ): Promise<boolean> {
+    if (!owner_account_id) return false;
+    if (Capacitor.isNativePlatform() || is_tauri_env()) return false;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      return false;
+    }
+
+    const me_response = await this.get<{ user_id: string }>(
+      "/core/v1/auth/me",
+      {
+        skip_cache: true,
+        skip_session_refresh: true,
+        skip_dedup: true,
+        cookie_identity: true,
+      },
+    );
+    const actual_user_id = me_response.data?.user_id;
+
+    if (!actual_user_id || !this.is_identity_mismatch(actual_user_id)) {
+      return false;
+    }
+    this.dispatch_identity_mismatch(actual_user_id);
+
+    return true;
+  }
+
+  private async refresh_session_impl(): Promise<void> {
+    const max_retries = 3;
+    const retry_delay_base = 2000;
+
+    const owner_account_id: string | null | undefined = this
+      .account_add_in_progress
+      ? null
+      : (this.expected_user_id ?? undefined);
+
+    const refresh_token =
+      await this.read_latest_refresh_token(owner_account_id);
+
+    if (refresh_token) {
+      this.active_refresh_token = refresh_token;
+    }
+
+    if (await this.shared_session_moved(owner_account_id)) {
+      return;
+    }
+
+    for (let attempt = 0; attempt < max_retries; attempt++) {
+      try {
+        const body: {
+          refresh_token?: string;
+          expected_user_id?: string;
+        } = {};
+
+        if (refresh_token) body.refresh_token = refresh_token;
+        if (owner_account_id) body.expected_user_id = owner_account_id;
+        const response = await this.post<{
+          csrf_token: string;
+          access_token?: string;
+          refresh_token?: string;
+        }>("/core/v1/auth/refresh", body);
+
+        if (this.intentional_logout) {
+          return;
+        }
+
+        if (response.data?.csrf_token) {
+          await this.adopt_refreshed_session(response.data, owner_account_id);
+          await this.confirm_identity_after_refresh();
+
+          return;
+        }
+
+        if (this.is_transient_error_code(response.code)) {
+          if (attempt < max_retries - 1) {
+            await this.delay(retry_delay_base * (attempt + 1));
+            continue;
+          }
+          this.note_refresh_failure();
+
+          return;
+        }
+
+        if (response.code !== "UNAUTHORIZED" && response.code !== "FORBIDDEN") {
+          this.note_refresh_failure();
+
+          return;
+        }
+
+        const me_response = await this.get<{ user_id: string }>(
+          "/core/v1/auth/me",
+          {
+            skip_cache: true,
+            skip_session_refresh: true,
+            skip_dedup: true,
+          },
+        );
+
+        if (me_response.data?.user_id) {
+          if (this.is_identity_mismatch(me_response.data.user_id)) {
+            this.dispatch_identity_mismatch(me_response.data.user_id);
+
+            return;
+          }
+          this.note_refresh_failure();
+
+          return;
+        }
+
+        if (
+          me_response.code === "UNAUTHORIZED" ||
+          me_response.code === "FORBIDDEN"
+        ) {
+          this.is_authenticated_flag = false;
+          this.dispatch_session_expired();
+
+          return;
+        }
+
+        if (
+          this.is_transient_error_code(me_response.code) &&
+          attempt < max_retries - 1
+        ) {
+          await this.delay(retry_delay_base * (attempt + 1));
+          continue;
+        }
+
+        this.note_refresh_failure();
+
+        return;
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.error(
+            `Session refresh attempt ${attempt + 1}/${max_retries} failed:`,
+            error,
+          );
+        }
+        if (attempt < max_retries - 1) {
+          await this.delay(retry_delay_base * (attempt + 1));
+          continue;
+        }
+        this.note_refresh_failure();
+      }
+    }
+  }
+
+  private dispatch_session_expired(force: boolean = false): void {
+    if (this.intentional_logout) return;
+    if (this.account_add_in_progress) return;
+    if (this.session_expired_dispatched) return;
+    if (!force && !this.has_ever_authenticated) return;
+    this.session_expired_dispatched = true;
+    window.dispatchEvent(new Event("astermail:session-expired"));
+  }
+
+  begin_account_add(checkpoint_outgoing: boolean = true): void {
+    if (!this.account_add_in_progress && checkpoint_outgoing) {
+      this.start_outgoing_session_checkpoint();
+    }
+    this.account_add_in_progress = true;
+  }
+
+  private start_outgoing_session_checkpoint(): void {
+    if (Capacitor.isNativePlatform() || is_tauri_env()) return;
+    if (this.intentional_logout || !this.is_authenticated_flag) return;
+    if (this.identity_mismatch_user_id) return;
+
+    const account_id = this.expected_user_id;
+
+    if (!account_id) return;
+
+    const checkpoint = this.checkpoint_outgoing_session(account_id).catch(
+      (caught) => {
+        ignore_error(
+          "services/api/client/api_client:checkpoint_outgoing_session",
+          caught,
+        );
+      },
+    );
+
+    this.outgoing_session_checkpoint = checkpoint;
+    void checkpoint.finally(() => {
+      if (this.outgoing_session_checkpoint === checkpoint) {
+        this.outgoing_session_checkpoint = null;
+      }
+    });
+  }
+
+  private async checkpoint_outgoing_session(account_id: string): Promise<void> {
+    try {
+      await this.refresh_promise;
+    } catch (caught) {
+      ignore_error(
+        "services/api/client/api_client:checkpoint_outgoing_session",
+        caught,
+      );
+    }
+
+    const locks =
+      typeof navigator !== "undefined" ? navigator.locks : undefined;
+
+    if (!locks) {
+      return this.rotate_outgoing_session(account_id);
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => controller.abort(),
+      OUTGOING_CHECKPOINT_TIMEOUT_MS,
+    );
+
+    try {
+      await locks.request(
+        `${REFRESH_LOCK_PREFIX}:${account_id}`,
+        { signal: controller.signal },
+        () => {
+          clearTimeout(timer);
+
+          return this.rotate_outgoing_session(account_id);
+        },
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private async rotate_outgoing_session(account_id: string): Promise<void> {
+    const refresh_token = await this.read_latest_refresh_token(account_id);
+
+    if (!refresh_token || this.intentional_logout) return;
+
+    const response = await this.post<{
+      csrf_token: string;
+      access_token?: string;
+      refresh_token?: string;
+    }>(
+      "/core/v1/auth/refresh",
+      { refresh_token, expected_user_id: account_id },
+      { skip_session_refresh: true },
+    );
+
+    if (!response.data?.csrf_token || this.intentional_logout) return;
+
+    const rotated_refresh_token = response.data.refresh_token;
+
+    if (!rotated_refresh_token) return;
+
+    const subject =
+      token_subject(rotated_refresh_token) ??
+      token_subject(response.data.access_token);
+
+    if (subject && subject !== account_id) return;
+
+    clear_csrf_cache();
+    this.set_csrf(response.data.csrf_token);
+
+    if (this.expected_user_id === account_id) {
+      this.active_refresh_token = rotated_refresh_token;
+      if (response.data.access_token) {
+        this.dev_access_token = response.data.access_token;
+      }
+    }
+
+    await this.write_account_tokens(
+      account_id,
+      response.data.access_token ?? this.dev_access_token,
+      rotated_refresh_token,
+    );
+  }
+
+  private async await_outgoing_session_checkpoint(): Promise<void> {
+    const checkpoint = this.outgoing_session_checkpoint;
+
+    if (!checkpoint) return;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    await Promise.race([
+      checkpoint,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, OUTGOING_CHECKPOINT_TIMEOUT_MS);
+      }),
+    ]);
+    clearTimeout(timer);
+  }
+
+  end_account_add(): void {
+    this.account_add_in_progress = false;
+  }
+
+  allow_shared_session_end(): void {
+    this.shared_session_end_allowed = true;
+  }
+
+  is_shared_session_end_allowed(): boolean {
+    return this.shared_session_end_allowed;
+  }
+
+  begin_intentional_logout(): void {
+    this.intentional_logout = true;
+    this.suspend_account_persist_flag = true;
+    this.pending_account_token_writes.clear();
+    this.session_expired_dispatched = true;
+    if (this.refresh_timeout) {
+      clearTimeout(this.refresh_timeout);
+      this.refresh_timeout = null;
+    }
+  }
+
+  end_intentional_logout(): void {
+    this.intentional_logout = false;
+    this.suspend_account_persist_flag = false;
+    this.session_expired_dispatched = false;
+  }
+
+  private async refresh_before_logout(
+    endpoint: string,
+    method: string,
+    skip_session_refresh: boolean,
+  ): Promise<void> {
+    if (skip_session_refresh || !is_state_changing_method(method)) return;
+    if (!endpoint.includes("/auth/logout")) return;
+    if (!this.is_authenticated_flag || get_csrf_token_from_cookie()) return;
+
+    try {
+      await this.refresh_session({ after_unauthorized: true });
+    } catch (caught) {
+      ignore_error(
+        "services/api/client/api_client:refresh_before_logout",
+        caught,
+      );
+    }
+  }
+
+  private clear_auth_state(): void {
+    this.is_authenticated_flag = false;
+    this.initial_auth_verified = false;
+    this.release_request_hold();
+    this.expected_user_id = null;
+    this.identity_mismatch_dispatched = false;
+    this.identity_mismatch_user_id = null;
+    this.last_identity_check_timestamp = 0;
+    this.clear_dev_token();
+    clear_csrf_cache();
+    request_cache.clear();
+    clear_last_auth_ms();
+    if (this.refresh_timeout) {
+      clearTimeout(this.refresh_timeout);
+      this.refresh_timeout = null;
+    }
+  }
+
+  set_authenticated(authenticated: boolean): void {
+    this.is_authenticated_flag = authenticated;
+    if (authenticated) {
+      this.has_ever_authenticated = true;
+      this.intentional_logout = false;
+      this.shared_session_end_allowed = false;
+      this.suspend_account_persist_flag = false;
+      this.session_expired_dispatched = false;
+      this.initial_auth_verified = true;
+      void this.flush_pending_account_token_writes();
+      if (!this.last_refresh_timestamp) {
+        this.last_refresh_timestamp = Date.now();
+      }
+      write_last_auth_ms(Date.now());
+      this.schedule_token_refresh();
+      try {
+        window.dispatchEvent(new Event("astermail:authenticated"));
+      } catch {
+        /* ignore */
+      }
+    } else {
+      this.clear_auth_state();
+    }
+  }
+
+  is_authenticated(): boolean {
+    return this.is_authenticated_flag;
+  }
+
+  is_initial_auth_verified(): boolean {
+    return this.initial_auth_verified;
+  }
+
+  set_initial_auth_verified(verified: boolean): void {
+    this.initial_auth_verified = verified;
+  }
+
+  get_access_token(): string | null {
+    return this.dev_access_token;
+  }
+
+  get_active_refresh_token(): string | null {
+    return this.active_refresh_token;
+  }
+
+  private token_survives_reload(): boolean {
+    return (
+      is_tauri_env() ||
+      Capacitor.isNativePlatform() ||
+      dev_token_storage_allowed()
+    );
+  }
+
+  can_persist_session(): boolean {
+    return this.token_survives_reload();
+  }
+
+  async prepare_for_account_switch(): Promise<void> {
+    if (this.refresh_timeout) {
+      clearTimeout(this.refresh_timeout);
+      this.refresh_timeout = null;
+    }
+    this.is_authenticated_flag = false;
+    try {
+      await this.refresh_promise;
+    } catch (caught) {
+      ignore_error(
+        "services/api/client/api_client:prepare_for_account_switch",
+        caught,
+      );
+    }
+    await this.await_outgoing_session_checkpoint();
+  }
+
+  async reestablish_session_for_account(
+    account_id: string,
+  ): Promise<SessionReestablishResult> {
+    const loaded = await this.load_tokens_for_account(account_id);
+
+    if (!loaded) {
+      return "expired";
+    }
+
+    if (!this.dev_access_token && !this.active_refresh_token) {
+      return "expired";
+    }
+
+    const prior_suspend = this.suspend_account_persist_flag;
+
+    this.suspend_account_persist_flag = true;
+
+    const fail = (
+      reason: Exclude<SessionReestablishResult, "ok">,
+    ): Exclude<SessionReestablishResult, "ok"> => {
+      this.is_authenticated_flag = false;
+      this.clear_in_memory_token();
+
+      return reason;
+    };
+
+    const clear_dead_tokens = async (): Promise<void> => {
+      try {
+        const { update_account_tokens } =
+          await import("@/services/account_manager");
+
+        await update_account_tokens(account_id, null, null);
+      } catch (caught) {
+        ignore_error(
+          "services/api/client/api_client:clear_dead_tokens",
+          caught,
+        );
+      }
+    };
+
+    try {
+      let cookies_reissued = false;
+      let reissue_denied = false;
+
+      const reissue_cookies_impl = async (): Promise<boolean> => {
+        try {
+          const refreshed = await this.post<{
+            csrf_token: string;
+            access_token?: string;
+            refresh_token?: string;
+          }>(
+            "/core/v1/auth/refresh",
+            this.active_refresh_token
+              ? {
+                  refresh_token: this.active_refresh_token,
+                  expected_user_id: account_id,
+                }
+              : { expected_user_id: account_id },
+            { skip_session_refresh: true },
+          );
+
+          if (!refreshed.data?.csrf_token) {
+            if (
+              refreshed.code === "UNAUTHORIZED" ||
+              refreshed.code === "FORBIDDEN"
+            ) {
+              reissue_denied = true;
+            }
+
+            return false;
+          }
+
+          clear_csrf_cache();
+          this.set_csrf(refreshed.data.csrf_token);
+          if (refreshed.data.access_token) {
+            this.set_dev_token(
+              refreshed.data.access_token,
+              refreshed.data.refresh_token,
+              account_id,
+            );
+          } else if (refreshed.data.refresh_token) {
+            this.active_refresh_token = refreshed.data.refresh_token;
+          }
+
+          return true;
+        } catch (e) {
+          if (import.meta.env.DEV) console.error(e);
+
+          return false;
+        }
+      };
+
+      const reissue_cookies = async (): Promise<boolean> => {
+        if (this.refresh_promise) {
+          try {
+            await this.refresh_promise;
+          } catch (caught) {
+            ignore_error(
+              "services/api/client/api_client:reissue_cookies",
+              caught,
+            );
+          }
+        }
+
+        const result = reissue_cookies_impl();
+        const lock = result.then(
+          () => {},
+          () => {},
+        );
+
+        this.refresh_promise = lock;
+        lock.finally(() => {
+          if (this.refresh_promise === lock) {
+            this.refresh_promise = null;
+          }
+        });
+
+        return result;
+      };
+
+      if (!this.dev_access_token) {
+        cookies_reissued = await reissue_cookies();
+
+        if (!cookies_reissued) {
+          if (reissue_denied) {
+            await clear_dead_tokens();
+
+            return fail("expired");
+          }
+
+          return fail("unavailable");
+        }
+      }
+
+      this.is_authenticated_flag = true;
+      this.initial_auth_verified = true;
+
+      const verify_identity_call = () =>
+        this.get<{ user_id: string }>("/core/v1/auth/me", {
+          skip_cache: true,
+          skip_session_refresh: true,
+          skip_dedup: true,
+        });
+
+      let me_response = await verify_identity_call();
+
+      const me_denied = (response: typeof me_response): boolean =>
+        response.code === "UNAUTHORIZED" || response.code === "FORBIDDEN";
+
+      if (!me_response.data?.user_id && me_denied(me_response)) {
+        if (!cookies_reissued) {
+          cookies_reissued = await reissue_cookies();
+
+          if (cookies_reissued) {
+            me_response = await verify_identity_call();
+          }
+        }
+      }
+
+      if (!me_response.data?.user_id) {
+        const denied = me_denied(me_response);
+
+        if (denied && reissue_denied) {
+          await clear_dead_tokens();
+        }
+
+        return fail(denied ? "expired" : "unavailable");
+      }
+
+      if (me_response.data.user_id !== account_id) {
+        try {
+          await this.clear_session_cookies();
+        } catch (caught) {
+          ignore_error("services/api/client/api_client:me_denied", caught);
+        }
+
+        return fail("expired");
+      }
+
+      this.has_ever_authenticated = true;
+      this.last_refresh_timestamp = Date.now();
+
+      if (!cookies_reissued) {
+        cookies_reissued = await reissue_cookies();
+      }
+
+      if (!cookies_reissued && !this.token_survives_reload()) {
+        return fail(reissue_denied ? "expired" : "unavailable");
+      }
+
+      try {
+        const { update_account_tokens } =
+          await import("@/services/account_manager");
+
+        await update_account_tokens(
+          account_id,
+          this.dev_access_token,
+          this.active_refresh_token,
+        );
+      } catch (caught) {
+        ignore_error(
+          "services/api/client/api_client:clear_dead_tokens",
+          caught,
+        );
+      }
+
+      this.schedule_token_refresh();
+
+      return "ok";
+    } finally {
+      this.pending_account_token_writes.delete(account_id);
+      this.suspend_account_persist_flag = prior_suspend;
+      if (!prior_suspend) {
+        void this.flush_pending_account_token_writes();
+      }
+    }
+  }
+
+  get_cached_user_info(): CachedUserInfo | null {
+    return this._cached_user_info;
+  }
+
+  adopt_user_info(info: CachedUserInfo | null): void {
+    if (!info?.user_id) return;
+    if (this.is_identity_mismatch(info.user_id)) return;
+
+    this._cached_user_info = { ...this._cached_user_info, ...info };
+  }
+
+  private async confirm_identity_after_refresh(): Promise<void> {
+    if (!this.expected_user_id) return;
+    if (this.account_add_in_progress || this.intentional_logout) return;
+    if (!navigator.onLine) return;
+
+    this.last_identity_check_timestamp = Date.now();
+
+    const response = await this.get<CachedUserInfo>("/core/v1/auth/me", {
+      skip_cache: true,
+      skip_dedup: true,
+      skip_session_refresh: true,
+    });
+
+    if (response.data?.user_id) {
+      if (this.is_identity_mismatch(response.data.user_id)) {
+        this.dispatch_identity_mismatch(response.data.user_id);
+
+        return;
+      }
+      this.has_ever_authenticated = true;
+      this._cached_user_info = response.data;
+
+      return;
+    }
+
+    if (response.code === "UNAUTHORIZED" || response.code === "FORBIDDEN") {
+      this.is_authenticated_flag = false;
+    }
+  }
+
+  async check_auth_status(): Promise<boolean> {
+    if (this.auth_check_promise) {
+      return this.auth_check_promise;
+    }
+
+    this.auth_check_promise = (async () => {
+      try {
+        const response = await this.get<CachedUserInfo>("/core/v1/auth/me", {
+          skip_cache: true,
+          skip_dedup: true,
+        });
+
+        if (response.data?.user_id) {
+          if (this.is_identity_mismatch(response.data.user_id)) {
+            this.dispatch_identity_mismatch(response.data.user_id);
+
+            return false;
+          }
+          this.is_authenticated_flag = true;
+          this.has_ever_authenticated = true;
+          this._cached_user_info = response.data;
+          this.last_identity_check_timestamp = Date.now();
+
+          return true;
+        }
+
+        if (response.code === "UNAUTHORIZED" || response.code === "FORBIDDEN") {
+          this.is_authenticated_flag = false;
+
+          return false;
+        }
+
+        return this.is_authenticated_flag;
+      } catch {
+        return this.is_authenticated_flag;
+      } finally {
+        this.auth_check_promise = null;
+      }
+    })();
+
+    return this.auth_check_promise;
+  }
+
+  clear_auth_data(): void {
+    this.clear_auth_state();
+  }
+
+  async clear_session_cookies(): Promise<boolean> {
+    await this.await_outgoing_session_checkpoint();
+
+    if (!this.shared_session_end_allowed) {
+      clear_csrf_cache();
+
+      return true;
+    }
+
+    try {
+      const response = await this.post("/core/v1/auth/clear-session", {});
+
+      clear_csrf_cache();
+
+      return !response.error;
+    } catch {
+      return false;
+    }
+  }
+
+  private async request_with_timeout(
+    url: string,
+    options: RequestInit,
+    timeout: number,
+    shared_controller?: AbortController,
+  ): Promise<TimedResponse> {
+    const controller = shared_controller ?? new AbortController();
+    let timeout_id = setTimeout(() => controller.abort(), timeout);
+    const rearm = (): void => {
+      clearTimeout(timeout_id);
+      timeout_id = setTimeout(() => controller.abort(), timeout);
+    };
+    const aborted = new Promise<never>((_resolve, reject) => {
+      const reject_with_timeout = (): void => {
+        const err = new Error(get_active_translations().errors.request_timeout);
+
+        err.name = "AbortError";
+        reject(err);
+      };
+
+      if (controller.signal.aborted) {
+        reject_with_timeout();
+
+        return;
+      }
+      controller.signal.addEventListener("abort", reject_with_timeout, {
+        once: true,
+      });
+    });
+
+    aborted.catch(() => undefined);
+
+    const release = (): void => clearTimeout(timeout_id);
+    const within_deadline = <R>(work: Promise<R>): Promise<R> =>
+      Promise.race([work, aborted]);
+
+    try {
+      const response = await within_deadline(
+        routed_fetch(url, {
+          ...options,
+          signal: controller.signal,
+        }),
+      );
+
+      const read_text = async (): Promise<string> => {
+        const body = response.body;
+
+        if (!body || typeof body.getReader !== "function") {
+          rearm();
+
+          return within_deadline(response.text());
+        }
+
+        const reader = body.getReader();
+        const decoder = new TextDecoder();
+        const parts: string[] = [];
+
+        try {
+          for (;;) {
+            rearm();
+            const { done, value } = await within_deadline(reader.read());
+
+            if (done) break;
+            parts.push(decoder.decode(value, { stream: true }));
+          }
+          parts.push(decoder.decode());
+
+          return parts.join("");
+        } catch (error) {
+          reader.cancel().catch(() => undefined);
+          throw error;
+        }
+      };
+
+      return { response, read_text, release };
+    } catch (error) {
+      release();
+      throw error;
+    }
+  }
+
+  private ensure_fresh_token(
+    endpoint: string,
+    skip_session_refresh = false,
+  ): void {
+    if (
+      skip_session_refresh ||
+      !this.is_authenticated_flag ||
+      !this.initial_auth_verified ||
+      !this.last_refresh_timestamp ||
+      endpoint.includes("/auth/refresh") ||
+      endpoint.includes("/auth/login") ||
+      endpoint.includes("/auth/register") ||
+      endpoint.includes("/auth/logout") ||
+      endpoint.includes("/auth/totp/") ||
+      endpoint.includes("/auth/salt")
+    ) {
+      return;
+    }
+
+    const minutes_since_refresh =
+      (Date.now() - this.last_refresh_timestamp) / 60_000;
+
+    if (minutes_since_refresh >= PROACTIVE_REFRESH_THRESHOLD_MINUTES) {
+      this.refresh_session().catch((caught) =>
+        ignore_error(
+          "services/api/client/api_client:ensure_fresh_token",
+          caught,
+        ),
+      );
+    }
+  }
+
+  private async ensure_csrf_token(
+    endpoint: string,
+    skip_session_refresh: boolean,
+  ): Promise<string | null> {
+    if (
+      skip_session_refresh ||
+      !this.is_authenticated_flag ||
+      endpoint.includes("/auth/refresh") ||
+      endpoint.includes("/auth/login") ||
+      endpoint.includes("/auth/register") ||
+      endpoint.includes("/auth/logout") ||
+      endpoint.includes("/auth/clear-session")
+    ) {
+      return null;
+    }
+
+    try {
+      await this.refresh_session();
+    } catch (caught) {
+      ignore_error(
+        "services/api/client/api_client:clear_session_cookies",
+        caught,
+      );
+    }
+
+    return get_csrf_token_from_cookie();
+  }
+
+  private async request<T>(
+    endpoint: string,
+    config: RequestConfig = {},
+  ): Promise<ApiResponse<T>> {
+    if (
+      is_app_network_locked() &&
+      !is_endpoint_allowed_while_locked(endpoint)
+    ) {
+      return {
+        error: get_active_translations().common.app_locked,
+        code: "APP_LOCKED",
+      };
+    }
+
+    const hold = this.request_hold;
+
+    if (
+      hold &&
+      !is_session_check_endpoint(endpoint) &&
+      !(await hold.settled)
+    ) {
+      return {
+        error: this.get_generic_error_message("UNAUTHORIZED"),
+        code: "UNAUTHORIZED",
+      };
+    }
+
+    await this.refresh_before_logout(
+      endpoint,
+      config.method || "GET",
+      config.skip_session_refresh ?? false,
+    );
+
+    if (is_identity_establishing_endpoint(endpoint)) {
+      this.set_expected_user_id(null);
+    }
+
+    this.ensure_fresh_token(endpoint, config.skip_session_refresh);
+
+    const {
+      timeout = get_effective_timeout(DEFAULT_TIMEOUT),
+      retry = get_effective_retry_count(DEFAULT_RETRY_COUNT),
+      retry_delay = get_effective_retry_delay(DEFAULT_RETRY_DELAY),
+      cache_ttl: _cache_ttl,
+      skip_cache: _skip_cache,
+      skip_session_refresh = false,
+      cookie_identity = false,
+      skip_upgrade_prompt = false,
+      folder_unlock_token,
+      request_priority,
+      silent_statuses,
+      ...options
+    } = config;
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-Aster-Client": CLIENT_PLATFORM_HEADER,
+      ...((options.headers as Record<string, string>) || {}),
+    };
+
+    const apply_folder_unlock_header = (): void => {
+      if (folder_unlock_token) {
+        headers[FOLDER_UNLOCK_HEADER] = folder_unlock_token;
+      }
+    };
+
+    apply_folder_unlock_header();
+
+    const device_id = get_device_id();
+
+    if (device_id) {
+      headers["X-Aster-Device-Id"] = device_id;
+    }
+
+    if (this.dev_access_token && !cookie_identity) {
+      headers["Authorization"] = `Bearer ${this.dev_access_token}`;
+    }
+
+    const method = options.method || "GET";
+
+    options.body = with_declared_platform(endpoint, options.body);
+
+    if (is_state_changing_method(method)) {
+      if (
+        this.refresh_promise &&
+        !skip_session_refresh &&
+        !endpoint.includes("/auth/refresh") &&
+        !endpoint.includes("/auth/login") &&
+        !endpoint.includes("/auth/register") &&
+        !endpoint.includes("/auth/logout") &&
+        !endpoint.includes("/auth/clear-session")
+      ) {
+        await this.refresh_promise.catch(() => undefined);
+      }
+
+      let csrf_token = get_csrf_token_from_cookie();
+
+      if (!csrf_token) {
+        csrf_token = await this.ensure_csrf_token(
+          endpoint,
+          skip_session_refresh,
+        );
+      }
+
+      if (csrf_token) {
+        headers["X-CSRF-Token"] = csrf_token;
+      }
+    }
+
+    const url = `${get_effective_base_url(API_BASE_URL)}${endpoint}`;
+    let last_error: ApiResponse<T> = {
+      error: this.get_generic_error_message("UNKNOWN_ERROR"),
+      code: "UNKNOWN_ERROR",
+    };
+    let has_attempted_refresh = false;
+    let has_reread_csrf = false;
+
+    let rate_limit_retried = false;
+    let preemptions = 0;
+
+    const replay_safe = !is_state_changing_method(method);
+
+    for (let attempt = 0; attempt <= retry; attempt++) {
+      let background: BackgroundRequest | null = null;
+      let release_deadline: (() => void) | null = null;
+
+      const yield_to_foreground = (): boolean => {
+        if (!replay_safe) return false;
+        if (!background?.was_preempted()) return false;
+        if (preemptions >= MAX_PREEMPTIONS_PER_REQUEST) return false;
+        preemptions += 1;
+
+        return true;
+      };
+
+      try {
+        await this.wait_for_rate_limit_window();
+
+        if (request_priority === "background") {
+          await wait_for_foreground_idle();
+          background = track_background_request();
+        }
+
+        const started_at = Date.now();
+        const timed = await this.request_with_timeout(
+          url,
+          { ...options, headers, credentials: "include" },
+          timeout,
+          background?.controller,
+        );
+        const { response, read_text } = timed;
+
+        release_deadline = timed.release;
+
+        if (!response.ok) {
+          let error_data: {
+            error?: string;
+            code?: string;
+            details?: Record<string, unknown>;
+            resets_at?: string;
+          } = {};
+
+          try {
+            error_data = JSON.parse(await read_text());
+          } catch {
+            error_data = import.meta.env.DEV
+              ? { error: response.statusText }
+              : {};
+          }
+
+          const error_code = get_error_code_from_status(response.status);
+
+          if (
+            response.status === 403 &&
+            error_data.code === "CSRF_INVALID" &&
+            is_state_changing_method(method) &&
+            !skip_session_refresh &&
+            !endpoint.includes("/auth/refresh") &&
+            !endpoint.includes("/auth/logout") &&
+            !endpoint.includes("/auth/clear-session")
+          ) {
+            if (!has_reread_csrf) {
+              has_reread_csrf = true;
+              clear_csrf_cache();
+              const shared_csrf = get_csrf_token_from_cookie();
+
+              if (shared_csrf && shared_csrf !== headers["X-CSRF-Token"]) {
+                this.set_csrf(shared_csrf);
+                headers["X-CSRF-Token"] = shared_csrf;
+                attempt--;
+                continue;
+              }
+            }
+            if (!has_attempted_refresh) {
+              has_attempted_refresh = true;
+              clear_csrf_cache();
+              try {
+                await this.refresh_session({ after_unauthorized: true });
+              } catch (e) {
+                if (import.meta.env.DEV) console.error(e);
+              }
+              if (this.is_authenticated_flag) {
+                if (this.dev_access_token) {
+                  headers["Authorization"] = `Bearer ${this.dev_access_token}`;
+                }
+                apply_folder_unlock_header();
+                const fresh_csrf = get_csrf_token_from_cookie();
+
+                if (fresh_csrf) {
+                  headers["X-CSRF-Token"] = fresh_csrf;
+                  attempt--;
+                  continue;
+                }
+              }
+            }
+            if (!this.is_authenticated_flag) {
+              this.dispatch_session_expired();
+            }
+          }
+
+          if (
+            response.status === 403 &&
+            error_data.code === "VERIFICATION_REQUIRED"
+          ) {
+            window.dispatchEvent(new Event("aster:verification-required"));
+
+            return {
+              error:
+                get_active_translations().auth
+                  .recovery_email_required_gate_title,
+              code: "FORBIDDEN",
+              status: response.status,
+            };
+          }
+
+          if (
+            response.status === 403 &&
+            is_pending_deletion_error(error_data.code, error_data.error)
+          ) {
+            window.dispatchEvent(new Event(PENDING_DELETION_EVENT));
+
+            return {
+              error: get_active_translations().common.pending_deletion_body,
+              code: "FORBIDDEN",
+              status: response.status,
+              server_code: PENDING_DELETION_SERVER_CODE,
+            };
+          }
+
+          if (
+            response.status === 403 &&
+            error_data.code === FAMILY_2FA_SERVER_CODE
+          ) {
+            window.dispatchEvent(new Event(FAMILY_2FA_EVENT));
+
+            return {
+              error:
+                error_data.error ||
+                get_active_translations().common.family_2fa_body,
+              code: "FORBIDDEN",
+              status: response.status,
+              server_code: FAMILY_2FA_SERVER_CODE,
+            };
+          }
+
+          if (
+            response.status === 403 &&
+            error_data.code === "ACCOUNT_SUSPENDED"
+          ) {
+            window.dispatchEvent(
+              new CustomEvent("aster:account-suspended", {
+                detail: {
+                  reason: get_active_translations().common.account_suspended,
+                },
+              }),
+            );
+
+            return {
+              error: get_active_translations().common.account_suspended,
+              code: "FORBIDDEN",
+              status: response.status,
+            };
+          }
+
+          if (
+            response.status === 403 &&
+            error_data.code === "ABUSE_ACCOUNT_LIMIT"
+          ) {
+            return {
+              error: get_active_translations().common.account_limit_reached,
+              code: "ABUSE_ACCOUNT_LIMIT",
+              status: response.status,
+              details: error_data.details,
+            };
+          }
+
+          if (
+            response.status === 422 &&
+            error_data.code === "RECOVERY_EMAIL_REQUIRED"
+          ) {
+            return {
+              error:
+                get_active_translations().auth
+                  .recovery_email_required_gate_title,
+              code: "RECOVERY_EMAIL_REQUIRED",
+              status: response.status,
+            };
+          }
+
+          if (
+            response.status === 403 &&
+            error_data.code === "PLAN_LIMIT_EXCEEDED"
+          ) {
+            const on_auth_endpoint = is_auth_endpoint(endpoint);
+
+            if (!skip_upgrade_prompt && !on_auth_endpoint) {
+              window.dispatchEvent(
+                new CustomEvent("aster:plan-limit-hit", {
+                  detail: {
+                    message:
+                      get_active_translations().settings.plan_limit_reached,
+                    resource:
+                      (error_data.details?.resource as string | undefined) ??
+                      (is_calendar_app()
+                        ? calendar_plan_limit_resource(endpoint)
+                        : null),
+                  },
+                }),
+              );
+            }
+
+            const device_max = error_data.details?.effective_max as
+              number | undefined;
+
+            return {
+              error:
+                on_auth_endpoint && typeof device_max === "number"
+                  ? get_active_translations().auth.account_limit_for_plan.replace(
+                      "{{max}}",
+                      String(device_max),
+                    )
+                  : get_active_translations().settings.plan_limit_reached,
+              code: "FORBIDDEN",
+              status: response.status,
+              server_code: "PLAN_LIMIT_EXCEEDED",
+            };
+          }
+
+          if (
+            response.status === 413 &&
+            error_data.code === "STORAGE_QUOTA_EXCEEDED"
+          ) {
+            if (!skip_upgrade_prompt && !is_auth_endpoint(endpoint)) {
+              window.dispatchEvent(
+                new CustomEvent("aster:storage-full", {
+                  detail: {
+                    message: get_active_translations().settings.storage_full,
+                  },
+                }),
+              );
+            }
+
+            return {
+              error: get_active_translations().settings.storage_full,
+              code: "UNKNOWN_ERROR",
+              status: response.status,
+              server_code: "STORAGE_QUOTA_EXCEEDED",
+            };
+          }
+
+          if (response.status === 413) {
+            return {
+              error: get_active_translations().errors.upload_too_large,
+              code: "UNKNOWN_ERROR",
+              status: response.status,
+              server_code: "PAYLOAD_TOO_LARGE",
+            };
+          }
+
+          if (
+            response.status === 409 &&
+            error_data.code === "ALREADY_SIGNED_IN_ON_DEVICE"
+          ) {
+            window.dispatchEvent(
+              new CustomEvent("aster:already-signed-in", {
+                detail: {
+                  message:
+                    get_active_translations().errors.account_already_added,
+                },
+              }),
+            );
+
+            return {
+              error: get_active_translations().errors.account_already_added,
+              code: "CONFLICT",
+              status: response.status,
+              server_code: "ALREADY_SIGNED_IN_ON_DEVICE",
+            };
+          }
+
+          if (
+            response.status === 409 &&
+            error_data.code === "USERNAME_IN_USE"
+          ) {
+            return {
+              error: get_active_translations().auth.username_in_use,
+              code: "USERNAME_IN_USE",
+              status: response.status,
+            };
+          }
+
+          if (
+            response.status === 401 &&
+            error_data.code !== "INVALID_CREDENTIALS" &&
+            !endpoint.includes("/auth/switch") &&
+            !endpoint.includes("/auth/clear-session")
+          ) {
+            if (
+              !skip_session_refresh &&
+              !has_attempted_refresh &&
+              !endpoint.includes("/auth/refresh") &&
+              !endpoint.includes("/auth/logout") &&
+              !endpoint.includes("/auth/clear-session")
+            ) {
+              has_attempted_refresh = true;
+              try {
+                await this.refresh_session({ after_unauthorized: true });
+              } catch (e) {
+                if (import.meta.env.DEV) console.error(e);
+              }
+              if (this.is_authenticated_flag) {
+                if (this.dev_access_token) {
+                  headers["Authorization"] = `Bearer ${this.dev_access_token}`;
+                }
+                apply_folder_unlock_header();
+                const fresh_csrf = get_csrf_token_from_cookie();
+
+                if (fresh_csrf && is_state_changing_method(method)) {
+                  headers["X-CSRF-Token"] = fresh_csrf;
+                }
+                attempt--;
+                continue;
+              }
+            }
+            if (!this.is_authenticated_flag) {
+              this.dispatch_session_expired();
+            }
+          }
+
+          if (
+            response.status === 429 &&
+            !error_data.resets_at &&
+            !endpoint.includes("/auth/refresh")
+          ) {
+            const hold_ms = this.note_rate_limited(
+              response.headers.get("retry-after"),
+              error_data.resets_at,
+            );
+
+            if (
+              !rate_limit_retried &&
+              !is_state_changing_method(method) &&
+              hold_ms <= RATE_LIMIT_RETRY_MAX_HOLD_MS
+            ) {
+              rate_limit_retried = true;
+              attempt--;
+              continue;
+            }
+          }
+
+          const generic_rate_limit =
+            error_code === "RATE_LIMIT_EXCEEDED" && !error_data.resets_at;
+
+          const sanitized_error = generic_rate_limit
+            ? this.get_generic_error_message("RATE_LIMIT_EXCEEDED")
+            : import.meta.env.DEV
+              ? error_data.error ||
+                `Request failed with status ${response.status}`
+              : response.status < 500 &&
+                  error_data.error &&
+                  should_show_server_message(error_data.code, error_data.error)
+                ? error_data.error
+                : this.get_generic_error_message(error_code);
+
+          last_error = {
+            error: sanitized_error,
+            code: error_code,
+            status: response.status,
+            server_code: error_data.code,
+            resets_at: error_data.resets_at,
+            details: error_data.details,
+            body: error_data,
+          };
+          if (response.status === 429) {
+            const retry_after_secs = parse_retry_after_header(
+              response.headers.get("retry-after"),
+              Date.now(),
+            );
+
+            if (retry_after_secs !== undefined) {
+              last_error.retry_after_secs = retry_after_secs;
+            }
+          }
+
+          if (
+            response.status === 403 &&
+            error_data.code !== "ACCOUNT_LOCKED" &&
+            error_data.code !== "SENDER_NOT_AUTHORIZED" &&
+            is_state_changing_method(method) &&
+            attempt === 0 &&
+            !skip_session_refresh &&
+            !this.dev_access_token
+          ) {
+            clear_csrf_cache();
+            try {
+              await this.refresh_session();
+              apply_folder_unlock_header();
+              const fresh_csrf = get_csrf_token_from_cookie();
+
+              if (fresh_csrf) {
+                headers["X-CSRF-Token"] = fresh_csrf;
+                continue;
+              }
+            } catch (caught) {
+              ignore_error(
+                "services/api/client/api_client:apply_folder_unlock_header",
+                caught,
+              );
+            }
+          }
+
+          if (
+            response.status >= 500 &&
+            attempt < retry &&
+            !is_state_changing_method(method)
+          ) {
+            await this.delay(retry_delay * (attempt + 1));
+            continue;
+          }
+
+          if (silent_statuses?.includes(response.status)) {
+            return last_error;
+          }
+
+          const reported_feature = feature_of_endpoint(endpoint);
+
+          report_client_error({
+            feature: reported_feature,
+            error_code: http_error_code(reported_feature, response.status),
+            severity: response.status >= 500 ? "error" : "warn",
+            http_status: response.status,
+          });
+
+          return last_error;
+        }
+
+        let data: T;
+
+        if (
+          response.status === 204 ||
+          response.headers.get("content-length") === "0"
+        ) {
+          data = undefined as T;
+        } else {
+          const raw = await read_text().catch((read_error: unknown) => {
+            if (is_abort_error(read_error)) throw read_error;
+
+            return null;
+          });
+
+          if (raw === null) {
+            if (yield_to_foreground()) {
+              attempt--;
+              continue;
+            }
+
+            last_error = {
+              error: this.get_generic_error_message("NETWORK_ERROR"),
+              code: "NETWORK_ERROR",
+            };
+
+            if (attempt < retry && !is_state_changing_method(method)) {
+              await this.delay(retry_delay * (attempt + 1));
+              continue;
+            }
+
+            return last_error;
+          }
+          if (raw.trim() === "") {
+            data = undefined as T;
+          } else {
+            try {
+              data = JSON.parse(raw) as T;
+            } catch {
+              last_error = {
+                error: this.get_generic_error_message("SERVER_ERROR"),
+                code: "SERVER_ERROR",
+              };
+
+              if (attempt < retry && !is_state_changing_method(method)) {
+                await this.delay(retry_delay * (attempt + 1));
+                continue;
+              }
+
+              return last_error;
+            }
+          }
+        }
+
+        extend_passphrase_timeout();
+        write_last_auth_ms(Date.now());
+        background?.settle(Date.now() - started_at);
+
+        return { data };
+      } catch (error) {
+        if (yield_to_foreground()) {
+          attempt--;
+          continue;
+        }
+
+        if (error instanceof Error) {
+          if (is_abort_error(error)) {
+            last_error = {
+              error: this.get_generic_error_message("TIMEOUT_ERROR"),
+              code: "TIMEOUT_ERROR",
+            };
+          } else {
+            last_error = {
+              error: this.get_generic_error_message("NETWORK_ERROR"),
+              code: "NETWORK_ERROR",
+            };
+          }
+        }
+
+        background?.stalled();
+
+        if (attempt < retry && replay_safe) {
+          await this.delay(retry_delay * (attempt + 1));
+          continue;
+        }
+
+        break;
+      } finally {
+        release_deadline?.();
+        background?.release();
+      }
+    }
+
+    const transport_feature = feature_of_endpoint(endpoint);
+
+    report_client_error({
+      feature: transport_feature,
+      error_code:
+        last_error.code === "TIMEOUT_ERROR"
+          ? `${transport_feature}_timeout`.slice(0, 64)
+          : `${transport_feature}_network`.slice(0, 64),
+      severity: "warn",
+    });
+
+    return last_error;
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private async wait_for_rate_limit_window(): Promise<void> {
+    const remaining = this.rate_limited_until - Date.now();
+
+    if (remaining > 0) {
+      await this.delay(remaining);
+    }
+  }
+
+  private note_rate_limited(
+    retry_after_header: string | null,
+    resets_at: string | undefined,
+  ): number {
+    const now = Date.now();
+    let hold_ms = RATE_LIMIT_DEFAULT_HOLD_MS;
+
+    if (retry_after_header) {
+      const seconds = Number(retry_after_header);
+
+      if (Number.isFinite(seconds) && seconds > 0) {
+        hold_ms = seconds * 1000;
+      } else {
+        const at = Date.parse(retry_after_header);
+
+        if (Number.isFinite(at) && at > now) {
+          hold_ms = at - now;
+        }
+      }
+    } else if (resets_at) {
+      const at = Date.parse(resets_at);
+
+      if (Number.isFinite(at) && at > now) {
+        hold_ms = at - now;
+      }
+    }
+
+    hold_ms = Math.min(hold_ms, RATE_LIMIT_MAX_HOLD_MS);
+    this.rate_limited_until = Math.max(this.rate_limited_until, now + hold_ms);
+
+    return hold_ms;
+  }
+
+  private get_generic_error_message(code: ApiErrorCode): string {
+    switch (code) {
+      case "UNAUTHORIZED":
+        return get_active_translations().errors.auth_required;
+      case "FORBIDDEN":
+        return get_active_translations().errors.no_permission;
+      case "NOT_FOUND":
+        return get_active_translations().errors.not_found;
+      case "VALIDATION_ERROR":
+        return get_active_translations().errors.invalid_request;
+      case "CONFLICT":
+        return get_active_translations().errors.conflict;
+      case "RATE_LIMIT_EXCEEDED":
+        return get_active_translations().errors.rate_limited;
+      case "SERVER_ERROR":
+        return get_active_translations().errors.internal_error;
+      case "NETWORK_ERROR":
+        return get_active_translations().errors.connection_failed;
+      case "TIMEOUT_ERROR":
+        return get_active_translations().errors.request_timeout;
+      default:
+        return get_active_translations().errors.unexpected_error;
+    }
+  }
+
+  async get<T>(
+    endpoint: string,
+    config?: RequestConfig,
+  ): Promise<ApiResponse<T>> {
+    const { cache_ttl, skip_cache, skip_dedup, ...fetch_config } = config ?? {};
+    const cache_key = `GET:${endpoint}${unlock_token_cache_suffix(
+      fetch_config.folder_unlock_token,
+    )}`;
+
+    return request_cache.get_or_fetch<ApiResponse<T>>(
+      cache_key,
+      () => this.request<T>(endpoint, { ...fetch_config, method: "GET" }),
+      cache_ttl,
+      skip_cache,
+      skip_dedup,
+    );
+  }
+
+  async post<T>(
+    endpoint: string,
+    body: unknown,
+    config?: RequestConfig,
+  ): Promise<ApiResponse<T>> {
+    const result = await this.request<T>(endpoint, {
+      ...config,
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+
+    if (!result.error) {
+      request_cache.invalidate_for_mutation(endpoint);
+    }
+
+    return result;
+  }
+
+  async put<T>(
+    endpoint: string,
+    body: unknown,
+    config?: RequestConfig,
+  ): Promise<ApiResponse<T>> {
+    const result = await this.request<T>(endpoint, {
+      ...config,
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+
+    if (!result.error) {
+      request_cache.invalidate_for_mutation(endpoint);
+    }
+
+    return result;
+  }
+
+  async put_raw<T>(
+    endpoint: string,
+    body: string,
+    content_type: string,
+    config?: RequestConfig,
+  ): Promise<ApiResponse<T>> {
+    const result = await this.request<T>(endpoint, {
+      ...config,
+      method: "PUT",
+      body,
+      headers: {
+        ...((config?.headers as Record<string, string>) || {}),
+        "Content-Type": content_type,
+      },
+    });
+
+    if (!result.error) {
+      request_cache.invalidate_for_mutation(endpoint);
+    }
+
+    return result;
+  }
+
+  async patch<T>(
+    endpoint: string,
+    body: unknown,
+    config?: RequestConfig,
+  ): Promise<ApiResponse<T>> {
+    const result = await this.request<T>(endpoint, {
+      ...config,
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+
+    if (!result.error) {
+      request_cache.invalidate_for_mutation(endpoint);
+    }
+
+    return result;
+  }
+
+  async delete<T>(
+    endpoint: string,
+    config?: RequestConfig & { data?: unknown },
+  ): Promise<ApiResponse<T>> {
+    const { data, ...rest } = config || {};
+
+    const result = await this.request<T>(endpoint, {
+      ...rest,
+      method: "DELETE",
+      ...(data ? { body: JSON.stringify(data) } : {}),
+    });
+
+    if (!result.error) {
+      request_cache.invalidate_for_mutation(endpoint);
+    }
+
+    return result;
+  }
+}
+
+export const api_client = new ApiClient();
+
+if (import.meta.hot) {
+  interface HmrState {
+    is_authenticated: boolean;
+    initial_auth_verified: boolean;
+    dev_access_token: string | null;
+  }
+
+  const prev = import.meta.hot.data as Partial<HmrState> | undefined;
+
+  if (prev?.is_authenticated) {
+    api_client.set_authenticated(true);
+    api_client.set_initial_auth_verified(prev.initial_auth_verified ?? false);
+    if (prev.dev_access_token) {
+      api_client.set_dev_token(prev.dev_access_token);
+    }
+  }
+
+  import.meta.hot.dispose((data: HmrState) => {
+    data.is_authenticated = api_client.is_authenticated();
+    data.initial_auth_verified = api_client.is_initial_auth_verified();
+    data.dev_access_token = api_client.get_access_token();
+  });
+}

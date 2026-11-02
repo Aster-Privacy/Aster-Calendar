@@ -1,0 +1,773 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { array_to_base64, base64_to_array } from "./base64";
+
+import { zero_uint8_array } from "@/services/crypto/secure_memory";
+import { HASH_ALG } from "@/services/crypto/constants";
+import { decrypt_aes_gcm_bound_or_unbound } from "@/services/crypto/aes_gcm_aad_fallback";
+
+const ECDH_ALGORITHM = "ECDH";
+const ECDH_CURVE = "P-256";
+
+const KDF_INFO_ROOT = new TextEncoder().encode("Aster Mail_Root_KDF");
+const KDF_INFO_CHAIN = new TextEncoder().encode("Aster Mail_Chain_KDF");
+const MAX_SKIP = 1000;
+const MAX_TOTAL_SKIPPED_KEYS = 2000;
+
+interface RatchetKeyPair {
+  public_key: Uint8Array;
+  secret_key: Uint8Array;
+}
+
+export interface SkippedMessageKey {
+  dh_public: string;
+  message_number: number;
+  message_key: string;
+  timestamp: number;
+}
+
+export interface BootstrapData {
+  ephemeral_key: string;
+  pq_ciphertext?: string;
+  pq_key_id?: number;
+  sender_identity_key?: string;
+  recipient_identity_key?: string;
+  recipient_pq_identity_key?: string;
+  x3dh_version?: number;
+}
+
+export interface RatchetState {
+  dh_keypair: {
+    public_key: string;
+    secret_key: string;
+  };
+  dh_remote_public: string | null;
+  root_key: string;
+  chain_key_send: string | null;
+  chain_key_recv: string | null;
+  send_message_number: number;
+  recv_message_number: number;
+  previous_chain_length: number;
+  epoch?: number;
+  skipped_message_keys: SkippedMessageKey[];
+  version: number;
+  dirty_since_sync: boolean;
+  created_at: number;
+  updated_at: number;
+  bootstrap?: BootstrapData;
+  remote_identity_key?: string;
+}
+
+export interface SerializedState {
+  state: RatchetState;
+  conversation_id: string;
+}
+
+interface MessageHeader {
+  dh_public: string;
+  previous_chain_length: number;
+  message_number: number;
+  v?: number;
+}
+
+interface EncryptedMessage {
+  header: MessageHeader;
+  ciphertext: string;
+  nonce: string;
+}
+
+const RATCHET_HEADER_AD_PREFIX = new TextEncoder().encode(
+  "astermail-ratchet-header-v2",
+);
+
+function serialize_header_for_ad(header: MessageHeader): Uint8Array {
+  const dh_public_bytes = base64_to_array(header.dh_public);
+  const meta = new Uint8Array(8);
+  const view = new DataView(meta.buffer);
+
+  view.setUint32(0, header.previous_chain_length >>> 0, false);
+  view.setUint32(4, header.message_number >>> 0, false);
+
+  const out = new Uint8Array(
+    RATCHET_HEADER_AD_PREFIX.length + 1 + dh_public_bytes.length + meta.length,
+  );
+  let offset = 0;
+
+  out.set(RATCHET_HEADER_AD_PREFIX, offset);
+  offset += RATCHET_HEADER_AD_PREFIX.length;
+  out[offset++] = (header.v ?? 1) & 0xff;
+  out.set(dh_public_bytes, offset);
+  offset += dh_public_bytes.length;
+  out.set(meta, offset);
+
+  return out;
+}
+
+function clone_state(state: RatchetState): RatchetState {
+  return {
+    dh_keypair: { ...state.dh_keypair },
+    dh_remote_public: state.dh_remote_public,
+    root_key: state.root_key,
+    chain_key_send: state.chain_key_send,
+    chain_key_recv: state.chain_key_recv,
+    send_message_number: state.send_message_number,
+    recv_message_number: state.recv_message_number,
+    previous_chain_length: state.previous_chain_length,
+    epoch: state.epoch ?? 0,
+    skipped_message_keys: state.skipped_message_keys.map((k) => ({ ...k })),
+    version: state.version,
+    dirty_since_sync: state.dirty_since_sync,
+    created_at: state.created_at,
+    updated_at: state.updated_at,
+    bootstrap: state.bootstrap ? { ...state.bootstrap } : undefined,
+    remote_identity_key: state.remote_identity_key,
+  };
+}
+
+async function generate_dh_keypair(): Promise<RatchetKeyPair> {
+  const keypair = await crypto.subtle.generateKey(
+    { name: ECDH_ALGORITHM, namedCurve: ECDH_CURVE },
+    true,
+    ["deriveBits"],
+  );
+
+  const public_key_raw = await crypto.subtle.exportKey(
+    "raw",
+    keypair.publicKey,
+  );
+  const private_key_jwk = await crypto.subtle.exportKey(
+    "jwk",
+    keypair.privateKey,
+  );
+  const private_key_d = base64_to_array(
+    private_key_jwk.d!.replace(/-/g, "+").replace(/_/g, "/"),
+  );
+
+  return {
+    public_key: new Uint8Array(public_key_raw),
+    secret_key: private_key_d,
+  };
+}
+
+async function import_public_key(public_key: Uint8Array): Promise<CryptoKey> {
+  return crypto.subtle.importKey(
+    "raw",
+    public_key,
+    { name: ECDH_ALGORITHM, namedCurve: ECDH_CURVE },
+    true,
+    [],
+  );
+}
+
+function to_base64url(bytes: Uint8Array): string {
+  return array_to_base64(bytes)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
+}
+
+function split_raw_public_key(public_key: Uint8Array): {
+  x: Uint8Array;
+  y: Uint8Array;
+} {
+  if (public_key.length !== 65 || public_key[0] !== 0x04) {
+    throw new Error("Invalid uncompressed P-256 public key");
+  }
+
+  return {
+    x: public_key.slice(1, 33),
+    y: public_key.slice(33, 65),
+  };
+}
+
+async function import_secret_key(
+  secret_key: Uint8Array,
+  public_key: Uint8Array,
+): Promise<CryptoKey> {
+  const { x, y } = split_raw_public_key(public_key);
+  const jwk: JsonWebKey = {
+    kty: "EC",
+    crv: ECDH_CURVE,
+    d: to_base64url(secret_key),
+    x: to_base64url(x),
+    y: to_base64url(y),
+  };
+
+  return crypto.subtle.importKey(
+    "jwk",
+    jwk,
+    { name: ECDH_ALGORITHM, namedCurve: ECDH_CURVE },
+    true,
+    ["deriveBits"],
+  );
+}
+
+async function dh(
+  secret_key: CryptoKey,
+  public_key: CryptoKey,
+): Promise<Uint8Array> {
+  const shared_bits = await crypto.subtle.deriveBits(
+    { name: ECDH_ALGORITHM, public: public_key },
+    secret_key,
+    256,
+  );
+
+  return new Uint8Array(shared_bits);
+}
+
+async function hkdf(
+  input_key_material: Uint8Array,
+  salt: Uint8Array,
+  info: Uint8Array,
+  output_length: number,
+): Promise<Uint8Array> {
+  const key_material = await crypto.subtle.importKey(
+    "raw",
+    input_key_material,
+    "HKDF",
+    false,
+    ["deriveBits"],
+  );
+
+  const derived = await crypto.subtle.deriveBits(
+    { name: "HKDF", salt, info, hash: HASH_ALG },
+    key_material,
+    output_length * 8,
+  );
+
+  return new Uint8Array(derived);
+}
+
+async function kdf_root_key(
+  root_key: Uint8Array,
+  dh_output: Uint8Array,
+): Promise<{ new_root_key: Uint8Array; chain_key: Uint8Array }> {
+  const output = await hkdf(dh_output, root_key, KDF_INFO_ROOT, 64);
+
+  return {
+    new_root_key: output.slice(0, 32),
+    chain_key: output.slice(32, 64),
+  };
+}
+
+async function kdf_chain_key(
+  chain_key: Uint8Array,
+): Promise<{ new_chain_key: Uint8Array; message_key: Uint8Array }> {
+  const output = await hkdf(chain_key, new Uint8Array(32), KDF_INFO_CHAIN, 64);
+
+  return {
+    new_chain_key: output.slice(0, 32),
+    message_key: output.slice(32, 64),
+  };
+}
+
+async function encrypt_with_key(
+  plaintext: Uint8Array,
+  message_key: Uint8Array,
+  associated_data: Uint8Array | null,
+): Promise<{ ciphertext: Uint8Array; nonce: Uint8Array }> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    message_key,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt"],
+  );
+
+  const nonce = crypto.getRandomValues(new Uint8Array(12));
+  const params: AesGcmParams = associated_data
+    ? { name: "AES-GCM", iv: nonce, additionalData: associated_data }
+    : { name: "AES-GCM", iv: nonce };
+  const ciphertext = await crypto.subtle.encrypt(params, key, plaintext);
+
+  return {
+    ciphertext: new Uint8Array(ciphertext),
+    nonce,
+  };
+}
+
+async function decrypt_with_key(
+  ciphertext: Uint8Array,
+  nonce: Uint8Array,
+  message_key: Uint8Array,
+  associated_data: Uint8Array | null,
+): Promise<Uint8Array> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    message_key,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["decrypt"],
+  );
+
+  const plaintext = associated_data
+    ? await decrypt_aes_gcm_bound_or_unbound(
+        key,
+        nonce,
+        ciphertext,
+        associated_data,
+      )
+    : await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: nonce },
+        key,
+        ciphertext,
+      );
+
+  return new Uint8Array(plaintext);
+}
+
+export class DoubleRatchet {
+  private state: RatchetState;
+  private conversation_id: string;
+
+  private constructor(state: RatchetState, conversation_id: string) {
+    this.state = state;
+    this.conversation_id = conversation_id;
+  }
+
+  static async init_sender(
+    shared_secret: Uint8Array,
+    remote_public_key: Uint8Array,
+    conversation_id: string,
+  ): Promise<DoubleRatchet> {
+    const dh_keypair = await generate_dh_keypair();
+    const secret_key = await import_secret_key(
+      dh_keypair.secret_key,
+      dh_keypair.public_key,
+    );
+    const public_key = await import_public_key(remote_public_key);
+    const dh_output = await dh(secret_key, public_key);
+
+    const { new_root_key, chain_key } = await kdf_root_key(
+      shared_secret,
+      dh_output,
+    );
+
+    const state: RatchetState = {
+      dh_keypair: {
+        public_key: array_to_base64(dh_keypair.public_key),
+        secret_key: array_to_base64(dh_keypair.secret_key),
+      },
+      dh_remote_public: array_to_base64(remote_public_key),
+      root_key: array_to_base64(new_root_key),
+      chain_key_send: array_to_base64(chain_key),
+      chain_key_recv: null,
+      send_message_number: 0,
+      recv_message_number: 0,
+      previous_chain_length: 0,
+      epoch: 0,
+      skipped_message_keys: [],
+      version: 1,
+      dirty_since_sync: false,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+    };
+
+    return new DoubleRatchet(state, conversation_id);
+  }
+
+  static async init_receiver(
+    shared_secret: Uint8Array,
+    own_keypair: RatchetKeyPair,
+    conversation_id: string,
+    remote_identity_key?: string,
+  ): Promise<DoubleRatchet> {
+    const state: RatchetState = {
+      dh_keypair: {
+        public_key: array_to_base64(own_keypair.public_key),
+        secret_key: array_to_base64(own_keypair.secret_key),
+      },
+      dh_remote_public: null,
+      root_key: array_to_base64(shared_secret),
+      chain_key_send: null,
+      chain_key_recv: null,
+      send_message_number: 0,
+      recv_message_number: 0,
+      previous_chain_length: 0,
+      epoch: 0,
+      skipped_message_keys: [],
+      version: 1,
+      dirty_since_sync: false,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      remote_identity_key,
+    };
+
+    return new DoubleRatchet(state, conversation_id);
+  }
+
+  async encrypt(plaintext: string): Promise<EncryptedMessage> {
+    const sealed = await this.encrypt_returning_message_key(plaintext);
+
+    zero_uint8_array(sealed.message_key);
+
+    return sealed.message;
+  }
+
+  async encrypt_returning_message_key(
+    plaintext: string,
+  ): Promise<{ message: EncryptedMessage; message_key: Uint8Array }> {
+    const encoder = new TextEncoder();
+    const plaintext_bytes = encoder.encode(plaintext);
+
+    if (!this.state.chain_key_send) {
+      throw new Error("Cannot encrypt: sending chain not initialized");
+    }
+
+    const chain_key = base64_to_array(this.state.chain_key_send);
+    const { new_chain_key, message_key } = await kdf_chain_key(chain_key);
+
+    const header: MessageHeader = {
+      dh_public: this.state.dh_keypair.public_key,
+      previous_chain_length: this.state.previous_chain_length,
+      message_number: this.state.send_message_number,
+      v: 2,
+    };
+
+    const ad = serialize_header_for_ad(header);
+
+    const { ciphertext, nonce } = await encrypt_with_key(
+      plaintext_bytes,
+      message_key,
+      ad,
+    );
+
+    this.state.chain_key_send = array_to_base64(new_chain_key);
+    this.state.send_message_number++;
+    this.state.dirty_since_sync = true;
+    this.state.updated_at = Date.now();
+
+    zero_uint8_array(chain_key);
+
+    return {
+      message: {
+        header,
+        ciphertext: array_to_base64(ciphertext),
+        nonce: array_to_base64(nonce),
+      },
+      message_key,
+    };
+  }
+
+  static async decrypt_with_message_key(
+    message: EncryptedMessage,
+    message_key: Uint8Array,
+  ): Promise<string> {
+    const ad =
+      (message.header.v ?? 1) >= 2
+        ? serialize_header_for_ad(message.header)
+        : null;
+
+    const plaintext_bytes = await decrypt_with_key(
+      base64_to_array(message.ciphertext),
+      base64_to_array(message.nonce),
+      message_key,
+      ad,
+    );
+
+    return new TextDecoder().decode(plaintext_bytes);
+  }
+
+  async decrypt(message: EncryptedMessage): Promise<string> {
+    const skipped_plaintext = await DoubleRatchet.try_skipped_message_keys_on(
+      this.state,
+      message,
+    );
+
+    if (skipped_plaintext !== null) {
+      this.state.dirty_since_sync = true;
+      this.state.updated_at = Date.now();
+
+      return skipped_plaintext;
+    }
+
+    const work = clone_state(this.state);
+    const header_dh_public = base64_to_array(message.header.dh_public);
+
+    if (
+      work.dh_remote_public === null ||
+      message.header.dh_public !== work.dh_remote_public
+    ) {
+      await DoubleRatchet.skip_message_keys_on(
+        work,
+        message.header.previous_chain_length,
+      );
+      await DoubleRatchet.dh_ratchet_on(work, header_dh_public);
+    }
+
+    await DoubleRatchet.skip_message_keys_on(
+      work,
+      message.header.message_number,
+    );
+
+    if (!work.chain_key_recv) {
+      throw new Error("Cannot decrypt: receiving chain not initialized");
+    }
+
+    const chain_key = base64_to_array(work.chain_key_recv);
+    const { new_chain_key, message_key } = await kdf_chain_key(chain_key);
+
+    const ciphertext = base64_to_array(message.ciphertext);
+    const nonce = base64_to_array(message.nonce);
+
+    const ad =
+      (message.header.v ?? 1) >= 2
+        ? serialize_header_for_ad(message.header)
+        : null;
+
+    let plaintext_bytes: Uint8Array;
+
+    try {
+      plaintext_bytes = await decrypt_with_key(
+        ciphertext,
+        nonce,
+        message_key,
+        ad,
+      );
+    } catch (error) {
+      zero_uint8_array(chain_key);
+      zero_uint8_array(message_key);
+      throw error;
+    }
+
+    work.chain_key_recv = array_to_base64(new_chain_key);
+    work.recv_message_number++;
+    work.dirty_since_sync = true;
+    work.updated_at = Date.now();
+    this.state = work;
+
+    zero_uint8_array(chain_key);
+    zero_uint8_array(message_key);
+
+    const decoder = new TextDecoder();
+
+    return decoder.decode(plaintext_bytes);
+  }
+
+  private static async try_skipped_message_keys_on(
+    state: RatchetState,
+    message: EncryptedMessage,
+  ): Promise<string | null> {
+    const index = state.skipped_message_keys.findIndex(
+      (k) =>
+        k.dh_public === message.header.dh_public &&
+        k.message_number === message.header.message_number,
+    );
+
+    if (index === -1) {
+      return null;
+    }
+
+    const skipped = state.skipped_message_keys[index];
+    const message_key = base64_to_array(skipped.message_key);
+    const ciphertext = base64_to_array(message.ciphertext);
+    const nonce = base64_to_array(message.nonce);
+
+    const ad =
+      (message.header.v ?? 1) >= 2
+        ? serialize_header_for_ad(message.header)
+        : null;
+
+    let plaintext_bytes: Uint8Array;
+
+    try {
+      plaintext_bytes = await decrypt_with_key(
+        ciphertext,
+        nonce,
+        message_key,
+        ad,
+      );
+    } catch {
+      zero_uint8_array(message_key);
+
+      return null;
+    }
+
+    state.skipped_message_keys.splice(index, 1);
+    zero_uint8_array(message_key);
+
+    const decoder = new TextDecoder();
+
+    return decoder.decode(plaintext_bytes);
+  }
+
+  private static async skip_message_keys_on(
+    state: RatchetState,
+    until: number,
+  ): Promise<void> {
+    if (!state.chain_key_recv) {
+      return;
+    }
+
+    if (until - state.recv_message_number > MAX_SKIP) {
+      throw new Error("Too many skipped messages");
+    }
+
+    let chain_key = base64_to_array(state.chain_key_recv);
+
+    while (state.recv_message_number < until) {
+      const { new_chain_key, message_key } = await kdf_chain_key(chain_key);
+
+      state.skipped_message_keys.push({
+        dh_public: state.dh_remote_public!,
+        message_number: state.recv_message_number,
+        message_key: array_to_base64(message_key),
+        timestamp: Date.now(),
+      });
+
+      zero_uint8_array(chain_key);
+      chain_key = new_chain_key;
+      state.recv_message_number++;
+    }
+
+    state.chain_key_recv = array_to_base64(chain_key);
+    DoubleRatchet.cleanup_old_skipped_keys_on(state);
+  }
+
+  private static async dh_ratchet_on(
+    state: RatchetState,
+    remote_public_key: Uint8Array,
+  ): Promise<void> {
+    state.previous_chain_length = state.send_message_number;
+    state.epoch = (state.epoch ?? 0) + 1;
+    state.send_message_number = 0;
+    state.recv_message_number = 0;
+    state.dh_remote_public = array_to_base64(remote_public_key);
+
+    const root_key = base64_to_array(state.root_key);
+    const secret_key = await import_secret_key(
+      base64_to_array(state.dh_keypair.secret_key),
+      base64_to_array(state.dh_keypair.public_key),
+    );
+    const public_key = await import_public_key(remote_public_key);
+
+    const dh_output = await dh(secret_key, public_key);
+    const { new_root_key, chain_key } = await kdf_root_key(root_key, dh_output);
+
+    state.root_key = array_to_base64(new_root_key);
+    state.chain_key_recv = array_to_base64(chain_key);
+
+    const new_dh_keypair = await generate_dh_keypair();
+
+    state.dh_keypair = {
+      public_key: array_to_base64(new_dh_keypair.public_key),
+      secret_key: array_to_base64(new_dh_keypair.secret_key),
+    };
+
+    const new_secret_key = await import_secret_key(
+      new_dh_keypair.secret_key,
+      new_dh_keypair.public_key,
+    );
+    const new_dh_output = await dh(new_secret_key, public_key);
+    const { new_root_key: newer_root_key, chain_key: send_chain_key } =
+      await kdf_root_key(new_root_key, new_dh_output);
+
+    state.root_key = array_to_base64(newer_root_key);
+    state.chain_key_send = array_to_base64(send_chain_key);
+
+    zero_uint8_array(root_key);
+    zero_uint8_array(dh_output);
+    zero_uint8_array(new_root_key);
+    zero_uint8_array(chain_key);
+    zero_uint8_array(new_dh_keypair.secret_key);
+    zero_uint8_array(new_dh_output);
+    zero_uint8_array(newer_root_key);
+    zero_uint8_array(send_chain_key);
+  }
+
+  private static cleanup_old_skipped_keys_on(state: RatchetState): void {
+    const retention_cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+
+    state.skipped_message_keys = state.skipped_message_keys
+      .filter((k) => k.timestamp > retention_cutoff)
+      .sort((a, b) => a.timestamp - b.timestamp);
+
+    while (state.skipped_message_keys.length > MAX_TOTAL_SKIPPED_KEYS) {
+      state.skipped_message_keys.shift();
+    }
+  }
+
+  get_public_key(): string {
+    return this.state.dh_keypair.public_key;
+  }
+
+  get_conversation_id(): string {
+    return this.conversation_id;
+  }
+
+  get_state_version(): number {
+    return this.state.version;
+  }
+
+  is_dirty_since_sync(): boolean {
+    return this.state.dirty_since_sync;
+  }
+
+  mark_synced(): void {
+    this.state.dirty_since_sync = false;
+  }
+
+  get_bootstrap(): BootstrapData | null {
+    return this.state.bootstrap ?? null;
+  }
+
+  set_bootstrap(bootstrap: BootstrapData): void {
+    this.state.bootstrap = bootstrap;
+  }
+
+  get_remote_identity_key(): string | null {
+    return this.state.remote_identity_key ?? null;
+  }
+
+  set_remote_identity_key(remote_identity_key: string): void {
+    this.state.remote_identity_key = remote_identity_key;
+    this.state.dirty_since_sync = true;
+  }
+
+  async serialize(): Promise<SerializedState> {
+    return {
+      state: { ...this.state },
+      conversation_id: this.conversation_id,
+    };
+  }
+
+  adopt_state(data: SerializedState): void {
+    if (data.conversation_id !== this.conversation_id) {
+      throw new Error("Ratchet state conversation mismatch");
+    }
+
+    this.state = clone_state(data.state);
+  }
+
+  static deserialize(data: SerializedState): DoubleRatchet {
+    if (data.state.dirty_since_sync === undefined) {
+      data.state.dirty_since_sync = true;
+    }
+
+    return new DoubleRatchet(data.state, data.conversation_id);
+  }
+}
+
+export async function generate_keypair(): Promise<RatchetKeyPair> {
+  return generate_dh_keypair();
+}
+
+export type { RatchetKeyPair, EncryptedMessage };

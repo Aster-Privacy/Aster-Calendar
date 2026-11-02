@@ -1,0 +1,72 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Aster Calendar",
+  "version": "0.2.0",
+  "identifier": "com.astermail.calendar",
+  "build": {
+    "beforeDevCommand": "npx vite --host 127.0.0.1 --port 1420",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npx vite build && node scripts/prepare_native_dist.mjs",
+    "frontendDist": "../dist-native"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "create": false,
+        "title": "Aster Calendar",
+        "width": 1280,
+        "height": 860,
+        "resizable": true,
+        "decorations": true,
+        "minWidth": 900,
+        "minHeight": 600,
+        "center": true,
+        "backgroundColor": "#0a0a0a",
+        "additionalBrowserArgs": "--disable-logging --disable-crash-reporter --no-first-run --disable-sync --disk-cache-size=0 --disable-background-networking --disable-default-browser-check --disable-features=CalculateNativeWinOcclusion"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://challenges.cloudflare.com https://js.stripe.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: cid: https://*.astermail.org https://aster-wallpapers.pages.dev; font-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost https://aster-wallpapers.pages.dev https://*.astermail.org wss://*.astermail.org https://*.astermail.com wss://*.astermail.com https://challenges.cloudflare.com https://api.stripe.com https://m.stripe.network https://r.stripe.com https://q.stripe.com https://*.stripe.network http://asterwkopxf427ndjpgco5swerhivljvwcsggsxmfgmve4awbahpcrqd.onion http://asterabf3d5xhqtphx5u462oegteygodgae5y542vmcai22ipkd3ojqd.onion; frame-src 'self' blob: https://challenges.cloudflare.com https://js.stripe.com https://hooks.stripe.com https://m.stripe.network https://*.stripe.network; media-src 'self' blob: data:; object-src 'none'; base-uri 'self'; form-action 'self' https://js.stripe.com https://hooks.stripe.com; frame-ancestors 'none'; worker-src 'self' blob:",
+      "dangerousDisableAssetCspModification": ["style-src"],
+      "devCsp": "default-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; script-src 'self' 'wasm-unsafe-eval' http://127.0.0.1:*; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: cid: http: https:; font-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:* ws://127.0.0.1:* https://*.astermail.org wss://*.astermail.org https://challenges.cloudflare.com; worker-src 'self' blob:; object-src 'none'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico",
+      "icons/icon.icns"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "signingIdentity": "Developer ID Application: Aster Communications Inc (UD4F4Q58WU)"
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "shell": {
+      "open": "^((mailto:\\w+)|(tel:\\w+)|(https?://\\w+)|(aster-mail://\\w+)|(ms-settings:\\w+)|(x-apple\\.systempreferences:\\w+)).+"
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": ["aster"]
+      }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM2QUQxN0IxRTVEMzQwRjEKUldUeFFOUGxzUmV0eHRuWHNDM1ZDZm9OTnZsU0I4R3JoYUFIeWtqcnV4eFEyN3VQdVRXNEdmajkK",
+      "endpoints": [
+        "https://github.com/Aster-Privacy/Aster-Calendar/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}

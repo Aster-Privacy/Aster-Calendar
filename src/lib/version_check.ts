@@ -1,0 +1,328 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+
+import { kept_across_updates } from "@/lib/app_update_caches";
+import { ignore_error } from "@/lib/ignore_error";
+
+declare const __BUILD_HASH__: string;
+declare const __APP_VERSION__: string;
+
+interface VersionManifest {
+  version: string;
+  build: string;
+  ts: number;
+}
+
+const CHECK_INTERVAL_MS = 5 * 60 * 1000;
+const MANIFEST_URL = "/version.json";
+const AUTO_RELOAD_MIN_AGE_MS = 60_000;
+const AUTO_RELOAD_COOLDOWN_MS = 5 * 60 * 1000;
+const AUTO_RELOAD_MARKER = "aster:auto_reload_at";
+
+const loaded_build =
+  typeof __BUILD_HASH__ !== "undefined" ? __BUILD_HASH__ : "";
+const loaded_version =
+  typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "";
+
+let check_interval: ReturnType<typeof setInterval> | null = null;
+let remove_wake_listeners: (() => void) | null = null;
+let is_flushing = false;
+let last_checked_at = 0;
+const session_start_ts = Date.now();
+
+function is_user_busy(): boolean {
+  if (typeof document === "undefined") return false;
+  const active = document.activeElement as HTMLElement | null;
+
+  if (!active) return false;
+  const tag = active.tagName;
+
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (active.isContentEditable) return true;
+
+  return false;
+}
+
+function is_billing_active(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const url = window.location.href.toLowerCase();
+
+    if (
+      url.includes("billing") ||
+      url.includes("checkout") ||
+      url.includes("payment")
+    ) {
+      return true;
+    }
+    if ((window as unknown as { Stripe?: unknown }).Stripe) return true;
+    if (document.querySelector('iframe[src*="stripe"]')) return true;
+  } catch (caught) {
+    ignore_error("lib/version_check:is_billing_active", caught);
+  }
+
+  return false;
+}
+
+function can_auto_reload(): boolean {
+  if (Date.now() - session_start_ts < AUTO_RELOAD_MIN_AGE_MS) return false;
+  try {
+    const last = Number(sessionStorage.getItem(AUTO_RELOAD_MARKER) || "0");
+
+    if (Date.now() - last < AUTO_RELOAD_COOLDOWN_MS) return false;
+  } catch (caught) {
+    ignore_error("lib/version_check:can_auto_reload", caught);
+  }
+
+  if (is_billing_active()) return false;
+
+  return !is_user_busy();
+}
+
+function mark_auto_reload(): void {
+  try {
+    sessionStorage.setItem(AUTO_RELOAD_MARKER, String(Date.now()));
+  } catch (caught) {
+    ignore_error("lib/version_check:mark_auto_reload", caught);
+  }
+}
+
+let manifest_in_flight: Promise<VersionManifest | null> | null = null;
+
+function fetch_manifest(): Promise<VersionManifest | null> {
+  if (manifest_in_flight) return manifest_in_flight;
+
+  manifest_in_flight = request_manifest().finally(() => {
+    manifest_in_flight = null;
+  });
+
+  return manifest_in_flight;
+}
+
+async function request_manifest(): Promise<VersionManifest | null> {
+  try {
+    const { connection_store } = await import(
+      "@/services/routing/connection_store"
+    );
+    const method = connection_store.get_method();
+
+    if (method === "tor" || method === "tor_snowflake") {
+      return null;
+    }
+
+    const res = await fetch(`${MANIFEST_URL}?t=${Date.now()}`, {
+      cache: "no-store",
+      credentials: "omit",
+      headers: { "cache-control": "no-cache" },
+    });
+
+    if (!res.ok) return null;
+
+    return (await res.json()) as VersionManifest;
+  } catch {
+    return null;
+  }
+}
+
+export async function hard_flush_and_reload(): Promise<void> {
+  if (is_flushing) return;
+  is_flushing = true;
+
+  try {
+    const route =
+      window.location.pathname + window.location.search + window.location.hash;
+
+    sessionStorage.setItem("aster:intended_route_at", String(Date.now()));
+    sessionStorage.setItem("aster:intended_route", route);
+  } catch (caught) {
+    ignore_error("lib/version_check:hard_flush_and_reload", caught);
+  }
+
+  try {
+    if ("serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+
+      await Promise.all(
+        registrations.map((r) => r.unregister().catch(() => false)),
+      );
+    }
+  } catch (caught) {
+    ignore_error("lib/version_check:hard_flush_and_reload", caught);
+  }
+
+  try {
+    if ("caches" in window) {
+      const keys = await caches.keys();
+
+      await Promise.all(
+        keys
+          .filter((k) => !kept_across_updates(k))
+          .map((k) => caches.delete(k).catch(() => false)),
+      );
+    }
+  } catch (caught) {
+    ignore_error("lib/version_check:hard_flush_and_reload", caught);
+  }
+
+  window.location.reload();
+}
+
+async function check_once(is_boot = false): Promise<void> {
+  const now = Date.now();
+
+  if (!is_boot && now - last_checked_at < 10_000) return;
+  last_checked_at = now;
+
+  const manifest = await fetch_manifest();
+
+  if (!manifest || !manifest.build) return;
+
+  const aster_version_ref = window as unknown as {
+    __aster_version?: Record<string, unknown>;
+  };
+
+  if (aster_version_ref.__aster_version) {
+    aster_version_ref.__aster_version.manifest_ts = manifest.ts;
+  }
+
+  const update_available = !!loaded_build && manifest.build !== loaded_build;
+
+  if (aster_version_ref.__aster_version) {
+    aster_version_ref.__aster_version.update_available = update_available;
+  }
+
+  if (!update_available) return;
+
+  if (is_boot) {
+    try {
+      const last = Number(sessionStorage.getItem(AUTO_RELOAD_MARKER) || "0");
+
+      if (Date.now() - last < AUTO_RELOAD_COOLDOWN_MS) return;
+    } catch (caught) {
+      ignore_error("lib/version_check:check_once", caught);
+    }
+    mark_auto_reload();
+    void hard_flush_and_reload();
+
+    return;
+  }
+
+  if (can_auto_reload()) {
+    mark_auto_reload();
+    void hard_flush_and_reload();
+  }
+}
+
+export async function version_check_blocking(
+  timeout_ms: number,
+): Promise<void> {
+  if (typeof window === "undefined") return;
+  if (!import.meta.env.PROD) return;
+  if (!loaded_build) return;
+
+  try {
+    const last = Number(sessionStorage.getItem(AUTO_RELOAD_MARKER) || "0");
+
+    if (Date.now() - last < AUTO_RELOAD_COOLDOWN_MS) return;
+  } catch (caught) {
+    ignore_error("lib/version_check:version_check_blocking", caught);
+  }
+
+  const manifest_promise = fetch_manifest();
+  const timeout_promise = new Promise<null>((resolve) => {
+    setTimeout(() => resolve(null), timeout_ms);
+  });
+
+  const manifest = await Promise.race([manifest_promise, timeout_promise]);
+
+  if (!manifest || !manifest.build) return;
+  if (manifest.build === loaded_build) return;
+
+  mark_auto_reload();
+  await hard_flush_and_reload();
+
+  await new Promise<void>(() => {});
+}
+
+export function start_version_check(): void {
+  if (typeof window === "undefined") return;
+  if (!import.meta.env.PROD) return;
+
+  try {
+    const current = new URL(window.location.href);
+
+    if (current.searchParams.has("_v")) {
+      current.searchParams.delete("_v");
+      window.history.replaceState(
+        window.history.state,
+        "",
+        current.pathname + current.search + current.hash,
+      );
+    }
+  } catch (caught) {
+    ignore_error("lib/version_check:start_version_check", caught);
+  }
+
+  (window as unknown as { __aster_version?: unknown }).__aster_version = {
+    version: loaded_version,
+    build: loaded_build,
+    ts: Date.now(),
+  };
+
+  stop_version_check();
+
+  void check_once(true);
+
+  check_interval = setInterval(() => {
+    void check_once();
+  }, CHECK_INTERVAL_MS);
+
+  const on_visibility_change = () => {
+    if (document.visibilityState === "visible") {
+      void check_once();
+    }
+  };
+  const on_wake = () => {
+    void check_once();
+  };
+
+  document.addEventListener("visibilitychange", on_visibility_change);
+  window.addEventListener("focus", on_wake);
+  window.addEventListener("online", on_wake);
+
+  remove_wake_listeners = () => {
+    document.removeEventListener("visibilitychange", on_visibility_change);
+    window.removeEventListener("focus", on_wake);
+    window.removeEventListener("online", on_wake);
+  };
+}
+
+export function stop_version_check(): void {
+  if (check_interval !== null) {
+    clearInterval(check_interval);
+    check_interval = null;
+  }
+
+  if (remove_wake_listeners) {
+    remove_wake_listeners();
+    remove_wake_listeners = null;
+  }
+}

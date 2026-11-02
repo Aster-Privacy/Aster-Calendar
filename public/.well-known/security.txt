@@ -1,0 +1,8 @@
+Contact: mailto:security@astermail.org
+Expires: 2027-03-14T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://calendar.astermail.org/.well-known/security.txt
+Canonical: https://cal.astermail.org/.well-known/security.txt
+Canonical: https://calendar.aster.cx/.well-known/security.txt
+Canonical: https://cal.aster.cx/.well-known/security.txt
+Policy: https://github.com/Aster-Privacy/Security/blob/main/SECURITY.md

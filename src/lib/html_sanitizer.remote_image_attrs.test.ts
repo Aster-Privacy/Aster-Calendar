@@ -1,0 +1,428 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { describe, it, expect } from "vitest";
+
+import { sanitize_html } from "./html_sanitizer";
+
+const TRACKER = "https://tracker.example.com/leak.png";
+const PROXY = "/api/images/v1/proxy";
+
+const LEAD = "<p>lead</p>";
+
+describe("remote image attribute leaks (srcset / background)", () => {
+  it("drops a remote srcset and blocks src when remote images are blocked", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="${TRACKER}" srcset="${TRACKER} 2x, ${TRACKER} 1x" width="200" height="100" alt="pic">`,
+      { external_content_mode: "never", image_proxy_url: PROXY },
+    );
+
+    const html = result.html.toLowerCase();
+
+    expect(html).not.toMatch(/(?:^|\s)src="https:\/\/tracker/);
+    expect(html).not.toContain("srcset");
+    expect(html).toContain("blocked-remote-image");
+    expect(result.external_content.has_remote_images).toBe(true);
+    expect(result.external_content.blocked_count).toBeGreaterThan(0);
+  });
+
+  it("routes the srcset through the proxy when auto-loading so nothing fetches direct from the tracker", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="${TRACKER}" srcset="${TRACKER} 2x" width="200" height="100" alt="pic">`,
+      { external_content_mode: "always", image_proxy_url: PROXY },
+    );
+
+    expect(result.html).not.toContain(`srcset="${TRACKER}`);
+    expect(result.html).not.toContain(`${TRACKER} 2x`);
+    expect(result.html).toContain(`${PROXY}?url=`);
+    expect(result.html).toContain(`${encodeURIComponent(TRACKER)} 2x`);
+  });
+
+  it("blocks a remote background attribute when remote images are blocked", () => {
+    const result = sanitize_html(
+      `${LEAD}<table><tr><td background="${TRACKER}">cell</td></tr></table>`,
+      { external_content_mode: "never", image_proxy_url: PROXY },
+    );
+
+    expect(result.html.toLowerCase()).not.toContain("tracker.example.com");
+    expect(result.external_content.has_remote_images).toBe(true);
+    expect(result.external_content.blocked_count).toBeGreaterThan(0);
+  });
+
+  it("treats an uppercase URL scheme as remote and blocks it", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="HTTP://tracker.example.com/leak.png" alt="pic">`,
+      { external_content_mode: "never", image_proxy_url: PROXY },
+    );
+
+    expect(result.external_content.has_remote_images).toBe(true);
+    expect(result.external_content.blocked_count).toBeGreaterThan(0);
+  });
+
+  it("routes an uppercase-scheme remote image through the proxy when auto-loading", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="HTTP://tracker.example.com/leak.png" alt="pic">`,
+      { external_content_mode: "always", image_proxy_url: PROXY },
+    );
+
+    expect(result.html).toContain(`${PROXY}?url=`);
+  });
+
+  it("treats a protocol-relative (schemeless) img url as remote and blocks it", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="//tracker.example.com/leak.png" alt="pic">`,
+      { external_content_mode: "never", image_proxy_url: PROXY },
+    );
+
+    expect(result.external_content.has_remote_images).toBe(true);
+    expect(result.external_content.blocked_count).toBeGreaterThan(0);
+  });
+
+  it("routes a schemeless img url through the proxy when auto-loading", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="//tracker.example.com/leak.png" alt="pic">`,
+      { external_content_mode: "always", image_proxy_url: PROXY },
+    );
+
+    expect(result.html).toContain(`${PROXY}?url=`);
+    expect(result.html).not.toContain('src="//tracker.example.com');
+  });
+
+  it("blocks a schemeless background attribute when remote images are blocked", () => {
+    const result = sanitize_html(
+      `${LEAD}<table><tr><td background="//tracker.example.com/b.png">c</td></tr></table>`,
+      { external_content_mode: "never", image_proxy_url: PROXY },
+    );
+
+    expect(result.external_content.has_remote_images).toBe(true);
+    expect(result.html.toLowerCase()).not.toContain("tracker.example.com");
+  });
+
+  it("routes a remote background through the proxy when auto-loading", () => {
+    const result = sanitize_html(
+      `${LEAD}<table><tr><td background="${TRACKER}">cell</td></tr></table>`,
+      { external_content_mode: "always", image_proxy_url: PROXY },
+    );
+
+    expect(result.html).toContain(`${PROXY}?url=`);
+    expect(result.html).toContain(encodeURIComponent(TRACKER));
+    expect(result.html).not.toContain(`background="${TRACKER}"`);
+  });
+
+  it("drops remote srcset and background under lockdown", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="${TRACKER}" srcset="${TRACKER} 2x" width="200" height="100" alt="pic">` +
+        `<table><tr><td background="${TRACKER}">cell</td></tr></table>`,
+      {
+        external_content_mode: "always",
+        image_proxy_url: PROXY,
+        lockdown_mode: true,
+      },
+    );
+
+    const html = result.html.toLowerCase();
+
+    expect(html).not.toMatch(/(?:^|\s)src="https:\/\/tracker/);
+    expect(html).not.toContain("srcset");
+    expect(html).toContain('data-blocked="true"');
+  });
+
+  it("keeps inline srcset and background candidates under lockdown", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="cid:hero" srcset="cid:hero 1x, ${TRACKER} 2x" alt="pic">` +
+        `<table><tr><td background="cid:tile">cell</td></tr></table>`,
+      {
+        external_content_mode: "always",
+        image_proxy_url: PROXY,
+        lockdown_mode: true,
+      },
+    );
+
+    expect(result.html).toContain('srcset="cid:hero 1x"');
+    expect(result.html).toContain('background="cid:tile"');
+    expect(result.html).not.toContain("tracker.example.com");
+  });
+
+  it("treats a backslash-prefixed schemeless img url as remote and blocks it", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="\\\\tracker.example.com/leak.png" alt="pic">`,
+      { external_content_mode: "never", image_proxy_url: PROXY },
+    );
+
+    expect(result.external_content.has_remote_images).toBe(true);
+    expect(result.external_content.blocked_count).toBeGreaterThan(0);
+  });
+
+  it("treats a mixed slash-backslash schemeless img url as remote and blocks it", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="/\\tracker.example.com/leak.png" alt="pic">`,
+      { external_content_mode: "never", image_proxy_url: PROXY },
+    );
+
+    expect(result.external_content.has_remote_images).toBe(true);
+    expect(result.external_content.blocked_count).toBeGreaterThan(0);
+  });
+
+  it("treats a whitespace-obfuscated remote scheme as remote and blocks it", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="h\tt\ntp://tracker.example.com/leak.png" alt="pic">`,
+      { external_content_mode: "never", image_proxy_url: PROXY },
+    );
+
+    expect(result.external_content.has_remote_images).toBe(true);
+    expect(result.external_content.blocked_count).toBeGreaterThan(0);
+  });
+
+  it("treats a backslash-prefixed srcset entry as remote and drops it", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="cid:local" srcset="\\\\tracker.example.com/leak.png 2x" alt="pic">`,
+      { external_content_mode: "never", image_proxy_url: PROXY },
+    );
+
+    expect(result.html.toLowerCase()).not.toContain("srcset");
+    expect(result.external_content.has_remote_images).toBe(true);
+  });
+
+  it("preserves an inline data: background", () => {
+    const data_bg =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+    const result = sanitize_html(
+      `${LEAD}<table><tr><td background="${data_bg}">cell</td></tr></table>`,
+      { external_content_mode: "never", image_proxy_url: PROXY },
+    );
+
+    expect(result.html).toContain("data:image/png;base64,");
+  });
+});
+
+describe("presentational image attributes", () => {
+  it("keeps the layout attributes newsletters rely on", () => {
+    const result = sanitize_html(
+      '<p>body</p><img src="cid:hero" alt="hero" align="left" hspace="8" vspace="4" border="0" sizes="100vw">',
+      { external_content_mode: "always" },
+    );
+
+    expect(result.html).toContain('align="left"');
+    expect(result.html).toContain('hspace="8"');
+    expect(result.html).toContain('vspace="4"');
+    expect(result.html).toContain('border="0"');
+    expect(result.html).toContain('sizes="100vw"');
+  });
+
+  it("still drops event handlers from an image", () => {
+    const result = sanitize_html(
+      '<p>body</p><img src="cid:hero" alt="hero" onerror="alert(1)" onload="alert(2)">',
+      { external_content_mode: "always" },
+    );
+
+    expect(result.html).not.toContain("onerror");
+    expect(result.html).not.toContain("onload");
+  });
+});
+
+describe("plain http image sources", () => {
+  const HTTP_IMAGE = "http://legacy.example.com/logo.png";
+
+  const HTTPS_IMAGE = "https://legacy.example.com/logo.png";
+  const PROXIED_HTTPS = `${PROXY}?url=${encodeURIComponent(HTTPS_IMAGE)}`;
+
+  function proxied_sources(html: string): string[] {
+    return Array.from(html.matchAll(/\?url=([^"&)\s]+)/g), (match) =>
+      decodeURIComponent(match[1]),
+    );
+  }
+
+  it("asks the proxy for the https address", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="${HTTP_IMAGE}" alt="logo" width="200">`,
+      { external_content_mode: "always", image_proxy_url: PROXY },
+    );
+
+    expect(result.html).toContain(PROXIED_HTTPS);
+    expect(proxied_sources(result.html)).not.toContain(HTTP_IMAGE);
+  });
+
+  it("keeps the https address for a blocked image loaded later", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="${HTTP_IMAGE}" alt="logo" width="200">`,
+      { external_content_mode: "never", image_proxy_url: PROXY },
+    );
+    const img = new DOMParser()
+      .parseFromString(result.html, "text/html")
+      .querySelector("img");
+
+    expect(img?.getAttribute("data-proxy-src")).toBe(PROXIED_HTTPS);
+    expect(img?.getAttribute("data-original-src")).toBe(HTTPS_IMAGE);
+  });
+
+  it("asks the proxy for https srcset candidates", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="${HTTPS_IMAGE}" srcset="${HTTP_IMAGE} 2x" alt="logo" width="200">`,
+      { external_content_mode: "always", image_proxy_url: PROXY },
+    );
+
+    expect(proxied_sources(result.html)).toEqual([HTTPS_IMAGE, HTTPS_IMAGE]);
+  });
+
+  it("asks the proxy for an https background attribute", () => {
+    const result = sanitize_html(
+      `${LEAD}<table><tr><td background="${HTTP_IMAGE}">cell</td></tr></table>`,
+      { external_content_mode: "always", image_proxy_url: PROXY },
+    );
+
+    expect(proxied_sources(result.html)).toEqual([HTTPS_IMAGE]);
+  });
+
+  it("asks the proxy for https css backgrounds", () => {
+    const result = sanitize_html(
+      `<style>.hero { background-image: url("${HTTP_IMAGE}"); }</style>${LEAD}<div class="hero">cell</div>`,
+      {
+        external_content_mode: "always",
+        image_proxy_url: PROXY,
+        sandbox_mode: true,
+      },
+    );
+
+    expect(proxied_sources(result.html)).toEqual([HTTPS_IMAGE]);
+  });
+
+  it("asks the proxy for the https address when the source has leading spaces", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="  ${HTTP_IMAGE}" alt="logo" width="200">`,
+      { external_content_mode: "always", image_proxy_url: PROXY },
+    );
+
+    expect(proxied_sources(result.html)).toEqual([HTTPS_IMAGE]);
+  });
+
+  it("asks the proxy for an https upper-case http address", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="HTTP://legacy.example.com/logo.png" alt="logo" width="200">`,
+      { external_content_mode: "always", image_proxy_url: PROXY },
+    );
+
+    expect(result.html).toContain(PROXIED_HTTPS);
+  });
+
+  it("never leaves a direct http fetch in the document", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="${HTTP_IMAGE}" alt="logo" width="200">`,
+      { external_content_mode: "always", image_proxy_url: PROXY },
+    );
+
+    expect(result.html).not.toMatch(/(?:^|\s)src="http:\/\//);
+  });
+});
+
+describe("same-origin image sources", () => {
+  const PROXIED_TRACKER = `${PROXY}?url=${encodeURIComponent(TRACKER)}`;
+
+  it("blocks a pre-proxied tracker when remote images are blocked", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="${PROXIED_TRACKER}" width="200" height="100" alt="pic">`,
+      { external_content_mode: "never", image_proxy_url: PROXY },
+    );
+
+    const doc = new DOMParser().parseFromString(result.html, "text/html");
+
+    expect(doc.querySelector(`img[src^="${PROXY}"]`)).toBeNull();
+    expect(result.external_content.has_remote_images).toBe(true);
+    expect(result.external_content.blocked_count).toBeGreaterThan(0);
+  });
+
+  it("blocks a pre-proxied tracker in lockdown mode", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="${PROXIED_TRACKER}" width="200" height="100" alt="pic">`,
+      {
+        external_content_mode: "always",
+        image_proxy_url: PROXY,
+        lockdown_mode: true,
+      },
+    );
+
+    const doc = new DOMParser().parseFromString(result.html, "text/html");
+
+    expect(doc.querySelector(`img[src^="${PROXY}"]`)).toBeNull();
+    expect(result.external_content.blocked_count).toBeGreaterThan(0);
+  });
+
+  it("keeps a pre-proxied image loading through the proxy when auto-loading", () => {
+    const options = {
+      external_content_mode: "always" as const,
+      image_proxy_url: PROXY,
+    };
+    const first = sanitize_html(
+      `${LEAD}<img src="${PROXIED_TRACKER}" alt="pic">`,
+      options,
+    );
+    const second = sanitize_html(first.html, options);
+
+    expect(first.html).toContain(`src="${PROXIED_TRACKER}"`);
+    expect(second.html).toContain(`src="${PROXIED_TRACKER}"`);
+  });
+
+  it("keeps a pre-proxied image unchanged when no proxy is configured", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="${PROXIED_TRACKER}" alt="pic">`,
+      { external_content_mode: "always" },
+    );
+
+    expect(result.html).toContain(`src="${PROXIED_TRACKER}"`);
+  });
+
+  it("drops a relative image that points at an api endpoint", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="/api/mail/v1/messages/1/read" alt="receipt">`,
+      { external_content_mode: "always", image_proxy_url: PROXY },
+    );
+
+    expect(result.html).not.toContain("/api/mail");
+    expect(result.html).toContain("receipt");
+  });
+
+  it("keeps a relative static image asset", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="/text_logo.png" alt="logo">`,
+      { external_content_mode: "never", image_proxy_url: PROXY },
+    );
+
+    expect(result.html).toContain('src="/text_logo.png"');
+  });
+
+  it("drops a pre-proxied srcset candidate when remote images are blocked", () => {
+    const result = sanitize_html(
+      `${LEAD}<img src="/text_logo.png" srcset="${PROXIED_TRACKER} 2x" alt="pic">`,
+      { external_content_mode: "never", image_proxy_url: PROXY },
+    );
+
+    expect(result.html).not.toContain("srcset");
+    expect(result.external_content.blocked_count).toBeGreaterThan(0);
+  });
+
+  it("blocks a pre-proxied background attribute when remote images are blocked", () => {
+    const result = sanitize_html(
+      `${LEAD}<table><tr><td background="${PROXIED_TRACKER}">cell</td></tr></table>`,
+      { external_content_mode: "never", image_proxy_url: PROXY },
+    );
+
+    expect(result.html).not.toContain(PROXY);
+    expect(result.external_content.blocked_count).toBeGreaterThan(0);
+  });
+});

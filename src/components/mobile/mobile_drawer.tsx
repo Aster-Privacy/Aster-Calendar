@@ -1,0 +1,786 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { DecryptedFolder } from "@/hooks/use_folders";
+import type { DecryptedTag } from "@/hooks/use_tags";
+
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+} from "react";
+import {
+  MobileDrawerHeaderView,
+  MobileDrawerScrollArea,
+  MobileDrawerShell,
+  use_drawer_nav_indicator,
+} from "@aster/ui";
+
+import { use_platform } from "@/hooks/use_platform";
+import { create_folder_error_message } from "@/lib/folder_error_message";
+import { use_dialog_shell } from "@/lib/use_dialog_shell";
+import { use_should_reduce_motion } from "@/provider";
+import { use_auth } from "@/contexts/auth_context";
+import { use_primary_identity } from "@/lib/primary_identity";
+import { use_i18n } from "@/lib/i18n/context";
+import { has_sibling_named, use_folders } from "@/hooks/use_folders";
+import { use_tags } from "@/hooks/use_tags";
+import { use_mail_stats } from "@/hooks/use_mail_stats";
+import { TAG_COLOR_PRESETS } from "@/components/ui/email_tag";
+import { use_sidebar_aliases } from "@/hooks/use_sidebar_aliases";
+import {
+  create_alias,
+  validate_local_part,
+  check_alias_availability,
+  get_alias_limit,
+} from "@/services/api/aliases";
+import { emit_aliases_changed, MAIL_EVENTS } from "@/hooks/mail_events";
+import {
+  is_alias_limit_error,
+  prompt_alias_limit_upgrade,
+} from "@/components/settings/aliases/feature_lock";
+import {
+  type TurnstileWidgetRef,
+  TURNSTILE_SITE_KEY,
+} from "@/components/auth/turnstile_widget";
+import {
+  AccountMenuSheet,
+  CreateFolderSheet,
+  CreateLabelSheet,
+  EditFolderSheet,
+  EditTagSheet,
+  CreateAliasSheet,
+  PasswordModalWrapper,
+} from "@/components/mobile/mobile_drawer_sheets";
+import { DrawerNavContent } from "@/components/mobile/mobile_drawer_nav";
+import { FolderDeleteDialog } from "@/components/folders/folder_delete_dialog";
+import { ConfirmationModal } from "@/components/modals/confirmation_modal";
+import mail_logo_url from "@/assets/mail_logo.webp";
+import { show_toast } from "@/components/toast/simple_toast";
+import { ignore_error } from "@/lib/ignore_error";
+
+interface MobileDrawerProps {
+  is_open: boolean;
+  on_close: () => void;
+  on_navigate: (path: string) => void;
+  active_path: string;
+}
+
+export const MobileDrawer = memo(function MobileDrawer({
+  is_open,
+  on_close,
+  on_navigate,
+  active_path,
+}: MobileDrawerProps) {
+  const { safe_area_insets } = use_platform();
+  const reduce_motion = use_should_reduce_motion();
+  const { user, logout } = use_auth();
+  const primary_identity = use_primary_identity(user?.email ?? "");
+  const { t } = use_i18n();
+  const user_domain = useMemo(() => {
+    const parts = user?.email?.split("@");
+
+    return parts && parts.length === 2 ? parts[1] : "astermail.org";
+  }, [user?.email]);
+  const {
+    state: folders_state,
+    unread_counts: folder_unread_counts,
+    create_new_folder,
+    update_existing_folder,
+    toggle_folder_lock,
+    sort_folders_a_z,
+    refresh: refresh_folders,
+  } = use_folders();
+  const {
+    state: tags_state,
+    counts: tag_counts,
+    create_new_tag,
+    update_existing_tag,
+    delete_existing_tag,
+    refresh: refresh_tags,
+  } = use_tags();
+  const {
+    enabled_aliases: aliases,
+    is_loading: aliases_loading,
+    load_failed: aliases_load_failed,
+    unread_counts: alias_unread_counts,
+    refresh: refresh_aliases,
+  } = use_sidebar_aliases();
+  const { stats } = use_mail_stats();
+
+  const [show_account_menu, set_show_account_menu] = useState(false);
+  const [show_create_folder, set_show_create_folder] = useState(false);
+  const [show_create_label, set_show_create_label] = useState(false);
+  const [is_creating_folder, set_is_creating_folder] = useState(false);
+  const [is_creating_label, set_is_creating_label] = useState(false);
+  const [confirm_delete_tag, set_confirm_delete_tag] =
+    useState<DecryptedTag | null>(null);
+  const [new_folder_name, set_new_folder_name] = useState("");
+  const [new_label_name, set_new_label_name] = useState("");
+  const [new_folder_color, set_new_folder_color] = useState<string>(
+    TAG_COLOR_PRESETS[10].hex,
+  );
+  const [new_label_color, set_new_label_color] = useState<string>(
+    TAG_COLOR_PRESETS[10].hex,
+  );
+  const [new_label_icon, set_new_label_icon] = useState<string | undefined>(
+    undefined,
+  );
+  const [show_create_alias, set_show_create_alias] = useState(false);
+  const [new_alias_local, set_new_alias_local] = useState("");
+  const [alias_error, set_alias_error] = useState("");
+  const [creating_alias, set_creating_alias] = useState(false);
+  const [can_create_alias, set_can_create_alias] = useState(true);
+  const [captcha_token, set_captcha_token] = useState<string | null>(null);
+  const turnstile_ref = useRef<TurnstileWidgetRef>(null);
+  const turnstile_required = !!TURNSTILE_SITE_KEY;
+  const [password_modal_folder, set_password_modal_folder] = useState<{
+    folder_id: string;
+    folder_name: string;
+    folder_token: string;
+    mode: "setup" | "unlock";
+  } | null>(null);
+  const [editing_folder, set_editing_folder] = useState<DecryptedFolder | null>(
+    null,
+  );
+  const [deleting_folder, set_deleting_folder] =
+    useState<DecryptedFolder | null>(null);
+  const [editing_tag, set_editing_tag] = useState<DecryptedTag | null>(null);
+  const [edit_folder_name, set_edit_folder_name] = useState("");
+  const [edit_folder_color, set_edit_folder_color] = useState("");
+  const [edit_tag_name, set_edit_tag_name] = useState("");
+  const [edit_tag_color, set_edit_tag_color] = useState("");
+  const [edit_tag_icon, set_edit_tag_icon] = useState<string | undefined>(
+    undefined,
+  );
+  const folder_input_ref = useRef<HTMLInputElement>(null);
+  const label_input_ref = useRef<HTMLInputElement>(null);
+  const nav_container_ref = useRef<HTMLDivElement>(null);
+  const indicator_style = use_drawer_nav_indicator(
+    nav_container_ref,
+    is_open,
+    active_path,
+  );
+
+  const account_email = user?.email ?? "";
+
+  useEffect(() => {
+    if (!account_email) return;
+
+    const fetch_alias_limit = () => {
+      get_alias_limit()
+        .then((response) => {
+          if (response.data) set_can_create_alias(response.data.can_create);
+        })
+        .catch((caught) =>
+          ignore_error("components/mobile/mobile_drawer", caught),
+        );
+    };
+
+    const handle_visibility = () => {
+      if (document.visibilityState === "visible") {
+        fetch_alias_limit();
+      }
+    };
+
+    fetch_alias_limit();
+    window.addEventListener(MAIL_EVENTS.ALIASES_CHANGED, fetch_alias_limit);
+    document.addEventListener("visibilitychange", handle_visibility);
+
+    return () => {
+      window.removeEventListener(
+        MAIL_EVENTS.ALIASES_CHANGED,
+        fetch_alias_limit,
+      );
+      document.removeEventListener("visibilitychange", handle_visibility);
+    };
+  }, [account_email]);
+
+  const { dialog_ref, handle_backdrop_pointer_down } =
+    use_dialog_shell<HTMLElement>(is_open, on_close, "mobile_drawer");
+
+  useEffect(() => {
+    if (!is_open) return;
+
+    const handle_back = (e: Event) => {
+      if (deleting_folder) {
+        e.preventDefault();
+        set_deleting_folder(null);
+      } else if (editing_folder) {
+        e.preventDefault();
+        set_editing_folder(null);
+      } else if (confirm_delete_tag) {
+        e.preventDefault();
+        set_confirm_delete_tag(null);
+      } else if (editing_tag) {
+        e.preventDefault();
+        set_editing_tag(null);
+      } else if (show_create_folder) {
+        e.preventDefault();
+        set_show_create_folder(false);
+      } else if (show_create_label) {
+        e.preventDefault();
+        set_show_create_label(false);
+      } else if (show_create_alias) {
+        e.preventDefault();
+        set_show_create_alias(false);
+      } else if (show_account_menu) {
+        e.preventDefault();
+        set_show_account_menu(false);
+      } else if (password_modal_folder) {
+        e.preventDefault();
+        set_password_modal_folder(null);
+      } else {
+        e.preventDefault();
+        on_close();
+      }
+    };
+
+    window.addEventListener("capacitor:backbutton", handle_back);
+
+    return () =>
+      window.removeEventListener("capacitor:backbutton", handle_back);
+  }, [
+    is_open,
+    show_account_menu,
+    show_create_folder,
+    show_create_label,
+    show_create_alias,
+    editing_folder,
+    deleting_folder,
+    editing_tag,
+    confirm_delete_tag,
+    password_modal_folder,
+    on_close,
+  ]);
+
+  useEffect(() => {
+    if (!is_open) {
+      set_show_account_menu(false);
+      set_show_create_folder(false);
+      set_show_create_label(false);
+      set_new_folder_name("");
+      set_new_label_name("");
+      set_new_folder_color(TAG_COLOR_PRESETS[10].hex);
+      set_new_label_color(TAG_COLOR_PRESETS[10].hex);
+      set_new_label_icon(undefined);
+      set_show_create_alias(false);
+      set_new_alias_local("");
+      set_alias_error("");
+      set_captcha_token(null);
+      set_editing_folder(null);
+      set_deleting_folder(null);
+      set_editing_tag(null);
+      set_password_modal_folder(null);
+    }
+  }, [is_open]);
+
+  useEffect(() => {
+    if (!show_create_folder) return;
+
+    const handle = setTimeout(() => folder_input_ref.current?.focus(), 100);
+
+    return () => clearTimeout(handle);
+  }, [show_create_folder]);
+
+  useEffect(() => {
+    if (!show_create_label) return;
+
+    const handle = setTimeout(() => label_input_ref.current?.focus(), 100);
+
+    return () => clearTimeout(handle);
+  }, [show_create_label]);
+
+  const handle_nav = useCallback(
+    (path: string) => {
+      on_navigate(path);
+      on_close();
+    },
+    [on_navigate, on_close],
+  );
+
+  const handle_sort_folders = useCallback(async () => {
+    if (await sort_folders_a_z()) {
+      show_toast(t("common.folders_sorted_a_to_z"), "success");
+    } else {
+      show_toast(t("common.something_went_wrong_try_again"), "error");
+    }
+  }, [sort_folders_a_z, t]);
+
+  const handle_create_folder = useCallback(async () => {
+    const name = new_folder_name.trim();
+
+    if (!name || is_creating_folder) return;
+    set_is_creating_folder(true);
+
+    const result = await create_new_folder(name, new_folder_color);
+
+    set_is_creating_folder(false);
+    if (!result.folder) {
+      show_toast(create_folder_error_message(result.code, t), "error");
+
+      return;
+    }
+    set_new_folder_name("");
+    set_new_folder_color(TAG_COLOR_PRESETS[10].hex);
+    set_show_create_folder(false);
+  }, [
+    new_folder_name,
+    new_folder_color,
+    is_creating_folder,
+    create_new_folder,
+    t,
+  ]);
+
+  const handle_create_label = useCallback(async () => {
+    const name = new_label_name.trim();
+
+    if (!name || is_creating_label) return;
+    set_is_creating_label(true);
+
+    const created = await create_new_tag(name, new_label_color, new_label_icon);
+
+    set_is_creating_label(false);
+    if (!created) {
+      show_toast(t("common.failed_to_create_label"), "error");
+
+      return;
+    }
+    set_new_label_name("");
+    set_new_label_color(TAG_COLOR_PRESETS[10].hex);
+    set_new_label_icon(undefined);
+    set_show_create_label(false);
+  }, [
+    new_label_name,
+    new_label_color,
+    new_label_icon,
+    is_creating_label,
+    create_new_tag,
+    t,
+  ]);
+
+  const handle_create_alias = useCallback(async () => {
+    const trimmed = new_alias_local.trim().toLowerCase();
+    const validation = validate_local_part(trimmed);
+
+    if (!validation.valid) {
+      set_alias_error(validation.error || t("settings.alias_invalid"));
+
+      return;
+    }
+
+    if (turnstile_required && !captcha_token) {
+      set_alias_error(t("settings.alias_captcha_required"));
+
+      return;
+    }
+
+    set_creating_alias(true);
+    set_alias_error("");
+
+    try {
+      const availability = await check_alias_availability(trimmed, user_domain);
+
+      if (availability.data && !availability.data.available) {
+        set_alias_error(t("settings.alias_already_taken"));
+        set_creating_alias(false);
+
+        return;
+      }
+
+      const result = await create_alias(
+        trimmed,
+        user_domain,
+        undefined,
+        captcha_token ?? undefined,
+      );
+
+      if (result.data?.success) {
+        emit_aliases_changed();
+        set_new_alias_local("");
+        set_alias_error("");
+        set_captcha_token(null);
+        set_show_create_alias(false);
+        get_alias_limit()
+          .then((r) => {
+            if (r.data) set_can_create_alias(r.data.can_create);
+          })
+          .catch((caught) =>
+            ignore_error("components/mobile/mobile_drawer:overscroll", caught),
+          );
+      } else if (is_alias_limit_error(result)) {
+        set_alias_error("");
+        set_captcha_token(null);
+        set_show_create_alias(false);
+        set_can_create_alias(false);
+        prompt_alias_limit_upgrade();
+      } else {
+        set_alias_error(result.error || t("settings.alias_create_failed"));
+        set_captcha_token(null);
+        turnstile_ref.current?.reset();
+      }
+    } catch {
+      set_alias_error(t("settings.alias_create_failed"));
+      set_captcha_token(null);
+      turnstile_ref.current?.reset();
+    }
+
+    set_creating_alias(false);
+  }, [new_alias_local, user_domain, captcha_token, turnstile_required, t]);
+
+  const handle_open_edit_folder = useCallback((folder: DecryptedFolder) => {
+    set_editing_folder(folder);
+    set_edit_folder_name(folder.name);
+    set_edit_folder_color(folder.color || TAG_COLOR_PRESETS[10].hex);
+  }, []);
+
+  const handle_save_folder = useCallback(async () => {
+    if (!editing_folder) return;
+    const name = edit_folder_name.trim();
+
+    if (!name) return;
+    if (
+      name.toLowerCase() !== editing_folder.name.toLowerCase() &&
+      has_sibling_named(
+        folders_state.folders,
+        name,
+        editing_folder.parent_token,
+        editing_folder.id,
+      )
+    ) {
+      show_toast(t("common.folder_already_exists"), "error");
+
+      return;
+    }
+    const success = await update_existing_folder(
+      editing_folder.id,
+      name,
+      edit_folder_color,
+    );
+
+    if (!success) {
+      show_toast(t("common.failed_to_rename_folder"), "error");
+
+      return;
+    }
+    set_editing_folder(null);
+  }, [
+    editing_folder,
+    edit_folder_name,
+    edit_folder_color,
+    folders_state.folders,
+    update_existing_folder,
+    t,
+  ]);
+
+  const handle_delete_folder = useCallback(() => {
+    if (!editing_folder) return;
+
+    set_deleting_folder(editing_folder);
+    set_editing_folder(null);
+  }, [editing_folder]);
+
+  const handle_open_edit_tag = useCallback((tag: DecryptedTag) => {
+    set_editing_tag(tag);
+    set_edit_tag_name(tag.name);
+    set_edit_tag_color(tag.color || TAG_COLOR_PRESETS[10].hex);
+    set_edit_tag_icon(tag.icon || undefined);
+  }, []);
+
+  const handle_save_tag = useCallback(async () => {
+    if (!editing_tag) return;
+    const name = editing_tag.is_undecryptable
+      ? undefined
+      : edit_tag_name.trim();
+
+    if (name === "") return;
+    const success = await update_existing_tag(
+      editing_tag.id,
+      name,
+      edit_tag_color,
+      edit_tag_icon,
+    );
+
+    if (!success) {
+      show_toast(t("common.failed_to_rename_label"), "error");
+
+      return;
+    }
+    set_editing_tag(null);
+  }, [
+    editing_tag,
+    edit_tag_name,
+    edit_tag_color,
+    edit_tag_icon,
+    update_existing_tag,
+    t,
+  ]);
+
+  const handle_delete_tag = useCallback(() => {
+    if (!editing_tag) return;
+
+    set_confirm_delete_tag(editing_tag);
+  }, [editing_tag]);
+
+  const handle_confirm_delete_tag = useCallback(async () => {
+    if (!confirm_delete_tag) return;
+    const success = await delete_existing_tag(confirm_delete_tag.id);
+
+    set_confirm_delete_tag(null);
+    if (!success) {
+      show_toast(t("common.failed_to_delete_label"), "error");
+
+      return;
+    }
+    set_editing_tag(null);
+  }, [confirm_delete_tag, delete_existing_tag, t]);
+
+  const handle_toggle_lock = useCallback(
+    async (folder_id: string, is_currently_locked: boolean) => {
+      const success = await toggle_folder_lock(folder_id, !is_currently_locked);
+
+      if (!success) {
+        show_toast(t("common.failed_to_update_folder_encryption"), "error");
+      }
+    },
+    [toggle_folder_lock, t],
+  );
+
+  const handle_logout = useCallback(async () => {
+    set_show_account_menu(false);
+    on_close();
+    await logout();
+  }, [logout, on_close]);
+
+  const folders = useMemo(
+    () => (folders_state.folders ?? []).filter((f) => !f.is_system),
+    [folders_state.folders],
+  );
+  const tags = tags_state.tags ?? [];
+
+  const storage_used = stats.storage_used_bytes;
+  const storage_total = stats.storage_total_bytes;
+  const storage_pct =
+    storage_total > 0 ? Math.round((storage_used / storage_total) * 100) : 0;
+
+  return (
+    <>
+      <MobileDrawerShell
+        focusable
+        hide_when_closed
+        is_open={is_open}
+        lock_body_scroll={false}
+        on_backdrop_pointer_down={handle_backdrop_pointer_down}
+        on_close={on_close}
+        panel_ref={dialog_ref}
+        reduce_motion={reduce_motion}
+        safe_area_bottom={safe_area_insets.bottom}
+        safe_area_top={safe_area_insets.top}
+        side="start"
+        width_class_name="w-80 max-w-[85vw]"
+      >
+        <MobileDrawerHeaderView
+          logo_src={mail_logo_url}
+          subtitle={primary_identity.email || (user?.email ?? "")}
+          title="Aster Mail"
+          on_click={() => set_show_account_menu(true)}
+        />
+
+        <MobileDrawerScrollArea>
+          <DrawerNavContent
+            active_path={active_path}
+            alias_unread_counts={alias_unread_counts}
+            aliases={aliases}
+            aliases_load_failed={aliases_load_failed}
+            aliases_loading={aliases_loading}
+            folder_unread_counts={folder_unread_counts}
+            folders={folders}
+            folders_load_failed={Boolean(folders_state.error)}
+            folders_loading={folders_state.is_loading}
+            handle_nav={handle_nav}
+            indicator_style={indicator_style}
+            nav_container_ref={nav_container_ref}
+            on_open_create_alias={() => {
+              set_show_create_folder(false);
+              set_show_create_label(false);
+              set_show_create_alias(true);
+            }}
+            on_open_create_folder={() => {
+              set_show_create_label(false);
+              set_show_create_alias(false);
+              set_show_create_folder(true);
+            }}
+            on_open_create_label={() => {
+              set_show_create_folder(false);
+              set_show_create_alias(false);
+              set_show_create_label(true);
+            }}
+            on_open_edit_folder={handle_open_edit_folder}
+            on_open_edit_tag={handle_open_edit_tag}
+            on_password_modal={set_password_modal_folder}
+            on_sort_folders={() => void handle_sort_folders()}
+            on_retry_aliases={() => void refresh_aliases()}
+            on_retry_folders={() => void refresh_folders()}
+            on_retry_tags={() => void refresh_tags()}
+            on_toggle_lock={handle_toggle_lock}
+            stats={stats}
+            tag_counts={tag_counts}
+            tags={tags}
+            tags_load_failed={Boolean(tags_state.error)}
+            tags_loading={tags_state.is_loading}
+          />
+        </MobileDrawerScrollArea>
+      </MobileDrawerShell>
+
+      <AccountMenuSheet
+        handle_logout={handle_logout}
+        handle_nav={handle_nav}
+        is_open={show_account_menu}
+        on_close={() => set_show_account_menu(false)}
+        storage_pct={storage_pct}
+        storage_total={storage_total}
+        storage_used={storage_used}
+        user={user}
+      />
+
+      <CreateFolderSheet
+        folder_color={new_folder_color}
+        folder_input_ref={folder_input_ref}
+        folder_name={new_folder_name}
+        handle_create={handle_create_folder}
+        is_creating={is_creating_folder}
+        is_open={show_create_folder}
+        on_close={() => {
+          set_show_create_folder(false);
+          set_new_folder_name("");
+          set_new_folder_color(TAG_COLOR_PRESETS[10].hex);
+        }}
+        set_folder_color={set_new_folder_color}
+        set_folder_name={set_new_folder_name}
+      />
+
+      <CreateLabelSheet
+        handle_create={handle_create_label}
+        is_creating={is_creating_label}
+        is_open={show_create_label}
+        label_color={new_label_color}
+        label_icon={new_label_icon}
+        label_input_ref={label_input_ref}
+        label_name={new_label_name}
+        on_close={() => {
+          set_show_create_label(false);
+          set_new_label_name("");
+          set_new_label_color(TAG_COLOR_PRESETS[10].hex);
+          set_new_label_icon(undefined);
+        }}
+        set_label_color={set_new_label_color}
+        set_label_icon={set_new_label_icon}
+        set_label_name={set_new_label_name}
+      />
+
+      <EditFolderSheet
+        edit_color={edit_folder_color}
+        edit_name={edit_folder_name}
+        editing_folder={editing_folder}
+        handle_delete={handle_delete_folder}
+        handle_save={handle_save_folder}
+        on_close={() => set_editing_folder(null)}
+        set_edit_color={set_edit_folder_color}
+        set_edit_name={set_edit_folder_name}
+      />
+
+      <FolderDeleteDialog
+        folder_id={deleting_folder?.id ?? ""}
+        folder_name={deleting_folder?.name ?? ""}
+        has_children={
+          !!deleting_folder &&
+          folders_state.folders.some(
+            (f) => f.parent_token === deleting_folder.folder_token,
+          )
+        }
+        is_open={!!deleting_folder}
+        on_close={() => set_deleting_folder(null)}
+        variant="sheet"
+      />
+
+      <EditTagSheet
+        edit_color={edit_tag_color}
+        edit_icon={edit_tag_icon}
+        edit_name={edit_tag_name}
+        editing_tag={editing_tag}
+        handle_delete={handle_delete_tag}
+        handle_save={handle_save_tag}
+        on_close={() => set_editing_tag(null)}
+        set_edit_color={set_edit_tag_color}
+        set_edit_icon={set_edit_tag_icon}
+        set_edit_name={set_edit_tag_name}
+      />
+
+      <ConfirmationModal
+        cancel_text={t("common.cancel")}
+        confirm_text={t("common.delete")}
+        is_open={!!confirm_delete_tag}
+        message={`${t("common.confirm_delete_label")} "${
+          confirm_delete_tag?.name ?? ""
+        }"?`}
+        on_cancel={() => set_confirm_delete_tag(null)}
+        on_confirm={handle_confirm_delete_tag}
+        title={t("common.delete_label")}
+        variant="danger"
+      />
+
+      <CreateAliasSheet
+        alias_error={alias_error}
+        alias_local={new_alias_local}
+        at_limit={!can_create_alias}
+        captcha_token={captcha_token}
+        creating={creating_alias}
+        domain={user_domain}
+        handle_create={handle_create_alias}
+        is_open={show_create_alias}
+        on_close={() => {
+          set_show_create_alias(false);
+          set_new_alias_local("");
+          set_alias_error("");
+          set_captcha_token(null);
+        }}
+        set_alias_error={set_alias_error}
+        set_alias_local={set_new_alias_local}
+        set_captcha_token={set_captcha_token}
+        turnstile_ref={turnstile_ref}
+        turnstile_required={turnstile_required}
+      />
+
+      <PasswordModalWrapper
+        on_close={() => set_password_modal_folder(null)}
+        on_success={() => {
+          const token = password_modal_folder!.folder_token;
+
+          set_password_modal_folder(null);
+          handle_nav(`/folder/${encodeURIComponent(token)}`);
+        }}
+        password_modal_folder={password_modal_folder}
+      />
+    </>
+  );
+});

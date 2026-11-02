@@ -1,0 +1,103 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { DecryptedExternalAccount } from "@/services/api/external_accounts";
+import type { TranslationFn } from "@/components/settings/external_accounts/form_types";
+
+import { ServerStackIcon, EnvelopeIcon } from "@heroicons/react/24/outline";
+import { Button } from "@aster/ui";
+
+interface FormFooterProps {
+  editing_account: DecryptedExternalAccount | null;
+  is_oauth_account: boolean;
+  is_testing: boolean;
+  is_testing_smtp: boolean;
+  is_submitting: boolean;
+  is_form_busy: boolean;
+  close_form: () => void;
+  handle_test_connection: () => void;
+  handle_test_smtp: () => void;
+  handle_submit: () => void;
+  t: TranslationFn;
+}
+
+export function FormFooter({
+  editing_account,
+  is_oauth_account,
+  is_testing,
+  is_testing_smtp,
+  is_submitting,
+  is_form_busy,
+  close_form,
+  handle_test_connection,
+  handle_test_smtp,
+  handle_submit,
+  t,
+}: FormFooterProps) {
+  return (
+    <div className="sticky bottom-0 z-10 px-6 py-4 border-t rounded-b-[var(--aster-radius-floating,16px)] flex items-center justify-between bg-modal-bg border-[var(--aster-floating-divider)]">
+      <div className="flex items-center gap-2">
+        {!is_oauth_account && (
+          <>
+            <Button
+              aria-label={t("settings.test_incoming_connection")}
+              className="gap-1.5"
+              disabled={is_form_busy}
+              is_loading={is_testing}
+              size="md"
+              variant="outline"
+              onClick={handle_test_connection}
+            >
+              <ServerStackIcon className="w-4 h-4" />
+              {t("settings.test_connection")}
+            </Button>
+            <Button
+              aria-label={t("settings.test_smtp_connection")}
+              className="gap-1.5"
+              disabled={is_form_busy}
+              is_loading={is_testing_smtp}
+              size="md"
+              variant="outline"
+              onClick={handle_test_smtp}
+            >
+              <EnvelopeIcon className="w-4 h-4" />
+              {t("settings.test_smtp")}
+            </Button>
+          </>
+        )}
+      </div>
+      <div className="flex items-center gap-3">
+        <Button disabled={is_submitting} variant="ghost" onClick={close_form}>
+          {t("common.cancel")}
+        </Button>
+        <Button
+          disabled={is_form_busy}
+          is_loading={is_submitting}
+          variant="depth"
+          onClick={handle_submit}
+        >
+          {editing_account
+            ? t("settings.update_account_button")
+            : t("settings.save_account")}
+        </Button>
+      </div>
+    </div>
+  );
+}

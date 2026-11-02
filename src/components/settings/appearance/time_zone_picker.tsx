@@ -1,0 +1,309 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  MagnifyingGlassIcon,
+} from "@heroicons/react/24/outline";
+
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { use_i18n } from "@/lib/i18n/context";
+import {
+  build_time_zone_options,
+  format_time_in_zone,
+  get_device_time_zone,
+  type TimeZoneOption,
+} from "@/lib/time_zones";
+
+const SUGGESTED_ZONE_IDS = [
+  "Pacific/Honolulu",
+  "America/Anchorage",
+  "America/Los_Angeles",
+  "America/Denver",
+  "America/Chicago",
+  "America/New_York",
+  "America/Sao_Paulo",
+  "UTC",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Europe/Moscow",
+  "Africa/Johannesburg",
+  "Asia/Dubai",
+  "Asia/Kolkata",
+  "Asia/Shanghai",
+  "Asia/Tokyo",
+  "Australia/Sydney",
+  "Pacific/Auckland",
+];
+
+const OPTIONS_CACHE_TTL_MS = 60_000;
+
+let options_cache: { built_at: number; options: TimeZoneOption[] } | null =
+  null;
+
+function get_cached_time_zone_options(): TimeZoneOption[] {
+  const now = Date.now();
+
+  if (!options_cache || now - options_cache.built_at > OPTIONS_CACHE_TTL_MS) {
+    options_cache = { built_at: now, options: build_time_zone_options() };
+  }
+
+  return options_cache.options;
+}
+
+interface TimeZonePickerProps {
+  value: string;
+  on_change: (value: string) => void;
+  use_24h: boolean;
+  auto_value?: string;
+  auto_label?: string;
+  auto_secondary?: string;
+  show_auto?: boolean;
+  trigger_label?: string;
+  exclude?: string[];
+  trigger_class_name?: string;
+}
+
+export function TimeZonePicker({
+  value,
+  on_change,
+  use_24h,
+  auto_value = "auto",
+  auto_label,
+  auto_secondary,
+  show_auto = true,
+  trigger_label: trigger_label_override,
+  exclude,
+  trigger_class_name = "w-[200px]",
+}: TimeZonePickerProps) {
+  const { t } = use_i18n();
+  const [is_open, set_is_open] = useState(false);
+  const [query, set_query] = useState("");
+  const [show_all, set_show_all] = useState(false);
+  const list_ref = useRef<HTMLDivElement>(null);
+  const search_ref = useRef<HTMLInputElement>(null);
+
+  const all_options = useMemo(() => {
+    const options = get_cached_time_zone_options();
+
+    if (!exclude || exclude.length === 0) return options;
+
+    const excluded = new Set(exclude);
+
+    return options.filter((option) => !excluded.has(option.id));
+  }, [exclude]);
+  const options_by_id = useMemo(
+    () => new Map(all_options.map((option) => [option.id, option])),
+    [all_options],
+  );
+
+  const device_zone = useMemo(() => get_device_time_zone(), []);
+
+  const suggested_options = useMemo(() => {
+    const ids = [device_zone, ...SUGGESTED_ZONE_IDS];
+    const seen = new Set<string>();
+    const result: TimeZoneOption[] = [];
+
+    for (const id of ids) {
+      const option = options_by_id.get(id);
+
+      if (!option || seen.has(option.id)) continue;
+      seen.add(option.id);
+      result.push(option);
+    }
+
+    return result;
+  }, [device_zone, options_by_id]);
+
+  const normalized_query = query.trim().toLowerCase();
+
+  const visible_options = useMemo(() => {
+    if (normalized_query) {
+      return all_options.filter((option) =>
+        option.search_text.includes(normalized_query),
+      );
+    }
+
+    return show_all ? all_options : suggested_options;
+  }, [all_options, normalized_query, show_all, suggested_options]);
+
+  useEffect(() => {
+    if (is_open) return;
+    set_query("");
+    set_show_all(false);
+  }, [is_open]);
+
+  useEffect(() => {
+    const node = list_ref.current;
+
+    if (!node) return;
+
+    const handle_wheel = (event: WheelEvent) => {
+      if (node.scrollHeight <= node.clientHeight) return;
+
+      const delta =
+        event.deltaMode === 1
+          ? event.deltaY * 16
+          : event.deltaMode === 2
+            ? event.deltaY * node.clientHeight
+            : event.deltaY;
+
+      event.preventDefault();
+      event.stopPropagation();
+      node.scrollTop += delta;
+    };
+
+    node.addEventListener("wheel", handle_wheel, { passive: false });
+
+    return () => node.removeEventListener("wheel", handle_wheel);
+  }, [is_open, visible_options.length]);
+
+  const selected_option =
+    value === auto_value ? undefined : options_by_id.get(value);
+  const effective_zone = selected_option?.id ?? device_zone;
+  const effective_option = options_by_id.get(effective_zone);
+  const resolved_auto_label = auto_label ?? t("settings.time_zone_auto");
+
+  const trigger_label =
+    trigger_label_override ??
+    (value === auto_value
+      ? resolved_auto_label
+      : `${selected_option?.city ?? value} (${selected_option?.offset_label ?? ""})`);
+
+  const handle_select = (next: string) => {
+    on_change(next);
+    set_is_open(false);
+  };
+
+  const render_row = (
+    id: string,
+    primary: string,
+    secondary: string,
+    trailing: string,
+  ) => (
+    <button
+      key={id}
+      className="flex w-full items-center gap-3 rounded-[var(--aster-radius-item)] px-2.5 py-2 text-start transition-colors hover:bg-[var(--aster-floating-hover)]"
+      type="button"
+      onClick={() => handle_select(id)}
+    >
+      <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+        {value === id && <CheckIcon className="h-4 w-4 text-brand" />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13px] text-txt-primary">
+          {primary}
+        </span>
+        {secondary && (
+          <span className="block truncate text-[11px] text-txt-muted">
+            {secondary}
+          </span>
+        )}
+      </span>
+      <span className="flex-shrink-0 text-[11px] tabular-nums text-txt-muted">
+        {trailing}
+      </span>
+    </button>
+  );
+
+  return (
+    <Popover open={is_open} onOpenChange={set_is_open}>
+      <PopoverTrigger asChild>
+        <button
+          className={`aster_select_trigger group flex h-10 ${trigger_class_name} items-center justify-between gap-2 overflow-hidden border-0 ps-3.5 pe-3 text-[13px] font-medium text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)]/50`}
+          type="button"
+        >
+          <span className="min-w-0 truncate">{trigger_label}</span>
+          <ChevronDownIcon className="h-4 w-4 shrink-0 text-[var(--text-muted)] transition-transform duration-200 group-data-[state=open]:rotate-180" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        avoidCollisions={false}
+        className="flex w-[320px] flex-col p-0"
+        collisionPadding={12}
+        side="bottom"
+        style={{
+          maxHeight:
+            "max(160px, var(--radix-popover-content-available-height, 24rem))",
+        }}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          search_ref.current?.focus({ preventScroll: true });
+        }}
+      >
+        <div className="flex shrink-0 items-center gap-2 border-b border-[var(--aster-floating-divider)] px-3.5 py-2.5">
+          <MagnifyingGlassIcon className="h-4 w-4 flex-shrink-0 text-txt-muted" />
+          <input
+            ref={search_ref}
+            className="w-full bg-transparent text-[13px] text-txt-primary placeholder:text-txt-muted focus:outline-none"
+            placeholder={t("settings.time_zone_search_placeholder")}
+            value={query}
+            onChange={(event) => set_query(event.target.value)}
+          />
+        </div>
+        <div
+          ref={list_ref}
+          className="max-h-72 min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5"
+        >
+          {!normalized_query &&
+            show_auto &&
+            render_row(
+              auto_value,
+              resolved_auto_label,
+              auto_secondary ?? effective_option?.city ?? device_zone,
+              format_time_in_zone(effective_zone, use_24h),
+            )}
+          {visible_options.map((option) =>
+            render_row(
+              option.id,
+              option.city,
+              option.region
+                ? `${option.region} · ${option.offset_label}`
+                : option.offset_label,
+              format_time_in_zone(option.id, use_24h),
+            ),
+          )}
+          {visible_options.length === 0 && (
+            <p className="px-2.5 py-6 text-center text-[13px] text-txt-muted">
+              {t("settings.time_zone_no_results")}
+            </p>
+          )}
+        </div>
+        {!normalized_query && !show_all && (
+          <button
+            className="w-full shrink-0 border-t border-[var(--aster-floating-divider)] px-3 py-2.5 text-[12px] font-medium text-txt-secondary transition-colors hover:text-txt-primary"
+            type="button"
+            onClick={() => set_show_all(true)}
+          >
+            {t("settings.time_zone_show_all")}
+          </button>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}

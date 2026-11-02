@@ -1,0 +1,449 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { ImportJob, ImportSource } from "@/services/api/email_import";
+import type { TranslationKey } from "@/lib/i18n/types";
+
+import { useState, useCallback, useEffect, type ReactNode } from "react";
+import {
+  DocumentArrowUpIcon,
+  InformationCircleIcon,
+  TrashIcon,
+} from "@heroicons/react/24/outline";
+import { Button } from "@aster/ui";
+
+import { SettingsGroup, SettingsHeader } from "./shared";
+
+import { GmailSyncModal } from "@/components/settings/import_section/gmail_sync_modal";
+import {
+  ConnectProviderModal,
+  type ConnectProvider,
+} from "@/components/settings/connect_provider_modal";
+import { use_i18n } from "@/lib/i18n/context";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  list_import_jobs,
+  delete_import_job,
+} from "@/services/api/email_import";
+import { ImportModal } from "@/components/settings/import_modal";
+import {
+  OAUTH_PROVIDERS,
+  PROVIDER_TO_OAUTH,
+} from "@/components/settings/import_section/providers";
+import { ignore_error } from "@/lib/ignore_error";
+import { show_toast } from "@/components/toast/simple_toast";
+import {
+  emit_folders_changed,
+  emit_mail_changed,
+  emit_refresh_requested,
+} from "@/hooks/mail_events";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert_dialog";
+
+export function ImportSection({
+  on_back,
+  on_close,
+}: {
+  on_back: () => void;
+  on_close: () => void;
+}) {
+  const { t } = use_i18n();
+  const [jobs, set_jobs] = useState<ImportJob[]>([]);
+  const [is_loading, set_is_loading] = useState(true);
+  const [jobs_load_failed, set_jobs_load_failed] = useState(false);
+  const [selected_provider, set_selected_provider] =
+    useState<ImportSource | null>(null);
+  const [gmail_sync_open, set_gmail_sync_open] = useState(false);
+  const [connect_provider, set_connect_provider] =
+    useState<ConnectProvider | null>(null);
+  const [confirm_delete_id, set_confirm_delete_id] = useState<string | null>(
+    null,
+  );
+
+  const mobile_providers: {
+    id: ImportSource;
+    icon: ReactNode;
+    label: string;
+  }[] = [
+    {
+      id: "gmail",
+      icon: (
+        <img
+          alt=""
+          aria-hidden="true"
+          className="w-5 h-5 object-contain"
+          src="/providers/gmail_logo.svg"
+        />
+      ),
+      label: t("settings.gmail_import"),
+    },
+    {
+      id: "outlook",
+      icon: (
+        <img
+          alt=""
+          aria-hidden="true"
+          className="w-5 h-5 object-contain"
+          src="/providers/outlook_logo.svg"
+        />
+      ),
+      label: t("settings.outlook_import"),
+    },
+    {
+      id: "yahoo",
+      icon: (
+        <img
+          alt=""
+          aria-hidden="true"
+          className="w-5 h-5 object-contain"
+          src="/providers/yahoo_mail_logo.svg"
+        />
+      ),
+      label: t("settings.yahoo_import"),
+    },
+    {
+      id: "mbox",
+      icon: (
+        <DocumentArrowUpIcon className="w-5 h-5 text-[var(--mobile-text-muted)]" />
+      ),
+      label: t("settings.mbox_import"),
+    },
+    {
+      id: "eml",
+      icon: (
+        <DocumentArrowUpIcon className="w-5 h-5 text-[var(--mobile-text-muted)]" />
+      ),
+      label: t("settings.eml_import"),
+    },
+  ];
+
+  const load_jobs = useCallback(async (silent = false) => {
+    if (!silent) set_is_loading(true);
+    try {
+      const res = await list_import_jobs();
+
+      if (res.data?.jobs) {
+        set_jobs(res.data.jobs);
+        set_jobs_load_failed(false);
+      } else {
+        set_jobs_load_failed(true);
+      }
+    } catch (caught) {
+      ignore_error(
+        "pages/mobile/settings/import_section:ImportSection",
+        caught,
+      );
+      set_jobs_load_failed(true);
+    } finally {
+      if (!silent) set_is_loading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load_jobs();
+  }, [load_jobs]);
+
+  const has_active_job = jobs.some(
+    (job) => job.status === "processing" || job.status === "pending",
+  );
+
+  useEffect(() => {
+    if (!has_active_job) return;
+    const id = window.setInterval(() => {
+      load_jobs(true);
+    }, 3000);
+
+    return () => window.clearInterval(id);
+  }, [has_active_job, load_jobs]);
+
+  const handle_import_close = useCallback(() => {
+    set_selected_provider(null);
+    load_jobs();
+  }, [load_jobs]);
+
+  const handle_delete_job = useCallback(
+    async (id: string) => {
+      set_jobs((prev) => prev.filter((j) => j.id !== id));
+      try {
+        const res = await delete_import_job(id);
+
+        if (res.error) {
+          show_toast(t("common.delete_failed"), "error");
+          await load_jobs(true);
+
+          return;
+        }
+        emit_mail_changed();
+        emit_folders_changed();
+        emit_refresh_requested();
+      } catch (caught) {
+        ignore_error(
+          "pages/mobile/settings/import_section:handle_delete_job",
+          caught,
+        );
+        show_toast(t("common.delete_failed"), "error");
+        await load_jobs(true);
+      }
+    },
+    [load_jobs, t],
+  );
+
+  const status_color = (status: string) => {
+    if (status === "completed") return "text-[var(--color-success,#22c55e)]";
+    if (status === "failed") return "text-[var(--mobile-danger)]";
+    if (status === "processing") return "text-[var(--mobile-accent)]";
+
+    return "text-[var(--mobile-text-muted)]";
+  };
+
+  return (
+    <div className="flex h-full flex-col">
+      <SettingsHeader
+        on_back={on_back}
+        on_close={on_close}
+        title={t("common.import")}
+      />
+      <div className="flex-1 overflow-y-auto pb-8">
+        <div className="px-4 pt-4 space-y-4">
+          <p className="text-[14px] text-[var(--mobile-text-muted)]">
+            {t("settings.import_emails_description")}
+          </p>
+
+          <div className="space-y-3">
+            {mobile_providers.map((provider) => (
+              <div
+                key={provider.id}
+                className="flex flex-col gap-2 px-4 py-3 rounded-xl border bg-[var(--mobile-bg-card)] border-[var(--mobile-border)]"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0">{provider.icon}</div>
+                  <span className="flex-1 text-[14px] font-medium text-[var(--mobile-text-primary)]">
+                    {provider.label}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {OAUTH_PROVIDERS.has(provider.id) && (
+                      <Button
+                        size="sm"
+                        variant="depth"
+                        onClick={() => {
+                          const mapped = PROVIDER_TO_OAUTH[provider.id];
+
+                          if (mapped) set_connect_provider(mapped);
+                        }}
+                      >
+                        {t("settings.import_oauth_button")}
+                      </Button>
+                    )}
+                    {provider.id === "gmail" && (
+                      <Button
+                        size="sm"
+                        variant="depth"
+                        onClick={() => set_gmail_sync_open(true)}
+                      >
+                        {t("settings.gmail_sync_setup_button")}
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => set_selected_provider(provider.id)}
+                    >
+                      {OAUTH_PROVIDERS.has(provider.id)
+                        ? t("settings.import_manual_button")
+                        : t("settings.browse_files")}
+                    </Button>
+                  </div>
+                </div>
+                {provider.id === "gmail" && (
+                  <p className="text-[12px] text-[var(--mobile-text-muted)]">
+                    {t("settings.gmail_app_password_notice")}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-xl border p-3 space-y-3 bg-[var(--mobile-bg-card)] border-[var(--mobile-border)]">
+            <h4 className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--mobile-text-primary)]">
+              <InformationCircleIcon className="w-4 h-4 text-[var(--mobile-text-muted)] flex-shrink-0" />
+              {t("settings.import_how_it_works")}
+            </h4>
+
+            <div className="space-y-1">
+              <p className="text-[12px] font-medium text-[var(--mobile-text-secondary)]">
+                {t("settings.import_oauth_title")}
+              </p>
+              <p className="text-[12px] text-[var(--mobile-text-muted)] leading-relaxed">
+                {t("settings.import_oauth_description")}
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <p className="text-[12px] font-medium text-[var(--mobile-text-secondary)]">
+                {t("settings.import_manual_title")}
+              </p>
+              <ol className="list-none space-y-1 text-[12px] text-[var(--mobile-text-muted)] leading-relaxed">
+                <li className="flex gap-2">
+                  <span className="font-medium text-[var(--mobile-text-secondary)] flex-shrink-0">
+                    1.
+                  </span>
+                  {t("settings.import_manual_step_1")}
+                </li>
+                <li className="flex gap-2">
+                  <span className="font-medium text-[var(--mobile-text-secondary)] flex-shrink-0">
+                    2.
+                  </span>
+                  {t("settings.import_manual_step_2")}
+                </li>
+                <li className="flex gap-2">
+                  <span className="font-medium text-[var(--mobile-text-secondary)] flex-shrink-0">
+                    3.
+                  </span>
+                  {t("settings.import_manual_step_3")}
+                </li>
+                <li className="flex gap-2">
+                  <span className="font-medium text-[var(--mobile-text-secondary)] flex-shrink-0">
+                    4.
+                  </span>
+                  {t("settings.import_manual_step_4")}
+                </li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        {is_loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Spinner size="md" />
+          </div>
+        ) : jobs_load_failed && jobs.length === 0 ? (
+          <SettingsGroup title={t("settings.recent_imports")}>
+            <div className="px-4 py-6 text-center">
+              <p className="text-[14px] text-[var(--mobile-text-muted)]">
+                {t("common.something_went_wrong_try_again")}
+              </p>
+              <button
+                className="mt-3 rounded-[var(--aster-radius-control)] bg-[var(--mobile-bg-card-hover)] px-4 py-2 text-[13px] font-medium text-[var(--mobile-text-primary)]"
+                type="button"
+                onClick={() => void load_jobs()}
+              >
+                {t("common.retry")}
+              </button>
+            </div>
+          </SettingsGroup>
+        ) : (
+          jobs.length > 0 && (
+            <SettingsGroup title={t("settings.recent_imports")}>
+              {jobs.map((job) => (
+                <div key={job.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[14px] font-medium text-[var(--mobile-text-primary)] capitalize">
+                      {job.source}
+                    </p>
+                    <p className="text-[12px] text-[var(--mobile-text-muted)]">
+                      {job.status === "processing" || job.status === "pending"
+                        ? `${job.processed_emails}/${job.total_emails}`
+                        : job.processed_emails === 1
+                          ? t("common.one_email")
+                          : t("settings.emails_count", {
+                              count: job.processed_emails,
+                            })}
+                    </p>
+                  </div>
+                  <span
+                    className={`text-[12px] font-medium capitalize ${status_color(job.status)}`}
+                  >
+                    {t(
+                      `settings.import_status_${job.status}` as TranslationKey,
+                    )}
+                  </span>
+                  {job.status !== "processing" && job.status !== "pending" && (
+                    <button
+                      aria-label={t("common.delete")}
+                      type="button"
+                      onClick={() => set_confirm_delete_id(job.id)}
+                    >
+                      <TrashIcon className="h-4 w-4 text-[var(--mobile-text-muted)]" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </SettingsGroup>
+          )
+        )}
+      </div>
+      <ImportModal
+        is_open={selected_provider !== null}
+        on_close={handle_import_close}
+        provider={selected_provider}
+      />
+      <GmailSyncModal
+        is_open={gmail_sync_open}
+        on_close={() => set_gmail_sync_open(false)}
+      />
+      <ConnectProviderModal
+        on_close={() => set_connect_provider(null)}
+        on_oauth_success={() => {
+          set_connect_provider(null);
+          load_jobs();
+        }}
+        provider={connect_provider}
+      />
+      <AlertDialog
+        open={confirm_delete_id !== null}
+        onOpenChange={(open) => {
+          if (!open) set_confirm_delete_id(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("settings.import_delete_confirm_title")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("settings.import_delete_confirm_description")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const id = confirm_delete_id;
+
+                set_confirm_delete_id(null);
+                if (id) handle_delete_job(id);
+              }}
+            >
+              {t("common.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}

@@ -1,0 +1,187 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import DOMPurify from "dompurify";
+
+import {
+  array_to_base64,
+  encrypt_envelope_with_bytes,
+} from "./crypto/envelope";
+import { encrypt_mail_metadata } from "./crypto/mail_metadata";
+import {
+  get_passphrase_bytes,
+  get_passphrase_from_memory,
+  get_vault_from_memory,
+} from "./crypto/memory_key_store";
+import { seal_sent_envelope_when_enabled } from "./crypto/sent_copy_seal";
+import { zero_uint8_array } from "./crypto/secure_memory";
+import { plain_text_to_html } from "./send_queue_recipients";
+import {
+  SendError,
+  create_error,
+  type EnvelopeData,
+  type MailEnvelope,
+  type QueuedEmailInternal,
+} from "./send_queue_types";
+
+import { type MailItemMetadata } from "@/types/email";
+import { HASH_ALG } from "@/services/crypto/constants";
+import { get_active_translations } from "@/lib/i18n/translations";
+import { repair_comment_markup } from "@/lib/html_sanitizer_utils";
+
+const HTML_TAG_PROBE = /<[a-z][\s\S]*>/i;
+
+const PLAIN_TEXT_FORBIDDEN_TAGS = [
+  "embed",
+  "iframe",
+  "noscript",
+  "object",
+  "script",
+  "style",
+  "template",
+];
+
+export async function create_sent_envelope(
+  email: QueuedEmailInternal,
+  sender_email: string,
+): Promise<EnvelopeData> {
+  const vault = get_vault_from_memory();
+  const passphrase_bytes = get_passphrase_bytes();
+
+  if (!vault || !vault.identity_key) {
+    throw create_error(
+      "vault_unavailable",
+      get_active_translations().errors.encryption_keys_unavailable,
+    );
+  }
+
+  if (!passphrase_bytes) {
+    throw create_error(
+      "vault_unavailable",
+      get_active_translations().errors.session_expired_send,
+    );
+  }
+
+  const body_is_plain_text = !HTML_TAG_PROBE.test(email.body);
+
+  const plain_body_text = body_is_plain_text
+    ? email.body
+    : (() => {
+        if (typeof DOMParser === "undefined") return "";
+
+        let doc: Document;
+
+        try {
+          doc = new DOMParser().parseFromString(
+            DOMPurify.sanitize(repair_comment_markup(email.body), {
+              FORBID_TAGS: PLAIN_TEXT_FORBIDDEN_TAGS,
+            }),
+            "text/html",
+          );
+        } catch {
+          return "";
+        }
+
+        doc
+          .querySelectorAll(
+            "script, style, head, noscript, template, iframe, object, embed",
+          )
+          .forEach((el) => el.remove());
+
+        doc.querySelectorAll("br").forEach((el) => {
+          el.replaceWith(doc.createTextNode("\n"));
+        });
+
+        doc
+          .querySelectorAll("p, div, li, tr, h1, h2, h3, h4, h5, h6")
+          .forEach((el) => {
+            el.append(doc.createTextNode("\n"));
+          });
+
+        const text = doc.body?.textContent || "";
+
+        return text.replace(/\n{3,}/g, "\n\n").trim();
+      })();
+
+  const envelope: MailEnvelope = {
+    version: 1,
+    subject: email.envelope_subject || email.subject,
+    body_text: plain_body_text,
+    body_html: body_is_plain_text ? plain_text_to_html(email.body) : email.body,
+    from: { name: "", email: sender_email },
+    to: email.to.map((e) => ({ name: "", email: e })),
+    cc: (email.cc || []).map((e) => ({ name: "", email: e })),
+    bcc: (email.bcc || []).map((e) => ({ name: "", email: e })),
+    sent_at: new Date().toISOString(),
+  };
+
+  try {
+    const sealed = await seal_sent_envelope_when_enabled(
+      envelope,
+      vault.identity_key,
+      get_passphrase_from_memory(),
+    );
+    const { encrypted, nonce } = sealed
+      ? {
+          encrypted: sealed.encrypted_envelope,
+          nonce: sealed.envelope_nonce,
+        }
+      : await encrypt_envelope_with_bytes(envelope, passphrase_bytes);
+
+    zero_uint8_array(passphrase_bytes);
+
+    const encoder = new TextEncoder();
+    const folder_material = encoder.encode(vault.identity_key + "folder:sent");
+    const folder_hash = await crypto.subtle.digest(HASH_ALG, folder_material);
+
+    const metadata: MailItemMetadata = {
+      is_read: true,
+      is_starred: false,
+      is_pinned: false,
+      is_trashed: false,
+      is_archived: false,
+      is_spam: false,
+      size_bytes: new TextEncoder().encode(email.body).length,
+      has_attachments: (email.attachments?.length ?? 0) > 0,
+      attachment_count: email.attachments?.length ?? 0,
+      message_ts: new Date().toISOString(),
+      item_type: "sent",
+    };
+
+    const encrypted_metadata_result = await encrypt_mail_metadata(metadata);
+
+    return {
+      encrypted_envelope: encrypted,
+      envelope_nonce: nonce,
+      folder_token: array_to_base64(new Uint8Array(folder_hash)),
+      encrypted_metadata: encrypted_metadata_result?.encrypted_metadata,
+      metadata_nonce: encrypted_metadata_result?.metadata_nonce,
+    };
+  } catch (err) {
+    zero_uint8_array(passphrase_bytes);
+    if ((err as SendError).type) {
+      throw err;
+    }
+    throw create_error(
+      "encryption_failed",
+      get_active_translations().errors.failed_encrypt_envelope,
+    );
+  }
+}

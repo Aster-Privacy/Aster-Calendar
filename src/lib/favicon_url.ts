@@ -1,0 +1,86 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { Capacitor } from "@capacitor/core";
+
+import { connection_store } from "@/services/routing/connection_store";
+import { is_any_lockdown_active } from "@/services/lockdown_store";
+import { is_icon_failed } from "@/lib/icon_cache";
+
+const NATIVE_BASE = "https://app.astermail.org/api/images/v1/favicon";
+const WEB_BASE = "/api/images/v1/favicon";
+const EMPTY_FAVICON =
+  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'/>";
+const FAILED_FAVICON = "data:,";
+
+export const PENDING_FAVICON_SRC = EMPTY_FAVICON;
+export const FAILED_FAVICON_SRC = FAILED_FAVICON;
+
+export function same_origin_favicon_domain(url: string): string | null {
+  const prefix = `${WEB_BASE}/`;
+
+  if (!url.startsWith(prefix)) return null;
+  try {
+    const domain = decodeURIComponent(url.slice(prefix.length));
+
+    return is_valid_favicon_domain(domain) ? domain : null;
+  } catch {
+    return null;
+  }
+}
+const DOMAIN_PATTERN =
+  /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/;
+
+export function is_valid_favicon_domain(domain: string): boolean {
+  if (!domain || domain.length > 253) {
+    return false;
+  }
+
+  return DOMAIN_PATTERN.test(domain);
+}
+
+export function get_favicon_url(domain: string): string {
+  const trimmed = (domain ?? "").trim().toLowerCase();
+
+  if (!is_valid_favicon_domain(trimmed)) {
+    return EMPTY_FAVICON;
+  }
+
+  if (is_any_lockdown_active()) {
+    return EMPTY_FAVICON;
+  }
+
+  if (is_icon_failed(trimmed)) {
+    return FAILED_FAVICON;
+  }
+
+  const method = connection_store.get_method();
+
+  if (method === "tor" || method === "tor_snowflake") {
+    return EMPTY_FAVICON;
+  }
+
+  const is_native =
+    Capacitor.isNativePlatform() ||
+    (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window);
+  const base = is_native ? NATIVE_BASE : WEB_BASE;
+
+  return `${base}/${encodeURIComponent(trimmed)}`;
+}

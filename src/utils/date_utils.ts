@@ -1,0 +1,280 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { TranslationKey } from "@/lib/i18n/types";
+
+import { get_display_time_zone } from "@/utils/date_format";
+import { app_locale } from "@/utils/date_format";
+
+type TranslateFn = (
+  key: TranslationKey,
+  params?: Record<string, string | number>,
+) => string;
+
+const CALENDAR_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+export function parse_calendar_date(value: string): Date {
+  const parts = CALENDAR_DATE_PATTERN.exec(value);
+
+  if (!parts) return new Date(value);
+
+  return new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]));
+}
+
+export interface ContactDateParts {
+  year?: number;
+  month: number;
+  day: number;
+}
+
+const CONTACT_DATE_PATTERN =
+  /^(?:(\d{4})-?|--)(\d{2})-?(\d{2})(?:T[\d:.,+\-Z]*)?$/i;
+const CONTACT_MONTH_PATTERN = /^(?:(\d{4})-|--)(\d{2})$/;
+const PLACEHOLDER_YEARS = new Set(["0000", "1604"]);
+const LEAP_YEAR = 2000;
+
+function days_in_month(year: number, month: number): number {
+  const date = new Date(0);
+
+  date.setUTCFullYear(year, month, 0);
+
+  return date.getUTCDate();
+}
+
+function contact_year(
+  raw_year: string | undefined,
+  omitted_year?: string,
+): number | undefined {
+  if (raw_year === undefined || raw_year === omitted_year) return undefined;
+  if (PLACEHOLDER_YEARS.has(raw_year)) return undefined;
+
+  return Number(raw_year);
+}
+
+export function parse_contact_date(
+  value: string,
+  omitted_year?: string,
+): ContactDateParts | null {
+  const parts = CONTACT_DATE_PATTERN.exec(value.trim());
+
+  if (!parts) return null;
+
+  const year = contact_year(parts[1], omitted_year);
+  const month = Number(parts[2]);
+  const day = Number(parts[3]);
+
+  if (month < 1 || month > 12) return null;
+  if (day < 1 || day > days_in_month(year ?? LEAP_YEAR, month)) return null;
+
+  return year === undefined ? { month, day } : { year, month, day };
+}
+
+export interface ContactMonthParts {
+  year?: number;
+  month: number;
+}
+
+export function parse_contact_month(value: string): ContactMonthParts | null {
+  const parts = CONTACT_MONTH_PATTERN.exec(value.trim());
+
+  if (!parts) return null;
+
+  const year = contact_year(parts[1]);
+  const month = Number(parts[2]);
+
+  if (month < 1 || month > 12) return null;
+
+  return year === undefined ? { month } : { year, month };
+}
+
+function pad2(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+export function contact_date_from_parts(parts: ContactDateParts): string {
+  const month_day = `${pad2(parts.month)}-${pad2(parts.day)}`;
+
+  return parts.year === undefined
+    ? `--${month_day}`
+    : `${String(parts.year).padStart(4, "0")}-${month_day}`;
+}
+
+export function normalize_contact_date(
+  value: string,
+  omitted_year?: string,
+): string {
+  const parts = parse_contact_date(value, omitted_year);
+
+  return parts ? contact_date_from_parts(parts) : value.trim();
+}
+
+export function vcard_date_value(value: string, basic: boolean): string {
+  const parts = parse_contact_date(value);
+
+  if (!parts) return value;
+  if (parts.year !== undefined || !basic) return contact_date_from_parts(parts);
+
+  return `--${pad2(parts.month)}${pad2(parts.day)}`;
+}
+
+export function is_partial_contact_date(value: string): boolean {
+  const parts = parse_contact_date(value);
+
+  if (parts) return parts.year === undefined;
+
+  return parse_contact_month(value) !== null;
+}
+
+export function contact_date_input_value(value: string): string {
+  const parts = parse_contact_date(value);
+
+  return parts?.year === undefined ? "" : contact_date_from_parts(parts);
+}
+
+function calendar_day_utc(year: number, month: number, day: number): Date {
+  const date = new Date(Date.UTC(LEAP_YEAR, 0, 1));
+
+  date.setUTCFullYear(year, month - 1, day);
+
+  return date;
+}
+
+export function format_contact_date(value: string): string {
+  const trimmed = value.trim();
+
+  if (!trimmed) return "";
+
+  const contact_date = parse_contact_date(trimmed);
+
+  if (contact_date) {
+    return calendar_day_utc(
+      contact_date.year ?? LEAP_YEAR,
+      contact_date.month,
+      contact_date.day,
+    ).toLocaleDateString(app_locale(), {
+      ...(contact_date.year === undefined ? {} : { year: "numeric" }),
+      month: "long",
+      day: "numeric",
+      timeZone: "UTC",
+    });
+  }
+
+  const contact_month = parse_contact_month(trimmed);
+
+  if (contact_month) {
+    return calendar_day_utc(
+      contact_month.year ?? LEAP_YEAR,
+      contact_month.month,
+      1,
+    ).toLocaleDateString(app_locale(), {
+      ...(contact_month.year === undefined ? {} : { year: "numeric" }),
+      month: "long",
+      timeZone: "UTC",
+    });
+  }
+
+  return trimmed;
+}
+
+export function format_relative_time(
+  timestamp: string,
+  t?: TranslateFn,
+): string {
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
+
+  if (isNaN(date.getTime())) return "";
+
+  const now = new Date();
+  const diff_ms = Math.max(0, now.getTime() - date.getTime());
+  const diff_seconds = Math.floor(diff_ms / 1000);
+  const diff_minutes = Math.floor(diff_seconds / 60);
+  const diff_hours = Math.floor(diff_minutes / 60);
+  const diff_days = Math.floor(diff_hours / 24);
+  const diff_weeks = Math.floor(diff_days / 7);
+  const diff_months = Math.floor(diff_days / 30);
+
+  if (diff_seconds < 60) {
+    return t ? t("common.just_now") : "Just now";
+  }
+  if (diff_minutes < 60) {
+    return t
+      ? t("common.minutes_ago_long", { count: diff_minutes })
+      : `${diff_minutes} minute${diff_minutes === 1 ? "" : "s"} ago`;
+  }
+  if (diff_hours < 24) {
+    return t
+      ? t("common.hours_ago_long", { count: diff_hours })
+      : `${diff_hours} hour${diff_hours === 1 ? "" : "s"} ago`;
+  }
+  if (diff_days < 7) {
+    return t
+      ? t("common.days_ago_long", { count: diff_days })
+      : `${diff_days} day${diff_days === 1 ? "" : "s"} ago`;
+  }
+  if (diff_days < 30) {
+    return t
+      ? t("common.weeks_ago_long", { count: diff_weeks })
+      : `${diff_weeks} week${diff_weeks === 1 ? "" : "s"} ago`;
+  }
+  if (diff_months < 12) {
+    return t
+      ? t("common.months_ago_long", { count: diff_months })
+      : `${diff_months} month${diff_months === 1 ? "" : "s"} ago`;
+  }
+
+  return format_absolute_date(date);
+}
+
+function format_absolute_date(date: Date): string {
+  const zone = get_display_time_zone();
+
+  return date.toLocaleDateString(app_locale(), {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    ...(zone ? { timeZone: zone } : {}),
+  });
+}
+
+export function format_relative_time_short(
+  timestamp: string | number,
+  t: TranslateFn,
+): string {
+  const date = new Date(timestamp);
+
+  if (isNaN(date.getTime())) return "";
+
+  const diff_ms = Math.max(0, Date.now() - date.getTime());
+  const minutes = Math.floor(diff_ms / 60_000);
+
+  if (minutes < 1) return t("common.just_now");
+  if (minutes < 60) return t("common.minutes_ago_short", { count: minutes });
+
+  const hours = Math.floor(minutes / 60);
+
+  if (hours < 24) return t("common.hours_ago_short", { count: hours });
+
+  const days = Math.floor(hours / 24);
+
+  if (days < 30) return t("common.days_ago_short", { count: days });
+
+  return format_absolute_date(date);
+}

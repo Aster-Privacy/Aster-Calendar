@@ -1,0 +1,1144 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { EncryptedVault } from "@/services/crypto/key_manager";
+import type { AuthState } from "./auth_types";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+
+import {
+  store_encrypted_vault,
+  get_stored_encrypted_vault,
+  clear_stored_encrypted_vault,
+  store_session_passphrase,
+  get_session_passphrase,
+  clear_session_passphrase,
+} from "./session_passphrase";
+import { decrypt_vault_with_lock } from "./vault_decryption";
+import {
+  obtain_sibling_session,
+  type SiblingSessionLogin,
+} from "./sibling_session_handoff";
+import {
+  AUTH_VERIFY_TIMEOUT_MS,
+  clear_account_scoped_caches,
+  safe_log_error,
+  with_timeout,
+} from "./auth_helpers";
+import { clear_signed_out_account_caches } from "./signed_out_account_caches";
+
+import {
+  init_desktop_device_auth,
+  forget_device_account,
+} from "@/native/desktop_device_auth";
+import { api_client } from "@/services/api/client";
+import { verify_auth_status, get_user_info } from "@/services/api/auth";
+import { rekey_pgp_if_needed } from "@/services/pgp_rekey_service";
+import { republish_identity_with_new_address } from "@/services/pgp_uid_service";
+import { normalize_address_ignoring_dots } from "@/utils/address_dots";
+import { set_lockdown_enabled } from "@/services/lockdown_store";
+import {
+  store_vault_in_memory,
+  clear_vault_from_memory,
+  has_vault_in_memory,
+  has_vault_in_memory_for,
+  get_last_vault_owner_id,
+} from "@/services/crypto/memory_key_store";
+import {
+  type User,
+  initialize_accounts,
+  get_all_accounts,
+  get_current_account,
+  add_account as storage_add_account,
+  remove_account as storage_remove_account,
+  switch_account as storage_switch_account,
+  update_account_user,
+  update_account_tokens,
+  update_account_device_id,
+  get_account_kind,
+} from "@/services/account_manager";
+import {
+  sync_shared_mailbox_grants,
+  clear_shared_mailbox_session,
+} from "@/services/shared_mailbox_session";
+import {
+  get_account_limit,
+  link_account_device,
+  unlink_account_device,
+} from "@/services/api/switch";
+import { sync_client } from "@/services/sync_client";
+import {
+  start_session_timeout,
+  stop_session_timeout,
+  clear_session_timeout_data,
+} from "@/services/session_timeout_service";
+import { emit_auth_ready } from "@/hooks/mail_events";
+import { load_preferred_sender_from_server } from "@/lib/preferred_sender";
+import { show_toast } from "@/components/toast/simple_toast";
+import { hard_redirect } from "@/lib/hard_redirect";
+import { app_pathname } from "@/lib/account_index_url";
+import {
+  clear_app_lock_config,
+  clear_session_unlock,
+} from "@/services/app_lock_store";
+import { use_i18n } from "@/lib/i18n/context";
+import { ignore_error } from "@/lib/ignore_error";
+import { remember_current_user } from "@/services/current_identity";
+import { flush_pending_login_enrollment } from "@/services/crypto/login_proof";
+
+export function use_auth_account_state() {
+  const { t } = use_i18n();
+  const navigate = useNavigate();
+  const [state, set_state] = useState<AuthState>({
+    user: null,
+    is_loading: true,
+    is_authenticated: false,
+    has_keys: false,
+    accounts: [],
+    current_account_id: null,
+  });
+
+  const [is_adding_account, _set_is_adding_account] = useState(false);
+
+  const set_is_adding_account = useCallback((value: boolean) => {
+    if (value) {
+      api_client.suspend_account_persist();
+      api_client.begin_account_add();
+    } else {
+      api_client.resume_account_persist();
+      api_client.end_account_add();
+    }
+    _set_is_adding_account(value);
+  }, []);
+  const [is_completing_registration, set_is_completing_registration] =
+    useState(false);
+  const [max_account_limit, set_max_account_limit] = useState<number | null>(
+    null,
+  );
+
+  const identity_mismatch_in_flight = useRef(false);
+  const login_ref = useRef<
+    | ((
+        user: User,
+        vault: EncryptedVault,
+        passphrase: string,
+        encrypted_vault?: string,
+        vault_nonce?: string,
+        remember_on_device?: boolean,
+      ) => Promise<void>)
+    | null
+  >(null);
+
+  const try_sibling_handoff = useCallback(
+    async (expected_user_id?: string): Promise<boolean> => {
+      let handoff: SiblingSessionLogin | null = null;
+
+      try {
+        handoff = await obtain_sibling_session(
+          app_pathname(),
+          expected_user_id,
+        );
+      } catch (caught) {
+        ignore_error("contexts/auth/use_auth_account_state:handoff", caught);
+      }
+
+      const sign_in_with = login_ref.current;
+
+      if (!handoff || !sign_in_with) return false;
+
+      try {
+        await sign_in_with(
+          handoff.user,
+          handoff.vault,
+          handoff.passphrase,
+          handoff.encrypted_vault,
+          handoff.vault_nonce,
+          true,
+        );
+      } catch (caught) {
+        safe_log_error(caught);
+        clear_vault_from_memory();
+
+        return false;
+      }
+
+      setTimeout(() => emit_auth_ready(), 50);
+
+      if (app_pathname() === "/sign-in") {
+        navigate("/", { replace: true });
+      }
+
+      return true;
+    },
+    [navigate],
+  );
+
+
+  const handle_identity_mismatch = useCallback(
+    async (actual_user_id?: string) => {
+      if (identity_mismatch_in_flight.current) return;
+      identity_mismatch_in_flight.current = true;
+
+      api_client.begin_intentional_logout();
+      sync_client.disconnect();
+      stop_session_timeout();
+      clear_vault_from_memory();
+
+      try {
+        await clear_account_scoped_caches();
+      } catch (e) {
+        safe_log_error(e);
+      }
+
+      let all_accounts: Awaited<ReturnType<typeof get_all_accounts>> = [];
+      let affected: Awaited<ReturnType<typeof get_current_account>> = null;
+
+      try {
+        all_accounts = await get_all_accounts();
+        affected = await get_current_account();
+      } catch (e) {
+        safe_log_error(e);
+      }
+
+      const pending_checkout =
+        window.location.pathname === "/sign-in" &&
+        new URLSearchParams(window.location.search).get("checkout") ===
+          "success";
+      const checkout_path = `/sign-in${window.location.search}${window.location.hash}`;
+
+      const active_elsewhere = actual_user_id
+        ? all_accounts.find(
+            (account) =>
+              account.id === actual_user_id && account.kind !== "shared",
+          )
+        : undefined;
+
+      const can_adopt = active_elsewhere
+        ? get_stored_encrypted_vault(active_elsewhere.id) !== null &&
+          (await get_session_passphrase(active_elsewhere.id).catch(
+            () => null,
+          )) !== null
+        : false;
+
+      if (active_elsewhere && can_adopt) {
+        const adopted = await storage_switch_account(active_elsewhere.id).catch(
+          () => null,
+        );
+
+        if (adopted) {
+          hard_redirect(pending_checkout ? checkout_path : "/");
+
+          return;
+        }
+      }
+
+      api_client.clear_in_memory_token();
+      api_client.set_expected_user_id(null);
+      api_client.set_authenticated(false);
+
+      if (all_accounts.length > 0) {
+        set_is_adding_account(true);
+      }
+
+      set_state((prev) => ({
+        ...prev,
+        user: null,
+        is_loading: false,
+        is_authenticated: false,
+        has_keys: false,
+        accounts: all_accounts,
+        current_account_id: affected?.id ?? prev.current_account_id,
+      }));
+
+      identity_mismatch_in_flight.current = false;
+
+      if (pending_checkout) {
+        navigate(checkout_path);
+
+        return;
+      }
+
+      show_toast(t("errors.session_account_switched"), "info");
+      navigate("/sign-in");
+    },
+    [t, navigate, set_is_adding_account],
+  );
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const data = await initialize_accounts();
+        const current = await get_current_account();
+
+        if (!current) {
+          if (await try_sibling_handoff()) return;
+
+          api_client.set_authenticated(false);
+          set_state((prev) => ({
+            ...prev,
+            is_loading: false,
+            accounts: data.accounts,
+            current_account_id: data.current_account_id,
+          }));
+
+          return;
+        }
+
+        await api_client.load_tokens_for_account(current.id);
+        api_client.set_expected_user_id(current.user.id);
+
+        if ("__TAURI_INTERNALS__" in window) {
+          await init_desktop_device_auth(current.device_id ?? null);
+
+          if (!current.device_id) {
+            const { invoke } = await import("@tauri-apps/api/core");
+            const pubkeys = await invoke<{ device_id: string | null }>(
+              "device_get_pubkeys",
+            ).catch(() => null);
+
+            if (pubkeys?.device_id) {
+              await update_account_device_id(
+                current.id,
+                pubkeys.device_id,
+              ).catch((caught) =>
+                ignore_error(
+                  "contexts/auth/use_auth_account_state:init",
+                  caught,
+                ),
+              );
+            }
+          }
+        }
+
+        const restore_session_keys = async (): Promise<boolean> => {
+          if (has_vault_in_memory_for(current.user.id)) return true;
+
+          if (has_vault_in_memory()) {
+            clear_vault_from_memory();
+          }
+
+          let stored_passphrase: string | null = null;
+
+          try {
+            stored_passphrase = await get_session_passphrase(current.id);
+          } catch (caught) {
+            ignore_error("contexts/auth/use_auth_account_state:init", caught);
+          }
+          const stored_vault = get_stored_encrypted_vault(current.id);
+
+          if (!stored_passphrase || !stored_vault) return false;
+
+          try {
+            const vault = await decrypt_vault_with_lock(
+              stored_vault.encrypted_vault,
+              stored_vault.vault_nonce,
+              stored_passphrase,
+              current.user.id,
+            );
+
+            return vault !== null;
+          } catch (caught) {
+            ignore_error("contexts/auth/use_auth_account_state:init", caught);
+
+            return false;
+          }
+        };
+        const session_keys_restore = restore_session_keys();
+        const verdict = verify_auth_status().catch(() => false);
+
+        const reject_session = async () => {
+          stop_session_timeout();
+
+          const mismatched_user_id = api_client.get_identity_mismatch_user_id();
+
+          if (mismatched_user_id) {
+            await session_keys_restore;
+            await handle_identity_mismatch(mismatched_user_id);
+
+            return;
+          }
+
+          api_client.clear_auth_data();
+          api_client.set_authenticated(false);
+          sync_client.disconnect();
+          await session_keys_restore;
+          clear_vault_from_memory();
+
+          try {
+            await clear_session_passphrase(current.id);
+            clear_session_timeout_data(current.id);
+          } catch (e) {
+            safe_log_error(e);
+          }
+
+          const remaining = await get_all_accounts();
+          const prefill_local = current.user.email.split("@")[0] ?? "";
+
+          set_state({
+            user: null,
+            is_loading: false,
+            is_authenticated: false,
+            has_keys: false,
+            accounts: remaining,
+            current_account_id: current.id,
+          });
+
+          const uses_hash = "__TAURI_INTERNALS__" in window;
+          const path = uses_hash
+            ? window.location.hash.slice(1).split("?")[0] || "/"
+            : app_pathname();
+
+          if (path !== "/sign-in" && path !== "/register") {
+            navigate(
+              `/sign-in?u=${encodeURIComponent(prefill_local)}&reason=session_expired`,
+            );
+          }
+        };
+
+        const adopt_server_profile = async (): Promise<User | null> => {
+          const cached_info = api_client.get_cached_user_info();
+
+          if (!cached_info) return current.user;
+
+          if (cached_info.user_id !== current.user.id) {
+            sync_client.disconnect();
+            clear_vault_from_memory();
+            await handle_identity_mismatch(cached_info.user_id);
+
+            return null;
+          }
+
+          const synced_user: User = {
+            id: cached_info.user_id,
+            username: cached_info.username ?? current.user.username,
+            email: cached_info.email ?? current.user.email,
+            display_name:
+              cached_info.display_name || current.user.display_name || undefined,
+            profile_color:
+              cached_info.profile_color || current.user.profile_color || undefined,
+            profile_picture:
+              cached_info.profile_picture ||
+              current.user.profile_picture ||
+              undefined,
+          };
+
+          await update_account_user(current.id, synced_user);
+
+          if (cached_info.lockdown_mode_enabled !== undefined) {
+            set_lockdown_enabled(current.id, cached_info.lockdown_mode_enabled);
+          }
+
+          return synced_user;
+        };
+
+        const start_background_sync = (user: User) => {
+          load_preferred_sender_from_server().catch((caught) =>
+            ignore_error("contexts/auth/use_auth_account_state:init", caught),
+          );
+          sync_client.connect().catch((e) => {
+            safe_log_error(e);
+          });
+          backfill_user_profile(user);
+          sync_shared_mailbox_grants()
+            .then(async () => {
+              const refreshed = await get_all_accounts();
+
+              set_state((prev) => ({ ...prev, accounts: refreshed }));
+            })
+            .catch((caught) =>
+              ignore_error("contexts/auth/use_auth_account_state:init", caught),
+            );
+        };
+
+        const starts_early =
+          (await session_keys_restore) &&
+          navigator.onLine &&
+          api_client.has_session_hint();
+
+        let verify_timed_out = false;
+        const is_auth_valid =
+          starts_early ||
+          (await Promise.race([
+            verdict,
+            new Promise<boolean>((resolve) =>
+              setTimeout(() => {
+                verify_timed_out = true;
+                resolve(false);
+              }, AUTH_VERIFY_TIMEOUT_MS),
+            ),
+          ]));
+
+        if (!is_auth_valid && !verify_timed_out) {
+          await reject_session();
+
+          return;
+        }
+
+        const verdict_pending = starts_early || verify_timed_out;
+
+        api_client.set_authenticated(true);
+
+        let has_keys = await session_keys_restore;
+
+        if (!has_keys && "__TAURI_INTERNALS__" in window) {
+          try {
+            const { invoke } = await import("@tauri-apps/api/core");
+            const raw_b64 = await invoke<string | null>(
+              "device_get_stored_passphrase",
+              { deviceId: current.device_id ?? null },
+            );
+
+            if (raw_b64) {
+              const bytes = Uint8Array.from(
+                atob(raw_b64.replace(/-/g, "+").replace(/_/g, "/")),
+                (c) => c.charCodeAt(0),
+              );
+              const native_passphrase = new TextDecoder().decode(bytes);
+              const stored_vault = get_stored_encrypted_vault(current.id);
+
+              if (stored_vault) {
+                try {
+                  const recovered = await decrypt_vault_with_lock(
+                    stored_vault.encrypted_vault,
+                    stored_vault.vault_nonce,
+                    native_passphrase,
+                    current.user.id,
+                  );
+
+                  if (recovered !== null) {
+                    has_keys = true;
+                    store_session_passphrase(
+                      current.id,
+                      native_passphrase,
+                    ).catch((caught) =>
+                      ignore_error(
+                        "contexts/auth/use_auth_account_state:init",
+                        caught,
+                      ),
+                    );
+                  }
+                } catch (caught) {
+                  ignore_error(
+                    "contexts/auth/use_auth_account_state:init",
+                    caught,
+                  );
+                }
+              }
+            }
+          } catch (caught) {
+            ignore_error("contexts/auth/use_auth_account_state:init", caught);
+          }
+        }
+
+        if (
+          !has_keys &&
+          (await get_account_kind(current.id)) !== "shared" &&
+          (await try_sibling_handoff(current.user.id))
+        ) {
+          return;
+        }
+
+        if (!has_keys) {
+          sync_client.disconnect();
+          api_client.set_authenticated(false);
+
+          const current_kind = await get_account_kind(current.id);
+
+          if (current_kind === "shared") {
+            await clear_shared_mailbox_session(current.id).catch((caught) =>
+              ignore_error(
+                "contexts/auth/use_auth_account_state:init",
+                caught,
+              ),
+            );
+            const remaining = await get_all_accounts();
+            const fallback = remaining.find((a) => a.kind !== "shared");
+
+            if (fallback) {
+              await storage_switch_account(fallback.id);
+              set_state({
+                user: null,
+                is_loading: false,
+                is_authenticated: false,
+                has_keys: false,
+                accounts: remaining,
+                current_account_id: fallback.id,
+              });
+              navigate(
+                `/sign-in?u=${encodeURIComponent(fallback.user.email.split("@")[0] ?? "")}`,
+              );
+            } else {
+              set_state({
+                user: null,
+                is_loading: false,
+                is_authenticated: false,
+                has_keys: false,
+                accounts: remaining,
+                current_account_id: null,
+              });
+              navigate("/sign-in");
+            }
+
+            return;
+          }
+
+          set_state({
+            user: null,
+            is_loading: false,
+            is_authenticated: false,
+            has_keys: false,
+            accounts: data.accounts,
+            current_account_id: data.current_account_id,
+          });
+
+          const local = current.user.email.split("@")[0] ?? "";
+          const uses_hash = "__TAURI_INTERNALS__" in window;
+          const path = uses_hash
+            ? window.location.hash.slice(1).split("?")[0] || "/"
+            : app_pathname();
+
+          if (path !== "/sign-in" && path !== "/register") {
+            navigate(`/sign-in?u=${encodeURIComponent(local)}`);
+          }
+
+          return;
+        }
+
+        start_session_timeout(current.id, undefined, { resume: true });
+
+        const auth_state = (user: User): AuthState => ({
+          user,
+          is_loading: false,
+          is_authenticated: true,
+          has_keys: true,
+          accounts: data.accounts,
+          current_account_id: data.current_account_id,
+        });
+
+        if (verdict_pending) {
+          const held_verdict = api_client.hold_requests_until(verdict);
+
+          set_state(auth_state(current.user));
+          emit_auth_ready();
+
+          const confirmed = await held_verdict;
+
+          if (confirmed === null) return;
+
+          if (!confirmed) {
+            await reject_session();
+
+            return;
+          }
+        }
+
+        const synced_user = await adopt_server_profile();
+
+        if (!synced_user) return;
+
+        if (verdict_pending) {
+          set_state((prev) =>
+            prev.is_authenticated && prev.user?.id === synced_user.id
+              ? { ...prev, user: synced_user }
+              : prev,
+          );
+        } else {
+          set_state(auth_state(synced_user));
+          emit_auth_ready();
+        }
+
+        start_background_sync(synced_user);
+      } catch (e) {
+        safe_log_error(e);
+        sync_client.disconnect();
+        set_state((prev) => ({
+          ...prev,
+          is_loading: false,
+        }));
+      }
+    };
+
+    init().finally(() => {
+      window.dispatchEvent(new CustomEvent("astermail:auth-loaded"));
+    });
+  }, []);
+
+  const backfill_user_profile = useCallback(async (logged_in_user: User) => {
+    try {
+      const response = await get_user_info();
+      const info = response?.data;
+
+      if (!info) return;
+
+      api_client.adopt_user_info({
+        user_id: info.user_id,
+        username: info.username,
+        email: info.email,
+        display_name: info.display_name,
+        profile_color: info.profile_color,
+        profile_picture: info.profile_picture,
+        lockdown_mode_enabled: info.lockdown_mode_enabled,
+      });
+
+      if (info.lockdown_mode_enabled !== undefined) {
+        set_lockdown_enabled(logged_in_user.id, info.lockdown_mode_enabled);
+      }
+
+      const uid_address = info.email
+        ? normalize_address_ignoring_dots(info.email)
+        : info.email;
+
+      if ((info as { pgp_rekey_required?: boolean }).pgp_rekey_required) {
+        void rekey_pgp_if_needed(uid_address, info.display_name);
+      } else if (
+        (info as { pgp_uid_update_required?: boolean })
+          .pgp_uid_update_required &&
+        uid_address
+      ) {
+        void republish_identity_with_new_address(
+          uid_address,
+          info.display_name || "",
+        ).catch((caught) =>
+          ignore_error("contexts/auth:republish_identity_uid", caught),
+        );
+      }
+
+      const same_account = info.user_id === logged_in_user.id;
+      const merged: User = {
+        ...logged_in_user,
+        username:
+          same_account && info.username
+            ? info.username
+            : logged_in_user.username,
+        email: same_account && info.email ? info.email : logged_in_user.email,
+        display_name:
+          logged_in_user.display_name || info.display_name || undefined,
+        profile_color:
+          logged_in_user.profile_color || info.profile_color || undefined,
+        profile_picture:
+          logged_in_user.profile_picture || info.profile_picture || undefined,
+      };
+
+      if (
+        merged.username === logged_in_user.username &&
+        merged.email === logged_in_user.email &&
+        merged.display_name === logged_in_user.display_name &&
+        merged.profile_color === logged_in_user.profile_color &&
+        merged.profile_picture === logged_in_user.profile_picture
+      ) {
+        return;
+      }
+
+      await update_account_user(logged_in_user.id, merged);
+      set_state((prev) =>
+        prev.current_account_id === logged_in_user.id && prev.user
+          ? {
+              ...prev,
+              user: {
+                ...prev.user,
+                username: merged.username,
+                email: merged.email,
+                display_name: prev.user.display_name || merged.display_name,
+                profile_color: prev.user.profile_color || merged.profile_color,
+                profile_picture:
+                  prev.user.profile_picture || merged.profile_picture,
+              },
+              accounts: prev.accounts.map((account) =>
+                account.id === logged_in_user.id
+                  ? {
+                      ...account,
+                      user: {
+                        ...account.user,
+                        username: merged.username,
+                        email: merged.email,
+                      },
+                    }
+                  : account,
+              ),
+            }
+          : prev,
+      );
+    } catch (caught) {
+      ignore_error(
+        "contexts/auth/use_auth_account_state:use_auth_account_state",
+        caught,
+      );
+    }
+  }, []);
+
+  const login = useCallback(
+    async (
+      user: User,
+      vault: EncryptedVault,
+      passphrase: string,
+      encrypted_vault?: string,
+      vault_nonce?: string,
+      remember_on_device: boolean = true,
+    ) => {
+      const previous_owner_id = get_last_vault_owner_id();
+
+      if (previous_owner_id !== null && previous_owner_id !== user.id) {
+        try {
+          await with_timeout(clear_account_scoped_caches(), 3000);
+        } catch (e) {
+          safe_log_error(e);
+        }
+      }
+
+      await store_vault_in_memory(vault, passphrase, user.id);
+      api_client.set_expected_user_id(user.id);
+
+      try {
+        await Promise.race([
+          store_session_passphrase(user.id, passphrase, remember_on_device),
+          new Promise<void>((_, reject) =>
+            setTimeout(
+              () => reject(new Error("session passphrase timeout")),
+              8000,
+            ),
+          ),
+        ]);
+      } catch (caught) {
+        ignore_error("contexts/auth/use_auth_account_state:init", caught);
+      }
+
+      try {
+        if (encrypted_vault && vault_nonce) {
+          store_encrypted_vault(user.id, encrypted_vault, vault_nonce);
+        }
+      } catch (e) {
+        safe_log_error(e);
+      }
+
+      api_client.set_authenticated(true);
+      remember_current_user(user);
+      flush_pending_login_enrollment(user.id).catch((caught) =>
+        ignore_error("contexts/auth/use_auth_account_state:init", caught),
+      );
+
+      const add_result = await with_timeout(storage_add_account(user), 5000);
+      const persisted = add_result?.success === true;
+
+      if (persisted) {
+        const active_token = api_client.get_access_token();
+
+        if (active_token) {
+          await with_timeout(
+            update_account_tokens(
+              user.id,
+              active_token,
+              api_client.get_active_refresh_token(),
+            ),
+            3000,
+          );
+        }
+      }
+
+      load_preferred_sender_from_server().catch((caught) =>
+        ignore_error("contexts/auth/use_auth_account_state:init", caught),
+      );
+      sync_client.connect().catch((e) => {
+        safe_log_error(e);
+      });
+
+      start_session_timeout(user.id);
+
+      const loaded_accounts = await with_timeout(get_all_accounts(), 3000);
+
+      set_state((prev) => {
+        const known = loaded_accounts ?? prev.accounts;
+        const accounts = known.some((a) => a.id === user.id)
+          ? known
+          : [...known, { id: user.id, user, added_at: Date.now() }];
+
+        return {
+          user,
+          is_loading: false,
+          is_authenticated: true,
+          has_keys: true,
+          accounts,
+          current_account_id: user.id,
+        };
+      });
+      set_is_adding_account(false);
+
+      backfill_user_profile(user);
+
+      sync_shared_mailbox_grants()
+        .then(async () => {
+          const refreshed = await get_all_accounts();
+
+          set_state((prev) =>
+            prev.current_account_id === user.id
+              ? { ...prev, accounts: refreshed }
+              : prev,
+          );
+        })
+        .catch((caught) =>
+          ignore_error("contexts/auth/use_auth_account_state:accounts", caught),
+        );
+    },
+    [t, backfill_user_profile],
+  );
+
+  login_ref.current = login;
+
+  const add_account = useCallback(
+    async (
+      user: User,
+      vault: EncryptedVault,
+      passphrase: string,
+      encrypted_vault?: string,
+      vault_nonce?: string,
+      remember_on_device: boolean = true,
+    ) => {
+      try {
+        await with_timeout(clear_account_scoped_caches(), 3000);
+      } catch (e) {
+        safe_log_error(e);
+      }
+
+      await store_vault_in_memory(vault, passphrase, user.id);
+      api_client.set_expected_user_id(user.id);
+
+      try {
+        await Promise.race([
+          store_session_passphrase(user.id, passphrase, remember_on_device),
+          new Promise<void>((_, reject) =>
+            setTimeout(
+              () => reject(new Error("session passphrase timeout")),
+              8000,
+            ),
+          ),
+        ]);
+      } catch (caught) {
+        ignore_error("contexts/auth/use_auth_account_state:init", caught);
+      }
+
+      if (encrypted_vault && vault_nonce) {
+        store_encrypted_vault(user.id, encrypted_vault, vault_nonce);
+      }
+
+      const already_on_device = await get_all_accounts()
+        .then((existing) => existing.some((account) => account.id === user.id))
+        .catch(() => false);
+
+      const result = await storage_add_account(user);
+
+      if (!result.success) {
+        clear_vault_from_memory();
+        set_is_adding_account(false);
+
+        return result;
+      }
+
+      const link_result = await link_account_device().catch(() => null);
+
+      if (
+        link_result?.server_code === "PLAN_LIMIT_EXCEEDED" &&
+        !already_on_device
+      ) {
+        const limit_result = await get_account_limit().catch(() => null);
+        const device_max = limit_result?.data?.max_accounts;
+
+        await storage_remove_account(user.id);
+        clear_vault_from_memory();
+        set_is_adding_account(false);
+
+        return {
+          success: false,
+          error:
+            device_max !== undefined && device_max > 0
+              ? t("auth.account_limit_for_plan", { max: device_max })
+              : t("settings.plan_limit_reached"),
+        };
+      }
+
+      if (result.success) {
+        await clear_account_scoped_caches();
+
+        const active_token = api_client.get_access_token();
+
+        if (active_token) {
+          await update_account_tokens(
+            user.id,
+            active_token,
+            api_client.get_active_refresh_token(),
+          );
+        }
+        api_client.set_authenticated(true);
+        flush_pending_login_enrollment(user.id).catch((caught) =>
+          ignore_error("contexts/auth/use_auth_account_state:accounts", caught),
+        );
+        load_preferred_sender_from_server().catch((caught) =>
+          ignore_error("contexts/auth/use_auth_account_state:accounts", caught),
+        );
+        sync_client.connect().catch((e) => {
+          safe_log_error(e);
+        });
+        start_session_timeout(user.id);
+
+        const loaded_accounts = await with_timeout(get_all_accounts(), 3000);
+
+        set_state((prev) => {
+          const known = loaded_accounts ?? prev.accounts;
+          const accounts = known.some((a) => a.id === user.id)
+            ? known
+            : [...known, { id: user.id, user, added_at: Date.now() }];
+
+          return {
+            user,
+            is_loading: false,
+            is_authenticated: true,
+            has_keys: true,
+            accounts,
+            current_account_id: user.id,
+          };
+        });
+        set_is_adding_account(false);
+
+        emit_auth_ready();
+        backfill_user_profile(user);
+        navigate("/");
+      }
+
+      return result;
+    },
+    [t, backfill_user_profile, set_is_adding_account, navigate],
+  );
+
+  const remove_account_handler = useCallback(
+    async (account_id: string) => {
+      const is_current = account_id === state.current_account_id;
+
+      if ("__TAURI_INTERNALS__" in window) {
+        const stored = (await get_all_accounts()).find(
+          (a) => a.id === account_id,
+        );
+
+        await forget_device_account(stored?.device_id).catch((caught) =>
+          ignore_error(
+            "contexts/auth/use_auth_account_state:remove_account",
+            caught,
+          ),
+        );
+      }
+
+      if (is_current) {
+        sync_client.disconnect();
+        try {
+          await unlink_account_device();
+        } catch (e) {
+          safe_log_error(e);
+        }
+        api_client.allow_shared_session_end();
+        try {
+          await api_client.post("/core/v1/auth/logout", {});
+        } catch {
+          if (import.meta.env.DEV) {
+            console.error(
+              "Failed to call logout endpoint during account removal",
+            );
+          }
+        }
+        api_client.clear_auth_data();
+      } else {
+        const target = state.accounts.find((a) => a.id === account_id);
+        const target_user_id = target?.user.id ?? account_id;
+
+        try {
+          await unlink_account_device(target_user_id);
+        } catch (e) {
+          safe_log_error(e);
+        }
+      }
+
+      const result = await storage_remove_account(account_id);
+
+      if (result.removed) {
+        clear_stored_encrypted_vault(account_id);
+        await clear_session_passphrase(account_id);
+        clear_session_timeout_data(account_id);
+        clear_app_lock_config(account_id);
+        clear_session_unlock(account_id);
+
+        if (!is_current) {
+          set_state((prev) => ({
+            ...prev,
+            accounts: prev.accounts.filter((a) => a.id !== account_id),
+          }));
+
+          return;
+        }
+
+        stop_session_timeout();
+        clear_vault_from_memory();
+        await clear_signed_out_account_caches(account_id);
+
+        if (result.switched_to) {
+          const survivor = result.switched_to;
+          const local = survivor.user.email.split("@")[0] ?? "";
+
+          set_state({
+            user: null,
+            is_loading: false,
+            is_authenticated: false,
+            has_keys: false,
+            accounts: await get_all_accounts(),
+            current_account_id: survivor.id,
+          });
+          set_is_adding_account(true);
+          navigate(`/sign-in?u=${encodeURIComponent(local)}`);
+
+          return;
+        }
+
+        api_client.set_authenticated(false);
+        set_state({
+          user: null,
+          is_loading: false,
+          is_authenticated: false,
+          has_keys: false,
+          accounts: await get_all_accounts(),
+          current_account_id: null,
+        });
+      }
+    },
+    [state.current_account_id, state.accounts, set_is_adding_account, navigate],
+  );
+
+  return {
+    t,
+    navigate,
+    state,
+    set_state,
+    is_adding_account,
+    set_is_adding_account,
+    is_completing_registration,
+    set_is_completing_registration,
+    max_account_limit,
+    set_max_account_limit,
+    handle_identity_mismatch,
+    login,
+    add_account,
+    remove_account_handler,
+  };
+}

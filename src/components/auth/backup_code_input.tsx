@@ -1,0 +1,322 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { useState, useRef, useEffect } from "react";
+import { Checkbox } from "@aster/ui";
+import { Button } from "@/components/ui/button";
+
+import { Input } from "@/components/ui/input";
+import { use_i18n } from "@/lib/i18n/context";
+import {
+  classify_totp_error,
+  verify_backup_code_login,
+  TotpVerifyResponse,
+} from "@/services/api/totp";
+
+const BACKUP_CODE_LENGTH = 12;
+const LEGACY_BACKUP_CODE_LENGTH = 8;
+const RECOVERY_CODE_PREFIX = "ASTER";
+const MAX_CODE_INPUT_LENGTH = 32;
+
+export function looks_like_recovery_code(value: string): boolean {
+  const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+  return (
+    normalized.startsWith(RECOVERY_CODE_PREFIX) &&
+    normalized.length > BACKUP_CODE_LENGTH
+  );
+}
+
+function is_valid_backup_code_length(length: number): boolean {
+  return length === BACKUP_CODE_LENGTH || length === LEGACY_BACKUP_CODE_LENGTH;
+}
+
+function format_backup_code(normalized: string): string {
+  if (normalized.length === LEGACY_BACKUP_CODE_LENGTH) {
+    return `${normalized.slice(0, 4)}-${normalized.slice(4)}`;
+  }
+
+  return `${normalized.slice(0, 4)}-${normalized.slice(4, 8)}-${normalized.slice(8)}`;
+}
+
+interface BackupCodeInputProps {
+  pending_login_token: string;
+  on_success: (response: TotpVerifyResponse) => void;
+  on_use_authenticator: () => void;
+  on_cancel: () => void;
+  on_reset_with_recovery_code: () => void;
+  has_backup_codes?: boolean;
+  remember_me?: boolean;
+}
+
+export function BackupCodeInput({
+  pending_login_token,
+  on_success,
+  on_use_authenticator,
+  on_cancel,
+  on_reset_with_recovery_code,
+  has_backup_codes = true,
+  remember_me = true,
+}: BackupCodeInputProps) {
+  const { t } = use_i18n();
+  const [code, set_code] = useState("");
+  const [is_loading, set_is_loading] = useState(false);
+  const [error, set_error] = useState("");
+  const [trust_device, set_trust_device] = useState(false);
+  const input_ref = useRef<HTMLInputElement>(null);
+  const verifying_ref = useRef(false);
+
+  const is_recovery_code = looks_like_recovery_code(code);
+
+  useEffect(() => {
+    input_ref.current?.focus();
+  }, []);
+
+  const handle_verify = async () => {
+    if (verifying_ref.current) return;
+
+    const normalized = code.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+    if (looks_like_recovery_code(normalized)) {
+      set_error(t("auth.recovery_code_in_backup_field"));
+
+      return;
+    }
+
+    if (!is_valid_backup_code_length(normalized.length)) {
+      set_error(t("auth.backup_code_length_error"));
+
+      return;
+    }
+
+    verifying_ref.current = true;
+    set_is_loading(true);
+    set_error("");
+
+    const response = await verify_backup_code_login({
+      code: format_backup_code(normalized),
+      pending_login_token,
+      trust_device,
+      remember_me,
+    });
+
+    if (response.error) {
+      const kind = classify_totp_error(response);
+
+      if (kind === "locked") {
+        set_error(t("auth.two_fa_temporarily_locked"));
+      } else if (kind === "rate_limited") {
+        set_error(t("auth.too_many_2fa_attempts"));
+      } else if (kind === "pending_expired") {
+        set_error(t("auth.sign_in_session_expired"));
+      } else if (kind === "invalid_backup_code") {
+        set_error(t("auth.invalid_backup_code"));
+      } else if (kind === "invalid_code") {
+        set_error(t("settings.invalid_2fa_code"));
+      } else {
+        set_error(response.error);
+      }
+      verifying_ref.current = false;
+      set_is_loading(false);
+      input_ref.current?.focus();
+
+      return;
+    }
+
+    if (response.data) {
+      verifying_ref.current = false;
+      set_is_loading(false);
+      on_success(response.data);
+
+      return;
+    }
+
+    set_error(t("common.something_went_wrong_try_again"));
+    verifying_ref.current = false;
+    set_is_loading(false);
+    input_ref.current?.focus();
+  };
+
+  const handle_input_change = (value: string) => {
+    const cleaned = value
+      .toUpperCase()
+      .replace(/[^A-Z0-9-]/g, "")
+      .slice(0, MAX_CODE_INPUT_LENGTH);
+
+    set_code(cleaned);
+    set_error(
+      looks_like_recovery_code(cleaned)
+        ? t("auth.recovery_code_in_backup_field")
+        : "",
+    );
+  };
+
+  const handle_key_down = (e: React.KeyboardEvent) => {
+    if (e["key"] === "Enter") {
+      handle_verify();
+    }
+  };
+
+  if (!has_backup_codes) {
+    return (
+      <div className="w-full max-w-sm mx-auto">
+        <div className="text-center mb-6">
+          <div className="flex justify-center mb-4">
+            <img
+              alt="Aster"
+              className="h-10"
+              decoding="async"
+              draggable={false}
+              src="/text_logo.png"
+            />
+          </div>
+          <h2 className="text-xl font-semibold mb-2 text-txt-primary">
+            {t("auth.no_backup_codes_title")}
+          </h2>
+          <p className="text-sm text-txt-muted">
+            {t("auth.no_backup_codes_description")}
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          <Button
+            className="w-full"
+            variant="depth"
+            onClick={on_reset_with_recovery_code}
+          >
+            {t("auth.reset_with_recovery_code")}
+          </Button>
+          <Button className="w-full" variant="outline" onClick={on_cancel}>
+            {t("common.cancel")}
+          </Button>
+          <button
+            className="w-full text-sm text-center transition-colors hover:opacity-80 text-txt-muted"
+            type="button"
+            onClick={on_use_authenticator}
+          >
+            {t("auth.try_passkey_again")}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-sm mx-auto">
+      <div className="text-center mb-6">
+        <div className="flex justify-center mb-4">
+          <img
+            alt="Aster"
+            className="h-10"
+            decoding="async"
+            draggable={false}
+            src="/text_logo.png"
+          />
+        </div>
+        <h2 className="text-xl font-semibold mb-2 text-txt-primary">
+          {t("auth.enter_backup_code")}
+        </h2>
+        <p className="text-sm text-txt-muted">
+          {t("auth.backup_code_description")}
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <Input
+            ref={input_ref}
+            autoCapitalize="none"
+            autoComplete="one-time-code"
+            autoCorrect="off"
+            className="text-center text-lg font-mono tracking-wider uppercase"
+            disabled={is_loading}
+            placeholder={t("auth.backup_code_placeholder")}
+            spellCheck={false}
+            status={error ? "error" : "default"}
+            type="text"
+            value={code}
+            onChange={(e) => handle_input_change(e.target.value)}
+            onKeyDown={handle_key_down}
+          />
+          <p className="text-xs text-center mt-2 text-txt-muted">
+            {t("auth.backup_code_single_use")}
+          </p>
+        </div>
+
+        <label className="flex items-center justify-center gap-2 text-sm text-txt-muted cursor-pointer select-none">
+          <Checkbox
+            checked={trust_device}
+            disabled={is_loading}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              set_trust_device(e.target.checked)
+            }
+          />
+          {t("auth.trust_this_device_30_days")}
+        </label>
+
+        {error && <p className="text-sm text-center text-red-500">{error}</p>}
+
+        {is_recovery_code && (
+          <Button
+            className="w-full"
+            variant="depth"
+            onClick={on_reset_with_recovery_code}
+          >
+            {t("auth.reset_with_recovery_code")}
+          </Button>
+        )}
+
+        <div className="flex gap-3">
+          <Button
+            className="flex-1"
+            disabled={is_loading}
+            variant="outline"
+            onClick={on_cancel}
+          >
+            {t("common.cancel")}
+          </Button>
+          <Button
+            className="flex-1"
+            disabled={
+              is_loading ||
+              !is_valid_backup_code_length(
+                code.replace(/[^A-Z0-9]/gi, "").length,
+              )
+            }
+            is_loading={is_loading}
+            variant="depth"
+            onClick={handle_verify}
+          >
+            {t("common.continue")}
+          </Button>
+        </div>
+
+        <button
+          className="w-full text-sm text-center transition-colors hover:opacity-80 text-txt-muted disabled:opacity-50"
+          disabled={is_loading}
+          type="button"
+          onClick={on_use_authenticator}
+        >
+          {t("auth.use_authenticator_instead")}
+        </button>
+      </div>
+    </div>
+  );
+}

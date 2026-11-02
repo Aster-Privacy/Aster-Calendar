@@ -1,0 +1,985 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type {
+  Contact,
+  ContactFormData,
+  ContactsListResponse,
+  ListContactsParams,
+  CreateContactRequest,
+  CreateContactResponse,
+  UpdateContactRequest,
+  UpdateContactResponse,
+  DeleteContactResponse,
+  BulkDeleteContactsRequest,
+  BulkDeleteContactsResponse,
+  SearchContactsResponse,
+  DecryptedContact,
+  ContactGroup,
+  ContactGroupEncrypted,
+  ContactGroupPayload,
+  ContactGroupFormData,
+  GroupMembershipChange,
+  GroupMembership,
+} from "@/types/contacts";
+
+import { api_client, type ApiResponse } from "./client";
+
+import { user_facing_error } from "@/utils/user_facing_error";
+import { HASH_ALG } from "@/services/crypto/constants";
+import { decrypt_aes_gcm_with_fallback } from "@/services/crypto/legacy_keks";
+import { CONTACT_DATA_VERSION } from "@/types/contacts";
+import {
+  get_or_create_derived_encryption_crypto_key,
+  get_derived_encryption_key,
+  on_vault_cleared,
+} from "@/services/crypto/memory_key_store";
+import { zero_uint8_array } from "@/services/crypto/secure_memory";
+import { get_key, store_key } from "@/services/crypto/crypto_key_cache";
+import { get_active_translations } from "@/lib/i18n/translations";
+import { is_contact_trashed } from "@/lib/contact_trash";
+
+function array_to_base64(array: Uint8Array): string {
+  let binary = "";
+
+  for (let i = 0; i < array.length; i++) {
+    binary += String.fromCharCode(array[i]);
+  }
+
+  return btoa(binary);
+}
+
+function base64_to_array(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return bytes;
+}
+
+const CONTACTS_HMAC_KEY_ID = "contacts_hmac_key";
+
+let hmac_key_pending: Promise<CryptoKey> | null = null;
+let hmac_key_generation = 0;
+let hmac_key_listener_registered = false;
+
+function get_hmac_key(): Promise<CryptoKey> {
+  const cached = get_key(CONTACTS_HMAC_KEY_ID);
+
+  if (cached) return Promise.resolve(cached);
+  if (!hmac_key_listener_registered) {
+    hmac_key_listener_registered = true;
+    on_vault_cleared(() => {
+      hmac_key_generation += 1;
+      hmac_key_pending = null;
+    });
+  }
+  if (hmac_key_pending) return hmac_key_pending;
+
+  const started_generation = hmac_key_generation;
+  const request = import_hmac_key()
+    .then((hmac_key) => {
+      if (started_generation === hmac_key_generation) {
+        store_key(CONTACTS_HMAC_KEY_ID, hmac_key, "hmac");
+      }
+
+      return hmac_key;
+    })
+    .finally(() => {
+      if (hmac_key_pending === request) hmac_key_pending = null;
+    });
+
+  hmac_key_pending = request;
+
+  return request;
+}
+
+async function import_hmac_key(): Promise<CryptoKey> {
+  const raw_key = get_derived_encryption_key();
+
+  if (!raw_key) {
+    throw new Error(
+      get_active_translations().errors.encryption_keys_unavailable,
+    );
+  }
+  const encoder = new TextEncoder();
+  const info = encoder.encode("contacts-hmac-v2");
+  const combined = new Uint8Array(raw_key.byteLength + info.length);
+
+  combined.set(raw_key, 0);
+  combined.set(info, raw_key.byteLength);
+  const hash = await crypto.subtle.digest(HASH_ALG, combined);
+
+  zero_uint8_array(raw_key);
+  zero_uint8_array(combined);
+
+  return crypto.subtle.importKey(
+    "raw",
+    hash,
+    { name: "HMAC", hash: HASH_ALG },
+    false,
+    ["sign", "verify"],
+  );
+}
+
+async function get_search_token_key(): Promise<CryptoKey> {
+  const raw_key = get_derived_encryption_key();
+
+  if (!raw_key) {
+    throw new Error(
+      get_active_translations().errors.encryption_keys_unavailable,
+    );
+  }
+  const encoder = new TextEncoder();
+  const info = encoder.encode("contacts-search-v2");
+  const combined = new Uint8Array(raw_key.byteLength + info.length);
+
+  combined.set(raw_key, 0);
+  combined.set(info, raw_key.byteLength);
+  const hash = await crypto.subtle.digest(HASH_ALG, combined);
+
+  zero_uint8_array(raw_key);
+  zero_uint8_array(combined);
+
+  return crypto.subtle.importKey(
+    "raw",
+    hash,
+    { name: "HMAC", hash: HASH_ALG },
+    false,
+    ["sign"],
+  );
+}
+
+export async function get_contacts_encryption_key(): Promise<CryptoKey> {
+  const key = await get_or_create_derived_encryption_crypto_key();
+
+  if (!key) {
+    throw new Error(
+      get_active_translations().errors.encryption_keys_unavailable,
+    );
+  }
+
+  return key;
+}
+
+async function generate_search_token(value: string): Promise<string> {
+  const search_key = await get_search_token_key();
+  const normalized = value.toLowerCase().trim();
+  const encoder = new TextEncoder();
+  const data = encoder.encode(normalized);
+  const hash = await crypto.subtle.sign("HMAC", search_key, data);
+
+  return array_to_base64(new Uint8Array(hash));
+}
+
+export async function generate_contact_token(
+  form_data: ContactFormData,
+): Promise<string> {
+  const hmac_key = await get_hmac_key();
+  const searchable =
+    `${form_data.first_name} ${form_data.last_name} ${form_data.emails.join(" ")}`.toLowerCase();
+  const encoder = new TextEncoder();
+  const data = encoder.encode(searchable);
+  const hash = await crypto.subtle.sign("HMAC", hmac_key, data);
+
+  return array_to_base64(new Uint8Array(hash));
+}
+
+async function generate_search_tokens(form_data: ContactFormData): Promise<{
+  name_token?: string;
+  email_token?: string;
+  company_token?: string;
+}> {
+  const tokens: {
+    name_token?: string;
+    email_token?: string;
+    company_token?: string;
+  } = {};
+
+  const full_name = `${form_data.first_name} ${form_data.last_name}`.trim();
+
+  if (full_name) {
+    tokens.name_token = await generate_search_token(full_name);
+  }
+
+  if (form_data.emails.length > 0 && form_data.emails[0]) {
+    tokens.email_token = await generate_search_token(form_data.emails[0]);
+  }
+
+  if (form_data.company) {
+    tokens.company_token = await generate_search_token(form_data.company);
+  }
+
+  return tokens;
+}
+
+async function generate_integrity_hash(
+  encrypted_data: string,
+  nonce: string,
+): Promise<string> {
+  const hmac_key = await get_hmac_key();
+  const encoder = new TextEncoder();
+  const combined = `${encrypted_data}:${nonce}:${CONTACT_DATA_VERSION}`;
+  const data = encoder.encode(combined);
+  const hash = await crypto.subtle.sign("HMAC", hmac_key, data);
+
+  return array_to_base64(new Uint8Array(hash));
+}
+
+async function verify_integrity_hash(
+  encrypted_data: string,
+  nonce: string,
+  hash: string,
+  version: number,
+): Promise<boolean> {
+  const hmac_key = await get_hmac_key();
+  const encoder = new TextEncoder();
+  const combined = `${encrypted_data}:${nonce}:${version}`;
+  const data = encoder.encode(combined);
+  const expected_hash = base64_to_array(hash);
+
+  return crypto.subtle.verify("HMAC", hmac_key, expected_hash, data);
+}
+
+const KNOWN_CONTACT_KEYS = new Set<string>([
+  "id",
+  "first_name",
+  "last_name",
+  "emails",
+  "phone",
+  "company",
+  "job_title",
+  "address",
+  "birthday",
+  "social_links",
+  "relationship",
+  "notes",
+  "avatar_url",
+  "profile_color",
+  "is_favorite",
+  "groups",
+  "middle_name",
+  "title",
+  "name_suffix",
+  "phonetic_first_name",
+  "phonetic_middle_name",
+  "phonetic_last_name",
+  "nickname",
+  "role",
+  "department",
+  "comment",
+  "pronouns",
+  "email_entries",
+  "phone_entries",
+  "address_entries",
+  "date_entries",
+  "related_people",
+  "social_networks",
+  "websites",
+  "instant_messengers",
+  "deleted_at",
+  "revisions",
+  "extra_fields",
+  "created_at",
+  "updated_at",
+  "last_contacted",
+  "email_count",
+  "_version",
+  "_encrypted_at",
+]);
+
+export function strip_known_contact_keys(
+  source: Record<string, unknown> | undefined | null,
+): Record<string, unknown> {
+  const extra: Record<string, unknown> = {};
+
+  if (!source || typeof source !== "object") return extra;
+
+  for (const [key, value] of Object.entries(source)) {
+    if (KNOWN_CONTACT_KEYS.has(key)) continue;
+    if (key === "__proto__" || key === "constructor" || key === "prototype")
+      continue;
+    extra[key] = value;
+  }
+
+  return extra;
+}
+
+export async function encrypt_contact_data(data: ContactFormData): Promise<{
+  encrypted_data: string;
+  data_nonce: string;
+  integrity_hash: string;
+}> {
+  const key = await get_contacts_encryption_key();
+  const encoder = new TextEncoder();
+  const { extra_fields, ...known } = data;
+  const payload = {
+    ...strip_known_contact_keys(extra_fields),
+    ...known,
+    _version: CONTACT_DATA_VERSION,
+    _encrypted_at: new Date().toISOString(),
+  };
+  const plaintext = encoder.encode(JSON.stringify(payload));
+  const nonce = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: nonce },
+    key,
+    plaintext,
+  );
+
+  const encrypted_data = array_to_base64(new Uint8Array(ciphertext));
+  const data_nonce = array_to_base64(nonce);
+  const integrity_hash = await generate_integrity_hash(
+    encrypted_data,
+    data_nonce,
+  );
+
+  return { encrypted_data, data_nonce, integrity_hash };
+}
+
+export async function decrypt_contact_data(
+  encrypted_data: string,
+  data_nonce: string,
+  integrity_hash?: string,
+  data_version?: number,
+): Promise<ContactFormData> {
+  if (integrity_hash && data_version) {
+    const is_valid = await verify_integrity_hash(
+      encrypted_data,
+      data_nonce,
+      integrity_hash,
+      data_version,
+    );
+
+    if (!is_valid) {
+      throw new Error(get_active_translations().errors.data_integrity_failed);
+    }
+  }
+
+  const key = await get_contacts_encryption_key();
+  const ciphertext = base64_to_array(encrypted_data);
+  const nonce = base64_to_array(data_nonce);
+  const decrypted = await decrypt_aes_gcm_with_fallback(key, ciphertext, nonce);
+  const decoder = new TextDecoder();
+  const parsed = JSON.parse(decoder.decode(decrypted), (key, value) => {
+    if (key === "__proto__" || key === "constructor" || key === "prototype") {
+      return undefined;
+    }
+
+    return value;
+  });
+
+  delete parsed._version;
+  delete parsed._encrypted_at;
+
+  return parsed as ContactFormData;
+}
+
+function collect_extra_fields(
+  data: ContactFormData,
+): Record<string, unknown> | undefined {
+  const extra = {
+    ...strip_known_contact_keys(data.extra_fields),
+    ...strip_known_contact_keys(data as unknown as Record<string, unknown>),
+  };
+
+  return Object.keys(extra).length > 0 ? extra : undefined;
+}
+
+export async function decrypt_contact(
+  contact: Contact,
+): Promise<DecryptedContact> {
+  const data = await decrypt_contact_data(
+    contact.encrypted_data,
+    contact.data_nonce,
+    contact.integrity_hash,
+    contact.data_version,
+  );
+
+  return {
+    id: contact.id,
+    first_name: data.first_name ?? "",
+    last_name: data.last_name ?? "",
+    emails: Array.isArray(data.emails) ? data.emails : [],
+    phone: data.phone,
+    company: data.company,
+    job_title: data.job_title,
+    address: data.address,
+    birthday: data.birthday,
+    social_links: data.social_links,
+    relationship: data.relationship,
+    notes: data.notes,
+    avatar_url: data.avatar_url,
+    profile_color: data.profile_color,
+    is_favorite: data.is_favorite ?? false,
+    groups: data.groups,
+    middle_name: data.middle_name,
+    title: data.title,
+    name_suffix: data.name_suffix,
+    phonetic_first_name: data.phonetic_first_name,
+    phonetic_middle_name: data.phonetic_middle_name,
+    phonetic_last_name: data.phonetic_last_name,
+    nickname: data.nickname,
+    role: data.role,
+    department: data.department,
+    comment: data.comment,
+    pronouns: data.pronouns,
+    email_entries: data.email_entries,
+    phone_entries: data.phone_entries,
+    address_entries: data.address_entries,
+    date_entries: data.date_entries,
+    related_people: data.related_people,
+    social_networks: data.social_networks,
+    websites: data.websites,
+    instant_messengers: data.instant_messengers,
+    deleted_at: data.deleted_at,
+    revisions: data.revisions,
+    extra_fields: collect_extra_fields(data),
+    created_at: contact.created_at,
+    updated_at: contact.updated_at,
+  };
+}
+
+export async function decrypt_contacts(
+  contacts: Contact[],
+  include_trashed = false,
+): Promise<DecryptedContact[]> {
+  const results = await Promise.allSettled(
+    contacts.map((contact) => decrypt_contact(contact)),
+  );
+
+  return results
+    .filter(
+      (r): r is PromiseFulfilledResult<DecryptedContact> =>
+        r.status === "fulfilled",
+    )
+    .map((r) => r.value)
+    .filter(
+      (contact) =>
+        include_trashed ||
+        typeof contact.deleted_at !== "string" ||
+        contact.deleted_at === "",
+    );
+}
+
+export function parse_group_payload(value: string): ContactGroupPayload {
+  if (!value.startsWith("{")) return { name: value };
+
+  try {
+    const parsed = JSON.parse(value) as Partial<ContactGroupPayload>;
+
+    if (typeof parsed.name !== "string") return { name: value };
+
+    return {
+      name: parsed.name,
+      color: typeof parsed.color === "string" ? parsed.color : undefined,
+      icon: typeof parsed.icon === "string" ? parsed.icon : undefined,
+    };
+  } catch {
+    return { name: value };
+  }
+}
+
+export function build_group_payload(data: ContactGroupPayload): string {
+  return JSON.stringify({
+    name: data.name,
+    color: data.color ?? DEFAULT_GROUP_COLOR,
+    ...(data.icon ? { icon: data.icon } : {}),
+  });
+}
+
+export async function decrypt_contact_group(
+  group: ContactGroupEncrypted,
+): Promise<ContactGroup> {
+  const key = await get_contacts_encryption_key();
+  const ciphertext = base64_to_array(group.encrypted_name);
+  const nonce = base64_to_array(group.name_nonce);
+  const decrypted = await decrypt_aes_gcm_with_fallback(key, ciphertext, nonce);
+  const decoder = new TextDecoder();
+  const payload = parse_group_payload(decoder.decode(decrypted));
+  const name = payload.name;
+
+  return {
+    id: group.id,
+    name,
+    color: payload.color || DEFAULT_GROUP_COLOR,
+    icon: payload.icon,
+    sort_order: group.sort_order ?? 0,
+    contact_count: group.contact_count,
+    created_at: group.created_at,
+    updated_at: group.updated_at ?? group.created_at,
+  };
+}
+
+export async function decrypt_contact_groups(
+  groups: ContactGroupEncrypted[],
+): Promise<ContactGroup[]> {
+  return Promise.all(groups.map((group) => decrypt_contact_group(group)));
+}
+
+export async function list_contacts(
+  params: ListContactsParams = {},
+): Promise<ApiResponse<ContactsListResponse>> {
+  const query_params = new URLSearchParams();
+
+  if (params.limit !== undefined) {
+    query_params.set("limit", params.limit.toString());
+  }
+  if (params.cursor) {
+    query_params.set("cursor", params.cursor);
+  }
+  if (params.group_id) {
+    query_params.set("group_id", params.group_id);
+  }
+  const query_string = query_params.toString();
+  const endpoint = `/contacts/v1${query_string ? `?${query_string}` : ""}`;
+
+  return api_client.get<ContactsListResponse>(endpoint);
+}
+
+const MAX_CONTACT_LIST_PAGES = 100;
+
+export async function list_all_contacts(
+  page_limit = 100,
+): Promise<ApiResponse<Contact[]>> {
+  const items: Contact[] = [];
+  let cursor: string | undefined;
+
+  for (let page = 0; page < MAX_CONTACT_LIST_PAGES; page += 1) {
+    const response = await list_contacts({ limit: page_limit, cursor });
+
+    if (response.error || !response.data) {
+      return {
+        error: response.error || get_active_translations().errors.load_failed,
+      };
+    }
+    items.push(...response.data.items);
+    if (!response.data.has_more || !response.data.next_cursor) break;
+    cursor = response.data.next_cursor;
+  }
+
+  return { data: items };
+}
+
+export async function get_contact(
+  contact_id: string,
+): Promise<ApiResponse<Contact>> {
+  return api_client.get<Contact>(`/contacts/v1/${contact_id}`);
+}
+
+export async function is_contact_in_trash(
+  contact_id: string,
+): Promise<boolean> {
+  const response = await get_contact(contact_id);
+
+  if (!response.data) return false;
+
+  try {
+    return is_contact_trashed(await decrypt_contact(response.data));
+  } catch {
+    return false;
+  }
+}
+
+export async function create_contact(
+  data: CreateContactRequest,
+): Promise<ApiResponse<CreateContactResponse>> {
+  return api_client.post<CreateContactResponse>("/contacts/v1", data);
+}
+
+export async function create_contact_encrypted(
+  form_data: ContactFormData,
+): Promise<ApiResponse<CreateContactResponse>> {
+  try {
+    const { encrypted_data, data_nonce, integrity_hash } =
+      await encrypt_contact_data(form_data);
+    const contact_token = await generate_contact_token(form_data);
+    const search_tokens = await generate_search_tokens(form_data);
+
+    return create_contact({
+      contact_token,
+      name_search_token: search_tokens.name_token,
+      email_search_token: search_tokens.email_token,
+      company_search_token: search_tokens.company_token,
+      encrypted_data,
+      data_nonce,
+      integrity_hash,
+      data_version: CONTACT_DATA_VERSION,
+    });
+  } catch (err) {
+    return {
+      error: user_facing_error(
+        err,
+        get_active_translations().common.save_failed,
+      ),
+    };
+  }
+}
+
+export async function update_contact(
+  contact_id: string,
+  data: UpdateContactRequest,
+): Promise<ApiResponse<UpdateContactResponse>> {
+  return api_client.put<UpdateContactResponse>(
+    `/contacts/v1/${contact_id}`,
+    data,
+  );
+}
+
+export async function update_contact_encrypted(
+  contact_id: string,
+  form_data: ContactFormData,
+): Promise<ApiResponse<UpdateContactResponse>> {
+  try {
+    const { encrypted_data, data_nonce, integrity_hash } =
+      await encrypt_contact_data(form_data);
+    const search_tokens = await generate_search_tokens(form_data);
+
+    return update_contact(contact_id, {
+      encrypted_data,
+      data_nonce,
+      integrity_hash,
+      data_version: CONTACT_DATA_VERSION,
+      name_search_token: search_tokens.name_token ?? null,
+      email_search_token: search_tokens.email_token ?? null,
+      company_search_token: search_tokens.company_token ?? null,
+    });
+  } catch (err) {
+    return {
+      error: user_facing_error(
+        err,
+        get_active_translations().common.save_failed,
+      ),
+    };
+  }
+}
+
+export async function delete_contact(
+  contact_id: string,
+): Promise<ApiResponse<DeleteContactResponse>> {
+  return api_client.delete<DeleteContactResponse>(`/contacts/v1/${contact_id}`);
+}
+
+export async function bulk_delete_contacts(
+  data: BulkDeleteContactsRequest,
+): Promise<ApiResponse<BulkDeleteContactsResponse>> {
+  return api_client.delete<BulkDeleteContactsResponse>("/contacts/v1", {
+    body: JSON.stringify(data),
+  });
+}
+
+export async function search_contacts(
+  query: string,
+  field: "name" | "email" | "company" | "all" = "all",
+  limit?: number,
+): Promise<ApiResponse<SearchContactsResponse>> {
+  const search_token = await generate_search_token(query);
+  const query_params = new URLSearchParams();
+
+  query_params.set("q", search_token);
+  query_params.set("field", field);
+  if (limit !== undefined) {
+    query_params.set("limit", limit.toString());
+  }
+
+  return api_client.get<SearchContactsResponse>(
+    `/contacts/v1/search?${query_params.toString()}`,
+  );
+}
+
+export async function list_contact_groups(): Promise<
+  ApiResponse<{ groups: ContactGroup[] }>
+> {
+  const response = await api_client.get<{ groups: ContactGroupEncrypted[] }>(
+    "/contacts/v1/groups",
+  );
+
+  if (response.error || !response.data) {
+    return {
+      error: response.error || get_active_translations().errors.load_failed,
+    };
+  }
+
+  try {
+    const decrypted_groups = await decrypt_contact_groups(response.data.groups);
+
+    return { data: { groups: decrypted_groups } };
+  } catch (err) {
+    return {
+      error: user_facing_error(
+        err,
+        get_active_translations().errors.load_failed,
+      ),
+    };
+  }
+}
+
+export const DEFAULT_GROUP_COLOR = "#4f46e5";
+
+interface CreateGroupResponse {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  sort_order: number;
+}
+
+export async function create_contact_group(
+  data: ContactGroupFormData,
+): Promise<ApiResponse<ContactGroup>> {
+  const raw_key = get_derived_encryption_key();
+
+  if (!raw_key) {
+    return {
+      error: get_active_translations().errors.encryption_keys_not_loaded,
+    };
+  }
+
+  zero_uint8_array(raw_key);
+
+  const key = await get_or_create_derived_encryption_crypto_key();
+
+  if (!key) {
+    return {
+      error: get_active_translations().errors.encryption_keys_not_loaded,
+    };
+  }
+
+  const encoder = new TextEncoder();
+  const plaintext = encoder.encode(build_group_payload(data));
+  const nonce = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: nonce },
+    key,
+    plaintext,
+  );
+
+  const group_token = await generate_search_token(data.name);
+
+  const response = await api_client.post<CreateGroupResponse>(
+    "/contacts/v1/groups",
+    {
+      group_token,
+      encrypted_name: array_to_base64(new Uint8Array(ciphertext)),
+      name_nonce: array_to_base64(nonce),
+    },
+  );
+
+  if (response.error || !response.data) {
+    return {
+      error: response.error || get_active_translations().common.save_failed,
+    };
+  }
+
+  return {
+    data: {
+      id: response.data.id,
+      name: data.name,
+      color: data.color,
+      icon: data.icon,
+      sort_order: response.data.sort_order ?? 0,
+      contact_count: 0,
+      created_at: response.data.created_at,
+      updated_at: response.data.updated_at ?? response.data.created_at,
+    },
+  };
+}
+
+export async function update_contact_group(
+  group_id: string,
+  data: ContactGroupFormData,
+): Promise<ApiResponse<ContactGroup>> {
+  const key = await get_or_create_derived_encryption_crypto_key();
+
+  if (!key) {
+    return {
+      error: get_active_translations().errors.encryption_keys_not_loaded,
+    };
+  }
+
+  const encoder = new TextEncoder();
+  const plaintext = encoder.encode(build_group_payload(data));
+  const nonce = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: nonce },
+    key,
+    plaintext,
+  );
+
+  const group_token = await generate_search_token(data.name);
+
+  const response = await api_client.put<ContactGroupEncrypted>(
+    `/contacts/v1/groups/${group_id}`,
+    {
+      group_token,
+      encrypted_name: array_to_base64(new Uint8Array(ciphertext)),
+      name_nonce: array_to_base64(nonce),
+    },
+  );
+
+  if (response.error || !response.data) {
+    return {
+      error: response.error || get_active_translations().common.save_failed,
+    };
+  }
+
+  return {
+    data: {
+      id: response.data.id,
+      name: data.name,
+      color: data.color,
+      icon: data.icon,
+      sort_order: response.data.sort_order ?? 0,
+      contact_count: response.data.contact_count ?? 0,
+      created_at: response.data.created_at,
+      updated_at: response.data.updated_at ?? response.data.created_at,
+    },
+  };
+}
+
+export async function delete_contact_group(
+  group_id: string,
+): Promise<ApiResponse<{ success: boolean }>> {
+  return api_client.delete<{ success: boolean }>(
+    `/contacts/v1/groups/${group_id}`,
+  );
+}
+
+export async function add_contact_to_group(
+  contact_id: string,
+  group_id: string,
+): Promise<ApiResponse<{ success: boolean }>> {
+  return api_client.post<{ success: boolean }>(
+    `/contacts/v1/${contact_id}/groups/${group_id}`,
+    {},
+  );
+}
+
+export async function remove_contact_from_group(
+  contact_id: string,
+  group_id: string,
+): Promise<ApiResponse<{ success: boolean }>> {
+  return api_client.delete<{ success: boolean }>(
+    `/contacts/v1/${contact_id}/groups/${group_id}`,
+  );
+}
+
+export async function add_contacts_to_group(
+  group_id: string,
+  contact_ids: string[],
+): Promise<ApiResponse<GroupMembershipChange>> {
+  return api_client.post<GroupMembershipChange>(
+    `/contacts/v1/groups/${group_id}/members`,
+    { contact_ids },
+  );
+}
+
+export async function remove_contacts_from_group(
+  group_id: string,
+  contact_ids: string[],
+): Promise<ApiResponse<GroupMembershipChange>> {
+  return api_client.delete<GroupMembershipChange>(
+    `/contacts/v1/groups/${group_id}/members`,
+    { data: { contact_ids } },
+  );
+}
+
+export async function list_group_memberships(): Promise<
+  ApiResponse<{ memberships: GroupMembership[] }>
+> {
+  return api_client.get<{ memberships: GroupMembership[] }>(
+    "/contacts/v1/groups/memberships",
+  );
+}
+
+export async function list_groups_for_contact(
+  contact_id: string,
+): Promise<ApiResponse<{ groups: ContactGroup[] }>> {
+  const response = await api_client.get<{ groups: ContactGroupEncrypted[] }>(
+    `/contacts/v1/${contact_id}/groups`,
+  );
+
+  if (response.error || !response.data) {
+    return {
+      error: response.error || get_active_translations().errors.load_failed,
+    };
+  }
+
+  try {
+    return {
+      data: { groups: await decrypt_contact_groups(response.data.groups) },
+    };
+  } catch (err) {
+    return {
+      error: user_facing_error(
+        err,
+        get_active_translations().errors.load_failed,
+      ),
+    };
+  }
+}
+
+export async function reencrypt_all_contacts(): Promise<void> {
+  let cursor: string | undefined;
+
+  for (;;) {
+    const response = await list_contacts({ limit: 100, cursor });
+
+    if (!response.data?.items) return;
+
+    for (const contact of response.data.items) {
+      try {
+        const decrypted = await decrypt_contact_data(
+          contact.encrypted_data,
+          contact.data_nonce,
+        );
+        const { encrypted_data, data_nonce, integrity_hash } =
+          await encrypt_contact_data(decrypted);
+        const search_tokens = await generate_search_tokens(decrypted);
+
+        await update_contact(contact.id, {
+          encrypted_data,
+          data_nonce,
+          integrity_hash,
+          data_version: CONTACT_DATA_VERSION,
+          name_search_token: search_tokens.name_token,
+          email_search_token: search_tokens.email_token,
+          company_search_token: search_tokens.company_token,
+        });
+      } catch {
+        continue;
+      }
+    }
+
+    if (!response.data.has_more || !response.data.next_cursor) break;
+    cursor = response.data.next_cursor;
+  }
+}
+
+export async function get_contacts_count(
+  fresh = false,
+): Promise<ApiResponse<{ count: number }>> {
+  return api_client.get<{ count: number }>("/contacts/v1/count", {
+    cache_ttl: 60_000,
+    skip_cache: fresh,
+  });
+}

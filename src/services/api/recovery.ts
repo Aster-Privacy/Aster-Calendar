@@ -1,0 +1,502 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type {
+  StepUpHardwareKeyAssertion,
+  WebAuthnAssertionOptions,
+} from "./webauthn";
+
+import { RecoveryShareData } from "../crypto/recovery_key";
+
+import { api_client, ApiResponse } from "./client";
+
+export interface InitiateRecoveryResponse {
+  encrypted_vault_backup: string;
+  vault_backup_nonce: string;
+  recovery_key_salt: string;
+  encrypted_recovery_key: string;
+  recovery_key_nonce: string;
+  code_salt: string;
+  recovery_token: string;
+  encrypted_recovery_email?: string;
+  recovery_email_nonce?: string;
+}
+
+export interface RecoveryEmailReencryption {
+  encrypted_email: string;
+  email_nonce: string;
+}
+
+export interface CodeState {
+  code_hash: string;
+  status: string;
+  used_at: string | null;
+}
+
+export interface UsedCode {
+  code_hash: string;
+  used_at: string;
+}
+
+export interface CodesStatus {
+  created_at: string | null;
+  total: number;
+  remaining: number;
+  used: UsedCode[];
+}
+
+export interface CodesStepUp {
+  step_up_token: string;
+  expires_at: string;
+  codes: CodeState[];
+}
+
+interface CompleteRecoveryResponse {
+  success: boolean;
+}
+
+interface SaveRecoveryBackupResponse {
+  success: boolean;
+}
+
+interface ForgotPasswordResponse {
+  success: boolean;
+}
+
+interface ResetPasswordResponse {
+  success: boolean;
+}
+
+interface NewPgpKeyData {
+  fingerprint: string;
+  key_id: string;
+  public_key_armored: string;
+  encrypted_private_key: string;
+  private_key_nonce: string;
+}
+
+export async function initiate_recovery(
+  code_hash: string,
+  email: string,
+): Promise<ApiResponse<InitiateRecoveryResponse>> {
+  return api_client.post<InitiateRecoveryResponse>(
+    "/core/v1/recovery/initiate",
+    {
+      code_hash,
+      email,
+    },
+  );
+}
+
+export async function complete_recovery(
+  recovery_token: string,
+  new_password_hash: string,
+  new_password_salt: string,
+  new_encrypted_vault: string,
+  new_vault_nonce: string,
+  new_recovery_shares: RecoveryShareData[],
+  new_encrypted_vault_backup: string,
+  new_vault_backup_nonce: string,
+  new_recovery_key_salt: string,
+  new_identity_key?: string,
+  new_signed_prekey?: string,
+  new_signed_prekey_signature?: string,
+  new_pgp_key?: NewPgpKeyData,
+  vault_format?: number,
+  new_account_key_token?: string,
+  new_account_key_fingerprint?: string,
+  new_recovery_email?: RecoveryEmailReencryption,
+  new_password_hash_v2?: string,
+): Promise<ApiResponse<CompleteRecoveryResponse>> {
+  return api_client.post<CompleteRecoveryResponse>(
+    "/core/v1/recovery/complete",
+    {
+      recovery_token,
+      new_password_hash,
+      new_password_salt,
+      new_encrypted_vault,
+      new_vault_nonce,
+      new_recovery_shares,
+      new_encrypted_vault_backup,
+      new_vault_backup_nonce,
+      new_recovery_key_salt,
+      new_identity_key,
+      new_signed_prekey,
+      new_signed_prekey_signature,
+      new_pgp_key,
+      vault_format,
+      new_account_key_token,
+      new_account_key_fingerprint,
+      new_recovery_email,
+      new_password_hash_v2,
+    },
+  );
+}
+
+export async function forgot_password_email(
+  username: string,
+  email_domain: string,
+): Promise<ApiResponse<ForgotPasswordResponse>> {
+  return api_client.post<ForgotPasswordResponse>(
+    "/core/v1/recovery/forgot-password",
+    {
+      username,
+      email_domain,
+    },
+  );
+}
+
+export async function reset_password_with_token(
+  token: string,
+  new_password_hash: string,
+  new_password_salt: string,
+  new_encrypted_vault: string,
+  new_vault_nonce: string,
+  new_recovery_shares: RecoveryShareData[],
+  new_encrypted_vault_backup: string,
+  new_vault_backup_nonce: string,
+  new_recovery_key_salt: string,
+  new_identity_key?: string,
+  new_signed_prekey?: string,
+  new_signed_prekey_signature?: string,
+  new_pgp_key?: NewPgpKeyData,
+  vault_format?: number,
+  acknowledged_data_loss?: boolean,
+  new_recovery_email?: RecoveryEmailReencryption,
+  previous_vault_carried?: boolean,
+  new_password_hash_v2?: string,
+): Promise<ApiResponse<ResetPasswordResponse>> {
+  return api_client.post<ResetPasswordResponse>(
+    "/core/v1/recovery/reset-password",
+    {
+      token,
+      new_password_hash,
+      new_password_salt,
+      new_encrypted_vault,
+      new_vault_nonce,
+      new_recovery_shares,
+      new_encrypted_vault_backup,
+      new_vault_backup_nonce,
+      new_recovery_key_salt,
+      new_identity_key,
+      new_signed_prekey,
+      new_signed_prekey_signature,
+      new_pgp_key,
+      vault_format,
+      acknowledged_data_loss,
+      new_recovery_email,
+      previous_vault_carried,
+      new_password_hash_v2,
+    },
+  );
+}
+
+export interface ResetVaultResponse {
+  encrypted_vault: string;
+  vault_nonce: string;
+  vault_version: number;
+}
+
+export async function get_reset_vault(
+  token: string,
+): Promise<ApiResponse<ResetVaultResponse>> {
+  return api_client.post<ResetVaultResponse>(
+    "/core/v1/recovery/reset-password/vault",
+    { token },
+  );
+}
+
+export interface SaveRecoveryBackupOptions {
+  step_up_token?: string;
+  password_hash?: string;
+  totp_code?: string;
+  encrypted_vault?: string;
+  vault_nonce?: string;
+  vault_format?: number;
+}
+
+export interface ResetSecondFactorStatus {
+  address?: string;
+  required: boolean;
+  verified: boolean;
+  totp: boolean;
+  backup_codes: boolean;
+  hardware_key: boolean;
+}
+
+export type ResetSecondFactorMethod = "totp" | "backup_code";
+
+export async function get_reset_second_factor_status(
+  token: string,
+): Promise<ApiResponse<ResetSecondFactorStatus>> {
+  return api_client.post<ResetSecondFactorStatus>(
+    "/core/v1/recovery/reset-password/second-factor/status",
+    { token },
+  );
+}
+
+export async function verify_reset_second_factor(
+  token: string,
+  method: ResetSecondFactorMethod,
+  code: string,
+): Promise<ApiResponse<{ success: boolean }>> {
+  return api_client.post<{ success: boolean }>(
+    "/core/v1/recovery/reset-password/second-factor/verify",
+    { token, method, code },
+  );
+}
+
+export async function get_reset_hardware_key_options(
+  token: string,
+): Promise<ApiResponse<WebAuthnAssertionOptions>> {
+  return api_client.post<WebAuthnAssertionOptions>(
+    "/core/v1/recovery/reset-password/second-factor/hardware-key/options",
+    { token },
+  );
+}
+
+export async function verify_reset_hardware_key(
+  token: string,
+  assertion: StepUpHardwareKeyAssertion,
+): Promise<ApiResponse<{ success: boolean }>> {
+  return api_client.post<{ success: boolean }>(
+    "/core/v1/recovery/reset-password/second-factor/hardware-key/verify",
+    { token, ...assertion },
+  );
+}
+
+export async function save_recovery_backup(
+  encrypted_vault_backup: string,
+  vault_backup_nonce: string,
+  recovery_key_salt: string,
+  recovery_shares: RecoveryShareData[],
+  options: SaveRecoveryBackupOptions = {},
+): Promise<ApiResponse<SaveRecoveryBackupResponse>> {
+  return api_client.post<SaveRecoveryBackupResponse>(
+    "/core/v1/recovery/backup",
+    {
+      encrypted_vault_backup,
+      vault_backup_nonce,
+      recovery_key_salt,
+      recovery_shares,
+      ...options,
+    },
+  );
+}
+
+export async function get_codes_status(): Promise<ApiResponse<CodesStatus>> {
+  return api_client.get<CodesStatus>("/core/v1/recovery/codes/status");
+}
+
+export async function verify_codes_step_up(
+  password_hash: string,
+  totp_code?: string,
+): Promise<ApiResponse<CodesStepUp>> {
+  return api_client.post<CodesStepUp>(
+    "/core/v1/recovery/codes/verify-step-up",
+    {
+      password_hash,
+      totp_code,
+    },
+  );
+}
+
+export interface RecoveryMethods {
+  has_phrase: boolean;
+  has_codes: boolean;
+  codes_remaining: number;
+  recovery_email_set: boolean;
+  recovery_email_verified: boolean;
+  inactive_key_sets: number;
+}
+
+export interface InitiatePhraseRecoveryResponse {
+  wrapped_vault: string;
+  wrap_nonce: string;
+  wrap_salt: string;
+  recovery_token: string;
+}
+
+export interface InactiveKeySetInfo {
+  id: string;
+  vault_version: number;
+  retired_reason: string;
+  retired_at: string;
+}
+
+export interface FetchInactiveKeySetResponse {
+  encrypted_vault: string;
+  vault_nonce: string;
+  vault_version: number;
+}
+
+export async function get_recovery_methods(): Promise<
+  ApiResponse<RecoveryMethods>
+> {
+  return api_client.get<RecoveryMethods>("/core/v1/recovery/methods");
+}
+
+export async function delete_phrase_wrap(
+  current_password_hash: string,
+): Promise<ApiResponse<{ success: boolean }>> {
+  return api_client.delete<{ success: boolean }>("/core/v1/recovery/phrase", {
+    data: { current_password_hash },
+  });
+}
+
+export async function initiate_phrase_recovery(
+  email: string,
+  verifier_hash: string,
+): Promise<ApiResponse<InitiatePhraseRecoveryResponse>> {
+  return api_client.post<InitiatePhraseRecoveryResponse>(
+    "/core/v1/recovery/phrase/initiate",
+    {
+      email,
+      verifier_hash,
+    },
+  );
+}
+
+export async function list_inactive_key_sets(): Promise<
+  ApiResponse<{ inactive_key_sets: InactiveKeySetInfo[] }>
+> {
+  return api_client.get<{ inactive_key_sets: InactiveKeySetInfo[] }>(
+    "/core/v1/recovery/inactive",
+  );
+}
+
+export async function fetch_inactive_key_set(
+  inactive_vault_id: string,
+): Promise<ApiResponse<FetchInactiveKeySetResponse>> {
+  return api_client.post<FetchInactiveKeySetResponse>(
+    "/core/v1/recovery/inactive/fetch",
+    { inactive_vault_id },
+  );
+}
+
+export interface InactiveKeySetCodeUnlock {
+  inactive_vault_id: string;
+  encrypted_vault_backup: string;
+  vault_backup_nonce: string;
+  recovery_key_salt: string;
+  encrypted_recovery_key: string;
+  recovery_key_nonce: string;
+  code_salt: string;
+}
+
+export async function unlock_inactive_key_sets_with_code(
+  code_hash: string,
+): Promise<ApiResponse<{ key_sets: InactiveKeySetCodeUnlock[] }>> {
+  return api_client.post<{ key_sets: InactiveKeySetCodeUnlock[] }>(
+    "/core/v1/recovery/inactive/unlock-with-code",
+    { code_hash },
+  );
+}
+
+export async function consume_inactive_key_set(
+  inactive_vault_id: string,
+): Promise<ApiResponse<{ success: boolean }>> {
+  return api_client.post<{ success: boolean }>(
+    "/core/v1/recovery/inactive/consume",
+    { inactive_vault_id },
+  );
+}
+
+export interface DeviceRecoverySecret {
+  snapshot_id: string;
+  secret: string;
+}
+
+export async function put_device_recovery_secret(
+  snapshot_id: string,
+  secret: string,
+): Promise<ApiResponse<{ success: boolean }>> {
+  return api_client.put<{ success: boolean }>(
+    "/core/v1/recovery/device-secrets",
+    { snapshot_id, secret },
+  );
+}
+
+export async function fetch_device_recovery_secrets(
+  snapshot_ids: string[],
+): Promise<ApiResponse<{ secrets: DeviceRecoverySecret[] }>> {
+  return api_client.post<{ secrets: DeviceRecoverySecret[] }>(
+    "/core/v1/recovery/device-secrets/fetch",
+    { snapshot_ids },
+  );
+}
+
+export async function delete_device_recovery_secrets(
+  snapshot_ids: string[],
+): Promise<ApiResponse<{ success: boolean }>> {
+  return api_client.post<{ success: boolean }>(
+    "/core/v1/recovery/device-secrets/delete",
+    { snapshot_ids },
+  );
+}
+
+export interface EscrowEntry {
+  token_version: number;
+  sealed: string;
+}
+
+export interface EscrowStateResponse {
+  escrow_public_key: string | null;
+  token_versions: number[];
+}
+
+export interface FetchEscrowResponse {
+  user_id: string;
+  escrow_public_key: string | null;
+  entries: EscrowEntry[];
+}
+
+export async function get_recovery_escrow_state(): Promise<
+  ApiResponse<EscrowStateResponse>
+> {
+  return api_client.get<EscrowStateResponse>("/core/v1/recovery/escrow");
+}
+
+export async function put_recovery_escrow_public_key(
+  escrow_public_key: string,
+): Promise<ApiResponse<{ success: boolean }>> {
+  return api_client.put<{ success: boolean }>("/core/v1/recovery/escrow", {
+    escrow_public_key,
+  });
+}
+
+export async function put_recovery_escrow_key(
+  token_version: number,
+  sealed: string,
+): Promise<ApiResponse<{ success: boolean }>> {
+  return api_client.put<{ success: boolean }>("/core/v1/recovery/escrow/key", {
+    token_version,
+    sealed,
+  });
+}
+
+export async function fetch_recovery_escrow_keys(
+  recovery_token: string,
+): Promise<ApiResponse<FetchEscrowResponse>> {
+  return api_client.post<FetchEscrowResponse>(
+    "/core/v1/recovery/escrow/fetch",
+    { recovery_token },
+  );
+}

@@ -1,0 +1,1401 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { InboxEmail, EmailListState, EmailCategory } from "@/types/email";
+import type { FormatOptions } from "@/utils/date_format";
+import type {
+  BulkDeleteOptions,
+  UseEmailListReturn,
+  FetchPageOptions,
+} from "./email_list_types";
+import type { BulkActionResult } from "./bulk_action_result";
+
+import {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+  useSyncExternalStore,
+} from "react";
+
+import {
+  fetch_mail_by_ids_reconciled,
+  group_emails_by_thread,
+  insert_emails_at,
+  trashes_whole_thread,
+  DEFAULT_PAGE_SIZE,
+  type RestoredEmailEntry,
+} from "./email_list_helpers";
+import { use_email_list_actions } from "./use_email_list_actions";
+import { use_email_list_bulk } from "./use_email_list_bulk";
+import { MAIL_EVENTS } from "./mail_events";
+
+import { resolve_effective_page_size } from "@/lib/inbox_page_size";
+import { mark_preload_stale } from "@/components/email/hooks/preload_cache";
+import {
+  has_passphrase_in_memory,
+  on_keys_ready,
+} from "@/services/crypto/memory_key_store";
+import { use_auth } from "@/contexts/auth_context";
+import { use_preferences } from "@/contexts/preferences_context";
+import {
+  batch_index_updates,
+  init_category_index,
+  get_page_ids,
+  get_category_total,
+  is_index_settled,
+  is_fully_built,
+  get_index_entry_count,
+  get_active_tabs,
+  is_build_in_progress,
+  is_build_stalled,
+  is_index_capped,
+  subscribe as subscribe_index,
+  get_version as get_index_version,
+  remove_ids,
+  remove_ids_absent_from_server,
+  clear_absent_strikes,
+  suppress_ids,
+  clear_suppressed_ids,
+  remove_thread_entries,
+  reindex_ids,
+  request_full_rebuild,
+  is_representative_unread,
+  index_arrival,
+  sync_recent,
+  set_sort_order,
+  reconcile_server_read,
+  reconcile_unread_thread_siblings,
+  get_thread_rep_id,
+  set_thread_grouping,
+  set_ids_read,
+} from "@/services/category_index";
+import { invalidate_mail_stats } from "@/hooks/use_mail_stats";
+import { request_cache } from "@/services/api/request_cache";
+import { drop_removed_after } from "@/services/removed_items";
+import {
+  read_list_snapshot,
+  schedule_list_snapshot,
+} from "@/services/list_snapshot_store";
+import {
+  apply_flag_intents,
+  resolve_read_intent,
+} from "@/services/read_intent";
+import { register_visible_rows } from "@/services/user_opened_mail";
+import { get_thread_messages } from "@/services/api/mail";
+import { set_thread_trashed } from "@/services/trash_state";
+import { batch_archive as api_batch_archive } from "@/services/api/archive";
+import { bulk_update_metadata_by_ids } from "@/services/crypto/mail_metadata";
+import { emit_mail_soft_refresh } from "@/hooks/email_action_types";
+import { ignore_error } from "@/lib/ignore_error";
+
+const EMPTY_STATE: EmailListState = {
+  emails: [],
+  is_loading: true,
+  is_loading_more: false,
+  total_messages: 0,
+  has_more: false,
+  has_initial_load: false,
+};
+
+const VISIBLE_REFETCH_MIN_MS = 10_000;
+const ARRIVAL_REFETCH_DEBOUNCE_MS = 800;
+const SENT_REFETCH_DEBOUNCE_MS = 250;
+const PREFETCH_DELAY_MS = 250;
+const PREFETCH_MAX_TABS = 6;
+const LOADING_BACKSTOP_MS = 6_000;
+const MAX_FETCH_RETRIES = 4;
+const FETCH_RETRY_DELAY_MS = 1500;
+
+function build_page_cache_key(
+  category: EmailCategory,
+  target_page: number,
+  variant: string,
+  ids: string[],
+): string {
+  const unread_bits = ids
+    .map((id) => (is_representative_unread(id) ? "u" : "r"))
+    .join("");
+
+  return `${category}:${target_page}:${variant}:${unread_bits}:${ids.join(",")}`;
+}
+
+const PAGE_CACHE_LIMIT = 24;
+
+function cache_key_ids(key: string): string[] {
+  return key.split(":").slice(4).join(":").split(",");
+}
+
+function evict_cache_entries_touching(
+  cache: Map<string, InboxEmail[]>,
+  ids: Set<string>,
+): void {
+  for (const key of cache.keys()) {
+    if (cache_key_ids(key).some((id) => ids.has(id))) cache.delete(key);
+  }
+}
+
+function touch_cache_entry(
+  cache: Map<string, InboxEmail[]>,
+  key: string,
+  value: InboxEmail[],
+): void {
+  cache.delete(key);
+  cache.set(key, value);
+
+  if (cache.size > PAGE_CACHE_LIMIT) {
+    const oldest = cache.keys().next().value;
+
+    if (oldest) cache.delete(oldest);
+  }
+}
+
+function is_awake(email: InboxEmail): boolean {
+  if (!email.snoozed_until) return true;
+
+  const wake_ms = new Date(email.snoozed_until).getTime();
+
+  return Number.isNaN(wake_ms) || wake_ms <= Date.now();
+}
+
+function correct_received_rows(rows: InboxEmail[]): InboxEmail[] {
+  return apply_flag_intents(rows).map((email) => {
+    const intended = resolve_read_intent(email);
+
+    if (intended !== undefined) {
+      return email.is_read === intended
+        ? email
+        : { ...email, is_read: intended };
+    }
+
+    return email.is_read && is_representative_unread(email.id)
+      ? { ...email, is_read: false }
+      : email;
+  });
+}
+
+function belongs_in_inbox(email: InboxEmail): boolean {
+  return (
+    email.item_type === "received" &&
+    !email.is_trashed &&
+    !email.is_archived &&
+    !email.is_spam &&
+    (email.labels?.length ?? 0) === 0 &&
+    (email.folders?.length ?? 0) === 0 &&
+    is_awake(email)
+  );
+}
+
+function is_index_readable(): boolean {
+  if (is_index_settled()) return true;
+
+  return is_fully_built() && get_index_entry_count() > 0;
+}
+
+function build_load_failed_state(prev: EmailListState): EmailListState {
+  return {
+    ...prev,
+    is_loading: false,
+    has_initial_load: true,
+    has_load_error: prev.emails.length === 0,
+  };
+}
+
+function same_row_value(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((value, i) => value === b[i]);
+  }
+
+  return false;
+}
+
+function same_row(a: InboxEmail, b: InboxEmail): boolean {
+  const left = a as unknown as Record<string, unknown>;
+  const right = b as unknown as Record<string, unknown>;
+  const a_keys = Object.keys(left);
+
+  if (a_keys.length !== Object.keys(right).length) return false;
+
+  return a_keys.every((key) => same_row_value(left[key], right[key]));
+}
+
+function reuse_stable_rows(
+  prev: InboxEmail[],
+  next: InboxEmail[],
+): InboxEmail[] {
+  if (prev.length === 0) return next;
+
+  const previous = new Map(prev.map((email) => [email.id, email]));
+  let reused = false;
+
+  const merged = next.map((email) => {
+    const existing = previous.get(email.id);
+
+    if (existing && existing !== email && same_row(existing, email)) {
+      reused = true;
+
+      return existing;
+    }
+
+    return email;
+  });
+
+  return reused ? merged : next;
+}
+
+function build_list_state(
+  prev: EmailListState,
+  emails: InboxEmail[],
+  total: number,
+  has_more: boolean,
+): EmailListState {
+  const selected = new Set(
+    prev.emails.filter((e) => e.is_selected).map((e) => e.id),
+  );
+  const next =
+    selected.size > 0
+      ? emails.map((e) =>
+          selected.has(e.id) ? { ...e, is_selected: true } : e,
+        )
+      : emails;
+
+  return {
+    emails: reuse_stable_rows(prev.emails, next),
+    is_loading: false,
+    is_loading_more: false,
+    total_messages: total,
+    has_more,
+    has_initial_load: true,
+  };
+}
+
+export function use_category_inbox(
+  active_category: EmailCategory,
+  page: number,
+  enabled: boolean,
+): UseEmailListReturn {
+  const { has_keys, user } = use_auth();
+  const { preferences } = use_preferences();
+
+  const index_version = useSyncExternalStore(
+    subscribe_index,
+    get_index_version,
+    get_index_version,
+  );
+
+  useEffect(() => {
+    set_sort_order(
+      preferences.inbox_sort_order === "oldest_first" ? "asc" : "desc",
+    );
+  }, [preferences.inbox_sort_order]);
+
+  useEffect(() => {
+    set_thread_grouping(preferences.conversation_grouping !== false);
+  }, [preferences.conversation_grouping]);
+
+  const page_size = resolve_effective_page_size(
+    preferences.inbox_page_size,
+    preferences.low_network_mode,
+    DEFAULT_PAGE_SIZE,
+  );
+
+  const format_options: FormatOptions = useMemo(
+    () => ({
+      date_format: preferences.date_format as FormatOptions["date_format"],
+      time_format: preferences.time_format,
+      relative_dates: preferences.relative_dates !== false,
+    }),
+    [
+      preferences.date_format,
+      preferences.time_format,
+      preferences.relative_dates,
+    ],
+  );
+
+  const [state, set_state] = useState<EmailListState>(EMPTY_STATE);
+  const prev_category_ref = useRef(active_category);
+  const committed_category_ref = useRef(active_category);
+
+  committed_category_ref.current = active_category;
+
+  const visible_rows_ref = useRef(state.emails);
+
+  visible_rows_ref.current = state.emails;
+
+  useEffect(
+    () =>
+      register_visible_rows((id) =>
+        visible_rows_ref.current.find((email) => email.id === id),
+      ),
+    [],
+  );
+
+  const page_variant = useMemo(
+    () =>
+      `${preferences.conversation_grouping !== false ? "g1" : "g0"}~${format_options.date_format}~${format_options.time_format}`,
+    [preferences.conversation_grouping, format_options],
+  );
+
+  useEffect(() => {
+    const handle_item_update = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+
+      mark_preload_stale(detail.id);
+
+      const rep_id = get_thread_rep_id(detail.id);
+      const affected_ids = new Set(
+        rep_id && rep_id !== detail.id ? [detail.id, rep_id] : [detail.id],
+      );
+
+      evict_cache_entries_touching(page_cache.current, affected_ids);
+
+      const left_inbox =
+        detail.is_trashed === true ||
+        detail.is_archived === true ||
+        detail.is_spam === true ||
+        (detail.folders !== undefined && detail.folders.length > 0);
+
+      if (left_inbox) {
+        remove_ids([detail.id]);
+        set_state((prev) => {
+          const had_email = prev.emails.some((e) => e.id === detail.id);
+
+          return {
+            ...prev,
+            emails: prev.emails.filter((e) => e.id !== detail.id),
+            total_messages: had_email
+              ? Math.max(0, prev.total_messages - 1)
+              : prev.total_messages,
+          };
+        });
+
+        return;
+      }
+
+      if (detail.is_read !== undefined) {
+        set_ids_read([detail.id], detail.is_read);
+      }
+
+      set_state((prev) => ({
+        ...prev,
+        emails: prev.emails.map((e) =>
+          e.id === detail.id ? { ...e, ...detail } : e,
+        ),
+      }));
+    };
+    const handle_items_removed = (event: Event) => {
+      const detail = (event as CustomEvent).detail as { ids: string[] };
+
+      if (!detail?.ids?.length) return;
+
+      const id_set = new Set(detail.ids);
+
+      for (const id of detail.ids) mark_preload_stale(id);
+      remove_ids(detail.ids);
+
+      evict_cache_entries_touching(page_cache.current, id_set);
+
+      set_state((prev) => {
+        const emails = prev.emails.filter((e) => !id_set.has(e.id));
+        const removed = prev.emails.length - emails.length;
+
+        return {
+          ...prev,
+          emails,
+          total_messages: Math.max(0, prev.total_messages - removed),
+        };
+      });
+    };
+
+    window.addEventListener(MAIL_EVENTS.MAIL_ITEM_UPDATED, handle_item_update);
+    window.addEventListener(
+      MAIL_EVENTS.MAIL_ITEMS_REMOVED,
+      handle_items_removed,
+    );
+
+    return () => {
+      window.removeEventListener(
+        MAIL_EVENTS.MAIL_ITEM_UPDATED,
+        handle_item_update,
+      );
+      window.removeEventListener(
+        MAIL_EVENTS.MAIL_ITEMS_REMOVED,
+        handle_items_removed,
+      );
+    };
+  }, [set_state]);
+
+  const last_signature_ref = useRef<string>("");
+  const early_paint_scope_ref = useRef<string>("");
+  const keys_ready_account_ref = useRef<string | null>(null);
+  const abort_ref = useRef<AbortController | null>(null);
+  const page_cache = useRef<Map<string, InboxEmail[]>>(new Map());
+  const last_arrival_fetch_ref = useRef(0);
+  const fetch_retry_ref = useRef<{ sig: string; attempts: number }>({
+    sig: "",
+    attempts: 0,
+  });
+  const fetch_retry_timer_ref = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const fetch_in_flight_ref = useRef(false);
+  const rendered_rows_ref = useRef(0);
+  const fetch_page_ref = useRef<
+    | ((
+        page: number,
+        limit: number,
+        options?: FetchPageOptions,
+      ) => Promise<void>)
+    | null
+  >(null);
+
+  if (prev_category_ref.current !== active_category) {
+    prev_category_ref.current = active_category;
+    abort_ref.current?.abort();
+    abort_ref.current = null;
+
+    const switch_ids = get_page_ids(active_category, page, page_size);
+    const switch_cached =
+      switch_ids.length > 0
+        ? page_cache.current.get(
+            build_page_cache_key(
+              active_category,
+              page,
+              page_variant,
+              switch_ids,
+            ),
+          )
+        : undefined;
+
+    if (switch_cached) {
+      const switch_total = get_category_total(active_category);
+
+      set_state((prev) =>
+        build_list_state(
+          prev,
+          correct_received_rows(switch_cached),
+          switch_total,
+          (page + 1) * page_size < switch_total,
+        ),
+      );
+    } else {
+      set_state((prev) => ({ ...prev, emails: [], is_loading: true }));
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (fetch_retry_timer_ref.current) {
+        clearTimeout(fetch_retry_timer_ref.current);
+        fetch_retry_timer_ref.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) return;
+    if (!has_keys) return;
+    if (!user?.email) return;
+
+    const account = user.email;
+
+    const run = () => {
+      if (keys_ready_account_ref.current !== account) {
+        keys_ready_account_ref.current = account;
+        page_cache.current.clear();
+        last_signature_ref.current = "";
+        early_paint_scope_ref.current = "";
+      }
+
+      clear_suppressed_ids();
+      void init_category_index();
+    };
+
+    return on_keys_ready(run);
+  }, [enabled, has_keys, user?.email]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    if (!state.is_loading) return;
+
+    let timer: ReturnType<typeof setTimeout>;
+
+    const settle_or_wait = () => {
+      const fetch_pending =
+        fetch_in_flight_ref.current || fetch_retry_timer_ref.current !== null;
+      const build_healthy = is_build_in_progress() && !is_build_stalled();
+
+      if (fetch_pending || build_healthy) {
+        timer = setTimeout(settle_or_wait, LOADING_BACKSTOP_MS);
+
+        return;
+      }
+
+      if (is_build_stalled()) {
+        void init_category_index();
+      }
+
+      set_state((prev) =>
+        prev.is_loading
+          ? { ...prev, is_loading: false, has_initial_load: true }
+          : prev,
+      );
+    };
+
+    timer = setTimeout(settle_or_wait, LOADING_BACKSTOP_MS);
+
+    return () => clearTimeout(timer);
+  }, [enabled, state.is_loading, active_category]);
+
+  const page_cache_key = useCallback(
+    (target_page: number, ids: string[]): string =>
+      build_page_cache_key(active_category, target_page, page_variant, ids),
+    [active_category, page_variant],
+  );
+
+  const is_page_cached = useCallback(
+    (target_page: number, limit: number): boolean => {
+      const ids = get_page_ids(active_category, target_page, limit);
+
+      if (ids.length === 0) return true;
+
+      return page_cache.current.has(page_cache_key(target_page, ids));
+    },
+    [active_category, page_cache_key],
+  );
+
+  const fetch_page = useCallback(
+    async (
+      target_page: number,
+      limit: number,
+      options?: FetchPageOptions,
+    ): Promise<void> => {
+      const silent = options?.silent === true;
+      const force = options?.force === true;
+
+      if (!enabled) return;
+      if (!has_passphrase_in_memory()) {
+        last_signature_ref.current = "";
+
+        return;
+      }
+
+      let snapshot_painted = false;
+      let fetch_settled = false;
+
+      const schedule_retry = (): boolean => {
+        const retry_sig = `${active_category}|${target_page}`;
+        const prev = fetch_retry_ref.current;
+        const attempts = prev.sig === retry_sig ? prev.attempts : 0;
+
+        if (attempts >= MAX_FETCH_RETRIES) return false;
+
+        fetch_retry_ref.current = { sig: retry_sig, attempts: attempts + 1 };
+        if (fetch_retry_timer_ref.current) {
+          clearTimeout(fetch_retry_timer_ref.current);
+        }
+        fetch_retry_timer_ref.current = setTimeout(() => {
+          fetch_retry_timer_ref.current = null;
+          void fetch_page_ref.current?.(
+            target_page,
+            limit,
+            snapshot_painted ? { ...options, silent: true } : options,
+          );
+        }, FETCH_RETRY_DELAY_MS);
+
+        return true;
+      };
+
+      const fetch_category = active_category;
+      const ids = get_page_ids(active_category, target_page, limit);
+      const total = get_category_total(active_category);
+      const has_more = (target_page + 1) * limit < total;
+
+      abort_ref.current?.abort();
+
+      if (ids.length === 0) {
+        const built = is_index_readable() && get_index_entry_count() > 0;
+
+        abort_ref.current = null;
+        set_state({
+          emails: [],
+          is_loading: !built,
+          is_loading_more: false,
+          total_messages: total,
+          has_more: false,
+          has_initial_load: built,
+        });
+
+        return;
+      }
+
+      const controller = new AbortController();
+
+      abort_ref.current = controller;
+
+      const cache_key = page_cache_key(target_page, ids);
+      const cached = page_cache.current.get(cache_key);
+
+      if (cached && !force) {
+        abort_ref.current = null;
+        touch_cache_entry(page_cache.current, cache_key, cached);
+        set_state((prev) =>
+          build_list_state(
+            prev,
+            correct_received_rows(cached),
+            total,
+            has_more,
+          ),
+        );
+
+        return;
+      }
+
+      if (!silent) {
+        set_state((prev) => ({ ...prev, is_loading: true }));
+      }
+      fetch_in_flight_ref.current = true;
+
+      const owner = user?.email || "";
+
+      if (!silent && !force && target_page === 0 && owner) {
+        void read_list_snapshot(
+          `category:${fetch_category}`,
+          owner,
+          cache_key,
+          format_options,
+        ).then((snapshot) => {
+          if (!snapshot || fetch_settled) return;
+          if (controller.signal.aborted) return;
+          if (committed_category_ref.current !== fetch_category) return;
+
+          const rows = drop_removed_after(
+            correct_received_rows(snapshot.emails),
+            snapshot.saved_at,
+          );
+
+          if (rows.length === 0) return;
+
+          set_state((prev) => {
+            if (prev.emails.length > 0) return prev;
+
+            snapshot_painted = true;
+
+            return build_list_state(prev, rows, total, has_more);
+          });
+        });
+      }
+
+      const fetch_started_at = Date.now();
+
+      try {
+        const {
+          emails: fetched,
+          missing_ids,
+          unrenderable_ids,
+          request_ok,
+        } = await fetch_mail_by_ids_reconciled(
+          ids,
+          format_options,
+          user?.email || "",
+        );
+
+        fetch_settled = true;
+
+        if (controller.signal.aborted) return;
+        if (committed_category_ref.current !== fetch_category) return;
+
+        if (!request_ok) {
+          if (schedule_retry()) return;
+
+          if (snapshot_painted) last_signature_ref.current = "";
+          set_state(build_load_failed_state);
+
+          return;
+        }
+
+        fetch_retry_ref.current = {
+          sig: `${active_category}|${target_page}`,
+          attempts: 0,
+        };
+        if (fetch_retry_timer_ref.current) {
+          clearTimeout(fetch_retry_timer_ref.current);
+          fetch_retry_timer_ref.current = null;
+        }
+
+        clear_absent_strikes(fetched.map((email) => email.id));
+
+        const stale_fetched = fetched
+          .filter((email) => !belongs_in_inbox(email))
+          .map((email) => email.id);
+
+        batch_index_updates(() => {
+          if (missing_ids.length > 0) {
+            remove_ids_absent_from_server(missing_ids);
+          }
+
+          if (unrenderable_ids.length > 0) {
+            suppress_ids(unrenderable_ids);
+          }
+
+          reconcile_server_read(fetched);
+          reconcile_unread_thread_siblings(fetched);
+
+          if (stale_fetched.length > 0) {
+            remove_ids(stale_fetched);
+          }
+        });
+
+        const received_only = correct_received_rows(
+          fetched.filter(belongs_in_inbox),
+        );
+
+        const grouped = drop_removed_after(
+          preferences.conversation_grouping !== false
+            ? group_emails_by_thread(received_only)
+            : received_only,
+          fetch_started_at,
+        );
+
+        touch_cache_entry(page_cache.current, cache_key, grouped);
+
+        if (target_page === 0 && owner) {
+          schedule_list_snapshot(
+            `category:${fetch_category}`,
+            owner,
+            cache_key,
+            grouped,
+          );
+        }
+
+        const pruned =
+          missing_ids.length > 0 ||
+          stale_fetched.length > 0 ||
+          unrenderable_ids.length > 0;
+        const effective_total = pruned
+          ? get_category_total(active_category)
+          : total;
+        const effective_has_more = (target_page + 1) * limit < effective_total;
+
+        set_state((prev) =>
+          build_list_state(prev, grouped, effective_total, effective_has_more),
+        );
+      } catch {
+        fetch_settled = true;
+        if (controller.signal.aborted) return;
+        if (committed_category_ref.current !== fetch_category) return;
+        if (schedule_retry()) return;
+
+        if (snapshot_painted) last_signature_ref.current = "";
+        set_state(build_load_failed_state);
+      } finally {
+        if (abort_ref.current === controller || abort_ref.current === null) {
+          fetch_in_flight_ref.current = false;
+        }
+      }
+    },
+    [
+      enabled,
+      active_category,
+      format_options,
+      user?.email,
+      preferences.conversation_grouping,
+      page_variant,
+    ],
+  );
+
+  useEffect(() => {
+    if (fetch_retry_timer_ref.current) {
+      clearTimeout(fetch_retry_timer_ref.current);
+      fetch_retry_timer_ref.current = null;
+    }
+    fetch_retry_ref.current = { sig: "", attempts: 0 };
+  }, [active_category, page]);
+
+  // Warms the first page of the other category tabs once the visible tab has
+  // settled, so switching tabs renders from cache instead of a skeleton.
+  useEffect(() => {
+    if (!enabled) return;
+    if (page !== 0) return;
+    if (!state.has_initial_load || state.is_loading) return;
+    if (!is_index_settled()) return;
+    if (!has_passphrase_in_memory()) return;
+    if (!user?.email) return;
+
+    let cancelled = false;
+    const account = user.email;
+    const timer = setTimeout(() => {
+      void (async () => {
+        const tabs = get_active_tabs()
+          .filter((tab) => tab !== active_category)
+          .slice(0, PREFETCH_MAX_TABS);
+
+        for (const tab of tabs) {
+          if (cancelled) return;
+          if (fetch_in_flight_ref.current) return;
+
+          const ids = get_page_ids(tab, 0, page_size);
+
+          if (ids.length === 0) continue;
+
+          const key = build_page_cache_key(tab, 0, page_variant, ids);
+
+          if (page_cache.current.has(key)) continue;
+
+          try {
+            const { emails: fetched, request_ok } =
+              await fetch_mail_by_ids_reconciled(ids, format_options, account);
+
+            if (!request_ok) return;
+
+            const received_only = correct_received_rows(
+              fetched.filter(belongs_in_inbox),
+            );
+            const grouped =
+              preferences.conversation_grouping !== false
+                ? group_emails_by_thread(received_only)
+                : received_only;
+
+            touch_cache_entry(page_cache.current, key, grouped);
+            schedule_list_snapshot(`category:${tab}`, account, key, grouped);
+          } catch {
+            return;
+          }
+        }
+      })();
+    }, PREFETCH_DELAY_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    enabled,
+    active_category,
+    page,
+    page_size,
+    page_variant,
+    state.has_initial_load,
+    state.is_loading,
+    format_options,
+    user?.email,
+    preferences.conversation_grouping,
+  ]);
+
+  useEffect(() => {
+    rendered_rows_ref.current = state.has_initial_load
+      ? state.emails.length
+      : 0;
+  }, [state.emails, state.has_initial_load]);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const ids = get_page_ids(active_category, page, page_size);
+    const built = is_index_settled() ? "b1" : "b0";
+    const unread_bits = ids
+      .map((id) => (is_representative_unread(id) ? "u" : "r"))
+      .join("");
+    const scope = `${active_category}|${page}|${page_variant}|`;
+    const signature = `${scope}${built}|${unread_bits}|${ids.join(",")}`;
+
+    if (signature === last_signature_ref.current) return;
+
+    if (
+      !is_index_readable() &&
+      !is_index_capped() &&
+      is_build_in_progress() &&
+      !is_build_stalled()
+    ) {
+      const can_paint_early =
+        page === 0 &&
+        preferences.inbox_sort_order !== "oldest_first" &&
+        ids.length > 0 &&
+        (ids.length >= page_size || early_paint_scope_ref.current !== scope);
+
+      if (!can_paint_early) return;
+
+      early_paint_scope_ref.current = scope;
+    }
+
+    const same_scope =
+      last_signature_ref.current.startsWith(scope) &&
+      rendered_rows_ref.current > 0;
+
+    last_signature_ref.current = signature;
+    void fetch_page(page, page_size, same_scope ? { silent: true } : undefined);
+  }, [
+    enabled,
+    active_category,
+    page,
+    page_size,
+    index_version,
+    fetch_page,
+    page_variant,
+    preferences.inbox_sort_order,
+  ]);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    let cancelled = false;
+
+    const handle_refresh_requested = () => {
+      if (!has_passphrase_in_memory()) return;
+      request_cache.invalidate("GET:/mail/v1/messages");
+      page_cache.current.clear();
+      last_signature_ref.current = "";
+      set_state((prev) => {
+        if (prev.emails.length > 0) {
+          return prev.is_loading ? prev : { ...prev, is_loading: true };
+        }
+
+        return prev.is_loading && !prev.has_initial_load
+          ? prev
+          : { ...prev, is_loading: true, has_initial_load: false };
+      });
+      void (async () => {
+        try {
+          await sync_recent(false, true);
+        } catch {
+          void 0;
+        }
+
+        if (cancelled) return;
+
+        await fetch_page(page, page_size);
+        if (cancelled) return;
+        invalidate_mail_stats();
+      })();
+    };
+
+    let sent_refetch_timer: ReturnType<typeof setTimeout> | null = null;
+
+    const handle_email_sent = () => {
+      if (!has_passphrase_in_memory()) return;
+      if (sent_refetch_timer !== null) clearTimeout(sent_refetch_timer);
+      sent_refetch_timer = setTimeout(() => {
+        sent_refetch_timer = null;
+        if (cancelled) return;
+        void fetch_page(page, page_size, { silent: true, force: true });
+      }, SENT_REFETCH_DEBOUNCE_MS);
+    };
+
+    let remote_refetch_timer: ReturnType<typeof setTimeout> | null = null;
+
+    const handle_remote_mutation = () => {
+      if (!has_passphrase_in_memory()) return;
+      if (remote_refetch_timer !== null) clearTimeout(remote_refetch_timer);
+      remote_refetch_timer = setTimeout(() => {
+        remote_refetch_timer = null;
+        if (cancelled) return;
+        page_cache.current.clear();
+        void fetch_page(page, page_size, { silent: true, force: true });
+      }, SENT_REFETCH_DEBOUNCE_MS);
+    };
+
+    let arrival_refetch_timer: ReturnType<typeof setTimeout> | null = null;
+
+    const schedule_arrival_refetch = () => {
+      if (arrival_refetch_timer !== null) {
+        clearTimeout(arrival_refetch_timer);
+      }
+      arrival_refetch_timer = setTimeout(() => {
+        arrival_refetch_timer = null;
+        if (cancelled) return;
+        page_cache.current.clear();
+        void fetch_page(page, page_size, { silent: true });
+      }, ARRIVAL_REFETCH_DEBOUNCE_MS);
+    };
+
+    const handle_email_received = (event: Event) => {
+      if (!has_passphrase_in_memory()) return;
+      const email_id = (event as CustomEvent<{ email_id?: string }>).detail
+        ?.email_id;
+
+      last_arrival_fetch_ref.current = Date.now();
+      void (async () => {
+        try {
+          if (email_id) {
+            await index_arrival(email_id);
+          } else {
+            await sync_recent(false, true);
+          }
+        } catch {
+          void 0;
+        }
+
+        if (cancelled) return;
+
+        schedule_arrival_refetch();
+      })();
+    };
+
+    const handle_visible = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!has_passphrase_in_memory()) return;
+      if (
+        Date.now() - last_arrival_fetch_ref.current <
+        VISIBLE_REFETCH_MIN_MS
+      ) {
+        return;
+      }
+      last_arrival_fetch_ref.current = Date.now();
+      void fetch_page(page, page_size, { silent: true });
+    };
+
+    window.addEventListener(
+      MAIL_EVENTS.REFRESH_REQUESTED,
+      handle_refresh_requested,
+    );
+    window.addEventListener(MAIL_EVENTS.EMAIL_SENT, handle_email_sent);
+    window.addEventListener(
+      MAIL_EVENTS.MAIL_REMOTE_MUTATION,
+      handle_remote_mutation,
+    );
+    window.addEventListener(MAIL_EVENTS.EMAIL_RECEIVED, handle_email_received);
+    document.addEventListener("visibilitychange", handle_visible);
+
+    return () => {
+      cancelled = true;
+      if (sent_refetch_timer !== null) {
+        clearTimeout(sent_refetch_timer);
+        sent_refetch_timer = null;
+      }
+      if (arrival_refetch_timer !== null) {
+        clearTimeout(arrival_refetch_timer);
+        arrival_refetch_timer = null;
+      }
+      if (remote_refetch_timer !== null) {
+        clearTimeout(remote_refetch_timer);
+        remote_refetch_timer = null;
+      }
+      document.removeEventListener("visibilitychange", handle_visible);
+      window.removeEventListener(
+        MAIL_EVENTS.MAIL_REMOTE_MUTATION,
+        handle_remote_mutation,
+      );
+      window.removeEventListener(
+        MAIL_EVENTS.EMAIL_RECEIVED,
+        handle_email_received,
+      );
+      window.removeEventListener(MAIL_EVENTS.EMAIL_SENT, handle_email_sent);
+      window.removeEventListener(
+        MAIL_EVENTS.REFRESH_REQUESTED,
+        handle_refresh_requested,
+      );
+    };
+  }, [enabled, page, page_size, fetch_page]);
+
+  const update_email = useCallback(
+    (id: string, updates: Partial<InboxEmail>): void => {
+      for (const key of page_cache.current.keys()) {
+        const ids_part = key.split(":").slice(4).join(":");
+
+        if (ids_part.split(",").includes(id)) {
+          page_cache.current.delete(key);
+        }
+      }
+
+      set_state((prev) => ({
+        ...prev,
+        emails: prev.emails.map((e) =>
+          e.id === id ? { ...e, ...updates } : e,
+        ),
+      }));
+    },
+    [],
+  );
+
+  const remove_email = useCallback((id: string): void => {
+    remove_ids([id]);
+    set_state((prev) => ({
+      ...prev,
+      emails: prev.emails.filter((e) => e.id !== id),
+      total_messages: Math.max(0, prev.total_messages - 1),
+    }));
+  }, []);
+
+  const remove_emails = useCallback((ids: string[]): void => {
+    remove_ids(ids);
+    const id_set = new Set(ids);
+
+    set_state((prev) => ({
+      ...prev,
+      emails: prev.emails.filter((e) => !id_set.has(e.id)),
+      total_messages: Math.max(0, prev.total_messages - ids.length),
+    }));
+  }, []);
+
+  const restore_emails = useCallback((entries: RestoredEmailEntry[]): void => {
+    if (entries.length === 0) return;
+    page_cache.current.clear();
+    reindex_ids(entries.map((entry) => entry.email.id));
+    set_state((prev) => {
+      const emails = insert_emails_at(prev.emails, entries);
+
+      if (emails === prev.emails) return prev;
+
+      return {
+        ...prev,
+        emails,
+        total_messages:
+          prev.total_messages + (emails.length - prev.emails.length),
+      };
+    });
+  }, []);
+
+  const refresh = useCallback(() => {
+    page_cache.current.clear();
+    last_signature_ref.current = "";
+    clear_suppressed_ids();
+    void fetch_page(page, page_size);
+  }, [fetch_page, page, page_size]);
+
+  fetch_page_ref.current = fetch_page;
+
+  const load_more = useCallback(async (): Promise<void> => {
+    return;
+  }, []);
+
+  const {
+    toggle_star,
+    toggle_pin,
+    mark_read,
+    delete_email,
+    archive_email,
+    unarchive_email,
+    mark_spam,
+  } = use_email_list_actions({
+    state,
+    set_state,
+    update_email,
+    remove_email,
+    refresh,
+  });
+
+  const raw_bulk = use_email_list_bulk({
+    state,
+    set_state,
+    fetch_page_ref,
+    page_size,
+  });
+
+  const finish_thread_action = useCallback(
+    (
+      email: InboxEmail | undefined,
+      server_op: (sibling_ids: string[]) => Promise<boolean>,
+    ): void => {
+      if (!email?.thread_token) return;
+      if ((email.thread_message_count ?? 1) <= 1) return;
+      if (!trashes_whole_thread(email, preferences.conversation_grouping)) {
+        return;
+      }
+
+      const token = email.thread_token;
+      const removed = remove_thread_entries(token);
+
+      void (async () => {
+        try {
+          const response = await get_thread_messages(token);
+
+          if (!response.data) {
+            reindex_ids(removed);
+
+            return;
+          }
+
+          const messages = response.data.messages ?? [];
+          const total = response.data.thread?.message_count ?? messages.length;
+          const sibling_ids = messages
+            .filter(
+              (message) =>
+                message.item_type === "received" && message.id !== email.id,
+            )
+            .map((message) => message.id);
+
+          if (sibling_ids.length > 0) {
+            const ok = await server_op(sibling_ids);
+
+            if (!ok) {
+              reindex_ids(removed);
+
+              return;
+            }
+          }
+
+          if (total > messages.length) {
+            request_full_rebuild();
+
+            return;
+          }
+
+          emit_mail_soft_refresh();
+        } catch {
+          reindex_ids(removed);
+        }
+      })();
+    },
+    [preferences.conversation_grouping],
+  );
+
+  const delete_email_thread_aware = useCallback(
+    async (id: string): Promise<void> => {
+      const email = state.emails.find((e) => e.id === id);
+
+      await delete_email(id);
+      finish_thread_action(email, async (sibling_ids) => {
+        const result = await set_thread_trashed(
+          email!.thread_token!,
+          [id, ...sibling_ids],
+          true,
+        );
+
+        return !!result.data;
+      });
+    },
+    [state.emails, delete_email, finish_thread_action],
+  );
+
+  const archive_email_thread_aware = useCallback(
+    async (id: string): Promise<void> => {
+      const email = state.emails.find((e) => e.id === id);
+
+      await archive_email(id);
+      finish_thread_action(email, async (sibling_ids) => {
+        const result = await api_batch_archive({
+          ids: sibling_ids,
+          tier: "hot",
+        });
+
+        if (result.data?.success) {
+          void bulk_update_metadata_by_ids(sibling_ids, {
+            is_archived: true,
+          }).catch((caught) =>
+            ignore_error(
+              "hooks/use_category_inbox:handle_refresh_requested",
+              caught,
+            ),
+          );
+        }
+
+        return !!result.data?.success;
+      });
+    },
+    [state.emails, archive_email, finish_thread_action],
+  );
+
+  const mark_spam_thread_aware = useCallback(
+    async (id: string): Promise<void> => {
+      const email = state.emails.find((e) => e.id === id);
+
+      await mark_spam(id);
+      finish_thread_action(email, async (sibling_ids) => {
+        const result = await bulk_update_metadata_by_ids(sibling_ids, {
+          is_spam: true,
+          is_trashed: false,
+        });
+
+        return result.success;
+      });
+    },
+    [state.emails, mark_spam, finish_thread_action],
+  );
+
+  const bulk_delete = useCallback(
+    async (
+      ids: string[],
+      options?: BulkDeleteOptions,
+    ): Promise<BulkActionResult> => {
+      remove_ids(ids);
+
+      const result = await raw_bulk.bulk_delete(ids, options);
+
+      if (result.failed_ids.length > 0) {
+        reindex_ids(result.failed_ids);
+      }
+
+      return result;
+    },
+    [raw_bulk],
+  );
+
+  const bulk_archive = useCallback(
+    async (ids: string[]): Promise<BulkActionResult> => {
+      const id_set = new Set(ids);
+      const selected = state.emails.filter((e) => id_set.has(e.id));
+
+      remove_ids(ids);
+
+      const result = await raw_bulk.bulk_archive(ids);
+      const failed = new Set(result.failed_ids);
+
+      for (const email of selected) {
+        if (failed.has(email.id)) continue;
+        finish_thread_action(email, async (sibling_ids) => {
+          const sibling_result = await api_batch_archive({
+            ids: sibling_ids,
+            tier: "hot",
+          });
+
+          if (sibling_result.data?.success) {
+            void bulk_update_metadata_by_ids(sibling_ids, {
+              is_archived: true,
+            }).catch((caught) =>
+              ignore_error(
+                "hooks/use_category_inbox:handle_refresh_requested",
+                caught,
+              ),
+            );
+          }
+
+          return !!sibling_result.data?.success;
+        });
+      }
+
+      return result;
+    },
+    [raw_bulk, state.emails, finish_thread_action],
+  );
+
+  return {
+    state,
+    fetch_page,
+    is_page_cached,
+    load_more,
+    update_email,
+    remove_email,
+    remove_emails,
+    restore_emails,
+    toggle_star,
+    toggle_pin,
+    mark_read,
+    delete_email: delete_email_thread_aware,
+    archive_email: archive_email_thread_aware,
+    unarchive_email,
+    mark_spam: mark_spam_thread_aware,
+    bulk_delete,
+    bulk_archive,
+    bulk_unarchive: raw_bulk.bulk_unarchive,
+    refresh,
+  };
+}

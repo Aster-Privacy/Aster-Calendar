@@ -1,0 +1,842 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { get_current_account } from "../account_manager";
+import { api_client } from "../api/client";
+
+import { array_to_base64, base64_to_array } from "./base64";
+import {
+  encrypt_vault,
+  decrypt_vault,
+  type EncryptedVault,
+} from "./key_manager";
+import {
+  get_vault_from_memory,
+  store_vault_in_memory,
+  get_passphrase_from_memory,
+} from "./memory_key_store";
+import {
+  generate_ratchet_keys,
+  generate_pq_identity_keys,
+  derive_pq_identity_from_seed,
+} from "./ratchet_manager";
+import { upload_prekey_bundle_result } from "./ratchet_prekey_bundle";
+import {
+  carry_displaced_ratchet_keys,
+  retain_replaced_ratchet_keys,
+  vault_holds_ratchet_keys,
+} from "./ratchet_key_continuity";
+import { clear_all_ratchet_states } from "./ratchet_state_store";
+import { report_envelope_capability_if_due } from "./envelope_capability";
+import { with_vault_write_lock } from "./vault_write_lock";
+import {
+  complete_p256_private_jwk,
+  is_compact_p256_private_jwk,
+} from "./p256_jwk";
+import { recover_ratchet_keys_from_history_locked } from "./vault_key_recovery";
+import { collect_vault_key_fingerprints } from "./vault_key_fingerprints";
+import { published_bundle_needs_resigning } from "./published_signing_key";
+
+import { ignore_error } from "@/lib/ignore_error";
+
+function get_stored_account_vault(
+  user_id: string,
+): { encrypted_vault: string; vault_nonce: string } | null {
+  try {
+    const encrypted_vault = localStorage.getItem(
+      `astermail_encrypted_vault_${user_id}`,
+    );
+    const vault_nonce = localStorage.getItem(
+      `astermail_vault_nonce_${user_id}`,
+    );
+
+    return encrypted_vault && vault_nonce
+      ? { encrypted_vault, vault_nonce }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function passphrase_matches_account(
+  user_id: string,
+  passphrase: string,
+  expected_identity_key: string,
+): Promise<boolean> {
+  const stored = get_stored_account_vault(user_id);
+
+  if (!stored) return false;
+
+  try {
+    const decrypted = await decrypt_vault(
+      stored.encrypted_vault,
+      stored.vault_nonce,
+      passphrase,
+    );
+
+    return decrypted.identity_key === expected_identity_key;
+  } catch {
+    return false;
+  }
+}
+
+export async function verify_vault_roundtrip(
+  encrypted_vault: string,
+  vault_nonce: string,
+  passphrase: string,
+  expected_identity_key: string,
+): Promise<boolean> {
+  try {
+    const decrypted = await decrypt_vault(
+      encrypted_vault,
+      vault_nonce,
+      passphrase,
+    );
+
+    return decrypted.identity_key === expected_identity_key;
+  } catch {
+    return false;
+  }
+}
+
+export async function push_vault_to_server(
+  encrypted_vault: string,
+  vault_nonce: string,
+  expected_user_id: string,
+  vault_format?: number,
+  vault?: EncryptedVault | null,
+): Promise<boolean> {
+  const current_account = await get_current_account();
+
+  if (current_account?.user?.id !== expected_user_id) return false;
+
+  const vault_key_fingerprints = vault
+    ? await collect_vault_key_fingerprints(vault)
+    : undefined;
+
+  const response = await api_client.put("/crypto/v1/keys/vault", {
+    encrypted_vault,
+    vault_nonce,
+    expected_user_id,
+    vault_format: vault_format ?? 1,
+    preserve_pq_prekeys: true,
+    ...(vault_key_fingerprints?.length ? { vault_key_fingerprints } : {}),
+  });
+
+  return !response.error;
+}
+
+let in_flight: Promise<boolean> | null = null;
+
+async function report_capability(): Promise<void> {
+  try {
+    const account = await get_current_account();
+    const user_id = account?.user?.id;
+
+    if (!user_id) return;
+
+    const result = await report_envelope_capability_if_due(user_id);
+
+    if (!result || result.identity_verified) return;
+
+    await with_vault_write_lock(async () => {
+      const freshness = await sync_vault_with_server();
+
+      if (freshness.status === "unverified") return;
+
+      const vault =
+        freshness.status === "adopted"
+          ? freshness.vault
+          : get_vault_from_memory();
+
+      if (vault) await upload_prekey_bundle_with_retry(vault);
+    });
+  } catch {
+    return;
+  }
+}
+
+export async function ensure_ratchet_keys(): Promise<boolean> {
+  if (in_flight) return in_flight;
+
+  in_flight = run().finally(() => {
+    in_flight = null;
+    void report_capability();
+  });
+
+  return in_flight;
+}
+
+function base64url_to_bytes(b64url: string): Uint8Array {
+  const b64 = b64url.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = b64.padEnd(b64.length + ((4 - (b64.length % 4)) % 4), "=");
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return bytes;
+}
+
+async function keypairs_consistent(
+  jwk_string: string,
+  public_b64: string,
+): Promise<boolean> {
+  try {
+    const jwk = complete_p256_private_jwk(JSON.parse(jwk_string));
+
+    if (!jwk.x || !jwk.y || !jwk.d) return false;
+
+    const x = base64url_to_bytes(jwk.x);
+    const y = base64url_to_bytes(jwk.y);
+
+    if (x.length !== 32 || y.length !== 32) return false;
+
+    const derived = new Uint8Array(65);
+
+    derived[0] = 0x04;
+    derived.set(x, 1);
+    derived.set(y, 33);
+
+    const stored = base64_to_array(public_b64);
+
+    if (stored.length !== 65) return false;
+
+    for (let i = 0; i < 65; i++) {
+      if (derived[i] !== stored[i]) return false;
+    }
+
+    const stored_public = await crypto.subtle.importKey(
+      "raw",
+      stored,
+      { name: "ECDH", namedCurve: "P-256" },
+      false,
+      [],
+    );
+
+    const jwk_private = await crypto.subtle.importKey(
+      "jwk",
+      jwk,
+      { name: "ECDH", namedCurve: "P-256" },
+      false,
+      ["deriveBits"],
+    );
+
+    const temp = await crypto.subtle.generateKey(
+      { name: "ECDH", namedCurve: "P-256" },
+      false,
+      ["deriveBits"],
+    );
+
+    const [dh_a, dh_b] = await Promise.all([
+      crypto.subtle.deriveBits(
+        { name: "ECDH", public: stored_public },
+        temp.privateKey,
+        256,
+      ),
+      crypto.subtle.deriveBits(
+        { name: "ECDH", public: temp.publicKey },
+        jwk_private,
+        256,
+      ),
+    ]);
+
+    const a = new Uint8Array(dh_a);
+    const b = new Uint8Array(dh_b);
+
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false;
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const FORCED_REGEN_KEY = "astermail_ratchet_regen_v4";
+
+function retain_replaced_pq_identity(
+  vault: EncryptedVault,
+  next_vault: EncryptedVault,
+): EncryptedVault["ratchet_previous_keys"] {
+  if (!vault.ratchet_pq_identity_key || !vault.ratchet_pq_identity_public) {
+    return vault.ratchet_previous_keys;
+  }
+
+  return retain_replaced_ratchet_keys(vault, next_vault);
+}
+
+function derive_public_b64_from_jwk(jwk_string: string): string | null {
+  try {
+    const jwk = complete_p256_private_jwk(JSON.parse(jwk_string));
+
+    if (!jwk.x || !jwk.y || !jwk.d) return null;
+
+    const x = base64url_to_bytes(jwk.x);
+    const y = base64url_to_bytes(jwk.y);
+
+    if (x.length !== 32 || y.length !== 32) return null;
+
+    const derived = new Uint8Array(65);
+
+    derived[0] = 0x04;
+    derived.set(x, 1);
+    derived.set(y, 33);
+
+    return array_to_base64(derived);
+  } catch {
+    return null;
+  }
+}
+
+interface PublishedBundleView {
+  kem_identity_key?: string;
+  signed_prekey?: string;
+  signed_prekey_signature?: string;
+  pq_kem_public_key?: string | null;
+}
+
+async function published_signature_is_current(
+  vault: EncryptedVault,
+  signature_field: string | undefined,
+): Promise<boolean> {
+  if (!vault.ratchet_pq_identity_public) return true;
+
+  if (!vault.identity_key || !get_passphrase_from_memory()) return true;
+
+  if (!signature_field) return false;
+
+  const { read_ratchet_prekey_signature_format } =
+    await import("./key_manager_pgp");
+
+  return (await read_ratchet_prekey_signature_format(signature_field)) === "v2";
+}
+
+async function published_bundle_matches_vault(
+  vault: EncryptedVault,
+): Promise<boolean | null> {
+  try {
+    const account = await get_current_account();
+    const email = account?.user?.email;
+
+    if (!email) return null;
+
+    const username = email.split("@")[0];
+    const response = await api_client.get<PublishedBundleView>(
+      `/crypto/v1/ratchet/prekey-bundle/${encodeURIComponent(username)}?email=${encodeURIComponent(email)}`,
+    );
+
+    if (response.code === "NOT_FOUND") return false;
+
+    if (response.error || !response.data) return null;
+
+    const keys_match =
+      response.data.kem_identity_key === vault.ratchet_identity_public &&
+      response.data.signed_prekey === vault.ratchet_signed_prekey_public &&
+      (response.data.pq_kem_public_key ?? null) ===
+        (vault.ratchet_pq_identity_public ?? null);
+
+    if (!keys_match) return false;
+
+    const signature_field = response.data.signed_prekey_signature;
+
+    if (!(await published_signature_is_current(vault, signature_field))) {
+      return false;
+    }
+
+    if (!signature_field) return true;
+
+    const needs_resigning = await published_bundle_needs_resigning(vault, {
+      kem_identity_key: vault.ratchet_identity_public ?? "",
+      signed_prekey: vault.ratchet_signed_prekey_public ?? "",
+      signed_prekey_signature: signature_field,
+      pq_kem_public_key: vault.ratchet_pq_identity_public ?? null,
+    });
+
+    return !needs_resigning;
+  } catch {
+    return null;
+  }
+}
+
+const IDENTITY_CONTINUITY_MARKER = "identity_continuity_required";
+
+interface ServerVaultView {
+  encrypted_vault?: string;
+  vault_nonce?: string;
+  vault_format?: number;
+}
+
+export type VaultFreshness =
+  | { status: "current" }
+  | { status: "adopted"; vault: EncryptedVault }
+  | { status: "unverified" };
+
+type ServerVaultFetch =
+  | { kind: "ok"; encrypted_vault: string; vault_nonce: string }
+  | { kind: "missing" }
+  | { kind: "error" };
+
+async function fetch_server_vault(): Promise<ServerVaultFetch> {
+  try {
+    const response = await api_client.get<ServerVaultView>(
+      "/crypto/v1/keys/vault",
+    );
+
+    if (response.code === "NOT_FOUND") {
+      return { kind: "missing" };
+    }
+
+    if (
+      response.error ||
+      !response.data?.encrypted_vault ||
+      !response.data.vault_nonce
+    ) {
+      return { kind: "error" };
+    }
+
+    return {
+      kind: "ok",
+      encrypted_vault: response.data.encrypted_vault,
+      vault_nonce: response.data.vault_nonce,
+    };
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+export async function server_vault_matches_stored(
+  user_id: string,
+): Promise<boolean> {
+  const stored = get_stored_account_vault(user_id);
+
+  if (!stored) return false;
+
+  const server_vault = await fetch_server_vault();
+
+  return (
+    server_vault.kind === "ok" &&
+    server_vault.encrypted_vault === stored.encrypted_vault &&
+    server_vault.vault_nonce === stored.vault_nonce
+  );
+}
+
+export async function sync_vault_with_server(): Promise<VaultFreshness> {
+  const account = await get_current_account();
+  const user_id = account?.user?.id;
+
+  if (!user_id) return { status: "unverified" };
+
+  const server_vault = await fetch_server_vault();
+
+  if (server_vault.kind === "missing") return { status: "current" };
+
+  if (server_vault.kind === "error") return { status: "unverified" };
+
+  const stored = get_stored_account_vault(user_id);
+
+  if (
+    stored &&
+    stored.encrypted_vault === server_vault.encrypted_vault &&
+    stored.vault_nonce === server_vault.vault_nonce
+  ) {
+    return { status: "current" };
+  }
+
+  const passphrase = get_passphrase_from_memory();
+
+  if (!passphrase) return { status: "unverified" };
+
+  let adopted: EncryptedVault;
+
+  try {
+    adopted = carry_displaced_ratchet_keys(
+      await decrypt_vault(
+        server_vault.encrypted_vault,
+        server_vault.vault_nonce,
+        passphrase,
+      ),
+      get_vault_from_memory(),
+    );
+  } catch {
+    return { status: "unverified" };
+  }
+
+  await store_vault_in_memory(adopted, passphrase, user_id);
+
+  try {
+    localStorage.setItem(
+      `astermail_encrypted_vault_${user_id}`,
+      server_vault.encrypted_vault,
+    );
+    localStorage.setItem(
+      `astermail_vault_nonce_${user_id}`,
+      server_vault.vault_nonce,
+    );
+  } catch (caught) {
+    ignore_error(
+      "services/crypto/ensure_ratchet_keys:sync_vault_with_server",
+      caught,
+    );
+  }
+
+  return { status: "adopted", vault: adopted };
+}
+
+async function refresh_vault_write_stamp(): Promise<boolean> {
+  const account = await get_current_account();
+  const user_id = account?.user?.id;
+
+  if (!user_id) return false;
+
+  const stored = get_stored_account_vault(user_id);
+
+  if (!stored) return false;
+
+  const server_vault = await fetch_server_vault();
+
+  if (
+    server_vault.kind !== "ok" ||
+    server_vault.encrypted_vault !== stored.encrypted_vault ||
+    server_vault.vault_nonce !== stored.vault_nonce
+  ) {
+    return false;
+  }
+
+  const vault = get_vault_from_memory();
+
+  return push_vault_to_server(
+    stored.encrypted_vault,
+    stored.vault_nonce,
+    user_id,
+    vault?.vault_format,
+    vault,
+  );
+}
+
+export async function server_vault_holds_publish_keys(
+  vault: EncryptedVault,
+): Promise<boolean> {
+  const passphrase = get_passphrase_from_memory();
+
+  if (!passphrase) return false;
+
+  const server_vault = await fetch_server_vault();
+
+  if (server_vault.kind !== "ok") return false;
+
+  try {
+    const decrypted = await decrypt_vault(
+      server_vault.encrypted_vault,
+      server_vault.vault_nonce,
+      passphrase,
+    );
+
+    return vault_holds_ratchet_keys(decrypted, vault);
+  } catch {
+    return false;
+  }
+}
+
+export function publish_vaulted_prekey_bundle(
+  vault: EncryptedVault,
+): Promise<boolean> {
+  return with_vault_write_lock(() => upload_prekey_bundle_with_retry(vault));
+}
+
+async function upload_prekey_bundle_with_retry(
+  vault: EncryptedVault,
+): Promise<boolean> {
+  try {
+    if (!(await server_vault_holds_publish_keys(vault))) return false;
+
+    const first = await upload_prekey_bundle_result(vault);
+
+    if (first.ok) return true;
+
+    if (first.error_message?.includes(IDENTITY_CONTINUITY_MARKER)) {
+      if (!(await refresh_vault_write_stamp())) return false;
+
+      const second = await upload_prekey_bundle_result(vault);
+
+      if (second.ok) return true;
+
+      if (!second.error_message?.includes(IDENTITY_CONTINUITY_MARKER)) {
+        return false;
+      }
+
+      const recovered = await recover_ratchet_keys_from_history_locked();
+
+      if (!recovered) return false;
+
+      if (!(await server_vault_holds_publish_keys(recovered))) return false;
+
+      return (await upload_prekey_bundle_result(recovered)).ok;
+    }
+
+    return (await upload_prekey_bundle_result(vault)).ok;
+  } catch {
+    return false;
+  }
+}
+
+function run(): Promise<boolean> {
+  return with_vault_write_lock(run_locked);
+}
+
+async function run_locked(): Promise<boolean> {
+  return run_locked_with_vault(get_vault_from_memory(), true);
+}
+
+async function run_locked_with_vault(
+  initial_vault: EncryptedVault | null,
+  allow_adoption: boolean,
+): Promise<boolean> {
+  try {
+    const vault = initial_vault;
+
+    if (!vault) return false;
+
+    const has_ecdh =
+      !!vault.ratchet_identity_key &&
+      !!vault.ratchet_identity_public &&
+      !!vault.ratchet_signed_prekey &&
+      !!vault.ratchet_signed_prekey_public;
+
+    const pq_from_seed =
+      !vault.ratchet_pq_identity_key && vault.ratchet_pq_identity_seed
+        ? derive_pq_identity_from_seed(vault.ratchet_pq_identity_seed)
+        : null;
+
+    const has_pq =
+      (!!vault.ratchet_pq_identity_key || !!pq_from_seed) &&
+      (!!vault.ratchet_pq_identity_public || !!pq_from_seed) &&
+      !!vault.ratchet_pq_identity_seed;
+
+    const need_forced_regen =
+      !localStorage.getItem(FORCED_REGEN_KEY) &&
+      !vault.ratchet_regen_v4_done &&
+      !is_compact_p256_private_jwk(vault.ratchet_identity_key);
+
+    if (
+      vault.ratchet_regen_v4_done &&
+      !localStorage.getItem(FORCED_REGEN_KEY)
+    ) {
+      localStorage.setItem(FORCED_REGEN_KEY, "1");
+    }
+
+    const ecdh_consistent =
+      !need_forced_regen &&
+      has_ecdh &&
+      (await keypairs_consistent(
+        vault.ratchet_identity_key!,
+        vault.ratchet_identity_public!,
+      )) &&
+      (await keypairs_consistent(
+        vault.ratchet_signed_prekey!,
+        vault.ratchet_signed_prekey_public!,
+      ));
+
+    if (has_ecdh && has_pq && ecdh_consistent) {
+      const bundle_matches = await published_bundle_matches_vault(vault);
+
+      if (bundle_matches !== true) {
+        const freshness = await sync_vault_with_server();
+
+        if (freshness.status === "unverified") return true;
+
+        if (freshness.status === "adopted") {
+          return allow_adoption
+            ? run_locked_with_vault(freshness.vault, false)
+            : true;
+        }
+
+        await upload_prekey_bundle_with_retry(vault);
+      }
+
+      return true;
+    }
+
+    const passphrase = get_passphrase_from_memory();
+
+    if (!passphrase) return false;
+
+    const account = await get_current_account();
+    const user_id = account?.user?.id;
+
+    if (!user_id) return false;
+
+    const passphrase_ok = await passphrase_matches_account(
+      user_id,
+      passphrase,
+      vault.identity_key,
+    );
+
+    if (!passphrase_ok) return false;
+
+    const freshness = await sync_vault_with_server();
+
+    if (freshness.status === "unverified") return false;
+
+    if (freshness.status === "adopted") {
+      return allow_adoption
+        ? run_locked_with_vault(freshness.vault, false)
+        : false;
+    }
+
+    const next_vault: EncryptedVault = {
+      ...vault,
+      ratchet_previous_keys: vault.ratchet_previous_keys
+        ? [...vault.ratchet_previous_keys]
+        : undefined,
+    };
+
+    let clear_states = false;
+
+    if (pq_from_seed) {
+      next_vault.ratchet_pq_identity_key = pq_from_seed.pq_identity_secret;
+      next_vault.ratchet_pq_identity_public = pq_from_seed.pq_identity_public;
+    }
+
+    const repaired_identity_public =
+      !need_forced_regen && vault.ratchet_identity_key
+        ? derive_public_b64_from_jwk(vault.ratchet_identity_key)
+        : null;
+    const repaired_spk_public =
+      !need_forced_regen && vault.ratchet_signed_prekey
+        ? derive_public_b64_from_jwk(vault.ratchet_signed_prekey)
+        : null;
+
+    const can_repair =
+      !ecdh_consistent &&
+      !!repaired_identity_public &&
+      !!repaired_spk_public &&
+      (await keypairs_consistent(
+        vault.ratchet_identity_key!,
+        repaired_identity_public,
+      )) &&
+      (await keypairs_consistent(
+        vault.ratchet_signed_prekey!,
+        repaired_spk_public,
+      ));
+
+    if (has_ecdh && ecdh_consistent && !has_pq) {
+      const pq_keys = await generate_pq_identity_keys();
+
+      next_vault.ratchet_pq_identity_key = pq_keys.pq_identity_secret;
+      next_vault.ratchet_pq_identity_public = pq_keys.pq_identity_public;
+      next_vault.ratchet_pq_identity_seed = pq_keys.pq_identity_seed;
+      next_vault.ratchet_previous_keys = retain_replaced_pq_identity(
+        vault,
+        next_vault,
+      );
+    } else if (can_repair) {
+      next_vault.ratchet_identity_public = repaired_identity_public!;
+      next_vault.ratchet_signed_prekey_public = repaired_spk_public!;
+
+      if (!has_pq) {
+        const pq_keys = await generate_pq_identity_keys();
+
+        next_vault.ratchet_pq_identity_key = pq_keys.pq_identity_secret;
+        next_vault.ratchet_pq_identity_public = pq_keys.pq_identity_public;
+        next_vault.ratchet_pq_identity_seed = pq_keys.pq_identity_seed;
+        next_vault.ratchet_previous_keys = retain_replaced_pq_identity(
+          vault,
+          next_vault,
+        );
+      }
+    } else {
+      const ratchet_keys = await generate_ratchet_keys();
+
+      if (!ratchet_keys) return false;
+
+      next_vault.ratchet_identity_key = ratchet_keys.identity_jwk;
+      next_vault.ratchet_identity_public = ratchet_keys.identity_public;
+      next_vault.ratchet_signed_prekey = ratchet_keys.signed_prekey_jwk;
+      next_vault.ratchet_signed_prekey_public =
+        ratchet_keys.signed_prekey_public;
+      next_vault.ratchet_pq_identity_key = ratchet_keys.pq_identity_secret;
+      next_vault.ratchet_pq_identity_public = ratchet_keys.pq_identity_public;
+      next_vault.ratchet_pq_identity_seed = ratchet_keys.pq_identity_seed;
+
+      if (has_ecdh) {
+        next_vault.ratchet_previous_keys = retain_replaced_ratchet_keys(
+          vault,
+          next_vault,
+        );
+      }
+
+      clear_states = true;
+    }
+
+    next_vault.ratchet_regen_v4_done = true;
+
+    const { encrypted_vault, vault_nonce } = await encrypt_vault(
+      next_vault,
+      passphrase,
+    );
+
+    const roundtrip_ok = await verify_vault_roundtrip(
+      encrypted_vault,
+      vault_nonce,
+      passphrase,
+      next_vault.identity_key,
+    );
+
+    if (!roundtrip_ok) return false;
+
+    const pushed = await push_vault_to_server(
+      encrypted_vault,
+      vault_nonce,
+      user_id,
+      next_vault.vault_format,
+      next_vault,
+    );
+
+    if (!pushed) return false;
+
+    await store_vault_in_memory(next_vault, passphrase, user_id);
+
+    localStorage.setItem(
+      `astermail_encrypted_vault_${user_id}`,
+      encrypted_vault,
+    );
+    localStorage.setItem(`astermail_vault_nonce_${user_id}`, vault_nonce);
+
+    if (clear_states) {
+      await clear_all_ratchet_states();
+    }
+
+    await upload_prekey_bundle_with_retry(next_vault);
+
+    try {
+      localStorage.setItem(FORCED_REGEN_KEY, "1");
+    } catch (caught) {
+      ignore_error("services/crypto/ensure_ratchet_keys:run_locked", caught);
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}

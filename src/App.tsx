@@ -1,0 +1,579 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { Suspense, useEffect, useRef, useState } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+
+import {
+  activate_subscription,
+  clear_checkout_target,
+  get_subscription,
+  read_checkout_target,
+  request_checkout_resume,
+  type SubscriptionResponse,
+} from "@/services/api/billing";
+import {
+  is_activated_plan,
+  wait_for_slow_activation,
+} from "@/lib/billing_activation_poll";
+import { CheckoutReturnHandler } from "@/components/common/checkout_return_handler";
+import { request_cache } from "@/services/api/request_cache";
+import { is_tauri_env } from "@/services/api/client/helpers";
+import { open_external } from "@/utils/open_link";
+import { invalidate_mail_stats } from "@/hooks/use_mail_stats";
+import {
+  show_toast,
+  TOAST_DURATION_BILLING_MS,
+} from "@/components/toast/simple_toast";
+import { use_i18n } from "@/lib/i18n/context";
+import { use_auth } from "@/contexts/auth_context";
+import { ProtectedRoute } from "@/components/common/protected_route";
+import { SuspendedAccountGate } from "@/components/common/suspended_account_gate";
+import { Family2faDialog } from "@/components/common/family_2fa_dialog";
+import { PendingDeletionDialog } from "@/components/common/pending_deletion_dialog";
+import { DesktopPairGate } from "@/components/common/desktop_pair_gate";
+import { UpdateBanner } from "@/components/updates/update_banner";
+import { ActionToast } from "@/components/toast/action_toast";
+import { SimpleToast } from "@/components/toast/simple_toast";
+import { KeyTrustChangePrompt } from "@/components/compose/key_trust_change_prompt";
+import { PostQuantumSendPrompt } from "@/components/compose/post_quantum_send_prompt";
+import { UnsubscribeConfirmationModal } from "@/components/modals/unsubscribe_confirmation_modal";
+import {
+  show_checkout_cancelled_upgrade,
+  use_upgrade_prompt_events,
+  type UpgradeInterval,
+} from "@/stores/upgrade_store";
+import { is_resumable_checkout_plan } from "@/components/settings/billing/billing_constants";
+import { ProfilePictureDialog } from "@/components/profile/profile_picture_dialog";
+import { request_special_offer_checkout } from "@/stores/special_offer_store";
+import { UndoSendContainer } from "@/components/toast/undo_send_container";
+import { UndoSendPreviewModal } from "@/components/toast/undo_send_preview_modal";
+import { FolderUnlockPrompt } from "@/components/folders/folder_unlock_prompt";
+import { OfflineIndicator } from "@/components/common/offline_indicator";
+import { FullPageLoader } from "@/components/common/full_page_loader";
+import { ErrorBoundary } from "@/components/ui/error_boundary";
+import { AppLock } from "@/components/mobile/app_lock";
+import { install_global_autoscroll } from "@/lib/global_autoscroll";
+import { ignore_error } from "@/lib/ignore_error";
+import { safe_local_get } from "@/lib/safe_storage";
+import { lazy_with_retry } from "@/utils/lazy_with_retry";
+
+const CalendarPage = lazy_with_retry(() => import("@/pages/calendar_page"));
+const BookingPage = lazy_with_retry(() => import("@/pages/booking_page"));
+
+if (safe_local_get("aster_preferences_cache")) {
+  import("@/pages/calendar_page").catch((caught) =>
+    ignore_error("App:preload_calendar_page", caught),
+  );
+}
+const SignInPage = lazy_with_retry(() => import("@/pages/sign_in"));
+const RegisterPage = lazy_with_retry(() => import("@/pages/register"));
+const InvitePage = lazy_with_retry(() => import("@/pages/invite"));
+const ForgotPasswordPage = lazy_with_retry(
+  () => import("@/pages/forgot_password"),
+);
+const ResetPasswordPage = lazy_with_retry(
+  () => import("@/pages/reset_password"),
+);
+const VerifyRecoveryEmailPage = lazy_with_retry(
+  () => import("@/pages/verify_recovery_email"),
+);
+const SecureViewPage = lazy_with_retry(() => import("@/pages/secure_view"));
+const NotFoundPage = lazy_with_retry(() => import("@/pages/not_found"));
+const LinkDevicePage = lazy_with_retry(() => import("@/pages/link_device"));
+const JoinFamilyPage = lazy_with_retry(() => import("@/pages/join_family"));
+const FamilyClaimPage = lazy_with_retry(() => import("@/pages/family_claim"));
+const CryptoInvoicePage = lazy_with_retry(
+  () => import("@/pages/crypto_invoice"),
+);
+const UpgradeModal = lazy_with_retry(() =>
+  import("@/components/upgrade/upgrade_modal").then((m) => ({
+    default: m.UpgradeModal,
+  })),
+);
+const AliasCapUpsellModal = lazy_with_retry(() =>
+  import("@/components/upgrade/alias_cap_upsell_modal").then((m) => ({
+    default: m.AliasCapUpsellModal,
+  })),
+);
+const SpecialOfferModal = lazy_with_retry(() =>
+  import("@/components/upgrade/special_offer_modal").then((m) => ({
+    default: m.SpecialOfferModal,
+  })),
+);
+const SpecialOfferSuccessModal = lazy_with_retry(() =>
+  import("@/components/upgrade/special_offer_success_modal").then((m) => ({
+    default: m.SpecialOfferSuccessModal,
+  })),
+);
+const FamilyWelcomeModal = lazy_with_retry(() =>
+  import("@/components/settings/billing/family_welcome_modal").then((m) => ({
+    default: m.FamilyWelcomeModal,
+  })),
+);
+const PurchaseSuccessModal = lazy_with_retry(() =>
+  import("@/components/modals/purchase_success_modal").then((m) => ({
+    default: m.PurchaseSuccessModal,
+  })),
+);
+const ExternalRedirect = ({ url }: { url: string }) => {
+  const desktop = is_tauri_env();
+
+  useEffect(() => {
+    if (desktop) {
+      open_external(url);
+
+      return;
+    }
+    window.location.href = url;
+  }, [desktop, url]);
+
+  if (desktop) return <Navigate replace to="/" />;
+
+  return null;
+};
+
+interface FamilyWelcomeState {
+  plan_name: string;
+  max_members: number;
+  storage_pool_bytes: number;
+}
+
+const FAMILY_WELCOME_SEEN_KEY_PREFIX = "aster_family_welcome_seen_";
+
+function has_seen_family_welcome(account_id: string): boolean {
+  try {
+    return (
+      localStorage.getItem(`${FAMILY_WELCOME_SEEN_KEY_PREFIX}${account_id}`) ===
+      "1"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function mark_family_welcome_seen(account_id: string): void {
+  try {
+    localStorage.setItem(`${FAMILY_WELCOME_SEEN_KEY_PREFIX}${account_id}`, "1");
+  } catch {
+    // best-effort persistence; a full disk or blocked storage should not crash the app
+  }
+}
+
+const BILLING_RETURN_KEY = "aster_billing_return";
+
+function is_on_billing_settings_route(): boolean {
+  return window.location.pathname.includes("/settings/billing");
+}
+
+function upgrade_interval_for(billing_interval: string): UpgradeInterval {
+  if (billing_interval === "month") return "month";
+  if (billing_interval === "biennial") return "biennial";
+
+  return "year";
+}
+
+function BillingSuccessHandler() {
+  const { t } = use_i18n();
+  const { is_authenticated, current_account_id } = use_auth();
+  const handled = useRef(false);
+  const disposed = useRef(false);
+
+  useEffect(() => {
+    disposed.current = false;
+
+    return () => {
+      disposed.current = true;
+    };
+  }, []);
+
+  const [family_welcome, set_family_welcome] =
+    useState<FamilyWelcomeState | null>(null);
+  const [individual_welcome, set_individual_welcome] = useState<{
+    plan: string;
+    billing: string;
+  } | null>(null);
+  const [offer_welcome, set_offer_welcome] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const billing = params.get("billing");
+
+    if (billing !== "success" && billing !== "cancelled") return;
+
+    try {
+      sessionStorage.setItem(
+        BILLING_RETURN_KEY,
+        billing === "success" ? "success" : "cancelled",
+      );
+    } catch (caught) {
+      ignore_error("App:BillingSuccessHandler", caught);
+    }
+    params.delete("billing");
+    const query = params.toString();
+
+    window.history.replaceState(
+      {},
+      "",
+      window.location.pathname + (query ? `?${query}` : ""),
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!is_authenticated || handled.current) return;
+
+    let billing: string | null = null;
+
+    try {
+      billing = sessionStorage.getItem(BILLING_RETURN_KEY);
+    } catch (caught) {
+      ignore_error("App:BillingSuccessHandler", caught);
+    }
+
+    if (!billing) return;
+
+    handled.current = true;
+
+    try {
+      sessionStorage.removeItem(BILLING_RETURN_KEY);
+    } catch (caught) {
+      ignore_error("App:BillingSuccessHandler", caught);
+    }
+
+    if (billing === "cancelled") {
+      const target = read_checkout_target();
+
+      if (
+        target?.special_offer &&
+        request_special_offer_checkout(
+          target.billing_interval === "year" ? "year" : "month",
+        )
+      ) {
+        clear_checkout_target();
+
+        return;
+      }
+
+      if (
+        target &&
+        is_resumable_checkout_plan(target.plan_code) &&
+        is_on_billing_settings_route()
+      ) {
+        request_checkout_resume();
+
+        return;
+      }
+
+      const resumed =
+        target && is_resumable_checkout_plan(target.plan_code)
+          ? show_checkout_cancelled_upgrade({
+              plan_code: target.plan_code,
+              interval: upgrade_interval_for(target.billing_interval),
+            })
+          : false;
+
+      if (!resumed) {
+        if (!target || !is_resumable_checkout_plan(target.plan_code))
+          clear_checkout_target();
+
+        show_toast(
+          t("settings.billing_checkout_cancelled"),
+          "info",
+          TOAST_DURATION_BILLING_MS,
+        );
+      }
+
+      return;
+    }
+
+    (async () => {
+      request_cache.invalidate("/payments/v1");
+      invalidate_mail_stats();
+      try {
+        await activate_subscription();
+      } catch {
+        // best-effort; webhook is source of truth
+      }
+      const checkout_target = read_checkout_target();
+      const target = checkout_target?.plan_code ?? null;
+
+      clear_checkout_target();
+
+      const welcome = (data: SubscriptionResponse) => {
+        invalidate_mail_stats();
+        window.dispatchEvent(new CustomEvent("aster:plan-changed"));
+        const code = data.plan.code;
+
+        if (
+          (code === "duo" || code === "family") &&
+          current_account_id &&
+          !has_seen_family_welcome(current_account_id)
+        ) {
+          const max_members = code === "duo" ? 2 : 6;
+          const storage_gb = code === "duo" ? 1024 : 3072;
+
+          mark_family_welcome_seen(current_account_id);
+          set_family_welcome({
+            plan_name: data.plan.name ?? (code === "duo" ? "Duo" : "Family"),
+            max_members,
+            storage_pool_bytes: storage_gb * 1073741824,
+          });
+        } else if (checkout_target?.special_offer) {
+          set_offer_welcome(true);
+        } else {
+          const billing = /^(year|bien|two)/.test(
+            data.plan.billing_period || "",
+          )
+            ? "year"
+            : "month";
+
+          set_individual_welcome({ plan: code, billing });
+        }
+      };
+
+      for (let i = 0; i < 8; i++) {
+        await new Promise((r) => setTimeout(r, i === 0 ? 800 : 1500));
+        if (disposed.current) return;
+        request_cache.invalidate("/payments/v1");
+        const res = await get_subscription();
+
+        if (res.data && is_activated_plan(res.data.plan.code, target)) {
+          welcome(res.data);
+
+          return;
+        }
+      }
+      request_cache.invalidate("/payments/v1");
+      invalidate_mail_stats();
+      window.dispatchEvent(new CustomEvent("aster:plan-changed"));
+      show_toast(
+        t("settings.payment_processing_delayed"),
+        "info",
+        TOAST_DURATION_BILLING_MS,
+      );
+
+      const late = await wait_for_slow_activation(
+        target,
+        () => disposed.current,
+      );
+
+      if (late) welcome(late);
+    })();
+  }, [is_authenticated, current_account_id, t]);
+
+  if (!family_welcome && !individual_welcome && !offer_welcome) return null;
+
+  return (
+    <Suspense fallback={null}>
+      {offer_welcome && (
+        <SpecialOfferSuccessModal
+          is_open={true}
+          on_close={() => set_offer_welcome(false)}
+        />
+      )}
+      {family_welcome && (
+        <FamilyWelcomeModal
+          is_open={true}
+          max_members={family_welcome.max_members}
+          on_close={() => set_family_welcome(null)}
+          on_go_to_family={() => {
+            set_family_welcome(null);
+            window.dispatchEvent(
+              new CustomEvent("navigate-settings", { detail: "family" }),
+            );
+          }}
+          plan_name={family_welcome.plan_name}
+          storage_pool_bytes={family_welcome.storage_pool_bytes}
+        />
+      )}
+      {individual_welcome && (
+        <PurchaseSuccessModal
+          billing={individual_welcome.billing}
+          is_open={true}
+          on_close={() => set_individual_welcome(null)}
+          on_view_billing={() => {
+            set_individual_welcome(null);
+            window.dispatchEvent(
+              new CustomEvent("navigate-settings", { detail: "billing" }),
+            );
+          }}
+          plan={individual_welcome.plan}
+        />
+      )}
+    </Suspense>
+  );
+}
+
+function GlobalOfflineIndicator() {
+  const location = useLocation();
+
+  if (location.pathname === "/") {
+    return null;
+  }
+
+  return <OfflineIndicator position="top" />;
+}
+
+function App() {
+  useEffect(() => install_global_autoscroll(), []);
+
+  use_upgrade_prompt_events();
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const order_id = params.get("domain_order");
+
+      if (order_id && params.get("cancelled") !== "1") {
+        sessionStorage.setItem("aster_pending_domain_order", order_id);
+      }
+    } catch (caught) {
+      ignore_error("App:App", caught);
+    }
+  }, []);
+
+  return (
+    <AppLock>
+      <ErrorBoundary fallback={null}>
+        <BillingSuccessHandler />
+      </ErrorBoundary>
+      <CheckoutReturnHandler />
+      <SuspendedAccountGate />
+      <PendingDeletionDialog />
+      <Family2faDialog />
+      <UpdateBanner />
+      <ErrorBoundary>
+        <DesktopPairGate>
+          <Suspense fallback={<FullPageLoader />}>
+            <Routes>
+              <Route
+                element={
+                  <ProtectedRoute>
+                    <CalendarPage />
+                  </ProtectedRoute>
+                }
+                path="/"
+              />
+              <Route element={<Navigate replace to="/" />} path="/all" />
+              <Route element={<Navigate replace to="/" />} path="/starred" />
+              <Route element={<Navigate replace to="/" />} path="/sent" />
+              <Route element={<Navigate replace to="/" />} path="/drafts" />
+              <Route element={<Navigate replace to="/" />} path="/scheduled" />
+              <Route element={<Navigate replace to="/" />} path="/snoozed" />
+              <Route element={<Navigate replace to="/" />} path="/archive" />
+              <Route element={<Navigate replace to="/" />} path="/spam" />
+              <Route element={<Navigate replace to="/" />} path="/trash" />
+              <Route
+                element={<Navigate replace to="/" />}
+                path="/folder/:folder_token"
+              />
+              <Route
+                element={<Navigate replace to="/" />}
+                path="/tag/:tag_token"
+              />
+              <Route
+                element={<Navigate replace to="/" />}
+                path="/alias/:alias_address"
+              />
+              <Route element={<SignInPage />} path="/sign-in" />
+              <Route element={<RegisterPage />} path="/register" />
+              <Route element={<InvitePage />} path="/invite/:code" />
+              <Route element={<RegisterPage />} path="/signup" />
+              <Route element={<ForgotPasswordPage />} path="/forgot-password" />
+              <Route element={<ResetPasswordPage />} path="/reset-password" />
+              <Route
+                element={<VerifyRecoveryEmailPage />}
+                path="/verify-recovery-email"
+              />
+              <Route
+                element={<ExternalRedirect url="https://astermail.org/terms" />}
+                path="/terms"
+              />
+              <Route
+                element={
+                  <ExternalRedirect url="https://astermail.org/privacy" />
+                }
+                path="/privacy"
+              />
+              <Route
+                element={<Navigate replace to="/" />}
+                path="/email/:email_id"
+              />
+              <Route element={<Navigate replace to="/" />} path="/contacts" />
+              <Route
+                element={<Navigate replace to="/" />}
+                path="/subscriptions"
+              />
+              <Route element={<Navigate replace to="/" />} path="/compose" />
+              <Route
+                element={
+                  <ProtectedRoute>
+                    <CalendarPage />
+                  </ProtectedRoute>
+                }
+                path="/settings/:section?"
+              />
+              <Route element={<LinkDevicePage />} path="/link-device" />
+              <Route element={<JoinFamilyPage />} path="/join/family" />
+              <Route
+                element={<FamilyClaimPage />}
+                path="/family/claim/:token"
+              />
+              <Route element={<BookingPage />} path="/book/:slug" />
+              <Route element={<SecureViewPage />} path="/view/:token" />
+              <Route
+                element={
+                  <ProtectedRoute>
+                    <CryptoInvoicePage />
+                  </ProtectedRoute>
+                }
+                path="/crypto-invoice/:id"
+              />
+              <Route element={<NotFoundPage />} path="*" />
+            </Routes>
+          </Suspense>
+        </DesktopPairGate>
+      </ErrorBoundary>
+      <ActionToast />
+      <SimpleToast />
+      <UnsubscribeConfirmationModal />
+      <KeyTrustChangePrompt />
+      <PostQuantumSendPrompt />
+      <ErrorBoundary fallback={null}>
+        <Suspense fallback={null}>
+          <UpgradeModal />
+          <AliasCapUpsellModal />
+        </Suspense>
+      </ErrorBoundary>
+      <ProfilePictureDialog />
+      <ErrorBoundary fallback={null}>
+        <Suspense fallback={null}>
+          <SpecialOfferModal />
+        </Suspense>
+      </ErrorBoundary>
+      <UndoSendContainer max_visible={3} position="bottom-center" />
+      <UndoSendPreviewModal />
+      <FolderUnlockPrompt />
+      <GlobalOfflineIndicator />
+    </AppLock>
+  );
+}
+
+export default App;

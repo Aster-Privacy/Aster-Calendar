@@ -1,0 +1,872 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { IdentityKeyStatus } from "@/services/api/key_rotation";
+
+import { useState, useEffect, useCallback } from "react";
+import {
+  InformationCircleIcon,
+  LockClosedIcon,
+  UserIcon,
+  ChartBarIcon,
+  BoltIcon,
+  GlobeAltIcon,
+  CircleStackIcon,
+  WrenchScrewdriverIcon,
+  SpeakerWaveIcon,
+} from "@heroicons/react/24/outline";
+import {
+  Badge,
+  Button,
+  Island,
+  IslandRow,
+  IslandSection,
+  IslandSections,
+  use_ui_strings,
+} from "@aster/ui";
+
+import { trigger_download } from "@/utils/download_blob";
+import { copy_text_or_throw } from "@/utils/copy_text";
+import { Spinner } from "@/components/ui/spinner";
+import { show_toast } from "@/components/toast/simple_toast";
+import { ConfirmationModal } from "@/components/modals/confirmation_modal";
+import { use_i18n } from "@/lib/i18n/context";
+import { use_auth } from "@/contexts/auth_context";
+import { use_preferences } from "@/contexts/preferences_context";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { use_mail_stats } from "@/hooks/use_mail_stats";
+import { use_folders } from "@/hooks/use_folders";
+import { use_online_status } from "@/hooks/use_online_status";
+import { format_bytes } from "@/lib/utils";
+import { get_identity_key_status } from "@/services/api/key_rotation";
+import {
+  get_wkd_publication_status,
+  get_keyserver_publication_status,
+} from "@/services/api/keys";
+import {
+  get_vault_from_memory,
+  has_passphrase_in_memory,
+} from "@/services/crypto/memory_key_store";
+import { app_locale } from "@/utils/date_format";
+import { is_iconic_sounds_supported } from "@/services/iconic_sounds";
+
+function get_local_storage_size(): string {
+  let total = 0;
+
+  for (const key in localStorage) {
+    if (Object.prototype.hasOwnProperty.call(localStorage, key)) {
+      total += (localStorage[key].length + key.length) * 2;
+    }
+  }
+
+  return format_bytes(total);
+}
+
+function get_connection_type(fallback: string): string {
+  const nav = navigator as Navigator & {
+    connection?: { effectiveType?: string; downlink?: number; rtt?: number };
+  };
+
+  return nav.connection?.effectiveType?.toUpperCase() || fallback;
+}
+
+function get_connection_speed(fallback: string): string {
+  const nav = navigator as Navigator & {
+    connection?: { downlink?: number };
+  };
+
+  if (nav.connection?.downlink) {
+    return `${nav.connection.downlink} Mbps`;
+  }
+
+  return fallback;
+}
+
+function get_connection_latency(fallback: string): string {
+  const nav = navigator as Navigator & {
+    connection?: { rtt?: number };
+  };
+
+  if (nav.connection?.rtt !== undefined) {
+    return `${nav.connection.rtt}ms`;
+  }
+
+  return fallback;
+}
+
+function get_memory_usage(fallback: string): string {
+  const perf = performance as Performance & {
+    memory?: { usedJSHeapSize?: number; jsHeapSizeLimit?: number };
+  };
+
+  if (perf.memory?.usedJSHeapSize) {
+    return `${format_bytes(perf.memory.usedJSHeapSize)} / ${format_bytes(perf.memory.jsHeapSizeLimit || 0)}`;
+  }
+
+  return fallback;
+}
+
+function get_page_load_time(fallback: string): string {
+  const entries = performance.getEntriesByType(
+    "navigation",
+  ) as PerformanceNavigationTiming[];
+
+  if (entries.length > 0) {
+    const nav = entries[0];
+
+    return `${Math.round(nav.loadEventEnd - nav.startTime)}ms`;
+  }
+
+  return fallback;
+}
+
+function get_dom_content_loaded(fallback: string): string {
+  const entries = performance.getEntriesByType(
+    "navigation",
+  ) as PerformanceNavigationTiming[];
+
+  if (entries.length > 0) {
+    const nav = entries[0];
+
+    return `${Math.round(nav.domContentLoadedEventEnd - nav.startTime)}ms`;
+  }
+
+  return fallback;
+}
+
+function count_local_storage_keys(): number {
+  return localStorage.length;
+}
+
+function get_indexed_db_info(
+  unsupported: string,
+  unknown: string,
+  format_count: (count: number) => string,
+): Promise<string> {
+  if (!("indexedDB" in window)) return Promise.resolve(unsupported);
+
+  return indexedDB
+    .databases()
+    .then((dbs) => format_count(dbs.length))
+    .catch(() => unknown);
+}
+
+function get_screen_info(): string {
+  const w = window.screen.width;
+  const h = window.screen.height;
+  const dpr = window.devicePixelRatio;
+
+  return `${w}x${h} (${Math.round(w * dpr)}x${Math.round(h * dpr)} physical) @ ${dpr}x`;
+}
+
+function get_viewport_info(): string {
+  return `${window.innerWidth}x${window.innerHeight}`;
+}
+
+function get_session_duration(fallback: string): string {
+  const nav_entries = performance.getEntriesByType(
+    "navigation",
+  ) as PerformanceNavigationTiming[];
+
+  if (nav_entries.length > 0) {
+    const elapsed_ms = performance.now();
+    const seconds = Math.floor(elapsed_ms / 1000);
+
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+
+    if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+    const hours = Math.floor(minutes / 60);
+
+    return `${hours}h ${minutes % 60}m`;
+  }
+
+  return fallback;
+}
+
+export function DeveloperSection() {
+  const { t } = use_i18n();
+  const { user } = use_auth();
+  const { stats } = use_mail_stats();
+  const folders_hook = use_folders();
+  const { is_online } = use_online_status();
+  const { preferences, update_preference } = use_preferences();
+  const iconic_sounds_supported = is_iconic_sounds_supported();
+  const iconic_sounds_enabled = preferences.iconic_sounds_enabled === true;
+
+  const [sw_status, set_sw_status] = useState(t("settings.dev_checking"));
+  const [key_status, set_key_status] = useState<IdentityKeyStatus | null>(null);
+  const [key_loading, set_key_loading] = useState(true);
+  const [confirm_clear_cache, set_confirm_clear_cache] = useState(false);
+  const [confirm_iconic_sounds, set_confirm_iconic_sounds] = useState(false);
+  const [iconic_sounds_info_open, set_iconic_sounds_info_open] =
+    useState(false);
+  const ui_strings = use_ui_strings();
+  const [wkd_published, set_wkd_published] = useState<boolean | null>(null);
+  const [keyserver_published, set_keyserver_published] = useState<
+    boolean | null
+  >(null);
+  const [idb_info, set_idb_info] = useState(t("settings.dev_checking"));
+  const [session_duration, set_session_duration] = useState(
+    get_session_duration(t("settings.dev_unknown")),
+  );
+
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        if (registrations.length > 0) {
+          const active = registrations.filter((r) => r.active).length;
+
+          set_sw_status(t("settings.dev_active_count", { count: active }));
+        } else {
+          set_sw_status(t("settings.dev_none_registered"));
+        }
+      });
+    } else {
+      set_sw_status(t("settings.dev_unsupported"));
+    }
+  }, [t]);
+
+  useEffect(() => {
+    get_indexed_db_info(
+      t("settings.dev_unsupported"),
+      t("settings.dev_unknown"),
+      (count) => t("settings.dev_databases_count", { count }),
+    )
+      .then(set_idb_info)
+      .catch((e) => {
+        if (import.meta.env.DEV) console.error(e);
+      });
+  }, [t]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      set_session_duration(get_session_duration(t("settings.dev_unknown")));
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [t]);
+
+  const load_crypto_status = useCallback(async () => {
+    set_key_loading(true);
+    try {
+      const [key_result, wkd_result, ks_result] = await Promise.allSettled([
+        get_identity_key_status(),
+        get_wkd_publication_status(),
+        get_keyserver_publication_status(),
+      ]);
+
+      if (key_result.status === "fulfilled" && key_result.value.data) {
+        set_key_status(key_result.value.data);
+      }
+      if (wkd_result.status === "fulfilled" && wkd_result.value.data) {
+        set_wkd_published(wkd_result.value.data.published);
+      }
+      if (ks_result.status === "fulfilled" && ks_result.value.data) {
+        set_keyserver_published(ks_result.value.data.published);
+      }
+    } finally {
+      set_key_loading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load_crypto_status();
+  }, [load_crypto_status]);
+
+  const aster_version_window = (
+    window as unknown as {
+      __aster_version?: {
+        version?: string;
+        build?: string;
+        ts?: number;
+        manifest_ts?: number;
+      };
+    }
+  ).__aster_version;
+  const display_version = aster_version_window?.version || __APP_VERSION__;
+  const build_hash = aster_version_window?.build || __BUILD_HASH__;
+  const loaded_ts = aster_version_window?.ts;
+  const format_relative_time = (ts: number): string => {
+    const delta_ms = Date.now() - ts;
+    const seconds = Math.max(0, Math.floor(delta_ms / 1000));
+
+    if (seconds < 60) return t("settings.dev_seconds_ago", { count: seconds });
+    const minutes = Math.floor(seconds / 60);
+
+    if (minutes < 60) return t("settings.dev_minutes_ago", { count: minutes });
+    const hours = Math.floor(minutes / 60);
+
+    if (hours < 24) return t("settings.dev_hours_ago", { count: hours });
+    const days = Math.floor(hours / 24);
+
+    return t("settings.dev_days_ago", { count: days });
+  };
+  const loaded_ago_text = loaded_ts ? format_relative_time(loaded_ts) : null;
+  const total_emails = stats.inbox + stats.sent + stats.archived + stats.trash;
+  const custom_folders = folders_hook.state.folders.filter(
+    (f) => !f.is_system,
+  ).length;
+  const storage_used = format_bytes(stats.storage_used_bytes);
+  const storage_total = format_bytes(stats.storage_total_bytes);
+  const vault = get_vault_from_memory();
+  const has_passphrase = has_passphrase_in_memory();
+
+  const copy_to_clipboard = (text: string) => {
+    copy_text_or_throw(text)
+      .then(() => {
+        show_toast(t("common.copied_to_clipboard"));
+      })
+      .catch(() => show_toast(t("common.failed_to_copy"), "error"));
+  };
+
+  const handle_clear_cache = async () => {
+    set_confirm_clear_cache(false);
+    localStorage.clear();
+    sessionStorage.clear();
+    if ("caches" in window) {
+      const cache_names = await caches.keys();
+
+      await Promise.all(cache_names.map((name) => caches.delete(name)));
+    }
+    window.location.reload();
+  };
+
+  const handle_iconic_sounds_change = (next: boolean) => {
+    if (next) {
+      set_iconic_sounds_info_open(false);
+      set_confirm_iconic_sounds(true);
+
+      return;
+    }
+
+    update_preference("iconic_sounds_enabled", false, true);
+  };
+
+  const handle_confirm_iconic_sounds = () => {
+    set_confirm_iconic_sounds(false);
+    update_preference("iconic_sounds_enabled", true, true);
+  };
+
+  const handle_unregister_sw = async () => {
+    if ("serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+
+      await Promise.all(registrations.map((r) => r.unregister()));
+      set_sw_status(t("settings.dev_unregistered"));
+    }
+  };
+
+  const export_debug_info = () => {
+    const debug_data = {
+      timestamp: new Date().toISOString(),
+      app: {
+        version: __APP_VERSION__,
+        build: build_hash,
+        environment: import.meta.env.MODE,
+      },
+      crypto: {
+        vault_loaded: !!vault,
+        passphrase_cached: has_passphrase,
+        wkd_published: wkd_published,
+        keyserver_published: keyserver_published,
+        algorithms: {
+          encryption: "AES-256-GCM",
+          key_exchange: "KEM-768",
+          signatures: "PGP Ed25519",
+          password_hash: "PBKDF2-SHA-256 (client) + Argon2id (server)",
+        },
+      },
+      network: {
+        online: is_online,
+        connection: get_connection_type(t("settings.dev_unknown")),
+        speed: get_connection_speed(t("settings.dev_unknown")),
+        latency: get_connection_latency(t("settings.dev_unknown")),
+      },
+      performance: {
+        memory: get_memory_usage(t("settings.dev_unavailable")),
+        page_load: get_page_load_time(t("settings.dev_unavailable")),
+        dom_ready: get_dom_content_loaded(t("settings.dev_unavailable")),
+      },
+      storage: {
+        local_storage: get_local_storage_size(),
+        indexed_db: idb_info,
+      },
+      mail: {
+        has_emails: total_emails > 0,
+        storage_used: storage_used,
+        storage_total: storage_total,
+      },
+      display: {
+        screen: get_screen_info(),
+        viewport: get_viewport_info(),
+      },
+    };
+
+    trigger_download(
+      new Blob([JSON.stringify(debug_data, null, 2)], {
+        type: "application/json",
+      }),
+      `astermail-debug-${Date.now()}.json`,
+    );
+  };
+
+  const format_key_age = (hours: number | null): string => {
+    if (hours === null) return t("settings.dev_unknown");
+    if (hours < 1) return t("settings.dev_less_than_one_hour");
+    if (hours < 24) return `${Math.round(hours)}h`;
+    const days = Math.floor(hours / 24);
+
+    return `${days}d ${Math.round(hours % 24)}h`;
+  };
+
+  const dev_row = (
+    label: string,
+    value: string,
+    copyable?: boolean,
+    copy_value?: string,
+  ) => (
+    <div className="flex justify-between items-center">
+      <span className="text-[13px] text-txt-secondary">{label}</span>
+      <span
+        className={`text-[13px] font-mono tabular-nums ${copyable ? "cursor-pointer hover:opacity-70" : ""} text-txt-primary`}
+        role={copyable ? "button" : undefined}
+        tabIndex={copyable ? 0 : undefined}
+        onClick={
+          copyable ? () => copy_to_clipboard(copy_value ?? value) : undefined
+        }
+        onKeyDown={
+          copyable
+            ? (e) => {
+                if (e["key"] === "Enter" || e["key"] === " ") {
+                  e.preventDefault();
+                  copy_to_clipboard(copy_value ?? value);
+                }
+              }
+            : undefined
+        }
+      >
+        {value}
+      </span>
+    </div>
+  );
+
+  const status_dot = (ok: boolean | null) => {
+    if (ok === null) return "var(--text-muted)";
+
+    return ok ? "var(--color-success)" : "var(--color-danger)";
+  };
+
+  const publication_label = (published: boolean | null) => {
+    if (published === null) return t("settings.dev_unknown");
+
+    return published ? t("settings.published") : t("settings.not_published");
+  };
+
+  const dev_row_with_status = (
+    label: string,
+    value: string,
+    ok: boolean | null,
+  ) => (
+    <div className="flex justify-between items-center">
+      <span className="text-[13px] text-txt-secondary">{label}</span>
+      <div className="flex items-center gap-2">
+        <span
+          className="w-2 h-2 rounded-full inline-block"
+          style={{ backgroundColor: status_dot(ok) }}
+        />
+        <span className="text-[13px] font-mono tabular-nums text-txt-primary">
+          {value}
+        </span>
+      </div>
+    </div>
+  );
+
+  const section_box = (children: React.ReactNode) => (
+    <Island className="space-y-2" padding="md">
+      {children}
+    </Island>
+  );
+
+  return (
+    <IslandSections>
+      <IslandSection
+        bare
+        icon={<InformationCircleIcon />}
+        title={t("settings.build_info")}
+      >
+        <Island padding="md">
+          <div className="grid grid-cols-2 gap-y-3 gap-x-6">
+            <div>
+              <p className="text-[11px] text-txt-muted">
+                {t("settings.release")}
+              </p>
+              <p className="text-[13px] font-mono text-txt-primary">
+                {display_version} Aurora
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] text-txt-muted">
+                {t("settings.build")}
+              </p>
+              <button
+                className="text-[13px] font-mono cursor-pointer hover:opacity-70 text-txt-primary text-start"
+                type="button"
+                onClick={() => copy_to_clipboard(build_hash)}
+              >
+                {build_hash}
+              </button>
+              {loaded_ago_text && (
+                <p className="text-[11px] text-txt-muted">
+                  {t("settings.dev_loaded_ago", {
+                    time: loaded_ago_text || "",
+                  })}
+                </p>
+              )}
+            </div>
+            <div>
+              <p className="text-[11px] text-txt-muted">
+                {t("settings.environment")}
+              </p>
+              <p className="text-[13px] font-mono text-txt-primary">
+                {import.meta.env.MODE}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] text-txt-muted">
+                {t("settings.platform")}
+              </p>
+              <p className="text-[13px] font-mono text-txt-primary">
+                {navigator.platform.split(" ")[0]}
+              </p>
+            </div>
+          </div>
+        </Island>
+      </IslandSection>
+
+      <IslandSection
+        bare
+        icon={<LockClosedIcon />}
+        title={t("settings.crypto_status")}
+      >
+        {key_loading ? (
+          <Island className="flex items-center justify-center py-8">
+            <Spinner className="text-txt-muted" size="md" />
+          </Island>
+        ) : (
+          section_box(
+            <>
+              {dev_row_with_status(
+                t("settings.vault"),
+                vault ? t("settings.loaded") : t("settings.not_loaded"),
+                !!vault,
+              )}
+              {dev_row_with_status(
+                t("settings.passphrase"),
+                has_passphrase
+                  ? t("settings.cached")
+                  : t("settings.not_cached"),
+                has_passphrase,
+              )}
+              {dev_row(
+                t("settings.key_age"),
+                format_key_age(key_status?.key_age_hours ?? null),
+              )}
+              {dev_row(
+                t("settings.fingerprint"),
+                key_status?.key_fingerprint?.slice(0, 16) ||
+                  t("settings.dev_none"),
+                !!key_status?.key_fingerprint,
+                key_status?.key_fingerprint ?? undefined,
+              )}
+              {dev_row_with_status(
+                t("settings.wkd"),
+                publication_label(wkd_published),
+                wkd_published,
+              )}
+              {dev_row_with_status(
+                t("settings.keyserver"),
+                publication_label(keyserver_published),
+                keyserver_published,
+              )}
+              <div className="border-t pt-2 mt-2 space-y-2 border-[color-mix(in_srgb,var(--text-primary)_8%,transparent)]">
+                {dev_row(t("settings.dev_encryption_label"), "AES-256-GCM")}
+                {dev_row(t("settings.dev_key_exchange_label"), "KEM-768")}
+                {dev_row(t("settings.dev_signatures_label"), "PGP Ed25519")}
+                {dev_row(
+                  t("settings.dev_password_kdf_label"),
+                  "PBKDF2-SHA-256 (client) + Argon2id (server)",
+                )}
+              </div>
+            </>,
+          )
+        )}
+      </IslandSection>
+
+      <IslandSection
+        bare
+        icon={<UserIcon />}
+        title={t("settings.session_account")}
+      >
+        {section_box(
+          <>
+            {dev_row(
+              t("settings.user_id"),
+              user?.id?.slice(0, 8) || "\u2014",
+              !!user?.id,
+              user?.id,
+            )}
+            {dev_row(t("settings.session_duration"), session_duration)}
+            {dev_row(
+              t("settings.user_agent"),
+              navigator.userAgent.slice(0, 40) + "\u2026",
+              true,
+              navigator.userAgent,
+            )}
+          </>,
+        )}
+      </IslandSection>
+
+      <IslandSection
+        bare
+        icon={<ChartBarIcon />}
+        title={t("settings.email_statistics")}
+      >
+        {section_box(
+          <>
+            {dev_row(
+              t("settings.total_emails"),
+              total_emails.toLocaleString(app_locale()),
+            )}
+            {dev_row(t("mail.inbox"), stats.inbox.toLocaleString(app_locale()))}
+            {dev_row(t("mail.sent"), stats.sent.toLocaleString(app_locale()))}
+            {dev_row(
+              t("mail.unread"),
+              stats.unread.toLocaleString(app_locale()),
+            )}
+            {dev_row(
+              t("mail.drafts"),
+              stats.drafts.toLocaleString(app_locale()),
+            )}
+            {dev_row(
+              t("settings.archived"),
+              stats.archived.toLocaleString(app_locale()),
+            )}
+            {dev_row(t("mail.trash"), stats.trash.toLocaleString(app_locale()))}
+            {dev_row(t("settings.custom_folders"), custom_folders.toString())}
+            {dev_row(
+              t("settings.storage"),
+              `${storage_used} / ${storage_total}`,
+            )}
+          </>,
+        )}
+      </IslandSection>
+
+      <IslandSection bare icon={<BoltIcon />} title={t("settings.performance")}>
+        {section_box(
+          <>
+            {dev_row(
+              t("settings.page_load"),
+              get_page_load_time(t("settings.dev_unavailable")),
+            )}
+            {dev_row(
+              t("settings.dom_ready"),
+              get_dom_content_loaded(t("settings.dev_unavailable")),
+            )}
+            {dev_row(
+              t("settings.js_heap"),
+              get_memory_usage(t("settings.dev_unavailable")),
+            )}
+            {dev_row(t("settings.screen"), get_screen_info())}
+            {dev_row(t("settings.viewport"), get_viewport_info())}
+          </>,
+        )}
+      </IslandSection>
+
+      <IslandSection bare icon={<GlobeAltIcon />} title={t("settings.network")}>
+        {section_box(
+          <>
+            {dev_row_with_status(
+              t("settings.status"),
+              is_online ? t("settings.online") : t("common.offline"),
+              is_online,
+            )}
+            {dev_row(
+              t("settings.connection"),
+              get_connection_type(t("settings.dev_unknown")),
+            )}
+            {dev_row(
+              t("settings.speed"),
+              get_connection_speed(t("settings.dev_unknown")),
+            )}
+            {dev_row(
+              t("settings.latency"),
+              get_connection_latency(t("settings.dev_unknown")),
+            )}
+          </>,
+        )}
+      </IslandSection>
+
+      <IslandSection
+        bare
+        icon={<CircleStackIcon />}
+        title={t("settings.storage")}
+      >
+        {section_box(
+          <>
+            {dev_row(t("settings.service_worker"), sw_status)}
+            {dev_row(
+              t("settings.local_storage"),
+              `${get_local_storage_size()} (${t("settings.dev_keys_count", { count: count_local_storage_keys() })})`,
+            )}
+            {dev_row(
+              t("settings.session_storage"),
+              t("settings.dev_keys_count", {
+                count: Object.keys(sessionStorage).length,
+              }),
+            )}
+            {dev_row(t("settings.indexed_db"), idb_info)}
+          </>,
+        )}
+      </IslandSection>
+
+      {iconic_sounds_supported && (
+        <IslandSection
+          icon={<SpeakerWaveIcon />}
+          title={t("settings.iconic_sounds")}
+        >
+          <IslandRow
+            description={t("settings.iconic_sounds_description")}
+            label={
+              <span className="inline-flex items-center gap-2">
+                {t("settings.iconic_sounds")}
+                <Badge color="purple">{t("settings.iconic_sounds_beta")}</Badge>
+                <Popover
+                  open={iconic_sounds_info_open && !confirm_iconic_sounds}
+                  onOpenChange={set_iconic_sounds_info_open}
+                >
+                  <PopoverTrigger asChild>
+                    <button
+                      aria-label={ui_strings.more_info}
+                      className="-m-1 inline-flex items-center justify-center flex-shrink-0 p-1 text-txt-muted hover:text-txt-secondary transition-colors rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                      type="button"
+                    >
+                      <InformationCircleIcon className="w-4 h-4" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="start"
+                    className="aster_info_popover z-[200]"
+                    collisionPadding={12}
+                    sideOffset={6}
+                  >
+                    <p className="aster_info_popover_title">
+                      <InformationCircleIcon aria-hidden="true" />
+                      <span>{t("settings.iconic_sounds")}</span>
+                    </p>
+                    <p className="aster_info_popover_body">
+                      {t("settings.iconic_sounds_info")}
+                    </p>
+                  </PopoverContent>
+                </Popover>
+              </span>
+            }
+            toggle={{
+              checked: iconic_sounds_enabled,
+              on_change: handle_iconic_sounds_change,
+              size: "lg",
+              aria_label: t("settings.iconic_sounds"),
+            }}
+          />
+        </IslandSection>
+      )}
+
+      <IslandSection
+        bare
+        icon={<WrenchScrewdriverIcon />}
+        title={t("settings.actions")}
+      >
+        <Island className="space-y-2" padding="md">
+          <Button
+            className="w-full"
+            variant="secondary"
+            onClick={export_debug_info}
+          >
+            {t("settings.export_debug_report")}
+          </Button>
+          <Button
+            className="w-full"
+            variant="secondary"
+            onClick={() => load_crypto_status()}
+          >
+            {t("settings.refresh_crypto_status")}
+          </Button>
+          <Button
+            className="w-full"
+            variant="secondary"
+            onClick={() => window.location.reload()}
+          >
+            {t("settings.force_reload")}
+          </Button>
+          <Button
+            className="w-full"
+            variant="secondary"
+            onClick={handle_unregister_sw}
+          >
+            {t("settings.unregister_service_workers")}
+          </Button>
+          <Button
+            className="w-full"
+            variant="destructive"
+            onClick={() => set_confirm_clear_cache(true)}
+          >
+            {t("settings.clear_cache_reload")}
+          </Button>
+        </Island>
+      </IslandSection>
+
+      <ConfirmationModal
+        cancel_text={t("common.cancel")}
+        confirm_text={t("common.continue")}
+        is_open={confirm_clear_cache}
+        message={t("settings.clear_cache_confirm_message")}
+        on_cancel={() => set_confirm_clear_cache(false)}
+        on_confirm={handle_clear_cache}
+        title={t("settings.clear_cache_reload")}
+        variant="danger"
+      />
+
+      <ConfirmationModal
+        cancel_text={t("common.cancel")}
+        confirm_text={t("settings.iconic_sounds_turn_on")}
+        is_open={confirm_iconic_sounds}
+        message={t("settings.iconic_sounds_confirm_message")}
+        on_cancel={() => set_confirm_iconic_sounds(false)}
+        on_confirm={handle_confirm_iconic_sounds}
+        title={t("settings.iconic_sounds_confirm_title")}
+        variant="info"
+      />
+    </IslandSections>
+  );
+}

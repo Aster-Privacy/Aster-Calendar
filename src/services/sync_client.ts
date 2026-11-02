@@ -1,0 +1,1061 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { EncryptedVault } from "./crypto/key_manager";
+
+import { api_client } from "./api/client";
+import { get_ws_base_url } from "./api/base_url";
+import { request_cache } from "./api/request_cache";
+import { connection_store } from "./routing/connection_store";
+import { TorUnavailableError } from "./routing/tor_unavailable_error";
+
+import { decrypt_aes_gcm_with_fallback } from "@/services/crypto/legacy_keks";
+import { HASH_ALG } from "@/services/crypto/constants";
+import { is_onion_host } from "@/lib/onion_host";
+import {
+  is_any_lockdown_active,
+  LOCKDOWN_CHANGED_EVENT,
+} from "@/services/lockdown_store";
+import {
+  MAIL_EVENTS,
+  emit_reactions_changed,
+  emit_mail_items_removed,
+  emit_contacts_changed,
+  emit_folders_changed,
+  emit_tags_changed,
+  emit_definitions_stale,
+} from "@/hooks/mail_events";
+import { mark_view_stale } from "@/hooks/email_list_cache";
+import { is_low_network } from "@/services/low_network_state";
+import { ignore_error } from "@/lib/ignore_error";
+import { CATCH_UP_WHILE_LIVE_MS } from "@/services/sync_timing";
+import {
+  calendar_sync_engine,
+  handle_calendar_mutation_frame,
+} from "@/services/calendar/sync_engine";
+import { is_calendar_app } from "@/lib/app_kind";
+import {
+  claim_own_mail_mutation_echo,
+  clear_own_mail_mutations,
+} from "@/services/own_mail_mutations";
+
+export { CATCH_UP_WHILE_LIVE_MS };
+
+type ServerMessageType =
+  | "auth_success"
+  | "auth_error"
+  | "preferences"
+  | "preferences_saved"
+  | "draft"
+  | "draft_saved"
+  | "draft_deleted"
+  | "new_mail"
+  | "new_reaction"
+  | "prekey_low"
+  | "session_revoked"
+  | "contacts_changed"
+  | "folders_changed"
+  | "tags_changed"
+  | "preferences_changed"
+  | "mail_mutation"
+  | "calendar_mutation"
+  | "ping"
+  | "pong";
+
+interface ServerMessage {
+  type: ServerMessageType;
+  encrypted?: string | null;
+  nonce?: string | null;
+  success?: boolean;
+  message?: string;
+  mail_item_id?: string;
+  action?: string;
+  item_ids?: string[];
+  ids?: string[];
+  origin_device?: string | null;
+}
+
+const HEARTBEAT_INTERVAL_MS = 30000;
+const LIVENESS_TIMEOUT_MS = 75000;
+const CATCH_UP_TICK_MS = 60000;
+const DEFINITIONS_REFRESH_MIN_MS = 30000;
+export const PUSH_ARRIVED_MESSAGE = "aster_push_arrived";
+export const PREFERENCES_CHANGED_EVENT = "aster_preferences_changed";
+const MUTATION_REFRESH_DEBOUNCE_MS = 600;
+const ECHO_RECONCILE_MS = 30000;
+const RECONNECT_MAX_DELAY_MS = 30000;
+const WAKE_RECONNECT_MIN_GAP_MS = 5000;
+const REMOVAL_ACTIONS = new Set([
+  "trash",
+  "delete",
+  "archive",
+  "mark_spam",
+  "spam",
+]);
+
+type MessageHandler = (data: ServerMessage) => void;
+
+interface PendingRequest {
+  resolve: (data: ServerMessage) => void;
+  reject: (error: Error) => void;
+  type: string;
+  timeout_id: ReturnType<typeof setTimeout>;
+}
+
+class SyncClient {
+  private socket: WebSocket | null = null;
+  private authenticated = false;
+  private pending_requests: PendingRequest[] = [];
+  private reconnect_timeout: ReturnType<typeof setTimeout> | null = null;
+  private message_handlers: Map<string, MessageHandler[]> = new Map();
+  private should_reconnect = false;
+  private auth_error_count = 0;
+  private last_auth_error = false;
+  private reconnect_attempt = 0;
+  private failure_streak_reported = false;
+  private has_authenticated_before = false;
+  private last_catch_up_at = 0;
+  private last_definitions_refresh_at = 0;
+  private catch_up_timer: ReturnType<typeof setInterval> | null = null;
+  private pending_connect_reject: ((err: Error) => void) | null = null;
+  private heartbeat_timer: ReturnType<typeof setInterval> | null = null;
+  private last_message_at = 0;
+  private mutation_refresh_timer: ReturnType<typeof setTimeout> | null = null;
+  private echo_reconcile_timer: ReturnType<typeof setTimeout> | null = null;
+  private last_soft_refresh_at = 0;
+  private last_connect_started_at = 0;
+
+  async connect(): Promise<void> {
+    const method = connection_store.get_method();
+
+    if (method === "tor" || method === "tor_snowflake") {
+      this.should_reconnect = false;
+      throw new TorUnavailableError(
+        "tor_not_running",
+        "WebSocket sync is disabled in Tor mode to prevent IP leaks",
+      );
+    }
+
+    if (is_onion_host()) {
+      this.should_reconnect = false;
+      throw new TorUnavailableError(
+        "tor_not_running",
+        "WebSocket sync is disabled on onion sites",
+      );
+    }
+
+    if (is_any_lockdown_active()) {
+      this.should_reconnect = false;
+      throw new Error("WebSocket sync is disabled in Lockdown Mode");
+    }
+
+    this.should_reconnect = true;
+
+    if (this.reconnect_timeout) {
+      clearTimeout(this.reconnect_timeout);
+      this.reconnect_timeout = null;
+    }
+
+    if (
+      this.socket &&
+      (this.socket.readyState === WebSocket.OPEN ||
+        this.socket.readyState === WebSocket.CONNECTING)
+    ) {
+      this.socket.onclose = null;
+      this.socket.onerror = null;
+      this.socket.onmessage = null;
+      this.socket.close();
+      this.socket = null;
+    }
+
+    if (this.pending_connect_reject) {
+      this.pending_connect_reject(
+        new Error("Superseded by a new connection attempt"),
+      );
+      this.pending_connect_reject = null;
+    }
+
+    return new Promise((resolve, reject) => {
+      this.pending_connect_reject = reject;
+
+      const settle_resolve = () => {
+        if (this.pending_connect_reject === reject) {
+          this.pending_connect_reject = null;
+        }
+        resolve();
+      };
+      const settle_reject = (err: Error) => {
+        if (this.pending_connect_reject === reject) {
+          this.pending_connect_reject = null;
+        }
+        reject(err);
+      };
+      const ws_url = get_ws_base_url();
+
+      this.last_connect_started_at = Date.now();
+      this.socket = new WebSocket(ws_url);
+
+      this.socket.onopen = () => {
+        const token = api_client.get_access_token();
+
+        if (token) {
+          this.send_message({ type: "auth", token });
+        } else {
+          this.socket?.close();
+          settle_reject(new Error("No access token available"));
+        }
+      };
+
+      this.socket.onmessage = (event) => {
+        let data: ServerMessage;
+
+        try {
+          const parsed: unknown = JSON.parse(event.data);
+
+          if (
+            typeof parsed !== "object" ||
+            parsed === null ||
+            typeof (parsed as Record<string, unknown>).type !== "string"
+          ) {
+            return;
+          }
+
+          data = parsed as ServerMessage;
+        } catch {
+          return;
+        }
+
+        request_cache.end_fresh_joins();
+        this.handle_message(data);
+
+        if (data.type === "auth_success") {
+          const is_reconnect =
+            this.reconnect_attempt > 0 || this.has_authenticated_before;
+
+          this.authenticated = true;
+          this.has_authenticated_before = true;
+          this.auth_error_count = 0;
+          this.last_auth_error = false;
+          this.reconnect_attempt = 0;
+          this.failure_streak_reported = false;
+          this.start_heartbeat();
+          this.start_catch_up_timer();
+          if (is_reconnect) {
+            this.catch_up_now();
+            if (is_calendar_app()) {
+              calendar_sync_engine.schedule_pull(0);
+            } else {
+              window.dispatchEvent(
+                new CustomEvent(MAIL_EVENTS.MAIL_SOFT_REFRESH),
+              );
+              this.refresh_definitions();
+            }
+            window.dispatchEvent(new Event(PREFERENCES_CHANGED_EVENT));
+          }
+          settle_resolve();
+        } else if (data.type === "auth_error") {
+          this.last_auth_error = true;
+          settle_reject(new Error(data.message || "Authentication failed"));
+        }
+      };
+
+      this.socket.onerror = () => {
+        settle_reject(new Error("WebSocket connection failed"));
+      };
+
+      this.socket.onclose = () => {
+        this.authenticated = false;
+        this.stop_heartbeat();
+        this.clear_pending_requests();
+        this.schedule_reconnect();
+      };
+    });
+  }
+
+  private start_heartbeat(): void {
+    this.stop_heartbeat();
+    this.last_message_at = Date.now();
+
+    this.heartbeat_timer = setInterval(() => {
+      if (this.socket?.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
+      if (Date.now() - this.last_message_at > LIVENESS_TIMEOUT_MS) {
+        this.socket.close();
+
+        return;
+      }
+
+      this.send_message({ type: "ping" });
+    }, HEARTBEAT_INTERVAL_MS);
+  }
+
+  private stop_heartbeat(): void {
+    if (this.heartbeat_timer) {
+      clearInterval(this.heartbeat_timer);
+      this.heartbeat_timer = null;
+    }
+  }
+
+  catch_up_now(): void {
+    if (!this.should_reconnect) return;
+    if (
+      typeof document !== "undefined" &&
+      document.visibilityState === "hidden"
+    ) {
+      return;
+    }
+    this.last_catch_up_at = Date.now();
+  }
+
+  private start_catch_up_timer(): void {
+    if (this.catch_up_timer) return;
+
+    this.catch_up_timer = setInterval(() => {
+      if (!this.should_reconnect) return;
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState === "hidden"
+      ) {
+        return;
+      }
+      const socket_live =
+        this.authenticated && this.socket?.readyState === WebSocket.OPEN;
+      const since_last = Date.now() - this.last_catch_up_at;
+      const due = socket_live
+        ? since_last >= CATCH_UP_WHILE_LIVE_MS
+        : since_last >= CATCH_UP_TICK_MS;
+
+      if (due) this.catch_up_now();
+    }, CATCH_UP_TICK_MS);
+  }
+
+  private stop_catch_up_timer(): void {
+    if (this.catch_up_timer) {
+      clearInterval(this.catch_up_timer);
+      this.catch_up_timer = null;
+    }
+  }
+
+  on_wake(): void {
+    this.reconnect_now();
+
+    const socket_live =
+      this.authenticated && this.socket?.readyState === WebSocket.OPEN;
+
+    if (socket_live && Date.now() - this.last_catch_up_at >= CATCH_UP_TICK_MS) {
+      this.catch_up_now();
+    }
+
+    if (
+      this.should_reconnect &&
+      !is_calendar_app() &&
+      Date.now() - this.last_definitions_refresh_at >=
+        DEFINITIONS_REFRESH_MIN_MS
+    ) {
+      this.refresh_definitions();
+    }
+  }
+
+  private refresh_definitions(): void {
+    if (
+      typeof document !== "undefined" &&
+      document.visibilityState === "hidden"
+    ) {
+      return;
+    }
+    this.last_definitions_refresh_at = Date.now();
+    request_cache.invalidate("/mail/v1/labels");
+    request_cache.invalidate("/mail/v1/tags");
+    emit_definitions_stale();
+  }
+
+  reconnect_now(): void {
+    if (!this.should_reconnect) return;
+
+    if (
+      this.socket?.readyState !== WebSocket.OPEN &&
+      Date.now() - this.last_connect_started_at < WAKE_RECONNECT_MIN_GAP_MS
+    ) {
+      return;
+    }
+
+    if (this.reconnect_timeout) {
+      clearTimeout(this.reconnect_timeout);
+      this.reconnect_timeout = null;
+    }
+
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      if (Date.now() - this.last_message_at <= LIVENESS_TIMEOUT_MS) {
+        this.send_message({ type: "ping" });
+
+        return;
+      }
+      this.socket.close();
+
+      return;
+    }
+
+    if (this.socket?.readyState === WebSocket.CONNECTING) {
+      return;
+    }
+
+    this.reconnect_attempt = 0;
+    this.connect().catch((caught) =>
+      ignore_error("services/sync_client:reconnect_now", caught),
+    );
+  }
+
+  private schedule_reconnect(): void {
+    if (this.reconnect_timeout || !this.should_reconnect) return;
+
+    const base_delay = is_low_network() ? 10000 : 3000;
+    const max_delay = RECONNECT_MAX_DELAY_MS;
+    const backoff = Math.min(
+      base_delay * Math.pow(2, Math.min(this.reconnect_attempt, 10)),
+      max_delay,
+    );
+    const jitter = 1 + (Math.random() * 0.5 - 0.25);
+    const delay = Math.max(base_delay, Math.min(backoff * jitter, max_delay));
+
+    this.reconnect_attempt++;
+
+    this.reconnect_timeout = setTimeout(async () => {
+      this.reconnect_timeout = null;
+      if (!this.should_reconnect) return;
+
+      if (this.last_auth_error) {
+        this.auth_error_count++;
+
+        if (this.auth_error_count > 10) {
+          this.should_reconnect = false;
+
+          return;
+        }
+
+        await api_client.refresh_session();
+
+        if (!api_client.is_authenticated()) {
+          this.should_reconnect = false;
+
+          return;
+        }
+
+        this.last_auth_error = false;
+      }
+
+      this.connect().catch((caught) => {
+        if (this.reconnect_attempt < 3 || this.failure_streak_reported) return;
+
+        this.failure_streak_reported = true;
+        ignore_error("services/sync_client:reconnect_failed", caught);
+        window.dispatchEvent(
+          new CustomEvent("astermail:sync-connection-failed"),
+        );
+      });
+    }, delay);
+  }
+
+  private send_message(msg: Record<string, unknown>): void {
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      this.socket.send(JSON.stringify(msg));
+    }
+  }
+
+  private handle_mail_mutation(data: ServerMessage): void {
+    const ids = data.item_ids ?? [];
+    const action = data.action ?? "";
+
+    mark_view_stale();
+
+    if (ids.length > 0 && REMOVAL_ACTIONS.has(action)) {
+      emit_mail_items_removed({ ids });
+    }
+
+    const echo = claim_own_mail_mutation_echo(action, ids);
+
+    if (echo) {
+      this.schedule_echo_reconcile(echo.settled_at);
+
+      return;
+    }
+
+    if (this.mutation_refresh_timer) {
+      clearTimeout(this.mutation_refresh_timer);
+    }
+
+    this.mutation_refresh_timer = setTimeout(() => {
+      this.mutation_refresh_timer = null;
+      window.dispatchEvent(new CustomEvent(MAIL_EVENTS.MAIL_SOFT_REFRESH));
+      window.dispatchEvent(new CustomEvent(MAIL_EVENTS.MAIL_STATS_STALE));
+      window.dispatchEvent(new CustomEvent(MAIL_EVENTS.MAIL_REMOTE_MUTATION));
+    }, MUTATION_REFRESH_DEBOUNCE_MS);
+  }
+
+  private schedule_echo_reconcile(settled_at: number | null): void {
+    if (settled_at !== null && this.last_soft_refresh_at >= settled_at) {
+      return;
+    }
+    if (this.echo_reconcile_timer || this.mutation_refresh_timer) return;
+
+    this.echo_reconcile_timer = setTimeout(() => {
+      this.echo_reconcile_timer = null;
+      window.dispatchEvent(new CustomEvent(MAIL_EVENTS.MAIL_SOFT_REFRESH));
+      window.dispatchEvent(new CustomEvent(MAIL_EVENTS.MAIL_STATS_STALE));
+    }, ECHO_RECONCILE_MS);
+  }
+
+  note_soft_refresh(): void {
+    this.last_soft_refresh_at = Date.now();
+    if (this.echo_reconcile_timer) {
+      clearTimeout(this.echo_reconcile_timer);
+      this.echo_reconcile_timer = null;
+    }
+  }
+
+  private handle_message(data: ServerMessage): void {
+    this.last_message_at = Date.now();
+
+    if (data.type === "ping" || data.type === "pong") {
+      return;
+    }
+
+    if (data.type === "mail_mutation") {
+      this.handle_mail_mutation(data);
+
+      return;
+    }
+
+    if (data.type === "calendar_mutation") {
+      handle_calendar_mutation_frame({
+        type: "calendar_mutation",
+        action: data.action,
+        ids: data.ids,
+        origin_device: data.origin_device,
+      });
+
+      return;
+    }
+
+    if (data.type === "new_mail") {
+      this.last_catch_up_at = Date.now();
+      mark_view_stale();
+      if (!is_low_network()) {
+        window.dispatchEvent(
+          new CustomEvent(MAIL_EVENTS.EMAIL_RECEIVED, {
+            detail: { email_id: data.mail_item_id || "" },
+          }),
+        );
+      } else {
+        window.dispatchEvent(new CustomEvent(MAIL_EVENTS.MAIL_STATS_STALE));
+      }
+    }
+
+    if (data.type === "new_reaction") {
+      emit_reactions_changed({ mail_item_id: data.mail_item_id || "" });
+
+      return;
+    }
+
+    if (data.type === "session_revoked") {
+      this.should_reconnect = false;
+      this.disconnect();
+      window.dispatchEvent(new CustomEvent("astermail:session-revoked"));
+
+      return;
+    }
+
+    if (data.type === "contacts_changed") {
+      emit_contacts_changed();
+
+      return;
+    }
+
+    if (data.type === "folders_changed") {
+      request_cache.invalidate("/mail/v1/labels");
+      emit_folders_changed();
+
+      return;
+    }
+
+    if (data.type === "preferences_changed") {
+      window.dispatchEvent(new Event(PREFERENCES_CHANGED_EVENT));
+
+      return;
+    }
+
+    if (data.type === "tags_changed") {
+      request_cache.invalidate("/mail/v1/tags");
+      emit_tags_changed();
+
+      return;
+    }
+
+    if (data.type === "prekey_low") {
+      return;
+    }
+
+    const handlers = this.message_handlers.get(data.type);
+
+    if (handlers) {
+      handlers.forEach((h) => h(data));
+    }
+
+    const request_types: Record<string, string> = {
+      preferences: "get_preferences",
+      preferences_saved: "save_preferences",
+      draft: "get_draft",
+      draft_saved: "save_draft",
+      draft_deleted: "delete_draft",
+    };
+
+    const request_type = request_types[data.type];
+
+    if (request_type) {
+      const idx = this.pending_requests.findIndex(
+        (r) => r.type === request_type,
+      );
+
+      if (idx !== -1) {
+        const request = this.pending_requests.splice(idx, 1)[0];
+
+        clearTimeout(request.timeout_id);
+        request.resolve(data);
+      }
+    }
+  }
+
+  private async send_and_wait(
+    msg: Record<string, unknown>,
+    _response_type: string,
+  ): Promise<ServerMessage> {
+    return new Promise((resolve, reject) => {
+      if (!this.authenticated || this.socket?.readyState !== WebSocket.OPEN) {
+        reject(new Error("Not connected"));
+
+        return;
+      }
+
+      const pending: PendingRequest = {
+        resolve,
+        reject,
+        type: msg.type as string,
+        timeout_id: null as unknown as ReturnType<typeof setTimeout>,
+      };
+
+      pending.timeout_id = setTimeout(() => {
+        const idx = this.pending_requests.indexOf(pending);
+
+        if (idx !== -1) {
+          this.pending_requests.splice(idx, 1);
+          reject(new Error("Request timeout"));
+        }
+      }, 10000);
+
+      this.pending_requests.push(pending);
+
+      this.send_message(msg);
+    });
+  }
+
+  async get_preferences(): Promise<{
+    encrypted: string | null;
+    nonce: string | null;
+  }> {
+    const response = await this.send_and_wait(
+      { type: "get_preferences" },
+      "preferences",
+    );
+
+    return {
+      encrypted: response.encrypted || null,
+      nonce: response.nonce || null,
+    };
+  }
+
+  async save_preferences(encrypted: string, nonce: string): Promise<boolean> {
+    const response = await this.send_and_wait(
+      { type: "save_preferences", encrypted, nonce },
+      "preferences_saved",
+    );
+
+    return response.success === true;
+  }
+
+  async get_draft(): Promise<{
+    encrypted: string | null;
+    nonce: string | null;
+  }> {
+    const response = await this.send_and_wait({ type: "get_draft" }, "draft");
+
+    return {
+      encrypted: response.encrypted || null,
+      nonce: response.nonce || null,
+    };
+  }
+
+  async save_draft(encrypted: string, nonce: string): Promise<boolean> {
+    const response = await this.send_and_wait(
+      { type: "save_draft", encrypted, nonce },
+      "draft_saved",
+    );
+
+    return response.success === true;
+  }
+
+  async delete_draft(): Promise<boolean> {
+    const response = await this.send_and_wait(
+      { type: "delete_draft" },
+      "draft_deleted",
+    );
+
+    return response.success === true;
+  }
+
+  disconnect(): void {
+    this.should_reconnect = false;
+    this.last_auth_error = false;
+    this.auth_error_count = 0;
+    this.reconnect_attempt = 0;
+    this.has_authenticated_before = false;
+    this.last_definitions_refresh_at = 0;
+    if (this.reconnect_timeout) {
+      clearTimeout(this.reconnect_timeout);
+      this.reconnect_timeout = null;
+    }
+    this.stop_heartbeat();
+    this.stop_catch_up_timer();
+    if (this.mutation_refresh_timer) {
+      clearTimeout(this.mutation_refresh_timer);
+      this.mutation_refresh_timer = null;
+    }
+    if (this.echo_reconcile_timer) {
+      clearTimeout(this.echo_reconcile_timer);
+      this.echo_reconcile_timer = null;
+    }
+    this.last_soft_refresh_at = 0;
+    clear_own_mail_mutations();
+    this.clear_pending_requests();
+    this.authenticated = false;
+    this.socket?.close();
+    this.socket = null;
+  }
+
+  private clear_pending_requests(): void {
+    for (const request of this.pending_requests) {
+      clearTimeout(request.timeout_id);
+      request.reject(new Error("Connection closed"));
+    }
+    this.pending_requests = [];
+  }
+
+  is_connected(): boolean {
+    return this.authenticated && this.socket?.readyState === WebSocket.OPEN;
+  }
+
+  register_handler(message_type: string, handler: MessageHandler): () => void {
+    if (!this.message_handlers.has(message_type)) {
+      this.message_handlers.set(message_type, []);
+    }
+
+    this.message_handlers.get(message_type)!.push(handler);
+
+    return () => {
+      const handlers = this.message_handlers.get(message_type);
+
+      if (handlers) {
+        const idx = handlers.indexOf(handler);
+
+        if (idx !== -1) {
+          handlers.splice(idx, 1);
+        }
+      }
+    };
+  }
+
+  async wait_for_connection(timeout_ms: number = 5000): Promise<boolean> {
+    if (this.is_connected()) return true;
+
+    return new Promise((resolve) => {
+      let settled = false;
+
+      const cleanup = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        this.socket?.removeEventListener("open", on_open);
+        this.socket?.removeEventListener("close", on_close);
+      };
+
+      const on_open = () => {
+        cleanup();
+        resolve(true);
+      };
+
+      const on_close = () => {
+        cleanup();
+        resolve(false);
+      };
+
+      const timer = setTimeout(() => {
+        cleanup();
+        resolve(false);
+      }, timeout_ms);
+
+      if (this.is_connected()) {
+        cleanup();
+        resolve(true);
+      } else if (this.socket) {
+        this.socket.addEventListener("open", on_open, { once: true });
+        this.socket.addEventListener("close", on_close, { once: true });
+      } else {
+        cleanup();
+        resolve(false);
+      }
+    });
+  }
+}
+
+export const sync_client = new SyncClient();
+
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", () => {
+    sync_client.disconnect();
+  });
+  window.addEventListener(LOCKDOWN_CHANGED_EVENT, (e) => {
+    const detail = (e as CustomEvent).detail;
+
+    if (detail?.enabled) {
+      sync_client.disconnect();
+    }
+  });
+  window.addEventListener("online", () => {
+    sync_client.on_wake();
+  });
+  window.addEventListener(MAIL_EVENTS.MAIL_SOFT_REFRESH, () => {
+    sync_client.note_soft_refresh();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      sync_client.on_wake();
+    }
+  });
+  window.addEventListener("focus", () => {
+    sync_client.on_wake();
+  });
+  if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+    navigator.serviceWorker.addEventListener("message", (event) => {
+      const data = (event as MessageEvent).data as
+        { type?: string } | null | undefined;
+
+      if (data?.type === PUSH_ARRIVED_MESSAGE) {
+        request_cache.end_fresh_joins();
+        sync_client.catch_up_now();
+      }
+    });
+  }
+}
+
+async function derive_key(
+  vault: EncryptedVault,
+  context: string,
+): Promise<CryptoKey> {
+  const encoder = new TextEncoder();
+  const raw_key = encoder.encode(vault.identity_key);
+
+  const base_key = await crypto.subtle.importKey(
+    "raw",
+    raw_key,
+    "HKDF",
+    false,
+    ["deriveKey"],
+  );
+
+  return crypto.subtle.deriveKey(
+    {
+      name: "HKDF",
+      hash: HASH_ALG,
+      salt: new Uint8Array(32),
+      info: encoder.encode(context),
+    },
+    base_key,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+}
+
+async function encrypt_data(
+  data: unknown,
+  vault: EncryptedVault,
+  context: string,
+): Promise<{ encrypted: string; nonce: string }> {
+  const key = await derive_key(vault, context);
+  const nonce = crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(JSON.stringify(data));
+
+  const encrypted = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: nonce },
+    key,
+    encoded,
+  );
+
+  return {
+    encrypted: btoa(String.fromCharCode(...new Uint8Array(encrypted))),
+    nonce: btoa(String.fromCharCode(...nonce)),
+  };
+}
+
+async function decrypt_data<T>(
+  encrypted: string,
+  nonce: string,
+  vault: EncryptedVault,
+  context: string,
+): Promise<T> {
+  const key = await derive_key(vault, context);
+  const encrypted_bytes = Uint8Array.from(atob(encrypted), (c) =>
+    c.charCodeAt(0),
+  );
+  const nonce_bytes = Uint8Array.from(atob(nonce), (c) => c.charCodeAt(0));
+
+  const decrypted = await decrypt_aes_gcm_with_fallback(
+    key,
+    encrypted_bytes,
+    nonce_bytes,
+  );
+
+  return JSON.parse(new TextDecoder().decode(decrypted));
+}
+
+export async function sync_get_preferences<T>(
+  vault: EncryptedVault,
+  default_value: T,
+): Promise<T> {
+  const connected = await sync_client.wait_for_connection(3000);
+
+  if (!connected) {
+    return default_value;
+  }
+
+  try {
+    const { encrypted, nonce } = await sync_client.get_preferences();
+
+    if (!encrypted || !nonce) {
+      return default_value;
+    }
+
+    return await decrypt_data<T>(
+      encrypted,
+      nonce,
+      vault,
+      "astermail-preferences-v1",
+    );
+  } catch {
+    return default_value;
+  }
+}
+
+export async function sync_save_preferences<T>(
+  vault: EncryptedVault,
+  data: T,
+): Promise<boolean> {
+  if (!sync_client.is_connected()) {
+    return false;
+  }
+
+  try {
+    const { encrypted, nonce } = await encrypt_data(
+      data,
+      vault,
+      "astermail-preferences-v1",
+    );
+
+    return await sync_client.save_preferences(encrypted, nonce);
+  } catch {
+    return false;
+  }
+}
+
+export interface DraftData {
+  to_recipients: string[];
+  cc_recipients: string[];
+  bcc_recipients: string[];
+  subject: string;
+  message: string;
+}
+
+export async function sync_get_draft(
+  vault: EncryptedVault,
+): Promise<DraftData | null> {
+  if (!sync_client.is_connected()) {
+    return null;
+  }
+
+  try {
+    const { encrypted, nonce } = await sync_client.get_draft();
+
+    if (!encrypted || !nonce) {
+      return null;
+    }
+
+    return await decrypt_data<DraftData>(
+      encrypted,
+      nonce,
+      vault,
+      "astermail-draft-v1",
+    );
+  } catch {
+    return null;
+  }
+}
+
+export async function sync_save_draft(
+  vault: EncryptedVault,
+  data: DraftData,
+): Promise<boolean> {
+  if (!sync_client.is_connected()) {
+    return false;
+  }
+
+  try {
+    const { encrypted, nonce } = await encrypt_data(
+      data,
+      vault,
+      "astermail-draft-v1",
+    );
+
+    return await sync_client.save_draft(encrypted, nonce);
+  } catch {
+    return false;
+  }
+}
+
+export async function sync_delete_draft(): Promise<boolean> {
+  if (!sync_client.is_connected()) {
+    return false;
+  }
+
+  try {
+    return await sync_client.delete_draft();
+  } catch {
+    return false;
+  }
+}

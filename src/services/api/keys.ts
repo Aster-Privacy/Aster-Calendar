@@ -1,0 +1,487 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { drop_expired_entries, trim_map_to_size } from "@/lib/bounded_map";
+import type { TranslationKey } from "@/lib/i18n/types";
+
+import { api_client, type ApiResponse } from "./client";
+import { GHOST_DOMAIN } from "./ghost_aliases";
+
+import { load_openpgp } from "@/services/crypto/openpgp_loader";
+
+interface PublicKeyResponse {
+  username: string;
+  public_key: string;
+  internal?: boolean;
+}
+
+export interface ExternalKeyFingerprintChange {
+  prior_fingerprint: string;
+  new_fingerprint: string;
+  source: string;
+  observed_at: string;
+}
+
+export interface ExternalKeyInfo {
+  email: string;
+  found: boolean;
+  public_key: string | null;
+  fingerprint: string | null;
+  source: string | null;
+  expires_at: string | null;
+  will_encrypt: boolean;
+  fingerprint_change: ExternalKeyFingerprintChange | null;
+}
+
+interface DiscoverKeyResponse {
+  email: string;
+  found: boolean;
+  public_key: string | null;
+  fingerprint: string | null;
+  source: string | null;
+  expires_at: string | null;
+  will_encrypt: boolean;
+  fingerprint_change?: ExternalKeyFingerprintChange | null;
+}
+
+interface DiscoverKeysResponse {
+  keys: DiscoverKeyResponse[];
+}
+
+const external_key_cache = new Map<
+  string,
+  { key: ExternalKeyInfo; timestamp: number }
+>();
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const MAX_CACHED_KEYS = 1000;
+
+function get_cached_key(email: string): ExternalKeyInfo | null {
+  const cached = external_key_cache.get(email.toLowerCase());
+
+  if (!cached) return null;
+
+  if (Date.now() - cached.timestamp > CACHE_TTL_MS) {
+    external_key_cache.delete(email.toLowerCase());
+
+    return null;
+  }
+
+  return cached.key;
+}
+
+function set_cached_key(email: string, key: ExternalKeyInfo): void {
+  external_key_cache.set(email.toLowerCase(), {
+    key,
+    timestamp: Date.now(),
+  });
+
+  if (external_key_cache.size > MAX_CACHED_KEYS) {
+    drop_expired_entries(external_key_cache, CACHE_TTL_MS);
+    trim_map_to_size(external_key_cache, MAX_CACHED_KEYS);
+  }
+}
+
+export async function get_recipient_public_key(
+  username: string,
+  email?: string,
+): Promise<ApiResponse<PublicKeyResponse>> {
+  const params = email ? `?email=${encodeURIComponent(email)}` : "";
+
+  return api_client.get<PublicKeyResponse>(
+    `/crypto/v1/keys/public/${encodeURIComponent(username)}${params}`,
+  );
+}
+
+export async function discover_external_key(
+  email: string,
+): Promise<ApiResponse<ExternalKeyInfo>> {
+  const cached = get_cached_key(email);
+
+  if (cached) {
+    return { data: cached };
+  }
+
+  const response = await api_client.post<DiscoverKeyResponse>(
+    "/crypto/v1/keys/external/discover",
+    { email },
+  );
+
+  if (response.data) {
+    const key_info: ExternalKeyInfo = {
+      email: response.data.email,
+      found: response.data.found,
+      public_key: response.data.public_key,
+      fingerprint: response.data.fingerprint,
+      source: response.data.source,
+      expires_at: response.data.expires_at,
+      will_encrypt: response.data.will_encrypt,
+      fingerprint_change: response.data.fingerprint_change ?? null,
+    };
+
+    set_cached_key(email, key_info);
+
+    return { data: key_info };
+  }
+
+  return { error: response.error };
+}
+
+export async function discover_external_keys_batch(
+  emails: string[],
+): Promise<ApiResponse<ExternalKeyInfo[]>> {
+  if (emails.length === 0) {
+    return { data: [] };
+  }
+
+  const results: ExternalKeyInfo[] = [];
+  const emails_to_fetch: string[] = [];
+
+  for (const email of emails) {
+    const cached = get_cached_key(email);
+
+    if (cached) {
+      results.push(cached);
+    } else {
+      emails_to_fetch.push(email);
+    }
+  }
+
+  if (emails_to_fetch.length === 0) {
+    return { data: results };
+  }
+
+  const response = await api_client.post<DiscoverKeysResponse>(
+    "/crypto/v1/keys/external/discover/batch",
+    { emails: emails_to_fetch },
+  );
+
+  if (response.data) {
+    for (const key_response of response.data.keys) {
+      const key_info: ExternalKeyInfo = {
+        email: key_response.email,
+        found: key_response.found,
+        public_key: key_response.public_key,
+        fingerprint: key_response.fingerprint,
+        source: key_response.source,
+        expires_at: key_response.expires_at,
+        will_encrypt: key_response.will_encrypt,
+        fingerprint_change: key_response.fingerprint_change ?? null,
+      };
+
+      set_cached_key(key_response.email, key_info);
+
+      results.push(key_info);
+    }
+
+    return { data: results };
+  }
+
+  return {
+    data: results.length > 0 ? results : undefined,
+    error: response.error,
+  };
+}
+
+const ASTER_KEY_SOURCE = "aster";
+
+const aster_key_cache = new Map<
+  string,
+  { key: ExternalKeyInfo | null; timestamp: number }
+>();
+
+async function fingerprint_of_public_key(
+  armored_key: string,
+): Promise<string | null> {
+  const openpgp = await load_openpgp();
+
+  try {
+    const key = await openpgp.readKey({ armoredKey: armored_key });
+
+    return key.getFingerprint().toUpperCase();
+  } catch {
+    return null;
+  }
+}
+
+async function lookup_aster_key(
+  email: string,
+): Promise<ExternalKeyInfo | null> {
+  const normalized = email.trim().toLowerCase();
+  const cached = aster_key_cache.get(normalized);
+
+  if (cached && Date.now() - cached.timestamp <= CACHE_TTL_MS) {
+    return cached.key;
+  }
+
+  const username = extract_username_from_email(normalized);
+
+  if (!username) return null;
+
+  const response = await get_recipient_public_key(username, normalized);
+  const public_key = response.data?.public_key ?? null;
+
+  if (!public_key) {
+    if (response.status === 404) {
+      aster_key_cache.set(normalized, { key: null, timestamp: Date.now() });
+    }
+
+    return null;
+  }
+
+  const key_info: ExternalKeyInfo = {
+    email: normalized,
+    found: true,
+    public_key,
+    fingerprint: await fingerprint_of_public_key(public_key),
+    source: ASTER_KEY_SOURCE,
+    expires_at: null,
+    will_encrypt: true,
+    fingerprint_change: null,
+  };
+
+  aster_key_cache.set(normalized, { key: key_info, timestamp: Date.now() });
+
+  return key_info;
+}
+
+async function lookup_aster_key_safely(
+  email: string,
+): Promise<ExternalKeyInfo | null> {
+  try {
+    return await lookup_aster_key(email);
+  } catch {
+    return null;
+  }
+}
+
+export async function discover_contact_key(
+  email: string,
+): Promise<ApiResponse<ExternalKeyInfo>> {
+  if (is_internal_email(email)) {
+    const aster_key = await lookup_aster_key_safely(email);
+
+    if (aster_key) {
+      return { data: aster_key };
+    }
+  }
+
+  return discover_external_key(email);
+}
+
+export async function discover_contact_keys_batch(
+  emails: string[],
+): Promise<ApiResponse<ExternalKeyInfo[]>> {
+  const internal = emails.filter((email) => is_internal_email(email));
+  const aster_keys = await Promise.all(internal.map(lookup_aster_key_safely));
+  const found = aster_keys.filter(
+    (key): key is ExternalKeyInfo => key !== null,
+  );
+  const found_emails = new Set(found.map((key) => key.email));
+  const remaining = emails.filter(
+    (email) => !found_emails.has(email.trim().toLowerCase()),
+  );
+
+  if (remaining.length === 0) {
+    return { data: found };
+  }
+
+  const external = await discover_external_keys_batch(remaining);
+
+  if (external.data) {
+    return { data: [...found, ...external.data] };
+  }
+
+  if (found.length > 0) {
+    return { data: found, error: external.error };
+  }
+
+  return external;
+}
+
+export function has_pgp_key(key_info: ExternalKeyInfo | null): boolean {
+  if (key_info === null || !key_info.found || key_info.public_key === null) {
+    return false;
+  }
+
+  if (key_info.expires_at !== null) {
+    const expires_at = Date.parse(key_info.expires_at);
+
+    if (!Number.isNaN(expires_at) && expires_at <= Date.now()) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export function format_fingerprint(fingerprint: string | null): string {
+  if (!fingerprint) return "";
+
+  const clean = fingerprint.replace(/\s/g, "").toUpperCase();
+
+  const chunks: string[] = [];
+
+  for (let i = 0; i < clean.length; i += 4) {
+    chunks.push(clean.slice(i, i + 4));
+  }
+
+  return chunks.join(" ");
+}
+
+export function get_key_source_label_key(
+  source: string | null,
+): TranslationKey {
+  switch (source) {
+    case "wkd":
+      return "settings.key_source_wkd";
+    case "keyserver":
+      return "settings.key_source_keyserver";
+    case "autocrypt":
+      return "settings.key_source_autocrypt";
+    case "dane":
+      return "settings.key_source_dane";
+    case "database":
+      return "settings.key_source_cached";
+    case ASTER_KEY_SOURCE:
+      return "settings.key_source_aster";
+    default:
+      return "settings.key_source_unknown";
+  }
+}
+
+export function clear_external_key_cache(): void {
+  external_key_cache.clear();
+  aster_key_cache.clear();
+}
+
+export async function acknowledge_external_key_fingerprint_change(
+  email: string,
+  prior_fingerprint: string,
+  new_fingerprint: string,
+): Promise<ApiResponse<{ acknowledged: boolean }>> {
+  const response = await api_client.post<{ acknowledged: boolean }>(
+    "/crypto/v1/keys/external/fingerprint-change/acknowledge",
+    { email, prior_fingerprint, new_fingerprint },
+  );
+
+  if (response.data?.acknowledged) {
+    forget_external_key_fingerprint_change(email);
+  }
+
+  return response;
+}
+
+export function forget_external_key_fingerprint_change(email: string): void {
+  const cached = external_key_cache.get(email.toLowerCase());
+
+  if (!cached) return;
+
+  external_key_cache.set(email.toLowerCase(), {
+    key: { ...cached.key, fingerprint_change: null },
+    timestamp: cached.timestamp,
+  });
+}
+
+export function extract_username_from_email(email: string): string | null {
+  const parts = email.split("@");
+
+  if (parts.length !== 2) return null;
+
+  return parts[0];
+}
+
+const INTERNAL_DOMAINS = [
+  "astermail.org",
+  "aster.cx",
+  "astermail.me",
+  "astermail.net",
+  GHOST_DOMAIN,
+];
+
+export function is_internal_email(email: string): boolean {
+  const lower_email = email.toLowerCase();
+
+  return INTERNAL_DOMAINS.some((domain) => lower_email.endsWith(`@${domain}`));
+}
+
+interface PublishKeyResponse {
+  success: boolean;
+  url?: string;
+}
+
+export async function publish_key_to_wkd(): Promise<
+  ApiResponse<PublishKeyResponse>
+> {
+  return api_client.post<PublishKeyResponse>("/crypto/v1/keys/publish/wkd", {});
+}
+
+export async function unpublish_key_from_wkd(): Promise<
+  ApiResponse<PublishKeyResponse>
+> {
+  return api_client.delete<PublishKeyResponse>("/crypto/v1/keys/publish/wkd");
+}
+
+export async function publish_key_to_keyserver(
+  addresses?: string[],
+): Promise<ApiResponse<PublishKeyResponse>> {
+  return api_client.post<PublishKeyResponse>(
+    "/crypto/v1/keys/publish/keyserver",
+    addresses && addresses.length > 0 ? { addresses } : {},
+  );
+}
+
+export async function get_wkd_publication_status(): Promise<
+  ApiResponse<{ published: boolean; url?: string }>
+> {
+  return api_client.get<{ published: boolean; url?: string }>(
+    "/crypto/v1/keys/publish/wkd/status",
+  );
+}
+
+export type KeyserverPublicationState =
+  | "not_published"
+  | "not_submitted"
+  | "awaiting_verification"
+  | "failed"
+  | "published";
+
+export interface KeyserverAddressStatus {
+  address: string;
+  state: KeyserverPublicationState;
+}
+
+export interface KeyserverPublicationStatus {
+  published: boolean;
+  addresses?: KeyserverAddressStatus[];
+  fingerprint?: string;
+  state?: KeyserverPublicationState;
+  error?: string;
+  submitted_at?: string;
+  verified_at?: string;
+}
+
+export async function get_keyserver_publication_status(): Promise<
+  ApiResponse<KeyserverPublicationStatus>
+> {
+  return api_client.get<KeyserverPublicationStatus>(
+    "/crypto/v1/keys/publish/keyserver/status",
+    { skip_cache: true },
+  );
+}

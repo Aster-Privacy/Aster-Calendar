@@ -1,0 +1,296 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { EncryptedVault } from "@/services/crypto/key_manager";
+
+import { describe, it, expect, beforeEach, vi } from "vitest";
+
+const h = vi.hoisted(() => ({
+  vault: null as unknown,
+  bundle: null as unknown,
+  store: new Map<string, unknown>(),
+  bundle_verification: {
+    verdict: "verified" as "verified" | "legacy",
+    format: "v2" as "v1" | "v2",
+    strict: true,
+  },
+}));
+
+vi.mock("@/services/crypto/key_manager_pgp", async (import_original) => ({
+  ...(await import_original<
+    typeof import("@/services/crypto/key_manager_pgp")
+  >()),
+  verify_ratchet_prekey_bundle_detailed: async () => h.bundle_verification,
+}));
+
+vi.mock("@/services/api/keys", async (import_original) => ({
+  ...(await import_original<typeof import("@/services/api/keys")>()),
+  get_recipient_public_key: async () => ({
+    data: { public_key: "owner-public-key" },
+  }),
+}));
+
+vi.mock("@/services/crypto/ratchet_identity_pin", async (import_original) => ({
+  ...(await import_original<
+    typeof import("@/services/crypto/ratchet_identity_pin")
+  >()),
+  check_owner_key_pin: async () => "ok" as const,
+}));
+
+vi.mock("@/services/crypto/memory_key_store", () => ({
+  get_vault_from_memory: () => h.vault,
+  get_passphrase_from_memory: () => null,
+  get_passphrase_bytes: () => null,
+  get_derived_encryption_key: () => new Uint8Array(32).fill(7),
+  has_vault_in_memory: () => h.vault !== null,
+}));
+
+vi.mock("@/services/crypto/encrypted_storage", async () => ({
+  ...(
+    await import("@/tests/fixtures/storage_name_support")
+  ).storage_name_support(h.store),
+  encrypted_get: vi.fn(async (key: string) =>
+    h.store.has(key) ? JSON.parse(JSON.stringify(h.store.get(key))) : undefined,
+  ),
+  encrypted_set: vi.fn(async (key: string, value: unknown) => {
+    h.store.set(key, JSON.parse(JSON.stringify(value)));
+  }),
+  encrypted_delete: vi.fn(async (key: string) => {
+    h.store.delete(key);
+  }),
+}));
+
+vi.mock("@/services/crypto/ratchet_plaintext_cache", () => ({
+  get_cached_ratchet_plaintext: vi.fn(async () => null),
+  get_cached_ratchet_sender_key: vi.fn(async () => null),
+  set_cached_ratchet_plaintext: vi.fn(async () => {}),
+}));
+
+vi.mock("@/services/api/client", () => ({
+  api_client: {
+    get: vi.fn(async (url: string) =>
+      url.includes("prekey-bundle")
+        ? { data: h.bundle }
+        : { code: "NOT_FOUND" },
+    ),
+    put: vi.fn(async () => ({ data: { state_version: 1 } })),
+    post: vi.fn(async () => ({ data: { state_version: 1 } })),
+    delete: vi.fn(async () => ({})),
+  },
+}));
+
+import {
+  generate_ratchet_keys,
+  encrypt_for_ratchet_recipient,
+  build_ratchet_envelope,
+  parse_ratchet_envelope,
+  decrypt_ratchet_message,
+} from "@/services/crypto/ratchet_manager";
+
+const SENDER = "sender@astermail.org";
+const RECIPIENT = "recipient@astermail.org";
+
+type Keys = NonNullable<Awaited<ReturnType<typeof generate_ratchet_keys>>>;
+
+function make_vault(keys: Keys): EncryptedVault {
+  return {
+    identity_key: "",
+    ratchet_identity_key: keys.identity_jwk,
+    ratchet_identity_public: keys.identity_public,
+    ratchet_signed_prekey: keys.signed_prekey_jwk,
+    ratchet_signed_prekey_public: keys.signed_prekey_public,
+  } as unknown as EncryptedVault;
+}
+
+function bundle_for(keys: Keys) {
+  return {
+    kem_identity_key: keys.identity_public,
+    signed_prekey: keys.signed_prekey_public,
+    signed_prekey_signature: "",
+    one_time_prekey: null,
+    pq_prekey: null,
+  };
+}
+
+async function send(plaintext: string, sender_vault: EncryptedVault) {
+  h.vault = sender_vault;
+  const data = await encrypt_for_ratchet_recipient(
+    SENDER,
+    RECIPIENT,
+    "recipient",
+    plaintext,
+    sender_vault,
+  );
+
+  expect(data).not.toBeNull();
+
+  const envelope = build_ratchet_envelope(
+    sender_vault.ratchet_identity_public!,
+    {
+      [RECIPIENT]: data!,
+    },
+  );
+
+  return { data: data!, envelope };
+}
+
+async function receive(envelope_json: string, receiver_vault: EncryptedVault) {
+  h.vault = receiver_vault;
+  const parsed = parse_ratchet_envelope(envelope_json)!;
+
+  return decrypt_ratchet_message(RECIPIENT, SENDER, parsed, receiver_vault);
+}
+
+async function try_send(plaintext: string, sender_vault: EncryptedVault) {
+  h.vault = sender_vault;
+
+  return encrypt_for_ratchet_recipient(
+    SENDER,
+    RECIPIENT,
+    "recipient",
+    plaintext,
+    sender_vault,
+  );
+}
+
+describe("recipient identity pinning (server cannot silently swap ratchet keys)", () => {
+  beforeEach(() => {
+    h.vault = null;
+    h.bundle = null;
+    h.store.clear();
+    h.bundle_verification = {
+      verdict: "verified",
+      format: "v2",
+      strict: true,
+    };
+  });
+
+  it("reuses the established session when the recipient bundle is unchanged", async () => {
+    const sender_vault = make_vault((await generate_ratchet_keys())!);
+    const recipient = make_vault((await generate_ratchet_keys())!);
+
+    h.bundle = bundle_for({
+      identity_jwk: recipient.ratchet_identity_key!,
+      identity_public: recipient.ratchet_identity_public!,
+      signed_prekey_jwk: recipient.ratchet_signed_prekey!,
+      signed_prekey_public: recipient.ratchet_signed_prekey_public!,
+    } as Keys);
+
+    const first = await send("first message", sender_vault);
+
+    expect(first.data.header.message_number).toBe(0);
+
+    const second = await send("second message", sender_vault);
+
+    expect(second.data.header.message_number).toBe(1);
+    expect(await receive(first.envelope, recipient)).toBe("first message");
+    expect(await receive(second.envelope, recipient)).toBe("second message");
+  });
+
+  it("re-bootstraps onto a rotated recipient identity and re-pins it", async () => {
+    const sender_vault = make_vault((await generate_ratchet_keys())!);
+    const recipient_gen1 = make_vault((await generate_ratchet_keys())!);
+    const recipient_gen2 = make_vault((await generate_ratchet_keys())!);
+
+    h.bundle = bundle_for({
+      identity_jwk: recipient_gen1.ratchet_identity_key!,
+      identity_public: recipient_gen1.ratchet_identity_public!,
+      signed_prekey_jwk: recipient_gen1.ratchet_signed_prekey!,
+      signed_prekey_public: recipient_gen1.ratchet_signed_prekey_public!,
+    } as Keys);
+
+    const first = await send("first message", sender_vault);
+
+    expect(await receive(first.envelope, recipient_gen1)).toBe("first message");
+
+    h.bundle = bundle_for({
+      identity_jwk: recipient_gen2.ratchet_identity_key!,
+      identity_public: recipient_gen2.ratchet_identity_public!,
+      signed_prekey_jwk: recipient_gen2.ratchet_signed_prekey!,
+      signed_prekey_public: recipient_gen2.ratchet_signed_prekey_public!,
+    } as Keys);
+
+    const second = await send("second message", sender_vault);
+
+    expect(second.data.header.message_number).toBe(0);
+    expect(await receive(second.envelope, recipient_gen2)).toBe(
+      "second message",
+    );
+  });
+
+  it("refuses to ratchet onto an unverifiable rotated identity", async () => {
+    const sender_vault = make_vault((await generate_ratchet_keys())!);
+    const gen1 = make_vault((await generate_ratchet_keys())!);
+    const gen2 = make_vault((await generate_ratchet_keys())!);
+
+    h.bundle = bundle_for({
+      identity_jwk: gen1.ratchet_identity_key!,
+      identity_public: gen1.ratchet_identity_public!,
+      signed_prekey_jwk: gen1.ratchet_signed_prekey!,
+      signed_prekey_public: gen1.ratchet_signed_prekey_public!,
+    } as Keys);
+
+    expect(await try_send("before rotation", sender_vault)).not.toBeNull();
+
+    h.bundle = bundle_for({
+      identity_jwk: gen2.ratchet_identity_key!,
+      identity_public: gen2.ratchet_identity_public!,
+      signed_prekey_jwk: gen2.ratchet_signed_prekey!,
+      signed_prekey_public: gen2.ratchet_signed_prekey_public!,
+    } as Keys);
+
+    h.bundle_verification = { verdict: "legacy", format: "v1", strict: false };
+
+    expect(await try_send("after rotation", sender_vault)).toBeNull();
+  });
+
+  it("re-establishes the ratchet on a verified identity rotation", async () => {
+    const sender_vault = make_vault((await generate_ratchet_keys())!);
+    const gen1 = make_vault((await generate_ratchet_keys())!);
+    const gen2 = make_vault((await generate_ratchet_keys())!);
+
+    h.bundle = bundle_for({
+      identity_jwk: gen1.ratchet_identity_key!,
+      identity_public: gen1.ratchet_identity_public!,
+      signed_prekey_jwk: gen1.ratchet_signed_prekey!,
+      signed_prekey_public: gen1.ratchet_signed_prekey_public!,
+    } as Keys);
+
+    expect(await try_send("before rotation", sender_vault)).not.toBeNull();
+
+    h.bundle = bundle_for({
+      identity_jwk: gen2.ratchet_identity_key!,
+      identity_public: gen2.ratchet_identity_public!,
+      signed_prekey_jwk: gen2.ratchet_signed_prekey!,
+      signed_prekey_public: gen2.ratchet_signed_prekey_public!,
+    } as Keys);
+
+    const after_rotation = await try_send("after rotation", sender_vault);
+
+    expect(after_rotation).not.toBeNull();
+
+    const rotated_envelope = build_ratchet_envelope(
+      sender_vault.ratchet_identity_public!,
+      { [RECIPIENT]: after_rotation! },
+    );
+
+    expect(await receive(rotated_envelope, gen2)).toBe("after rotation");
+  });
+});

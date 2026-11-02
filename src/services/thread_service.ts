@@ -1,0 +1,882 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { DecryptedThreadMessage, ThreadContext } from "@/types/thread";
+import type {
+  MailItem,
+  ReactionSummary,
+  ThreadWithMessages,
+} from "@/services/api/mail";
+import type { ThreadMessageItem } from "@/services/api/mail_threads";
+
+import {
+  get_thread_messages,
+  create_thread,
+  link_mail_to_thread,
+  list_mail_items,
+  get_mail_item,
+} from "./api/mail";
+import {
+  get_passphrase_bytes,
+  get_vault_from_memory,
+  wait_for_keys_ready,
+} from "./crypto/memory_key_store";
+import { array_to_base64 } from "./crypto/envelope";
+import {
+  parse_ratchet_envelope,
+  decrypt_ratchet_message,
+} from "./crypto/ratchet_manager";
+import { zero_uint8_array } from "./crypto/secure_memory";
+import { decrypt_mail_metadata } from "./crypto/mail_metadata";
+import {
+  decrypt_thread_content_cached,
+  decrypt_thread_metadata_cached,
+  type ThreadMessageContent,
+} from "./thread_decrypt_cache";
+
+import { decrypt_mail_envelope } from "@/components/email/shared/decrypt_envelope";
+import { get_active_translations } from "@/lib/i18n/translations";
+import { is_html_content } from "@/lib/html_text";
+import { HASH_ALG } from "@/services/crypto/constants";
+import {
+  try_extract_mime_body,
+  RATCHET_UNDECRYPTABLE_SENTINEL,
+  extract_subject_bundle,
+  unwrap_bundle_html,
+  is_ratchet_envelope,
+  is_password_protected_body,
+  resolve_inbound_pgp_body,
+} from "@/utils/email_crypto";
+import { filter_locked_mail_items } from "@/services/locked_folders";
+import { resolve_forwarding_display } from "@/utils/forwarding_alias";
+import { is_reaction_payload_body } from "@/lib/reaction_payload";
+import { compare_timestamps_asc } from "@/utils/email_timestamp";
+import { has_readable_body } from "@/components/email/thread_message_merge";
+import { is_trusted_ratchet_plaintext } from "@/services/crypto/ratchet_verification_status";
+import { sender_text_alternative } from "@/components/email/plain_view";
+
+interface DecryptedEnvelope {
+  subject: string;
+  body_text: string;
+  body_html?: string;
+  text_body?: string;
+  html_body?: string;
+  from: { name: string; email: string };
+  to: { name: string; email: string }[];
+  cc: { name: string; email: string }[];
+  bcc: { name: string; email: string }[];
+  sent_at: string;
+  raw_headers?: { name: string; value: string }[];
+}
+
+async function decrypt_reaction_body(
+  mail_item_id: string,
+  our_email: string,
+): Promise<{ emoji: string; reactor_email: string } | null> {
+  try {
+    const response = await get_mail_item(mail_item_id);
+
+    if (response.error || !response.data) return null;
+
+    const item = response.data;
+    const envelope = await decrypt_mail_envelope<DecryptedEnvelope>(
+      item.encrypted_envelope,
+      item.envelope_nonce,
+      item.id,
+    );
+
+    if (!envelope) return null;
+
+    let body_content = envelope.body_text || envelope.text_body || "";
+
+    if (body_content.startsWith("{") && is_ratchet_envelope(body_content)) {
+      const ratchet_env = parse_ratchet_envelope(body_content);
+
+      if (!ratchet_env) return null;
+
+      let vault = get_vault_from_memory();
+
+      if (!vault) {
+        await wait_for_keys_ready();
+        vault = get_vault_from_memory();
+      }
+
+      if (!vault) return null;
+
+      const decrypted = await decrypt_ratchet_message(
+        our_email,
+        envelope.from.email,
+        ratchet_env,
+        vault,
+        mail_item_id,
+      );
+
+      if (!decrypted) return null;
+
+      body_content = decrypted;
+    }
+
+    const parsed = JSON.parse(body_content) as {
+      aster_reaction?: boolean;
+      emoji?: string;
+    };
+
+    if (!parsed.aster_reaction || !parsed.emoji) return null;
+
+    return { emoji: parsed.emoji, reactor_email: envelope.from.email };
+  } catch {
+    return null;
+  }
+}
+
+export async function resolve_reaction_emojis(
+  messages: DecryptedThreadMessage[],
+  our_email?: string,
+): Promise<void> {
+  if (!our_email) return;
+
+  const unresolved = new Map<string, ReactionSummary>();
+
+  for (const msg of messages) {
+    for (const reaction of msg.reactions ?? []) {
+      if (!reaction.emoji && reaction.source === "internal") {
+        unresolved.set(reaction.reaction_mail_item_id, reaction);
+      }
+    }
+  }
+
+  if (!unresolved.size) return;
+
+  const resolved = new Map<string, { emoji: string; reactor_email: string }>();
+
+  await Promise.all(
+    Array.from(unresolved.keys()).map(async (mail_item_id) => {
+      const decrypted = await decrypt_reaction_body(mail_item_id, our_email);
+
+      if (decrypted) resolved.set(mail_item_id, decrypted);
+    }),
+  );
+
+  if (!resolved.size) return;
+
+  for (const msg of messages) {
+    if (!msg.reactions?.length) continue;
+
+    msg.reactions = msg.reactions.map((reaction) => {
+      const match = resolved.get(reaction.reaction_mail_item_id);
+
+      return match
+        ? {
+            ...reaction,
+            emoji: match.emoji,
+            reactor_email: match.reactor_email,
+          }
+        : reaction;
+    });
+  }
+}
+
+export async function generate_thread_token(
+  identity_key: string,
+  original_email_id: string,
+): Promise<string> {
+  const material = new TextEncoder().encode(
+    identity_key + "thread:" + original_email_id,
+  );
+  const hash = await crypto.subtle.digest(HASH_ALG, material);
+
+  return array_to_base64(new Uint8Array(hash));
+}
+
+export function get_thread_context_from_email(
+  email: MailItem,
+): ThreadContext | null {
+  if (!email.thread_token) return null;
+
+  return {
+    thread_token: email.thread_token,
+    original_email_id: email.id,
+  };
+}
+
+async function resolve_our_email(
+  our_email?: string,
+): Promise<string | undefined> {
+  if (our_email) return our_email;
+
+  try {
+    const { get_current_account } = await import("@/services/account_manager");
+    const account = await get_current_account();
+
+    return account?.user.email || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function decode_thread_envelope(
+  msg: ThreadMessageItem,
+  our_email: string | undefined,
+): Promise<{ value: ThreadMessageContent | null; cacheable: boolean }> {
+  const envelope = await decrypt_mail_envelope<
+    DecryptedEnvelope & { attachment_keys?: unknown }
+  >(msg.encrypted_envelope, msg.envelope_nonce, msg.id);
+
+  if (!envelope) return { value: null, cacheable: false };
+
+  let resolved_html: string | undefined =
+    envelope.body_html ?? envelope.html_body;
+
+  if (resolved_html && /^content-type\s*:/im.test(resolved_html)) {
+    resolved_html = try_extract_mime_body(resolved_html) || undefined;
+  }
+  if (is_ratchet_envelope(resolved_html)) {
+    resolved_html = undefined;
+  }
+  const resolved_text = envelope.body_text ?? envelope.text_body ?? "";
+  let body_content = resolved_html || resolved_text;
+  let body_decrypted = false;
+  let e2e_verified = false;
+
+  if (our_email && body_content.startsWith("{")) {
+    const ratchet_env = parse_ratchet_envelope(body_content);
+
+    if (ratchet_env) {
+      let vault = get_vault_from_memory();
+
+      if (!vault) {
+        await wait_for_keys_ready();
+        vault = get_vault_from_memory();
+      }
+
+      if (vault) {
+        try {
+          const decrypted = await decrypt_ratchet_message(
+            our_email,
+            envelope.from.email,
+            ratchet_env,
+            vault,
+            msg.id,
+          );
+
+          if (decrypted) {
+            body_content = decrypted;
+            body_decrypted = true;
+            e2e_verified = is_trusted_ratchet_plaintext(decrypted);
+          } else {
+            body_content = RATCHET_UNDECRYPTABLE_SENTINEL;
+          }
+        } catch (error) {
+          if (import.meta.env.DEV) console.error(error);
+          body_content = RATCHET_UNDECRYPTABLE_SENTINEL;
+        }
+      } else {
+        body_content = RATCHET_UNDECRYPTABLE_SENTINEL;
+      }
+    }
+  }
+
+  let pgp_unresolved = false;
+
+  if (body_content.includes("-----BEGIN PGP MESSAGE-----")) {
+    const resolved = await resolve_inbound_pgp_body(body_content);
+
+    body_content = resolved.body;
+    body_decrypted = resolved.decrypted;
+    pgp_unresolved = !resolved.decrypted;
+  }
+
+  const password_protected = is_password_protected_body(body_content);
+  const pre_mime = body_content;
+
+  body_content = password_protected
+    ? body_content
+    : try_extract_mime_body(body_content);
+  const mime_extracted = body_content !== pre_mime;
+
+  if (body_decrypted) {
+    body_content = body_content.trim();
+  }
+
+  const subject_bundle = extract_subject_bundle(body_content);
+
+  if (subject_bundle.subject !== null) {
+    body_content = subject_bundle.body;
+    if (!envelope.subject) {
+      envelope.subject = subject_bundle.subject;
+    }
+  }
+
+  const content_is_html = is_html_content(body_content);
+  const html_had_pgp =
+    resolved_html?.includes("-----BEGIN PGP MESSAGE-----") ?? false;
+  let effective_html: string | undefined =
+    (body_decrypted || mime_extracted) && content_is_html
+      ? body_content
+      : html_had_pgp && body_decrypted
+        ? undefined
+        : resolved_html;
+
+  if (is_ratchet_envelope(effective_html) || password_protected) {
+    effective_html = undefined;
+  }
+
+  const html_bundle = unwrap_bundle_html(effective_html);
+
+  effective_html = html_bundle.html;
+  if (html_bundle.subject !== null && !envelope.subject) {
+    envelope.subject = html_bundle.subject;
+  }
+
+  const value: ThreadMessageContent = {
+    sender_name:
+      envelope.from?.name || envelope.from?.email?.split("@")[0] || "",
+    sender_email: envelope.from?.email || "",
+    ...(resolve_forwarding_display(
+      envelope.from,
+      envelope.raw_headers,
+      msg,
+    ) ?? {}),
+    subject: envelope.subject,
+    body: body_content,
+    html_content: effective_html,
+    text_part: sender_text_alternative(effective_html, resolved_text),
+    sent_at: envelope.sent_at,
+    e2e_verified,
+    to_recipients: envelope.to || [],
+    cc_recipients: envelope.cc || [],
+    bcc_recipients: envelope.bcc || [],
+    raw_headers: envelope.raw_headers,
+    attachment_keys: envelope.attachment_keys,
+  };
+  const cacheable =
+    !pgp_unresolved &&
+    body_content !== RATCHET_UNDECRYPTABLE_SENTINEL &&
+    has_readable_body(value);
+
+  return { value, cacheable };
+}
+
+export async function fetch_and_decrypt_thread_messages(
+  thread_token: string,
+  our_email_hint?: string,
+  options?: { is_trashed?: boolean; is_spam?: boolean; limit?: number },
+): Promise<{
+  messages: DecryptedThreadMessage[];
+  thread_data: ThreadWithMessages | null;
+  truncated: boolean;
+}> {
+  const our_email = await resolve_our_email(our_email_hint);
+  const response = await get_thread_messages(thread_token, options);
+
+  if (response.error || !response.data) {
+    return { messages: [], thread_data: null, truncated: false };
+  }
+
+  const thread_data = response.data;
+  const all_messages = thread_data.messages.filter((msg) => !msg.is_reaction);
+  let messages_to_decrypt = all_messages;
+  let truncated = false;
+
+  if (options?.limit !== undefined && all_messages.length > options.limit) {
+    const head_count = options.limit - 1;
+    const head = all_messages.slice(0, head_count);
+    const tail = all_messages[all_messages.length - 1];
+
+    messages_to_decrypt = [...head, tail];
+    truncated = true;
+  }
+
+  const decrypted_messages: DecryptedThreadMessage[] = [];
+  const cache_user = our_email ?? "";
+
+  const decrypt_promises = messages_to_decrypt.map(async (msg) => {
+    const [content, decrypted_metadata] = await Promise.all([
+      decrypt_thread_content_cached(msg, thread_token, cache_user, () =>
+        decode_thread_envelope(msg, our_email),
+      ),
+      msg.encrypted_metadata && msg.metadata_nonce
+        ? decrypt_thread_metadata_cached(msg, cache_user, () =>
+            decrypt_mail_metadata(
+              msg.encrypted_metadata!,
+              msg.metadata_nonce!,
+              msg.metadata_version,
+            ),
+          )
+        : Promise.resolve(msg.metadata ?? null),
+    ]);
+
+    if (!content) {
+      return {
+        id: msg.id,
+        item_type: msg.item_type as "received" | "sent" | "draft",
+        sender_name: get_active_translations().common.unknown_sender,
+        sender_email: "",
+        subject: get_active_translations().common.unable_to_decrypt,
+        body: "",
+        html_content: undefined,
+        timestamp: msg.created_at,
+        is_read: decrypted_metadata?.is_read ?? false,
+        is_starred: decrypted_metadata?.is_starred ?? false,
+        is_deleted: false,
+        is_external: msg.is_external ?? false,
+        system_origin: msg.system_origin,
+        sender_verified_domain: msg.sender_verified
+          ? msg.sender_verified_domain
+          : undefined,
+        send_status: msg.send_status ?? decrypted_metadata?.send_status,
+        send_error: msg.send_error,
+        encrypted_metadata: msg.encrypted_metadata,
+        metadata_nonce: msg.metadata_nonce,
+        spf_result: msg.spf_result,
+        dkim_result: msg.dkim_result,
+        dmarc_result: msg.dmarc_result,
+        spam_score: msg.spam_score,
+        spam_signals: msg.spam_signals,
+        is_spam: msg.is_spam,
+        reactions: msg.reactions,
+      };
+    }
+
+    return {
+      id: msg.id,
+      item_type: msg.item_type as "received" | "sent" | "draft",
+      sender_name: content.sender_name,
+      sender_email: content.sender_email,
+      ...(content.display_sender_email !== undefined
+        ? {
+            display_sender_name: content.display_sender_name,
+            display_sender_email: content.display_sender_email,
+            forwarding_service: content.forwarding_service,
+          }
+        : {}),
+      subject: content.subject,
+      body: content.body,
+      html_content: content.html_content,
+      text_part: content.text_part,
+      timestamp: content.sent_at || msg.created_at,
+      is_read: decrypted_metadata?.is_read ?? false,
+      is_starred: decrypted_metadata?.is_starred ?? false,
+      is_deleted: false,
+      is_external: msg.is_external ?? false,
+      system_origin: msg.system_origin,
+      e2e_verified: content.e2e_verified,
+      sender_verified_domain: msg.sender_verified
+        ? msg.sender_verified_domain
+        : undefined,
+      send_status: msg.send_status ?? decrypted_metadata?.send_status,
+      send_error: msg.send_error,
+      encrypted_metadata: msg.encrypted_metadata,
+      metadata_nonce: msg.metadata_nonce,
+      to_recipients: content.to_recipients,
+      cc_recipients: content.cc_recipients,
+      bcc_recipients: content.bcc_recipients,
+      raw_headers: content.raw_headers,
+      spf_result: msg.spf_result,
+      dkim_result: msg.dkim_result,
+      dmarc_result: msg.dmarc_result,
+      spam_score: msg.spam_score,
+      spam_signals: msg.spam_signals,
+      is_spam: msg.is_spam,
+      message_group_id: msg.message_group_id,
+      reactions: msg.reactions,
+    };
+  });
+  const results = await Promise.all(decrypt_promises);
+
+  decrypted_messages.push(
+    ...results.filter((msg) => !is_reaction_payload_body(msg.body)),
+  );
+
+  decrypted_messages.sort((a, b) =>
+    compare_timestamps_asc(a.timestamp, b.timestamp),
+  );
+
+  await resolve_reaction_emojis(decrypted_messages, our_email);
+
+  return { messages: decrypted_messages, thread_data, truncated };
+}
+
+export async function fetch_and_decrypt_virtual_group(
+  ids: string[],
+  our_email_hint?: string,
+): Promise<DecryptedThreadMessage[]> {
+  const our_email = await resolve_our_email(our_email_hint);
+  const response = await list_mail_items({ ids });
+
+  if (response.error || !response.data) {
+    return [];
+  }
+
+  const visible_items = filter_locked_mail_items(
+    response.data.items.filter((item) => !item.is_spam && !item.is_reaction),
+  );
+
+  const decrypt_promises = visible_items.map(async (item) => {
+    const [envelope, decrypted_metadata] = await Promise.all([
+      decrypt_mail_envelope<DecryptedEnvelope>(
+        item.encrypted_envelope,
+        item.envelope_nonce,
+        item.id,
+      ),
+      item.encrypted_metadata && item.metadata_nonce
+        ? decrypt_mail_metadata(
+            item.encrypted_metadata,
+            item.metadata_nonce,
+            item.metadata_version,
+          )
+        : Promise.resolve(item.metadata ?? null),
+    ]);
+
+    if (!envelope) {
+      return {
+        id: item.id,
+        item_type: item.item_type as "received" | "sent" | "draft",
+        sender_name: get_active_translations().common.unknown_sender,
+        sender_email: "",
+        subject: get_active_translations().common.unable_to_decrypt,
+        body: "",
+        html_content: undefined,
+        timestamp: item.created_at,
+        is_read: decrypted_metadata?.is_read ?? false,
+        is_starred: decrypted_metadata?.is_starred ?? false,
+        is_deleted: false,
+        is_external: item.is_external ?? false,
+        system_origin: item.system_origin,
+        sender_verified_domain: item.sender_verified
+          ? item.sender_verified_domain
+          : undefined,
+        send_status: item.send_status ?? decrypted_metadata?.send_status,
+        send_error: item.send_error,
+        encrypted_metadata: item.encrypted_metadata,
+        metadata_nonce: item.metadata_nonce,
+        reactions: item.reactions,
+        spf_result: item.spf_result,
+        dkim_result: item.dkim_result,
+        dmarc_result: item.dmarc_result,
+      };
+    }
+
+    let resolved_html: string | undefined =
+      envelope.body_html ?? envelope.html_body;
+
+    if (resolved_html && /^content-type\s*:/im.test(resolved_html)) {
+      resolved_html = try_extract_mime_body(resolved_html) || undefined;
+    }
+    if (is_ratchet_envelope(resolved_html)) {
+      resolved_html = undefined;
+    }
+    const resolved_text = envelope.body_text ?? envelope.text_body ?? "";
+    let body_content = resolved_html || resolved_text;
+    let body_decrypted = false;
+    let e2e_verified = false;
+
+    if (our_email && body_content.startsWith("{")) {
+      const ratchet_env = parse_ratchet_envelope(body_content);
+
+      if (ratchet_env) {
+        let vault = get_vault_from_memory();
+
+        if (!vault) {
+          await wait_for_keys_ready();
+          vault = get_vault_from_memory();
+        }
+
+        if (vault) {
+          try {
+            const decrypted = await decrypt_ratchet_message(
+              our_email,
+              envelope.from.email,
+              ratchet_env,
+              vault,
+              item.id,
+            );
+
+            if (decrypted) {
+              body_content = decrypted;
+              body_decrypted = true;
+              e2e_verified = is_trusted_ratchet_plaintext(decrypted);
+            } else {
+              body_content = RATCHET_UNDECRYPTABLE_SENTINEL;
+            }
+          } catch (error) {
+            if (import.meta.env.DEV) console.error(error);
+            body_content = RATCHET_UNDECRYPTABLE_SENTINEL;
+          }
+        } else {
+          body_content = RATCHET_UNDECRYPTABLE_SENTINEL;
+        }
+      }
+    }
+
+    if (body_content.includes("-----BEGIN PGP MESSAGE-----")) {
+      const resolved = await resolve_inbound_pgp_body(body_content);
+
+      body_content = resolved.body;
+      body_decrypted = resolved.decrypted;
+    }
+
+    const password_protected = is_password_protected_body(body_content);
+    const pre_mime = body_content;
+
+    body_content = password_protected
+      ? body_content
+      : try_extract_mime_body(body_content);
+    const mime_extracted = body_content !== pre_mime;
+
+    if (body_decrypted) {
+      body_content = body_content.trim();
+    }
+
+    const subject_bundle = extract_subject_bundle(body_content);
+
+    if (subject_bundle.subject !== null) {
+      body_content = subject_bundle.body;
+      if (!envelope.subject) {
+        envelope.subject = subject_bundle.subject;
+      }
+    }
+
+    const content_is_html = is_html_content(body_content);
+    const html_had_pgp =
+      resolved_html?.includes("-----BEGIN PGP MESSAGE-----") ?? false;
+    let effective_html: string | undefined =
+      (body_decrypted || mime_extracted) && content_is_html
+        ? body_content
+        : html_had_pgp && body_decrypted
+          ? undefined
+          : resolved_html;
+
+    if (is_ratchet_envelope(effective_html) || password_protected) {
+      effective_html = undefined;
+    }
+
+    const html_bundle = unwrap_bundle_html(effective_html);
+
+    effective_html = html_bundle.html;
+    if (html_bundle.subject !== null && !envelope.subject) {
+      envelope.subject = html_bundle.subject;
+    }
+
+    return {
+      id: item.id,
+      item_type: item.item_type as "received" | "sent" | "draft",
+      sender_name:
+        envelope.from?.name || envelope.from?.email?.split("@")[0] || "",
+      sender_email: envelope.from?.email || "",
+      ...(resolve_forwarding_display(
+        envelope.from,
+        envelope.raw_headers,
+        item,
+      ) ?? {}),
+      subject: envelope.subject,
+      body: body_content,
+      html_content: effective_html,
+      text_part: sender_text_alternative(effective_html, resolved_text),
+      timestamp: envelope.sent_at || item.message_ts || item.created_at,
+      is_read: decrypted_metadata?.is_read ?? false,
+      is_starred: decrypted_metadata?.is_starred ?? false,
+      is_deleted: false,
+      is_external: item.is_external ?? false,
+      system_origin: item.system_origin,
+      e2e_verified,
+      sender_verified_domain: item.sender_verified
+        ? item.sender_verified_domain
+        : undefined,
+      send_status: item.send_status ?? decrypted_metadata?.send_status,
+      send_error: item.send_error,
+      encrypted_metadata: item.encrypted_metadata,
+      metadata_nonce: item.metadata_nonce,
+      to_recipients: envelope.to || [],
+      cc_recipients: envelope.cc || [],
+      bcc_recipients: envelope.bcc || [],
+      raw_headers: envelope.raw_headers,
+      message_group_id: item.message_group_id,
+      reactions: item.reactions,
+      spf_result: item.spf_result,
+      dkim_result: item.dkim_result,
+      dmarc_result: item.dmarc_result,
+    };
+  });
+
+  const decrypted = await Promise.all(decrypt_promises);
+  const results = decrypted.filter(
+    (msg) => !is_reaction_payload_body(msg.body),
+  );
+
+  results.sort((a, b) => compare_timestamps_asc(a.timestamp, b.timestamp));
+
+  await resolve_reaction_emojis(results, our_email);
+
+  return results;
+}
+
+export function get_thread_message_count(
+  messages: DecryptedThreadMessage[],
+): number {
+  return messages.filter((m) => !m.is_deleted).length;
+}
+
+export function get_latest_expanded_id(
+  messages: DecryptedThreadMessage[],
+): string | null {
+  const visible_messages = messages.filter((m) => !m.is_deleted);
+
+  if (visible_messages.length === 0) return null;
+
+  return visible_messages[visible_messages.length - 1].id;
+}
+
+export async function get_or_create_thread_token(
+  original_email_id: string,
+  existing_thread_token?: string,
+): Promise<string | null> {
+  if (existing_thread_token) {
+    return existing_thread_token;
+  }
+
+  const server_thread_token = await read_server_thread_token(original_email_id);
+
+  if (server_thread_token) {
+    return server_thread_token;
+  }
+
+  let passphrase_bytes = get_passphrase_bytes();
+
+  if (!passphrase_bytes) {
+    await wait_for_keys_ready();
+    passphrase_bytes = get_passphrase_bytes();
+  }
+
+  if (!passphrase_bytes) return null;
+
+  const material = new TextEncoder().encode(
+    "astermail-thread:" + original_email_id,
+  );
+  const hash = await crypto.subtle.digest(HASH_ALG, material);
+  const thread_token = array_to_base64(new Uint8Array(hash));
+
+  const encrypted_meta = await encrypt_thread_meta({
+    created_from: original_email_id,
+    created_at: new Date().toISOString(),
+  });
+
+  if (!encrypted_meta) return null;
+
+  const create_result = await create_thread({
+    thread_token,
+    encrypted_meta: encrypted_meta.encrypted,
+    meta_nonce: encrypted_meta.nonce,
+  });
+
+  if (create_result.error && !create_result.error.includes("already exists")) {
+    return null;
+  }
+
+  const link_result = await link_mail_to_thread(
+    original_email_id,
+    thread_token,
+  );
+
+  if (link_result.error) {
+    zero_uint8_array(passphrase_bytes);
+
+    return read_server_thread_token(original_email_id);
+  }
+
+  zero_uint8_array(passphrase_bytes);
+
+  return thread_token;
+}
+
+async function read_server_thread_token(
+  mail_item_id: string,
+): Promise<string | null> {
+  try {
+    const result = await get_mail_item(mail_item_id);
+
+    return result.data?.thread_token || null;
+  } catch {
+    return null;
+  }
+}
+
+async function encrypt_thread_meta(
+  meta: Record<string, unknown>,
+): Promise<{ encrypted: string; nonce: string } | null> {
+  let passphrase_bytes = get_passphrase_bytes();
+
+  if (!passphrase_bytes) {
+    await wait_for_keys_ready();
+    passphrase_bytes = get_passphrase_bytes();
+  }
+
+  if (!passphrase_bytes) return null;
+
+  try {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const nonce = crypto.getRandomValues(new Uint8Array(12));
+
+    const key_material = await crypto.subtle.importKey(
+      "raw",
+      passphrase_bytes,
+      "PBKDF2",
+      false,
+      ["deriveKey"],
+    );
+
+    const key = await crypto.subtle.deriveKey(
+      {
+        name: "PBKDF2",
+        salt,
+        iterations: 100000,
+        hash: HASH_ALG,
+      },
+      key_material,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt"],
+    );
+
+    const plaintext = new TextEncoder().encode(JSON.stringify(meta));
+    const ciphertext = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv: nonce },
+      key,
+      plaintext,
+    );
+
+    const combined = new Uint8Array(
+      salt.length + nonce.length + ciphertext.byteLength,
+    );
+
+    combined.set(salt, 0);
+    combined.set(nonce, salt.length);
+    combined.set(new Uint8Array(ciphertext), salt.length + nonce.length);
+
+    zero_uint8_array(passphrase_bytes);
+
+    return {
+      encrypted: array_to_base64(combined),
+      nonce: array_to_base64(new Uint8Array([1])),
+    };
+  } catch {
+    return null;
+  }
+}

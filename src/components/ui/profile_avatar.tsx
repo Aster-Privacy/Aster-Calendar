@@ -1,0 +1,391 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { useMemo, useState, useCallback, memo, Suspense } from "react";
+import { ProfileAvatarView } from "@aster/ui";
+
+import {
+  is_icon_failed,
+  mark_icon_failed,
+  mark_icon_ok,
+} from "@/lib/icon_cache";
+import { fetch_priority_attr } from "@/lib/fetch_priority";
+import { get_initials, get_active_locale } from "@/lib/initials";
+import {
+  use_favicon_src,
+  use_favicon_tone,
+  store_favicon_if_api_url,
+} from "@/hooks/use_favicon_src";
+import {
+  get_avatar_color,
+  get_avatar_key,
+  get_contrast_text,
+} from "@/lib/avatar_color";
+import { get_root_domain, is_official_address } from "@/lib/utils";
+import { use_auth } from "@/contexts/auth_context";
+import { use_preferences } from "@/contexts/preferences_context";
+import { use_peer_profile } from "@/hooks/use_peer_profile";
+import { use_contact_photo } from "@/hooks/use_contact_photo";
+import { is_aster_email } from "@/services/api/profiles";
+import { GHOST_DOMAIN } from "@/services/api/ghost_aliases";
+import mail_logo_url from "@/assets/mail_logo.webp";
+import { lazy_with_retry } from "@/utils/lazy_with_retry";
+import { same_address_ignoring_dots } from "@/utils/address_dots";
+
+const SenderProfileTrigger = lazy_with_retry(() =>
+  import("@/components/profile/sender_profile_trigger").then((mod) => ({
+    default: mod.SenderProfileTrigger,
+  })),
+);
+
+interface ProfileAvatarProps {
+  name: string;
+  email?: string;
+  image_url?: string;
+  size?: "xs" | "sm_compact" | "sm" | "md" | "lg" | "xl";
+  className?: string;
+  use_domain_logo?: boolean;
+  clickable?: boolean;
+  on_compose?: (email: string) => void;
+  profile_color?: string;
+  sender_authenticated?: boolean;
+}
+
+const ASTER_SYSTEM_EMAILS = new Set([
+  "noreply@astermail.org",
+  "no-reply@astermail.org",
+  "noreply@aster.cx",
+  "no-reply@aster.cx",
+  "system@astermail.org",
+  "system@aster.cx",
+  "updates@astermail.org",
+  "updates@aster.cx",
+]);
+
+const SYSTEM_LOCAL_PARTS = new Set(["mailer-daemon", "postmaster"]);
+
+const ASTER_DOMAINS = new Set([
+  "astermail.org",
+  "aster.cx",
+  "astermail.me",
+  "astermail.net",
+]);
+
+const AVATAR_PIXEL_SIZES: Record<
+  NonNullable<ProfileAvatarProps["size"]>,
+  number
+> = {
+  xs: 24,
+  sm_compact: 28,
+  sm: 32,
+  md: 40,
+  lg: 48,
+  xl: 96,
+};
+
+const LOADED_SOURCE_LIMIT = 600;
+const loaded_sources = new Set<string>();
+
+function mark_source_loaded(src: string) {
+  if (!src) return;
+  if (loaded_sources.size >= LOADED_SOURCE_LIMIT) {
+    const oldest = loaded_sources.values().next().value;
+
+    if (oldest) loaded_sources.delete(oldest);
+  }
+  loaded_sources.add(src);
+}
+
+function extract_domain(email: string): string {
+  const match = email.match(/@([^@]+)$/);
+
+  if (!match) return "";
+
+  return get_root_domain(match[1]);
+}
+
+export const ProfileAvatar = memo(function ProfileAvatar({
+  name,
+  email,
+  image_url,
+  size = "md",
+  className = "",
+  use_domain_logo = false,
+  clickable = false,
+  on_compose,
+  profile_color,
+  sender_authenticated = false,
+}: ProfileAvatarProps) {
+  const { user } = use_auth();
+  const { preferences } = use_preferences();
+  const low_network = preferences.low_network_mode;
+  const domain_logos_allowed =
+    use_domain_logo && preferences.show_profile_pictures !== false;
+  const is_current_user =
+    !!email && !!user?.email && same_address_ignoring_dots(email, user.email);
+  const peer_profile = use_peer_profile(
+    is_current_user || low_network ? null : email,
+  );
+  const resolved_image_url = low_network
+    ? undefined
+    : image_url ||
+      (is_current_user
+        ? user?.profile_picture
+        : (peer_profile?.profile_picture ?? undefined));
+
+  const [image_error, set_image_error] = useState(false);
+  const [contact_photo_error, set_contact_photo_error] = useState(false);
+  const [ddg_logo_error, set_ddg_logo_error] = useState(false);
+  const [img_loaded, set_img_loaded] = useState(false);
+  const [prev_email, set_prev_email] = useState(email);
+  const [prev_image_url, set_prev_image_url] = useState(resolved_image_url);
+  const domain = useMemo(() => (email ? extract_domain(email) : ""), [email]);
+  const normalized_email = (email || "").trim().toLowerCase();
+  const is_aster_mail =
+    sender_authenticated &&
+    (ASTER_SYSTEM_EMAILS.has(normalized_email) ||
+      (SYSTEM_LOCAL_PARTS.has(normalized_email.split("@")[0]) &&
+        ASTER_DOMAINS.has(domain)) ||
+      is_official_address(normalized_email));
+  const contact_photo = use_contact_photo(
+    low_network || is_aster_mail ? null : email,
+  );
+  const [prev_contact_photo, set_prev_contact_photo] = useState(contact_photo);
+  const use_contact_photo_src = !!contact_photo && !contact_photo_error;
+
+  if (
+    email !== prev_email ||
+    resolved_image_url !== prev_image_url ||
+    contact_photo !== prev_contact_photo
+  ) {
+    set_prev_email(email);
+    set_prev_image_url(resolved_image_url);
+    set_prev_contact_photo(contact_photo);
+    set_image_error(false);
+    set_contact_photo_error(false);
+    set_img_loaded(false);
+    set_ddg_logo_error(domain ? is_icon_failed(domain) : false);
+  }
+
+  const is_aster_domain = ASTER_DOMAINS.has(domain);
+  const is_ghost_domain = domain === GHOST_DOMAIN;
+
+  const cached_favicon_src = use_favicon_src(
+    domain,
+    !low_network &&
+      domain_logos_allowed &&
+      !!domain &&
+      !is_aster_mail &&
+      !is_aster_domain &&
+      !is_ghost_domain,
+  );
+
+  const ddg_logo_url = useMemo(() => {
+    if (
+      low_network ||
+      !domain_logos_allowed ||
+      !domain ||
+      is_aster_mail ||
+      is_aster_domain ||
+      is_ghost_domain ||
+      ddg_logo_error ||
+      is_icon_failed(domain)
+    )
+      return null;
+
+    return cached_favicon_src.startsWith("data:") ? null : cached_favicon_src;
+  }, [
+    low_network,
+    domain_logos_allowed,
+    domain,
+    is_aster_mail,
+    is_aster_domain,
+    is_ghost_domain,
+    ddg_logo_error,
+    cached_favicon_src,
+  ]);
+
+  const handle_ddg_logo_error = useCallback(() => {
+    if (domain) mark_icon_failed(domain);
+    set_ddg_logo_error(true);
+  }, [domain]);
+
+  const handle_image_error = useCallback(() => {
+    set_image_error(true);
+  }, []);
+
+  const handle_contact_photo_error = useCallback(() => {
+    set_contact_photo_error(true);
+  }, []);
+
+  const actual_src = useMemo(() => {
+    if (low_network) return null;
+    if (use_contact_photo_src) return contact_photo;
+    if (resolved_image_url && !image_error) return resolved_image_url;
+    if (is_aster_mail) return mail_logo_url;
+    if (ddg_logo_url && !ddg_logo_error) return ddg_logo_url;
+
+    return null;
+  }, [
+    low_network,
+    use_contact_photo_src,
+    contact_photo,
+    is_aster_mail,
+    resolved_image_url,
+    ddg_logo_url,
+    image_error,
+    ddg_logo_error,
+  ]);
+
+  const error_handler = useMemo(() => {
+    if (is_aster_mail) return undefined;
+    if (use_contact_photo_src) return handle_contact_photo_error;
+    if (resolved_image_url && !image_error) return handle_image_error;
+    if (ddg_logo_url && !ddg_logo_error) return handle_ddg_logo_error;
+
+    return undefined;
+  }, [
+    is_aster_mail,
+    use_contact_photo_src,
+    handle_contact_photo_error,
+    resolved_image_url,
+    ddg_logo_url,
+    image_error,
+    ddg_logo_error,
+    handle_image_error,
+    handle_ddg_logo_error,
+  ]);
+
+  const is_favicon_source =
+    (!use_contact_photo_src &&
+      (actual_src?.startsWith("blob:") ||
+        actual_src?.includes("/api/images/v1/favicon/") ||
+        actual_src?.includes("/proxy?url="))) ??
+    false;
+
+  const is_local_logo_source = actual_src === mail_logo_url;
+  const is_domain_logo = !!ddg_logo_url && actual_src === ddg_logo_url;
+  const logo_tone = use_favicon_tone(is_domain_logo ? domain : "");
+  const logo_tone_class =
+    is_domain_logo && (logo_tone === "dark" || logo_tone === "light")
+      ? `sender_logo_${logo_tone}`
+      : "";
+
+  const profile_hex =
+    profile_color ||
+    (is_current_user ? user?.profile_color : peer_profile?.profile_color) ||
+    undefined;
+  const normalized_for_pending = (email || "").trim().toLowerCase();
+  const profile_pending =
+    !profile_color &&
+    !is_current_user &&
+    !low_network &&
+    !!normalized_for_pending &&
+    is_aster_email(normalized_for_pending) &&
+    peer_profile === undefined;
+
+  const handle_load = useCallback(
+    (e: React.SyntheticEvent<HTMLImageElement>) => {
+      const img = e.currentTarget;
+
+      if (is_favicon_source) {
+        if (img.naturalWidth <= 1 || img.naturalHeight <= 1) {
+          if (domain) mark_icon_failed(domain);
+          set_ddg_logo_error(true);
+
+          return;
+        }
+        if (domain) mark_icon_ok(domain);
+        if (domain && !low_network) {
+          store_favicon_if_api_url(domain, img.src);
+        }
+      }
+      mark_source_loaded(img.src);
+      set_img_loaded(true);
+    },
+    [is_favicon_source, domain, low_network],
+  );
+
+  const show_placeholder = !img_loaded && !loaded_sources.has(actual_src ?? "");
+  const show_letter = !actual_src && !profile_pending;
+  const initials = show_letter
+    ? get_initials(name, email, get_active_locale())
+    : "";
+  const avatar_bg = show_letter
+    ? profile_hex || get_avatar_color(get_avatar_key(email, name))
+    : undefined;
+  const text_color = avatar_bg ? get_contrast_text(avatar_bg) : undefined;
+
+  const pixel_size = String(AVATAR_PIXEL_SIZES[size]);
+  const image_attributes = useMemo(() => {
+    const attributes: Record<string, string> = {
+      ...fetch_priority_attr(is_local_logo_source ? "high" : "low"),
+      width: pixel_size,
+      height: pixel_size,
+    };
+
+    if (!is_local_logo_source) attributes.loading = "lazy";
+
+    return attributes;
+  }, [is_local_logo_source, pixel_size]);
+
+  const avatar_element = (
+    <ProfileAvatarView
+      background_color={avatar_bg}
+      className={
+        logo_tone_class ? `${logo_tone_class} ${className}` : className
+      }
+      email={email}
+      image_attributes={image_attributes}
+      initials={initials}
+      is_favicon_source={is_favicon_source}
+      is_local_logo_source={is_local_logo_source}
+      name={name}
+      pending={!actual_src && profile_pending}
+      show_placeholder={show_placeholder}
+      size={size}
+      src={actual_src}
+      text_color={text_color}
+      on_image_error={error_handler}
+      on_image_load={handle_load}
+    />
+  );
+
+  if (!actual_src && profile_pending) {
+    return avatar_element;
+  }
+
+  if (clickable && email) {
+    return (
+      <Suspense fallback={avatar_element}>
+        <SenderProfileTrigger
+          className="rounded-full flex-shrink-0 hover:opacity-80 transition-opacity"
+          email={email}
+          name={name}
+          on_compose={on_compose}
+        >
+          {avatar_element}
+        </SenderProfileTrigger>
+      </Suspense>
+    );
+  }
+
+  return avatar_element;
+});

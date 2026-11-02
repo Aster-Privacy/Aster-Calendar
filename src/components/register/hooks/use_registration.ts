@@ -1,0 +1,1724 @@
+﻿//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { TurnstileWidgetRef } from "@/components/auth/turnstile_widget";
+import type { RegistrationStep } from "@/components/register/register_types";
+import type { RegisterRequest } from "@/services/api/auth";
+import type { UserPreferences } from "@/services/api/preferences";
+import type { EncryptedVault } from "@/services/crypto/key_manager_core";
+import type { TranslationKey } from "@/lib/i18n/types";
+
+import { useState, useCallback, useEffect, useRef } from "react";
+import { useNavigate, useLocation, useNavigationType } from "react-router-dom";
+
+import { current_source } from "@/lib/acquisition_source";
+import {
+  clear_remembered_invite_code,
+  current_invite_code,
+} from "@/lib/pending_invite_code";
+import { mark_first_run } from "@/lib/first_run";
+import {
+  safe_local_set,
+  safe_session_get,
+  safe_session_remove,
+  safe_session_set,
+} from "@/lib/safe_storage";
+import { copy_text_or_throw } from "@/utils/copy_text";
+import { useTheme } from "@/contexts/theme_context";
+import { use_auth } from "@/contexts/auth_context";
+import { get_default_profile_color } from "@/constants/profile";
+import { show_toast } from "@/components/toast/simple_toast";
+import { use_preferences } from "@/contexts/preferences_context";
+import { request_notification_permission } from "@/services/notification_service";
+import { subscribe_to_push } from "@/services/push_subscription";
+import { queue_onboarding_preference } from "@/lib/onboarding_preferences";
+import {
+  hash_email,
+  derive_password_hash,
+  generate_identity_keypair,
+  generate_signed_prekey,
+  generate_recovery_codes,
+  RECOVERY_CODE_SET_SIZE,
+  encrypt_vault,
+  prepare_pgp_key_data,
+} from "@/services/crypto/key_manager";
+import {
+  generate_recovery_key,
+  encrypt_vault_backup,
+  generate_all_recovery_shares,
+  clear_recovery_key,
+} from "@/services/crypto/recovery_key";
+import { build_backup_vault } from "@/services/crypto/backup_unlocked_keys";
+import { array_to_base64 } from "@/services/crypto/key_manager_core";
+import { MASTER_KEY_VAULT_FORMAT } from "@/services/crypto/memory_key_store";
+import { register_user } from "@/services/api/auth";
+import { check_and_replenish_prekeys } from "@/services/crypto/prekey_service";
+import {
+  is_crypto_module_load_error,
+  preload_openpgp,
+} from "@/services/crypto/openpgp_loader";
+import { preload_when_idle } from "@/utils/lazy_with_retry";
+import {
+  generate_ratchet_keys,
+  upload_prekey_bundle,
+} from "@/services/crypto/ratchet_manager";
+import {
+  save_recovery_email,
+  check_recovery_email_verified,
+  resend_recovery_verification,
+} from "@/services/api/recovery_email";
+import {
+  save_preferences,
+  DEFAULT_PREFERENCES,
+} from "@/services/api/preferences";
+import {
+  generate_recovery_pdf,
+  download_recovery_text,
+} from "@/services/crypto/recovery_pdf";
+import {
+  PASSWORD_RULE_MESSAGE_KEYS,
+  sanitize_username_input,
+  timing_safe_delay,
+  validate_password_strength,
+} from "@/services/sanitize";
+import { check_password_breach } from "@/services/breach_check";
+import { EMAIL_REGEX } from "@/lib/utils";
+import { use_i18n } from "@/lib/i18n/context";
+import { open_external } from "@/utils/open_link";
+import { user_facing_error } from "@/utils/user_facing_error";
+import { get_safe_next_path } from "@/pages/sign_in_helpers";
+import { app_kind, is_calendar_app } from "@/lib/app_kind";
+import {
+  first_onboarding_step,
+  onboarding_resume_step,
+  step_after_notifications,
+  step_after_plan,
+} from "@/components/register/registration_flow";
+
+export async function build_registration_ratchet_fields(): Promise<
+  Partial<EncryptedVault>
+> {
+  try {
+    const keys = await generate_ratchet_keys();
+
+    if (!keys) return {};
+
+    return {
+      ratchet_identity_key: keys.identity_jwk,
+      ratchet_identity_public: keys.identity_public,
+      ratchet_signed_prekey: keys.signed_prekey_jwk,
+      ratchet_signed_prekey_public: keys.signed_prekey_public,
+      ratchet_pq_identity_key: keys.pq_identity_secret,
+      ratchet_pq_identity_public: keys.pq_identity_public,
+      ratchet_pq_identity_seed: keys.pq_identity_seed,
+      ratchet_regen_v4_done: true,
+    };
+  } catch {
+    return {};
+  }
+}
+
+const PREKEY_PUBLISH_RETRY_DELAYS_MS = [1000, 3000];
+const PREKEY_PUBLISH_WAIT_MS = 15000;
+
+export async function publish_registration_prekey_bundle(
+  vault: EncryptedVault,
+  retry_delays_ms: readonly number[] = PREKEY_PUBLISH_RETRY_DELAYS_MS,
+): Promise<boolean> {
+  if (!vault.ratchet_identity_public || !vault.ratchet_signed_prekey_public) {
+    return false;
+  }
+
+  for (let attempt = 0; attempt <= retry_delays_ms.length; attempt++) {
+    if (attempt > 0) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, retry_delays_ms[attempt - 1]),
+      );
+    }
+    try {
+      if (await upload_prekey_bundle(vault)) return true;
+    } catch {
+      continue;
+    }
+  }
+
+  return false;
+}
+
+export interface RegistrationClaimOptions {
+  claim_token?: string;
+  claim_username?: string;
+  claim_domain?: "astermail.org" | "aster.cx";
+}
+
+const USERNAME_CONFLICT_PATTERN = /^registration failed$|already taken/i;
+const REGISTRATION_RESUME_KEY = "registration_resume";
+
+const PRE_CREATION_STEPS: ReadonlySet<RegistrationStep> = new Set([
+  "welcome",
+  "email",
+  "password",
+  "generating",
+]);
+
+const RESUMABLE_STEPS: ReadonlySet<RegistrationStep> = new Set([
+  "recovery_key",
+  "recovery_email",
+  "download_apps",
+  "notifications",
+  "addresses",
+  "custom_domain",
+  "import_mail",
+  "plan_selection",
+  "bring_calendar",
+]);
+
+const BACK_NAVIGABLE_STEPS: ReadonlySet<RegistrationStep> = new Set([
+  "download_apps",
+  "notifications",
+  "addresses",
+  "custom_domain",
+  "import_mail",
+  "plan_selection",
+]);
+
+const FINISH_PATHS: ReadonlySet<string> = new Set([
+  "/",
+  "/settings/domains",
+  "/settings/import",
+]);
+
+interface RegistrationHistoryState {
+  reg_step?: RegistrationStep;
+  [key: string]: unknown;
+}
+
+interface RegistrationResumeState {
+  step: RegistrationStep;
+  username: string;
+  email_domain: "astermail.org" | "aster.cx";
+  display_name: string;
+  generated_email: string;
+  recovery_email: string;
+  recovery_email_required: boolean;
+  plan_step_shown: boolean;
+  finish_path: string;
+  open_domain_purchase: boolean;
+}
+
+function read_resume_state(): RegistrationResumeState | null {
+  const raw = safe_session_get(REGISTRATION_RESUME_KEY);
+
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<RegistrationResumeState>;
+
+    if (typeof parsed.step !== "string") return null;
+
+    return {
+      step: parsed.step,
+      username: typeof parsed.username === "string" ? parsed.username : "",
+      email_domain:
+        parsed.email_domain === "aster.cx" ? "aster.cx" : "astermail.org",
+      display_name:
+        typeof parsed.display_name === "string" ? parsed.display_name : "",
+      generated_email:
+        typeof parsed.generated_email === "string"
+          ? parsed.generated_email
+          : "",
+      recovery_email:
+        typeof parsed.recovery_email === "string" ? parsed.recovery_email : "",
+      recovery_email_required: parsed.recovery_email_required === true,
+      plan_step_shown: parsed.plan_step_shown === true,
+      finish_path:
+        typeof parsed.finish_path === "string" &&
+        FINISH_PATHS.has(parsed.finish_path)
+          ? parsed.finish_path
+          : "/",
+      open_domain_purchase: parsed.open_domain_purchase === true,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function resolve_resume_step(step: RegistrationStep): RegistrationStep {
+  if (step === "password" || step === "generating") return "password";
+  if (PRE_CREATION_STEPS.has(step)) return "email";
+  if (RESUMABLE_STEPS.has(step) || step === "academic_offer") {
+    return onboarding_resume_step(app_kind(), step);
+  }
+
+  return "recovery_email";
+}
+
+const ABUSE_BLOCK_KINDS = [
+  "device",
+  "network",
+  "proof",
+  "fan_out",
+  "risk",
+] as const;
+
+export type AbuseBlockKind = (typeof ABUSE_BLOCK_KINDS)[number];
+
+export interface AbuseBlock {
+  kind: AbuseBlockKind | null;
+  reference: string | null;
+}
+
+export function abuse_message_key(kind: AbuseBlockKind | null) {
+  switch (kind) {
+    case "device":
+      return "auth.abuse_blocked_device" as const;
+    case "network":
+      return "auth.abuse_blocked_network" as const;
+    case "proof":
+      return "auth.abuse_blocked_proof" as const;
+    case "fan_out":
+    case "risk":
+      return "auth.abuse_blocked_risk" as const;
+    default:
+      return "auth.abuse_flagged_message" as const;
+  }
+}
+
+export function abuse_block_message(
+  block: AbuseBlock,
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string,
+): string {
+  const message = t(abuse_message_key(block.kind));
+
+  return block.reference
+    ? `${message} ${t("auth.abuse_block_reference", { reference: block.reference })}`
+    : message;
+}
+
+export function register_error_message(
+  response: { error?: string; code?: string; server_code?: string },
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string,
+): string {
+  if (response.code === "RATE_LIMIT_EXCEEDED") return t("errors.rate_limited");
+  switch (response.server_code) {
+    case "SERVICE_UNAVAILABLE":
+      return t("auth.sign_up_temporarily_unavailable");
+    case "CAPTCHA_FAILED":
+      return t("auth.complete_captcha_first");
+    case "GONE":
+      return t("settings.fam_kids_claim_invalid_title");
+    default:
+      return response.error || t("auth.registration_failed");
+  }
+}
+
+function is_abuse_block_response(response: {
+  code?: string;
+  server_code?: string;
+}): boolean {
+  return (
+    response.code === "ABUSE_ACCOUNT_LIMIT" ||
+    response.code === "REGISTRATION_SUSPENDED" ||
+    response.server_code === "REGISTRATION_SUSPENDED"
+  );
+}
+
+export type RegistrationSessionIssue = "login_failed" | "no_session";
+
+function read_abuse_block(details?: Record<string, unknown>): AbuseBlock {
+  const kind = details?.kind;
+  const reference = details?.reference;
+  return {
+    kind: ABUSE_BLOCK_KINDS.find((k) => k === kind) ?? null,
+    reference:
+      typeof reference === "string" && /^[0-9a-f]{8}$/.test(reference)
+        ? reference
+        : null,
+  };
+}
+
+export function use_registration(options?: RegistrationClaimOptions) {
+  const is_claim = !!options?.claim_token;
+  const is_invited = !is_claim && !!current_invite_code();
+  const { t } = use_i18n();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const navigation_type = useNavigationType();
+  const { theme } = useTheme();
+  const is_dark = theme === "dark";
+  const {
+    is_adding_account,
+    set_is_adding_account,
+    is_authenticated,
+    is_loading: auth_loading,
+    is_completing_registration,
+    current_account_id,
+    login,
+    vault,
+    set_is_completing_registration,
+  } = use_auth();
+  const { update_preference } = use_preferences();
+
+  const [notifications_busy, set_notifications_busy] = useState(false);
+  const resume_state_ref = useRef<RegistrationResumeState | null>(
+    is_claim || is_adding_account ? null : read_resume_state(),
+  );
+  const resume_step = resume_state_ref.current
+    ? resolve_resume_step(resume_state_ref.current.step)
+    : null;
+  const [is_restoring, set_is_restoring] = useState(
+    !!resume_step && !PRE_CREATION_STEPS.has(resume_step),
+  );
+
+  const has_existing_session =
+    !auth_loading &&
+    is_authenticated &&
+    !!current_account_id &&
+    !is_adding_account &&
+    !is_completing_registration &&
+    !is_restoring &&
+    !location.state?.from;
+
+  useEffect(() => {
+    document.title = `${t("auth.sign_up")} | ${t(is_calendar_app() ? "calendar.aster_calendar_brand" : "common.aster_mail")}`;
+  }, [t]);
+
+  const [step, set_step] = useState<RegistrationStep>(
+    is_claim ? "password" : (resume_step ?? "email"),
+  );
+  const [is_downloading_key, set_is_downloading_key] = useState(false);
+  const [has_copied_key, set_has_copied_key] = useState(false);
+  const [has_opened_download, set_has_opened_download] = useState(false);
+  const [added_addresses, set_added_addresses] = useState<string[]>([]);
+  const [is_password_visible, set_is_password_visible] = useState(false);
+  const [is_confirm_password_visible, set_is_confirm_password_visible] =
+    useState(false);
+  const [is_key_visible, set_is_key_visible] = useState(false);
+  const [username, set_username] = useState(
+    options?.claim_username ?? resume_state_ref.current?.username ?? "",
+  );
+  const [display_name, set_display_name] = useState(
+    resume_state_ref.current?.display_name ?? "",
+  );
+  const [email_domain, set_email_domain] = useState<
+    "astermail.org" | "aster.cx"
+  >(
+    options?.claim_domain ??
+      resume_state_ref.current?.email_domain ??
+      "astermail.org",
+  );
+  const [password, set_password] = useState("");
+  const [confirm_password, set_confirm_password] = useState("");
+  const [recovery_email, set_recovery_email] = useState(
+    resume_state_ref.current?.recovery_email ?? "",
+  );
+  const [remember_me, set_remember_me] = useState(true);
+  const [profile_color, set_profile_color] = useState(
+    get_default_profile_color,
+  );
+  const [error, set_error] = useState("");
+  const [is_abuse_blocked, set_is_abuse_blocked] = useState(false);
+  const [abuse_block, set_abuse_block] = useState<AbuseBlock | null>(null);
+  const [session_issue, set_session_issue] =
+    useState<RegistrationSessionIssue | null>(null);
+  const [password_breach_warning, set_password_breach_warning] =
+    useState(false);
+  const [generation_status, set_generation_status] = useState("");
+  const [recovery_codes, set_recovery_codes] = useState<string[]>([]);
+  const [generated_email, set_generated_email] = useState(
+    resume_state_ref.current?.generated_email ?? "",
+  );
+  const [is_pdf_downloaded, set_is_pdf_downloaded] = useState(false);
+  const [is_text_downloaded, set_is_text_downloaded] = useState(false);
+  const [captcha_token, set_captcha_token] = useState("");
+  const turnstile_ref = useRef<TurnstileWidgetRef>(null);
+  const rearm_captcha = useCallback(() => {
+    set_captcha_token("");
+    turnstile_ref.current?.reset();
+  }, []);
+  const [show_skip_confirmation, set_show_skip_confirmation] = useState(false);
+  const [is_saving_recovery_email, set_is_saving_recovery_email] =
+    useState(false);
+  const [recovery_email_error, set_recovery_email_error] = useState("");
+  const [is_resending_verification, set_is_resending_verification] =
+    useState(false);
+  const [resend_cooldown, set_resend_cooldown] = useState(0);
+  const [is_email_verified, set_is_email_verified] = useState(false);
+  const [recovery_email_required, set_recovery_email_required] = useState(
+    resume_state_ref.current?.recovery_email_required ||
+      (typeof window !== "undefined" &&
+        typeof window.location !== "undefined" &&
+        window.location.hostname.toLowerCase().endsWith(".onion")),
+  );
+  const verification_poll_ref = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
+  const resend_cooldown_ref = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
+  const complete_registration_ref = useRef<() => Promise<void>>();
+  const plan_step_shown_ref = useRef(false);
+  const finish_path_ref = useRef(resume_state_ref.current?.finish_path ?? "/");
+  const open_domain_purchase_ref = useRef(
+    resume_state_ref.current?.open_domain_purchase ?? false,
+  );
+  const step_ref = useRef(step);
+
+  step_ref.current = step;
+  const persist_state_promise_ref = useRef<Promise<void> | null>(null);
+  const saving_recovery_email_ref = useRef(false);
+  const handoff_ref = useRef(false);
+
+  const has_typed_password = password.length > 0;
+
+  useEffect(() => {
+    if (!has_typed_password) return;
+
+    return preload_when_idle(preload_openpgp);
+  }, [has_typed_password]);
+
+  useEffect(() => {
+    if (has_existing_session && !handoff_ref.current) {
+      safe_session_remove(REGISTRATION_RESUME_KEY);
+      navigate(get_safe_next_path(), { replace: true });
+    }
+  }, [has_existing_session, navigate]);
+
+  useEffect(() => {
+    if (is_claim || is_adding_account || is_restoring) return;
+    if (step === "email" && !username && !display_name) {
+      safe_session_remove(REGISTRATION_RESUME_KEY);
+
+      return;
+    }
+    const state: RegistrationResumeState = {
+      step,
+      username,
+      email_domain,
+      display_name,
+      generated_email,
+      recovery_email,
+      recovery_email_required,
+      plan_step_shown: plan_step_shown_ref.current,
+      finish_path: finish_path_ref.current,
+      open_domain_purchase: open_domain_purchase_ref.current,
+    };
+
+    safe_session_set(REGISTRATION_RESUME_KEY, JSON.stringify(state));
+  }, [
+    is_claim,
+    is_adding_account,
+    is_restoring,
+    step,
+    username,
+    email_domain,
+    display_name,
+    generated_email,
+    recovery_email,
+    recovery_email_required,
+  ]);
+
+  useEffect(() => {
+    if (is_restoring || PRE_CREATION_STEPS.has(step)) return;
+    const current_state = (location.state ?? {}) as RegistrationHistoryState;
+
+    if (current_state.reg_step === step) return;
+    navigate(`${location.pathname}${location.search}${location.hash}`, {
+      state: { ...current_state, reg_step: step },
+    });
+  }, [step, is_restoring]);
+
+  useEffect(() => {
+    if (navigation_type !== "POP" || is_restoring) return;
+    const current = step_ref.current;
+
+    if (PRE_CREATION_STEPS.has(current)) return;
+    const history_state = (location.state ?? {}) as RegistrationHistoryState;
+    const target = history_state.reg_step;
+
+    if (target === current) return;
+    if (
+      target &&
+      BACK_NAVIGABLE_STEPS.has(target) &&
+      BACK_NAVIGABLE_STEPS.has(current)
+    ) {
+      set_step(target);
+
+      return;
+    }
+    navigate(`${location.pathname}${location.search}${location.hash}`, {
+      state: { ...history_state, reg_step: current },
+    });
+  }, [location.key]);
+
+  const handle_cancel_add_account = () => {
+    safe_session_remove(REGISTRATION_RESUME_KEY);
+    set_is_adding_account(false);
+    navigate("/");
+  };
+
+  const RESERVED_USERNAMES = new Set([
+    "admin",
+    "administrator",
+    "postmaster",
+    "abuse",
+    "noreply",
+    "no-reply",
+    "root",
+    "hostmaster",
+    "webmaster",
+    "mailer-daemon",
+    "security",
+    "support",
+    "help",
+    "info",
+    "contact",
+    "billing",
+    "legal",
+    "privacy",
+    "team",
+    "mailer",
+    "daemon",
+    "system",
+    "mail",
+    "test",
+    "nobody",
+    "ops",
+    "dev",
+    "jobs",
+    "compliance",
+    "feedback",
+    "newsletter",
+    "operator",
+    "sysadmin",
+    "moderator",
+    "staff",
+    "official",
+    "service",
+    "noc",
+    "cert",
+    "hello",
+    "press",
+    "updates",
+    "notifications",
+    "alerts",
+    "do-not-reply",
+    "aster",
+    "astermail",
+    "asterprivacy",
+    "walmart",
+    "amazon",
+    "microsoft",
+    "apple",
+    "google",
+    "meta",
+    "facebook",
+    "instagram",
+    "twitter",
+    "netflix",
+    "paypal",
+    "stripe",
+    "visa",
+    "mastercard",
+    "blackrock",
+    "jpmorgan",
+    "chase",
+    "bankofamerica",
+    "icbc",
+    "wells",
+    "fargo",
+    "irs",
+    "fbi",
+    "cia",
+    "nsa",
+    "gov",
+  ]);
+
+  const parse_local_part = (val: string) =>
+    val.includes("@") ? val.substring(0, val.indexOf("@")) : val;
+
+  const validate_email_step = async (): Promise<boolean> => {
+    const typed_username = sanitize_username_input(parse_local_part(username));
+    const trimmed_username = typed_username.replace(/\./g, "");
+
+    if (trimmed_username.length < 3) {
+      await timing_safe_delay();
+      set_error(t("auth.username_min_length"));
+
+      return false;
+    }
+    if (trimmed_username.length > 40) {
+      await timing_safe_delay();
+      set_error(t("auth.username_max_length"));
+
+      return false;
+    }
+    if (!/^[a-z0-9]+(\.[a-z0-9]+)*$/.test(typed_username)) {
+      await timing_safe_delay();
+      set_error(t("auth.username_alphanumeric"));
+
+      return false;
+    }
+    if (RESERVED_USERNAMES.has(trimmed_username)) {
+      await timing_safe_delay();
+      set_error(t("auth.username_not_available"));
+
+      return false;
+    }
+
+    return true;
+  };
+
+  const validate_password_step = async (): Promise<boolean> => {
+    if (!/^[\x20-\x7E]*$/.test(password)) {
+      await timing_safe_delay();
+      set_error(t("auth.password_invalid_chars"));
+
+      return false;
+    }
+
+    const password_validation = validate_password_strength(password);
+
+    if (!password_validation.valid) {
+      await timing_safe_delay();
+      set_error(t(PASSWORD_RULE_MESSAGE_KEYS[password_validation.errors[0]]));
+
+      return false;
+    }
+    if (password.length > 128) {
+      await timing_safe_delay();
+      set_error(t("auth.password_max_length_register"));
+
+      return false;
+    }
+    if (password !== confirm_password) {
+      await timing_safe_delay();
+      set_error(t("auth.passwords_do_not_match_register"));
+
+      return false;
+    }
+
+    return true;
+  };
+
+  const handle_password_blur = async () => {
+    if (password.length >= 8) {
+      const result = await check_password_breach(password);
+
+      set_password_breach_warning(result.is_breached);
+    }
+  };
+
+  const handle_email_next = async () => {
+    set_error("");
+    if (await validate_email_step()) {
+      set_step("password");
+    }
+  };
+
+  const registration_promise_ref = useRef<Promise<void> | null>(null);
+  const registration_done_ref = useRef(false);
+  const pending_register_params_ref = useRef<Omit<
+    RegisterRequest,
+    "recovery_email"
+  > | null>(null);
+  const pending_vault_data_ref = useRef<EncryptedVault | null>(null);
+  const post_create_sign_in_ref = useRef<(() => Promise<boolean>) | null>(
+    null,
+  );
+  const retrying_sign_in_ref = useRef(false);
+  const prekey_publish_ref = useRef<Promise<boolean> | null>(null);
+
+  const sign_in_created_account = (
+    sign_in: () => Promise<void>,
+    vault_data: EncryptedVault,
+  ): Promise<boolean> => {
+    const attempt = async () => {
+      try {
+        await sign_in();
+      } catch (e) {
+        if (import.meta.env.DEV) console.error(e);
+
+        return false;
+      }
+      prekey_publish_ref.current =
+        publish_registration_prekey_bundle(vault_data);
+      check_and_replenish_prekeys();
+
+      return true;
+    };
+
+    post_create_sign_in_ref.current = attempt;
+
+    return attempt();
+  };
+
+  const hold_created_account = (issue: RegistrationSessionIssue) => {
+    set_session_issue(issue);
+    registration_done_ref.current = true;
+    set_step("recovery_key");
+  };
+
+  useEffect(() => {
+    if (!is_restoring || auth_loading) return;
+    const resume = resume_state_ref.current;
+
+    if (!resume || !is_authenticated || !current_account_id) {
+      safe_session_remove(REGISTRATION_RESUME_KEY);
+      resume_state_ref.current = null;
+      set_step("email");
+      set_is_restoring(false);
+
+      return;
+    }
+
+    const codes = vault?.recovery_codes ?? [];
+
+    set_is_completing_registration(true);
+    registration_done_ref.current = true;
+    plan_step_shown_ref.current = resume.plan_step_shown;
+    set_recovery_codes(codes);
+    if (resolve_resume_step(resume.step) === "recovery_key" && !codes.length) {
+      set_step("recovery_email");
+    }
+    set_is_restoring(false);
+  }, [
+    is_restoring,
+    auth_loading,
+    is_authenticated,
+    current_account_id,
+    vault,
+    set_is_completing_registration,
+  ]);
+
+  const handle_password_next = async () => {
+    set_error("");
+    if (await validate_password_step()) {
+      registration_done_ref.current = false;
+      registration_promise_ref.current = start_registration_background();
+      set_step("generating");
+    }
+  };
+
+  const yield_to_ui = () =>
+    new Promise<void>((r) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => r())),
+    );
+
+  const start_registration_background = async () => {
+    const typed_username = sanitize_username_input(parse_local_part(username));
+    const clean_username = typed_username.replace(/\./g, "");
+    const email = `${clean_username}@${email_domain}`;
+    const display_email = `${typed_username}@${email_domain}`;
+
+    set_generated_email(display_email);
+
+    try {
+      set_generation_status(t("auth.generating_encryption_keys"));
+      await yield_to_ui();
+      const user_hash = await hash_email(email);
+      const salt = crypto.getRandomValues(new Uint8Array(32));
+      const {
+        hash: password_hash,
+        salt: password_salt,
+        hash_v2: password_hash_v2,
+      } = await derive_password_hash(password, salt);
+
+      set_generation_status(t("auth.creating_identity_keypair"));
+      await yield_to_ui();
+      const identity_keypair = await generate_identity_keypair(
+        typed_username,
+        display_email,
+        password,
+      );
+
+      set_generation_status(t("auth.creating_signed_prekey"));
+      await yield_to_ui();
+      const { keypair: signed_prekey, signature } =
+        await generate_signed_prekey(
+          clean_username,
+          email,
+          password,
+          identity_keypair.secret_key,
+        );
+
+      set_generation_status(t("auth.generating_recovery_codes"));
+      await yield_to_ui();
+      const codes = generate_recovery_codes(RECOVERY_CODE_SET_SIZE);
+
+      set_recovery_codes(codes);
+
+      set_generation_status(t("auth.encrypting_key_vault"));
+      await yield_to_ui();
+      const master_key = crypto.getRandomValues(new Uint8Array(32));
+      const ratchet_fields = await build_registration_ratchet_fields();
+      const vault_data: EncryptedVault = {
+        identity_key: identity_keypair.secret_key,
+        signed_prekey: signed_prekey.public_key,
+        signed_prekey_private: signed_prekey.secret_key,
+        recovery_codes: codes,
+        data_kek: array_to_base64(master_key),
+        vault_format: MASTER_KEY_VAULT_FORMAT,
+        mk_created_at: new Date().toISOString(),
+        ...ratchet_fields,
+      };
+
+      master_key.fill(0);
+      const { encrypted_vault, vault_nonce } = await encrypt_vault(
+        vault_data,
+        password,
+      );
+
+      set_generation_status(t("auth.creating_recovery_backup"));
+      await yield_to_ui();
+      const recovery_key = generate_recovery_key();
+      const vault_backup = await encrypt_vault_backup(
+        await build_backup_vault(vault_data, password),
+        recovery_key,
+      );
+      const recovery_shares = await generate_all_recovery_shares(
+        codes,
+        recovery_key,
+      );
+
+      clear_recovery_key(recovery_key);
+
+      set_generation_status(t("auth.preparing_pgp_key"));
+      await yield_to_ui();
+      const pgp_key_data = await prepare_pgp_key_data(
+        identity_keypair,
+        password,
+      );
+
+      set_generation_status(t("auth.creating_your_account"));
+      await yield_to_ui();
+      const trimmed_display_name = display_name.trim();
+      const base_params: Omit<RegisterRequest, "recovery_email"> = {
+        username: typed_username,
+        display_name: trimmed_display_name || undefined,
+        profile_color,
+        email_domain,
+        user_hash,
+        password_hash,
+        password_hash_v2,
+        password_salt,
+        argon2_params: { memory: 65536, iterations: 3, parallelism: 4 },
+        identity_key: btoa(identity_keypair.public_key),
+        signed_prekey: btoa(signed_prekey.public_key),
+        signed_prekey_signature: btoa(signature),
+        encrypted_vault,
+        vault_nonce,
+        vault_format: MASTER_KEY_VAULT_FORMAT,
+        remember_me,
+        encrypted_vault_backup: vault_backup.encrypted_data,
+        vault_backup_nonce: vault_backup.nonce,
+        recovery_key_salt: vault_backup.salt,
+        recovery_shares,
+        pgp_key: pgp_key_data,
+        captcha_token: captcha_token || undefined,
+        client_platform: import.meta.env.DEV ? "desktop" : undefined,
+        referral_code: current_invite_code() || undefined,
+        ...current_source(),
+        reservation_claim_token: options?.claim_token || undefined,
+      };
+
+      pending_register_params_ref.current = base_params;
+      pending_vault_data_ref.current = vault_data;
+      const response = await register_user(base_params);
+
+      if (response.error) {
+        if (response.server_code === "REGISTRATION_SESSION_PENDING") {
+          clear_remembered_invite_code();
+          hold_created_account("no_session");
+
+          return;
+        }
+        await timing_safe_delay();
+        rearm_captcha();
+        if (is_abuse_block_response(response)) {
+          const block = read_abuse_block(response.details);
+
+          set_is_abuse_blocked(true);
+          set_abuse_block(block);
+          set_error(abuse_block_message(block, t));
+          set_step("email");
+          registration_promise_ref.current = null;
+
+          return;
+        }
+        if (response.code === "USERNAME_IN_USE") {
+          set_error(t("auth.username_in_use"));
+          set_step("email");
+          registration_promise_ref.current = null;
+
+          return;
+        }
+        if (response.code === "RECOVERY_EMAIL_REQUIRED") {
+          set_step("recovery_email_gate");
+          registration_promise_ref.current = null;
+
+          return;
+        }
+        set_error(register_error_message(response, t));
+        set_step("email");
+        registration_promise_ref.current = null;
+
+        return;
+      }
+
+      if (response.data) {
+        clear_remembered_invite_code();
+        if (response.data.recovery_email_required) {
+          set_recovery_email_required(true);
+        }
+
+        set_is_completing_registration(true);
+        const account = response.data;
+        const signed_in = await sign_in_created_account(
+          () =>
+            login(
+              {
+                id: account.user_id,
+                username: account.username,
+                email: account.email,
+                display_name: trimmed_display_name || undefined,
+                profile_color,
+              },
+              vault_data,
+              password,
+              encrypted_vault,
+              vault_nonce,
+            ),
+          vault_data,
+        );
+
+        if (!signed_in) {
+          hold_created_account("login_failed");
+
+          return;
+        }
+      }
+
+      registration_done_ref.current = true;
+      set_step((current) =>
+        current === "generating" ? "recovery_key" : current,
+      );
+    } catch (err) {
+      await timing_safe_delay();
+      rearm_captcha();
+      const message = user_facing_error(err, t("auth.registration_failed"));
+
+      set_error(
+        is_crypto_module_load_error(err)
+          ? t("errors.crypto_module_unavailable")
+          : USERNAME_CONFLICT_PATTERN.test(message)
+            ? t("auth.username_not_available")
+            : message,
+      );
+      set_step("email");
+      registration_promise_ref.current = null;
+    }
+  };
+
+  const handle_copy_codes = async () => {
+    const codes_text = recovery_codes.join("\n");
+
+    try {
+      await copy_text_or_throw(codes_text);
+      set_has_copied_key(true);
+      show_toast(t("auth.recovery_codes_copied"), "success");
+    } catch {
+      show_toast(t("common.failed_to_copy"), "error");
+    }
+  };
+
+  const handle_copy_single_code = async (code: string) => {
+    try {
+      await copy_text_or_throw(code);
+      show_toast(t("auth.recovery_code_copied"), "success");
+    } catch {
+      show_toast(t("common.failed_to_copy"), "error");
+    }
+  };
+
+  const handle_download_key = async () => {
+    if (is_downloading_key) return;
+    set_is_downloading_key(true);
+    try {
+      await generate_recovery_pdf(generated_email, recovery_codes, t);
+      set_is_pdf_downloaded(true);
+      await handle_advance_from_recovery_key();
+    } catch {
+      show_toast(t("auth.recovery_download_failed"), "error");
+    } finally {
+      set_is_downloading_key(false);
+    }
+  };
+
+  const handle_download_txt = async () => {
+    try {
+      await download_recovery_text(generated_email, recovery_codes, t);
+      set_is_text_downloaded(true);
+    } catch {
+      show_toast(t("auth.recovery_download_failed"), "error");
+    }
+  };
+
+  const validate_email = (email_value: string): boolean => {
+    return EMAIL_REGEX.test(email_value);
+  };
+
+  const write_registration_state = async () => {
+    if (prekey_publish_ref.current) {
+      await Promise.race([
+        prekey_publish_ref.current,
+        new Promise<void>((resolve) =>
+          setTimeout(resolve, PREKEY_PUBLISH_WAIT_MS),
+        ),
+      ]);
+    }
+    document.getElementById("initial-loader")?.remove();
+    safe_local_set("show_onboarding", "true");
+    mark_first_run();
+
+    if (vault) {
+      try {
+        await Promise.race([
+          save_preferences(
+            {
+              ...DEFAULT_PREFERENCES,
+              profile_color,
+              theme: theme as "light" | "dark",
+            },
+            vault,
+          ),
+          new Promise<void>((resolve) => setTimeout(resolve, 8000)),
+        ]);
+      } catch (e) {
+        if (import.meta.env.DEV) console.error(e);
+      }
+    }
+  };
+
+  const persist_registration_state = (): Promise<void> => {
+    if (!persist_state_promise_ref.current) {
+      persist_state_promise_ref.current = write_registration_state().catch(
+        (e: unknown) => {
+          if (import.meta.env.DEV) console.error(e);
+        },
+      );
+    }
+
+    return persist_state_promise_ref.current;
+  };
+
+  const finalize_registration = async (target_path?: string) => {
+    await persist_registration_state();
+
+    const destination = target_path ?? finish_path_ref.current;
+
+    if (open_domain_purchase_ref.current) {
+      safe_session_set("alias_domains_purchase_open", "1");
+    }
+    safe_session_remove(REGISTRATION_RESUME_KEY);
+    handoff_ref.current = true;
+    set_is_completing_registration(false);
+
+    navigate(destination, { replace: true });
+  };
+
+  const go_to_plan_step = async (
+    finish_path: string,
+    open_domain_purchase = false,
+  ) => {
+    finish_path_ref.current = finish_path;
+    open_domain_purchase_ref.current = open_domain_purchase;
+    if (is_claim) {
+      await finalize_registration();
+
+      return;
+    }
+    set_step("plan_selection");
+  };
+
+  const finish_plan_selection = async () => {
+    const next_step = step_after_plan(app_kind());
+
+    if (next_step) {
+      finish_path_ref.current = "/";
+      void persist_registration_state();
+      set_step(next_step);
+
+      return;
+    }
+    await finalize_registration();
+  };
+
+  const complete_registration = async () => {
+    set_recovery_codes([]);
+
+    if (!is_claim && !plan_step_shown_ref.current) {
+      plan_step_shown_ref.current = true;
+      void persist_registration_state();
+      set_step(first_onboarding_step(app_kind()));
+
+      return;
+    }
+    await finalize_registration();
+  };
+
+  const handle_open_download = (url: string) => {
+    open_external(url);
+    set_has_opened_download(true);
+  };
+
+  const handle_download_apps_continue = () => {
+    set_step("notifications");
+  };
+
+  const show_sample_notification = () => {
+    if ("__TAURI_INTERNALS__" in window) return;
+    try {
+      const sample = new Notification(t("auth.notifications_turned_on"), {
+        body: t(
+          is_calendar_app()
+            ? "auth.calendar_notifications_sample_body"
+            : "auth.notifications_sample_body",
+        ),
+        icon: "/pwa-192x192.png",
+        tag: "aster-onboarding-notification",
+        silent: true,
+      });
+
+      sample.onclick = () => {
+        window.focus();
+        sample.close();
+      };
+      window.setTimeout(() => sample.close(), 8000);
+    } catch (e) {
+      if (import.meta.env.DEV) console.error(e);
+    }
+  };
+
+  const set_onboarding_preference = <K extends keyof UserPreferences>(
+    key: K,
+    value: UserPreferences[K],
+  ) => {
+    if (is_completing_registration) {
+      queue_onboarding_preference(key, value);
+    } else {
+      update_preference(key, value, true);
+    }
+  };
+
+  const subscribe_push_in_background = () => {
+    const timeout = new Promise<boolean>((resolve) =>
+      window.setTimeout(() => resolve(false), 15000),
+    );
+
+    void Promise.race([subscribe_to_push(), timeout])
+      .then((subscribed) => {
+        if (subscribed) {
+          set_onboarding_preference("push_notifications", true);
+        }
+      })
+      .catch((e) => {
+        if (import.meta.env.DEV) console.error(e);
+      });
+  };
+
+  const handle_notifications_turn_on = async () => {
+    if (notifications_busy) return;
+    set_notifications_busy(true);
+    let permission: NotificationPermission = "default";
+
+    try {
+      permission = await request_notification_permission();
+    } catch (e) {
+      if (import.meta.env.DEV) console.error(e);
+    }
+    set_notifications_busy(false);
+    if (permission === "granted") {
+      const is_calendar = is_calendar_app();
+
+      if (!is_calendar) set_onboarding_preference("desktop_notifications", true);
+      show_sample_notification();
+      show_toast(t("auth.notifications_turned_on"), "success");
+      if (!is_calendar) subscribe_push_in_background();
+    } else if (permission === "denied") {
+      show_toast(t("auth.notifications_blocked_hint"), "warning", 7000);
+    }
+    set_step(step_after_notifications(app_kind()));
+  };
+
+  const handle_notifications_skip = () => {
+    set_step(step_after_notifications(app_kind()));
+  };
+
+  const handle_addresses_continue = () => {
+    set_step("custom_domain");
+  };
+
+  const handle_custom_domain_own = async () => {
+    await go_to_plan_step("/settings/domains");
+  };
+
+  const handle_custom_domain_new = async () => {
+    finish_path_ref.current = "/settings/domains";
+    open_domain_purchase_ref.current = true;
+    plan_step_shown_ref.current = true;
+    await finalize_registration();
+  };
+
+  const handle_custom_domain_skip = () => {
+    set_step("import_mail");
+  };
+
+  const handle_import_mail = async () => {
+    await go_to_plan_step("/settings/import");
+  };
+
+  const handle_import_mail_skip = async () => {
+    await go_to_plan_step("/");
+  };
+
+  complete_registration_ref.current = complete_registration;
+
+  const stop_verification_polling = useCallback(() => {
+    if (verification_poll_ref.current) {
+      clearInterval(verification_poll_ref.current);
+      verification_poll_ref.current = null;
+    }
+  }, []);
+
+  const stop_resend_cooldown = useCallback(() => {
+    if (resend_cooldown_ref.current) {
+      clearInterval(resend_cooldown_ref.current);
+      resend_cooldown_ref.current = null;
+    }
+    set_resend_cooldown(0);
+  }, []);
+
+  const start_verification_polling = useCallback(() => {
+    stop_verification_polling();
+    set_is_email_verified(false);
+
+    verification_poll_ref.current = setInterval(async () => {
+      const verified = await check_recovery_email_verified();
+
+      if (verified) {
+        set_is_email_verified(true);
+        stop_verification_polling();
+        setTimeout(() => {
+          complete_registration_ref.current?.();
+        }, 1500);
+      }
+    }, 5000);
+  }, [stop_verification_polling]);
+
+  const start_resend_cooldown = useCallback(() => {
+    stop_resend_cooldown();
+    set_resend_cooldown(60);
+
+    resend_cooldown_ref.current = setInterval(() => {
+      set_resend_cooldown((prev) => {
+        if (prev <= 1) {
+          if (resend_cooldown_ref.current) {
+            clearInterval(resend_cooldown_ref.current);
+            resend_cooldown_ref.current = null;
+          }
+
+          return 0;
+        }
+
+        return prev - 1;
+      });
+    }, 1000);
+  }, [stop_resend_cooldown]);
+
+  const handle_resend_verification = useCallback(async () => {
+    if (resend_cooldown > 0 || is_resending_verification) return;
+
+    set_is_resending_verification(true);
+
+    const result = await resend_recovery_verification(recovery_email.trim());
+
+    set_is_resending_verification(false);
+
+    if (!result.data.success) {
+      show_toast(t("common.failed_to_send_verification"), "error");
+
+      return;
+    }
+    start_resend_cooldown();
+    show_toast(t("common.verification_email_sent"), "success");
+  }, [
+    resend_cooldown,
+    is_resending_verification,
+    recovery_email,
+    start_resend_cooldown,
+    t,
+  ]);
+
+  const handle_skip_verification = useCallback(() => {
+    if (recovery_email_required) return;
+    stop_verification_polling();
+    stop_resend_cooldown();
+    complete_registration();
+  }, [
+    stop_verification_polling,
+    stop_resend_cooldown,
+    recovery_email_required,
+  ]);
+
+  const handle_change_recovery_email = useCallback(() => {
+    set_step("recovery_email");
+  }, []);
+
+  useEffect(() => {
+    if (step !== "recovery_email_verification") {
+      stop_verification_polling();
+      stop_resend_cooldown();
+    }
+  }, [step, stop_verification_polling, stop_resend_cooldown]);
+
+  useEffect(() => {
+    return () => {
+      stop_verification_polling();
+      stop_resend_cooldown();
+    };
+  }, [stop_verification_polling, stop_resend_cooldown]);
+
+  const handle_recovery_email_continue = async () => {
+    if (saving_recovery_email_ref.current) return;
+    saving_recovery_email_ref.current = true;
+    set_recovery_email_error("");
+
+    if (!recovery_email.trim()) {
+      set_recovery_email_error(t("auth.please_enter_recovery_email"));
+      saving_recovery_email_ref.current = false;
+
+      return;
+    }
+
+    if (!validate_email(recovery_email.trim())) {
+      set_recovery_email_error(t("auth.please_enter_valid_email"));
+      saving_recovery_email_ref.current = false;
+
+      return;
+    }
+
+    if (!vault) {
+      set_recovery_email_error(t("auth.failed_save_recovery_email"));
+      saving_recovery_email_ref.current = false;
+
+      return;
+    }
+
+    set_is_saving_recovery_email(true);
+    try {
+      const result = await save_recovery_email(recovery_email.trim(), vault);
+
+      if (result.code === "CONFLICT") {
+        set_recovery_email_error(t("auth.recovery_email_conflict"));
+        set_is_saving_recovery_email(false);
+        saving_recovery_email_ref.current = false;
+        set_step("recovery_email");
+
+        return;
+      }
+
+      if (!result.data.success) {
+        set_recovery_email_error(
+          result.error || t("auth.failed_save_recovery_email"),
+        );
+        set_is_saving_recovery_email(false);
+        saving_recovery_email_ref.current = false;
+        set_step("recovery_email");
+
+        return;
+      }
+    } catch {
+      set_recovery_email_error(t("auth.failed_save_recovery_email"));
+      set_is_saving_recovery_email(false);
+      saving_recovery_email_ref.current = false;
+      set_step("recovery_email");
+
+      return;
+    }
+    set_is_saving_recovery_email(false);
+    saving_recovery_email_ref.current = false;
+
+    set_step("recovery_email_verification");
+    start_verification_polling();
+    start_resend_cooldown();
+  };
+
+  const handle_recovery_email_skip = async () => {
+    if (recovery_email_required) return;
+    await complete_registration();
+  };
+
+  const handle_recovery_email_gate_submit = async () => {
+    set_recovery_email_error("");
+
+    if (!recovery_email.trim()) {
+      set_recovery_email_error(t("auth.please_enter_recovery_email"));
+
+      return;
+    }
+    if (!validate_email(recovery_email.trim())) {
+      set_recovery_email_error(t("auth.please_enter_valid_email"));
+
+      return;
+    }
+
+    const saved_params = pending_register_params_ref.current;
+
+    if (!saved_params) {
+      set_error(t("auth.registration_failed"));
+      set_step("email");
+
+      return;
+    }
+
+    set_is_saving_recovery_email(true);
+    const response = await register_user({
+      ...saved_params,
+      captcha_token: captcha_token || undefined,
+      recovery_email: recovery_email.trim(),
+    });
+
+    set_is_saving_recovery_email(false);
+
+    if (response.error) {
+      if (response.server_code === "REGISTRATION_SESSION_PENDING") {
+        pending_register_params_ref.current = null;
+        pending_vault_data_ref.current = null;
+        clear_remembered_invite_code();
+        set_recovery_email_required(true);
+        hold_created_account("no_session");
+
+        return;
+      }
+      await timing_safe_delay();
+      rearm_captcha();
+      if (is_abuse_block_response(response)) {
+        const block = read_abuse_block(response.details);
+
+        set_is_abuse_blocked(true);
+        set_abuse_block(block);
+        set_error(abuse_block_message(block, t));
+        set_step("email");
+
+        return;
+      }
+      if (response.code === "USERNAME_IN_USE") {
+        set_error(t("auth.username_in_use"));
+        set_step("email");
+
+        return;
+      }
+      set_recovery_email_error(register_error_message(response, t));
+
+      return;
+    }
+
+    const saved_vault = pending_vault_data_ref.current;
+
+    pending_register_params_ref.current = null;
+    pending_vault_data_ref.current = null;
+
+    if (response.data && saved_vault) {
+      clear_remembered_invite_code();
+      set_recovery_email_required(true);
+      set_is_completing_registration(true);
+      const trimmed_display_name = display_name.trim();
+      const account = response.data;
+      const signed_in = await sign_in_created_account(
+        () =>
+          login(
+            {
+              id: account.user_id,
+              username: account.username,
+              email: account.email,
+              display_name: trimmed_display_name || undefined,
+              profile_color,
+            },
+            saved_vault,
+            password,
+            saved_params.encrypted_vault,
+            saved_params.vault_nonce,
+          ),
+        saved_vault,
+      );
+
+      if (!signed_in) {
+        hold_created_account("login_failed");
+
+        return;
+      }
+    }
+
+    registration_done_ref.current = true;
+    set_step("recovery_key");
+  };
+
+  const send_created_account_to_sign_in = () => {
+    safe_session_remove(REGISTRATION_RESUME_KEY);
+    handoff_ref.current = true;
+    set_is_completing_registration(false);
+    navigate(`/sign-in?u=${encodeURIComponent(generated_email)}`, {
+      replace: true,
+    });
+  };
+
+  const handle_advance_from_recovery_key = async () => {
+    if (session_issue === "no_session") {
+      send_created_account_to_sign_in();
+
+      return;
+    }
+    if (session_issue === "login_failed") {
+      if (retrying_sign_in_ref.current) return;
+      retrying_sign_in_ref.current = true;
+      const retry = post_create_sign_in_ref.current;
+      const signed_in = retry ? await retry() : false;
+
+      retrying_sign_in_ref.current = false;
+      if (!signed_in) {
+        send_created_account_to_sign_in();
+
+        return;
+      }
+      set_session_issue(null);
+    }
+    if (recovery_email_required && recovery_email.trim()) {
+      await handle_recovery_email_continue();
+
+      return;
+    }
+    set_step("recovery_email");
+  };
+
+  return {
+    t,
+    is_dark,
+    is_adding_account,
+    is_authenticated,
+    auth_loading,
+    has_existing_session,
+    is_restoring,
+
+    step,
+    set_step,
+    is_password_visible,
+    set_is_password_visible,
+    is_confirm_password_visible,
+    set_is_confirm_password_visible,
+    is_key_visible,
+    set_is_key_visible,
+    username,
+    set_username,
+    display_name,
+    set_display_name,
+    email_domain,
+    set_email_domain,
+    password,
+    set_password: (val: string) => {
+      set_password(val);
+      set_password_breach_warning(false);
+    },
+    confirm_password,
+    set_confirm_password,
+    recovery_email,
+    set_recovery_email,
+    remember_me,
+    set_remember_me,
+    profile_color,
+    set_profile_color,
+    error,
+    set_error,
+    is_abuse_blocked,
+    abuse_block,
+    session_issue,
+    password_breach_warning,
+    handle_password_blur,
+    generation_status,
+    recovery_codes,
+    generated_email,
+    captcha_token,
+    set_captcha_token,
+    turnstile_ref,
+    is_pdf_downloaded,
+    is_text_downloaded,
+    is_downloading_key,
+    has_copied_key,
+    has_opened_download,
+    added_addresses,
+    set_added_addresses,
+    show_skip_confirmation,
+    set_show_skip_confirmation,
+    is_saving_recovery_email,
+    recovery_email_error,
+    set_recovery_email_error,
+    is_resending_verification,
+    resend_cooldown,
+    is_email_verified,
+    recovery_email_required,
+
+    handle_cancel_add_account,
+    handle_email_next,
+    handle_password_next,
+    handle_copy_codes,
+    handle_copy_single_code,
+    handle_download_key,
+    handle_download_txt,
+    handle_recovery_email_continue,
+    handle_recovery_email_skip,
+    handle_recovery_email_gate_submit,
+    handle_advance_from_recovery_key,
+    handle_open_download,
+    handle_download_apps_continue,
+    notifications_busy,
+    handle_notifications_turn_on,
+    handle_notifications_skip,
+    handle_addresses_continue,
+    handle_custom_domain_own,
+    handle_custom_domain_new,
+    handle_custom_domain_skip,
+    handle_import_mail,
+    handle_import_mail_skip,
+    handle_resend_verification,
+    handle_skip_verification,
+    handle_change_recovery_email,
+
+    complete_registration,
+    finalize_registration,
+    finish_plan_selection,
+
+    is_claim,
+    is_invited,
+    claim_address: is_claim
+      ? `${options?.claim_username ?? username}@${options?.claim_domain ?? email_domain}`
+      : null,
+  };
+}
+
+export type UseRegistrationReturn = ReturnType<typeof use_registration>;

@@ -1,0 +1,1025 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { MailItemUpdatedEventDetail } from "@/hooks/mail_events";
+
+import { useState, useCallback, useEffect, useRef } from "react";
+
+import { HASH_ALG } from "@/services/crypto/constants";
+import { decrypt_aes_gcm_with_fallback } from "@/services/crypto/legacy_keks";
+import {
+  list_tags,
+  create_tag,
+  update_tag,
+  delete_tag,
+  get_tag_counts,
+  add_tag_to_item,
+  remove_tag_from_item,
+  type TagDefinition,
+  type CreateTagRequest,
+  type UpdateTagRequest,
+  type ListTagsParams,
+} from "@/services/api/tags";
+import {
+  get_vault_from_memory,
+  has_passphrase_in_memory,
+  on_keys_ready,
+} from "@/services/crypto/memory_key_store";
+import { emit_tags_changed, MAIL_EVENTS } from "@/hooks/mail_events";
+import { use_auth_safe } from "@/contexts/auth_context";
+import { use_i18n } from "@/lib/i18n/context";
+import {
+  effective_parent_token,
+  reparent_children_of_removed_tag,
+} from "@/hooks/tag_tree";
+import { request_cache } from "@/services/api/request_cache";
+
+export interface DecryptedTag {
+  id: string;
+  tag_token: string;
+  name: string;
+  color?: string;
+  icon?: string;
+  sort_order: number;
+  parent_token?: string;
+  item_count?: number;
+  created_at: string;
+  updated_at: string;
+  is_undecryptable?: boolean;
+}
+
+interface TagsState {
+  tags: DecryptedTag[];
+  is_loading: boolean;
+  error: string | null;
+  total: number;
+}
+
+interface TagCounts {
+  [tag_token: string]: number;
+}
+
+const TAG_RETRY_DELAYS_MS = [400, 1_200, 3_000];
+const TAG_BACKGROUND_RETRY_DELAYS_MS = [8_000, 20_000, 45_000];
+const TAGS_REFETCH_DEBOUNCE_MS = 300;
+const TAG_PARENT_ERROR_CODES = new Set([
+  "TAG_PARENT_NOT_FOUND",
+  "TAG_PARENT_SELF",
+  "TAG_PARENT_CYCLE",
+  "TAG_PARENT_TOO_DEEP",
+]);
+
+function is_tag_parent_error(response: {
+  error?: string;
+  server_code?: string;
+}): boolean {
+  return (
+    (!!response.server_code &&
+      TAG_PARENT_ERROR_CODES.has(response.server_code)) ||
+    (!!response.error && TAG_PARENT_ERROR_CODES.has(response.error))
+  );
+}
+
+const tags_loaded_listeners = new Set<() => void>();
+
+function on_tags_loaded(listener: () => void): () => void {
+  tags_loaded_listeners.add(listener);
+
+  return () => {
+    tags_loaded_listeners.delete(listener);
+  };
+}
+
+function notify_tags_loaded(): void {
+  for (const listener of [...tags_loaded_listeners]) listener();
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const cached_tags: {
+  data: DecryptedTag[];
+  total: number;
+  has_loaded: boolean;
+} = {
+  data: [],
+  total: 0,
+  has_loaded: false,
+};
+
+export function clear_tags_cache(): void {
+  cached_tags.data = [];
+  cached_tags.total = 0;
+  cached_tags.has_loaded = false;
+}
+
+interface UseTagsReturn {
+  state: TagsState;
+  counts: TagCounts;
+  fetch_tags: (params?: ListTagsParams) => Promise<void>;
+  fetch_counts: () => Promise<void>;
+  create_new_tag: (
+    name: string,
+    color?: string,
+    icon?: string,
+    parent_token?: string,
+  ) => Promise<DecryptedTag | null>;
+  update_existing_tag: (
+    tag_id: string,
+    name?: string,
+    color?: string,
+    icon?: string,
+    sort_order?: number,
+    parent_token?: string | null,
+  ) => Promise<boolean>;
+  delete_existing_tag: (tag_id: string) => Promise<boolean>;
+  add_tag_to_email: (email_id: string, tag_token: string) => Promise<boolean>;
+  remove_tag_from_email: (
+    email_id: string,
+    tag_token: string,
+  ) => Promise<boolean>;
+  get_tag_by_token: (tag_token: string) => DecryptedTag | undefined;
+  refresh: () => Promise<DecryptedTag[]>;
+}
+
+function array_to_base64(array: Uint8Array): string {
+  let binary = "";
+
+  for (let i = 0; i < array.length; i++) {
+    binary += String.fromCharCode(array[i]);
+  }
+
+  return btoa(binary);
+}
+
+function base64_to_array(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return bytes;
+}
+
+function generate_tag_token(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+
+  return array_to_base64(bytes);
+}
+
+async function derive_tag_key(identity_key: string): Promise<CryptoKey> {
+  const key_material = new TextEncoder().encode(
+    identity_key + "astermail-tags-v1",
+  );
+  const hash = await crypto.subtle.digest(HASH_ALG, key_material);
+
+  return crypto.subtle.importKey(
+    "raw",
+    hash,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+}
+
+async function encrypt_tag_field(
+  field: string,
+  identity_key: string,
+): Promise<{ encrypted: string; nonce: string }> {
+  const key = await derive_tag_key(identity_key);
+  const nonce = crypto.getRandomValues(new Uint8Array(12));
+  const data = new TextEncoder().encode(field);
+
+  const encrypted = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: nonce },
+    key,
+    data,
+  );
+
+  return {
+    encrypted: array_to_base64(new Uint8Array(encrypted)),
+    nonce: array_to_base64(nonce),
+  };
+}
+
+async function decrypt_tag_field(
+  encrypted: string,
+  nonce: string,
+  identity_key: string,
+): Promise<string> {
+  const key = await derive_tag_key(identity_key);
+  const encrypted_data = base64_to_array(encrypted);
+  const nonce_data = base64_to_array(nonce);
+
+  const decrypted = await decrypt_aes_gcm_with_fallback(
+    key,
+    encrypted_data,
+    nonce_data,
+  );
+
+  return new TextDecoder().decode(decrypted);
+}
+
+export async function decrypt_tag(
+  tag: TagDefinition,
+  identity_key: string,
+): Promise<DecryptedTag | null> {
+  let name = "";
+  let color: string | undefined;
+  let icon: string | undefined;
+
+  try {
+    name = await decrypt_tag_field(
+      tag.encrypted_name,
+      tag.name_nonce,
+      identity_key,
+    );
+  } catch {
+    return null;
+  }
+
+  if (tag.encrypted_color && tag.color_nonce) {
+    try {
+      color = await decrypt_tag_field(
+        tag.encrypted_color,
+        tag.color_nonce,
+        identity_key,
+      );
+    } catch {
+      color = undefined;
+    }
+  }
+
+  if (tag.encrypted_icon && tag.icon_nonce) {
+    try {
+      icon = await decrypt_tag_field(
+        tag.encrypted_icon,
+        tag.icon_nonce,
+        identity_key,
+      );
+    } catch {
+      icon = undefined;
+    }
+  }
+
+  return {
+    id: tag.id,
+    tag_token: tag.tag_token,
+    name,
+    color,
+    icon,
+    sort_order: tag.sort_order,
+    parent_token: tag.parent_token || undefined,
+    item_count: tag.item_count,
+    created_at: tag.created_at,
+    updated_at: tag.updated_at,
+  };
+}
+
+export function build_undecryptable_tag(
+  tag: TagDefinition,
+  fallback_name: string,
+): DecryptedTag {
+  return {
+    id: tag.id,
+    tag_token: tag.tag_token,
+    name: fallback_name,
+    color: undefined,
+    icon: undefined,
+    sort_order: tag.sort_order,
+    parent_token: tag.parent_token || undefined,
+    item_count: tag.item_count,
+    created_at: tag.created_at,
+    updated_at: tag.updated_at,
+    is_undecryptable: true,
+  };
+}
+
+export function use_tags(): UseTagsReturn {
+  const { t } = use_i18n();
+  const auth = use_auth_safe();
+  const user = auth?.user ?? null;
+  const [state, set_state] = useState<TagsState>({
+    tags: cached_tags.data,
+    is_loading: cached_tags.data.length === 0 && !cached_tags.has_loaded,
+    error: null,
+    total: cached_tags.total,
+  });
+  const [counts, set_counts] = useState<TagCounts>({});
+  const abort_ref = useRef<AbortController | null>(null);
+  const prev_user_id_ref = useRef<string | null>(null);
+  const fetch_generation_ref = useRef(0);
+  const counts_generation_ref = useRef(0);
+  const counts_adjusted_at_ref = useRef(0);
+
+  const fetch_tags = useCallback(
+    async (params: ListTagsParams = {}): Promise<void> => {
+      if (
+        !has_passphrase_in_memory() ||
+        !get_vault_from_memory()?.identity_key
+      ) {
+        set_state((prev) =>
+          prev.is_loading && prev.error === null
+            ? prev
+            : { ...prev, is_loading: true, error: null },
+        );
+
+        return;
+      }
+
+      abort_ref.current?.abort();
+      abort_ref.current = new AbortController();
+
+      const this_generation = ++fetch_generation_ref.current;
+
+      set_state((prev) => {
+        if (prev.tags.length === 0 && !cached_tags.has_loaded) {
+          return { ...prev, is_loading: true, error: null };
+        }
+
+        return prev;
+      });
+
+      const attempt_fetch = async (): Promise<"done" | "stale" | "retry"> => {
+        const vault = get_vault_from_memory();
+
+        if (!has_passphrase_in_memory() || !vault?.identity_key) return "retry";
+
+        try {
+          const response = await list_tags({
+            include_counts: true,
+            ...params,
+          });
+
+          if (this_generation !== fetch_generation_ref.current) return "stale";
+
+          if (response.error || !response.data) return "retry";
+
+          const decrypted_results = await Promise.all(
+            response.data.tags.map((tag: TagDefinition) =>
+              decrypt_tag(tag, vault.identity_key),
+            ),
+          );
+
+          if (this_generation !== fetch_generation_ref.current) return "stale";
+
+          const decrypted_count = decrypted_results.filter(
+            (tag) => tag !== null,
+          ).length;
+
+          if (
+            response.data.tags.length > 0 &&
+            decrypted_count === 0 &&
+            cached_tags.data.some((tag) => !tag.is_undecryptable)
+          ) {
+            return "retry";
+          }
+
+          const visible_tags = response.data.tags.map(
+            (tag: TagDefinition, index: number) =>
+              decrypted_results[index] ??
+              build_undecryptable_tag(tag, t("common.label_unable_to_decrypt")),
+          );
+
+          cached_tags.data = visible_tags;
+          cached_tags.total = visible_tags.length;
+          cached_tags.has_loaded = true;
+
+          set_state({
+            tags: visible_tags,
+            is_loading: false,
+            error: null,
+            total: response.data.total,
+          });
+          notify_tags_loaded();
+
+          return "done";
+        } catch {
+          if (this_generation !== fetch_generation_ref.current) return "stale";
+
+          return "retry";
+        }
+      };
+
+      for (let attempt = 0; ; attempt += 1) {
+        const outcome = await attempt_fetch();
+
+        if (outcome !== "retry") return;
+        if (attempt >= TAG_RETRY_DELAYS_MS.length) break;
+
+        await wait(TAG_RETRY_DELAYS_MS[attempt]);
+
+        if (this_generation !== fetch_generation_ref.current) return;
+      }
+
+      set_state((prev) =>
+        cached_tags.has_loaded
+          ? {
+              tags: cached_tags.data,
+              is_loading: false,
+              error: null,
+              total: cached_tags.total,
+            }
+          : {
+              ...prev,
+              is_loading: false,
+              error:
+                prev.tags.length > 0 ? null : t("common.failed_to_fetch_tags"),
+            },
+      );
+
+      const retry_in_background = async (): Promise<void> => {
+        for (const delay of TAG_BACKGROUND_RETRY_DELAYS_MS) {
+          await wait(delay);
+
+          if (this_generation !== fetch_generation_ref.current) return;
+          if ((await attempt_fetch()) !== "retry") return;
+        }
+      };
+
+      void retry_in_background();
+    },
+    [t],
+  );
+
+  useEffect(() => {
+    return on_tags_loaded(() => {
+      set_state((prev) =>
+        prev.error === null
+          ? prev
+          : {
+              tags: cached_tags.data,
+              is_loading: false,
+              error: null,
+              total: cached_tags.total,
+            },
+      );
+    });
+  }, []);
+
+  const fetch_counts = useCallback(async (): Promise<void> => {
+    const this_generation = ++counts_generation_ref.current;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const fetch_started_at = Date.now();
+
+      try {
+        const response = await get_tag_counts();
+
+        if (this_generation !== counts_generation_ref.current) return;
+
+        if (!response.data) {
+          if (attempt === 2) return;
+
+          await new Promise((resolve) =>
+            setTimeout(resolve, 1000 * (attempt + 1)),
+          );
+
+          if (this_generation !== counts_generation_ref.current) return;
+
+          continue;
+        }
+
+        if (counts_adjusted_at_ref.current > fetch_started_at) {
+          await new Promise((resolve) => setTimeout(resolve, 400));
+
+          if (this_generation !== counts_generation_ref.current) return;
+
+          continue;
+        }
+
+        const new_counts: TagCounts = {};
+
+        for (const item of response.data.counts) {
+          new_counts[item.tag_token] = item.count;
+        }
+        set_counts(new_counts);
+
+        return;
+      } catch {
+        return;
+      }
+    }
+  }, []);
+
+  const create_new_tag = useCallback(
+    async (
+      name: string,
+      color?: string,
+      icon?: string,
+      parent_token?: string,
+    ): Promise<DecryptedTag | null> => {
+      const trimmed_name = name.trim();
+
+      if (!trimmed_name || trimmed_name.length > 100) {
+        return null;
+      }
+
+      const vault = get_vault_from_memory();
+
+      if (!vault?.identity_key) {
+        return null;
+      }
+
+      const known_tokens = new Set(
+        cached_tags.data.map((tag) => tag.tag_token),
+      );
+      const duplicate_exists = cached_tags.data.some(
+        (tag) =>
+          !tag.is_undecryptable &&
+          tag.name.toLowerCase() === trimmed_name.toLowerCase() &&
+          effective_parent_token(tag, known_tokens) ===
+            (parent_token || undefined),
+      );
+
+      if (duplicate_exists) {
+        return null;
+      }
+
+      try {
+        const tag_token = generate_tag_token();
+
+        const { encrypted: encrypted_name, nonce: name_nonce } =
+          await encrypt_tag_field(trimmed_name, vault.identity_key);
+
+        const request: CreateTagRequest = {
+          tag_token,
+          encrypted_name,
+          name_nonce,
+        };
+
+        if (color) {
+          const { encrypted: encrypted_color, nonce: color_nonce } =
+            await encrypt_tag_field(color, vault.identity_key);
+
+          request.encrypted_color = encrypted_color;
+          request.color_nonce = color_nonce;
+        }
+
+        if (icon) {
+          const { encrypted: encrypted_icon, nonce: icon_nonce } =
+            await encrypt_tag_field(icon, vault.identity_key);
+
+          request.encrypted_icon = encrypted_icon;
+          request.icon_nonce = icon_nonce;
+        }
+
+        if (parent_token) {
+          request.parent_token = parent_token;
+        }
+
+        const response = await create_tag(request);
+
+        if (response.error || !response.data) {
+          if (is_tag_parent_error(response)) {
+            request_cache.invalidate("/mail/v1/tags");
+            void fetch_tags();
+          }
+
+          return null;
+        }
+
+        const new_tag: DecryptedTag = {
+          id: response.data.id,
+          tag_token: response.data.tag_token,
+          name: trimmed_name,
+          color,
+          icon,
+          sort_order: 0,
+          parent_token: parent_token || undefined,
+          item_count: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        set_state((prev) => {
+          const updated_tags = [...prev.tags, new_tag];
+
+          cached_tags.data = updated_tags;
+          cached_tags.total = updated_tags.length;
+
+          return {
+            ...prev,
+            tags: updated_tags,
+            total: updated_tags.length,
+          };
+        });
+
+        emit_tags_changed();
+
+        return new_tag;
+      } catch {
+        return null;
+      }
+    },
+    [fetch_tags],
+  );
+
+  const update_existing_tag = useCallback(
+    async (
+      tag_id: string,
+      name?: string,
+      color?: string,
+      icon?: string,
+      sort_order?: number,
+      parent_token?: string | null,
+    ): Promise<boolean> => {
+      const vault = get_vault_from_memory();
+
+      if (!vault?.identity_key) {
+        return false;
+      }
+
+      if (
+        name !== undefined &&
+        cached_tags.data.some(
+          (tag) => tag.id === tag_id && tag.is_undecryptable,
+        )
+      ) {
+        return false;
+      }
+
+      try {
+        const request: UpdateTagRequest = {};
+
+        if (name !== undefined) {
+          const { encrypted, nonce } = await encrypt_tag_field(
+            name,
+            vault.identity_key,
+          );
+
+          request.encrypted_name = encrypted;
+          request.name_nonce = nonce;
+        }
+
+        if (color !== undefined) {
+          const { encrypted, nonce } = await encrypt_tag_field(
+            color,
+            vault.identity_key,
+          );
+
+          request.encrypted_color = encrypted;
+          request.color_nonce = nonce;
+        }
+
+        if (icon !== undefined) {
+          const { encrypted, nonce } = await encrypt_tag_field(
+            icon,
+            vault.identity_key,
+          );
+
+          request.encrypted_icon = encrypted;
+          request.icon_nonce = nonce;
+        }
+
+        if (sort_order !== undefined) {
+          request.sort_order = sort_order;
+        }
+
+        if (parent_token !== undefined) {
+          request.parent_token = parent_token ?? "";
+        }
+
+        const response = await update_tag(tag_id, request);
+
+        if (response.error) {
+          if (is_tag_parent_error(response)) {
+            request_cache.invalidate("/mail/v1/tags");
+            void fetch_tags();
+          }
+
+          return false;
+        }
+
+        set_state((prev) => {
+          const updated_tags = prev.tags.map((tag) =>
+            tag.id === tag_id
+              ? {
+                  ...tag,
+                  ...(name !== undefined && {
+                    name,
+                    is_undecryptable: false,
+                  }),
+                  ...(color !== undefined && { color }),
+                  ...(icon !== undefined && { icon }),
+                  ...(sort_order !== undefined && { sort_order }),
+                  ...(parent_token !== undefined && {
+                    parent_token: parent_token || undefined,
+                  }),
+                  updated_at: new Date().toISOString(),
+                }
+              : tag,
+          );
+
+          cached_tags.data = updated_tags;
+          cached_tags.total = updated_tags.length;
+
+          return {
+            ...prev,
+            tags: updated_tags,
+          };
+        });
+
+        emit_tags_changed();
+
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [fetch_tags],
+  );
+
+  const delete_existing_tag = useCallback(
+    async (tag_id: string): Promise<boolean> => {
+      try {
+        const response = await delete_tag(tag_id);
+
+        if (response.error) {
+          return false;
+        }
+
+        set_state((prev) => {
+          const updated_tags = reparent_children_of_removed_tag(
+            prev.tags,
+            tag_id,
+          );
+
+          cached_tags.data = updated_tags;
+          cached_tags.total = updated_tags.length;
+
+          return {
+            ...prev,
+            tags: updated_tags,
+            total: updated_tags.length,
+          };
+        });
+
+        emit_tags_changed();
+
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [],
+  );
+
+  const add_tag_to_email = useCallback(
+    async (email_id: string, tag_token: string): Promise<boolean> => {
+      counts_adjusted_at_ref.current = Date.now();
+      set_counts((prev) => ({
+        ...prev,
+        [tag_token]: (prev[tag_token] || 0) + 1,
+      }));
+
+      try {
+        const response = await add_tag_to_item(email_id, { tag_token });
+
+        if (response.error) {
+          counts_adjusted_at_ref.current = Date.now();
+          set_counts((prev) => ({
+            ...prev,
+            [tag_token]: Math.max(0, (prev[tag_token] || 1) - 1),
+          }));
+
+          return false;
+        }
+
+        counts_adjusted_at_ref.current = Date.now();
+
+        return true;
+      } catch {
+        counts_adjusted_at_ref.current = Date.now();
+        set_counts((prev) => ({
+          ...prev,
+          [tag_token]: Math.max(0, (prev[tag_token] || 1) - 1),
+        }));
+
+        return false;
+      }
+    },
+    [],
+  );
+
+  const remove_tag_from_email = useCallback(
+    async (email_id: string, tag_token: string): Promise<boolean> => {
+      counts_adjusted_at_ref.current = Date.now();
+      set_counts((prev) => ({
+        ...prev,
+        [tag_token]: Math.max(0, (prev[tag_token] || 0) - 1),
+      }));
+
+      try {
+        const response = await remove_tag_from_item(email_id, tag_token);
+
+        if (response.error) {
+          counts_adjusted_at_ref.current = Date.now();
+          set_counts((prev) => ({
+            ...prev,
+            [tag_token]: (prev[tag_token] || 0) + 1,
+          }));
+
+          return false;
+        }
+
+        counts_adjusted_at_ref.current = Date.now();
+
+        return true;
+      } catch {
+        counts_adjusted_at_ref.current = Date.now();
+        set_counts((prev) => ({
+          ...prev,
+          [tag_token]: (prev[tag_token] || 0) + 1,
+        }));
+
+        return false;
+      }
+    },
+    [],
+  );
+
+  const get_tag_by_token = useCallback(
+    (tag_token: string): DecryptedTag | undefined => {
+      return state.tags.find((tag) => tag.tag_token === tag_token);
+    },
+    [state.tags],
+  );
+
+  const refresh = useCallback(async (): Promise<DecryptedTag[]> => {
+    await fetch_tags();
+
+    return cached_tags.data;
+  }, [fetch_tags]);
+
+  useEffect(() => {
+    const current_user_id = user?.id || null;
+    const prev_user_id = prev_user_id_ref.current;
+
+    if (
+      prev_user_id !== null &&
+      current_user_id !== null &&
+      prev_user_id !== current_user_id
+    ) {
+      fetch_generation_ref.current += 1;
+      counts_generation_ref.current += 1;
+      cached_tags.data = [];
+      cached_tags.total = 0;
+      cached_tags.has_loaded = false;
+      set_state({
+        tags: [],
+        is_loading: true,
+        error: null,
+        total: 0,
+      });
+      set_counts({});
+    }
+
+    if (current_user_id !== null) {
+      prev_user_id_ref.current = current_user_id;
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    return on_keys_ready(() => {
+      refresh();
+      fetch_counts();
+    });
+  }, [refresh, fetch_counts]);
+
+  useEffect(() => {
+    return () => {
+      abort_ref.current?.abort();
+      fetch_generation_ref.current += 1;
+    };
+  }, []);
+
+  useEffect(() => {
+    let counts_debounce: ReturnType<typeof setTimeout> | null = null;
+    let tags_debounce: ReturnType<typeof setTimeout> | null = null;
+
+    const counts_handler = () => {
+      if (counts_debounce) clearTimeout(counts_debounce);
+      counts_debounce = setTimeout(() => {
+        if (has_passphrase_in_memory()) {
+          fetch_counts();
+        }
+      }, 500);
+    };
+
+    const tags_handler = () => {
+      if (tags_debounce) clearTimeout(tags_debounce);
+      tags_debounce = setTimeout(() => {
+        tags_debounce = null;
+        if (has_passphrase_in_memory()) {
+          fetch_tags();
+        }
+      }, TAGS_REFETCH_DEBOUNCE_MS);
+    };
+
+    const auth_ready_handler = () => {
+      if (has_passphrase_in_memory()) {
+        fetch_tags();
+        fetch_counts();
+      }
+    };
+
+    const visibility_handler = () => {
+      if (
+        document.visibilityState === "visible" &&
+        has_passphrase_in_memory()
+      ) {
+        fetch_counts();
+      }
+    };
+
+    const item_updated_handler = (event: Event) => {
+      const detail = (event as CustomEvent<MailItemUpdatedEventDetail>).detail;
+
+      if (
+        detail &&
+        (detail.is_trashed !== undefined ||
+          detail.is_archived !== undefined ||
+          detail.is_spam !== undefined ||
+          detail.tags !== undefined)
+      ) {
+        counts_handler();
+      }
+    };
+
+    window.addEventListener(MAIL_EVENTS.MAIL_CHANGED, counts_handler);
+    window.addEventListener(MAIL_EVENTS.MAIL_SOFT_REFRESH, counts_handler);
+    window.addEventListener(MAIL_EVENTS.EMAIL_RECEIVED, counts_handler);
+    window.addEventListener(MAIL_EVENTS.EMAIL_SENT, counts_handler);
+    window.addEventListener(MAIL_EVENTS.MAIL_ACTION, counts_handler);
+    window.addEventListener(
+      MAIL_EVENTS.MAIL_ITEM_UPDATED,
+      item_updated_handler,
+    );
+    window.addEventListener(MAIL_EVENTS.MAIL_ITEMS_REMOVED, counts_handler);
+    window.addEventListener(MAIL_EVENTS.TAGS_CHANGED, tags_handler);
+    window.addEventListener(MAIL_EVENTS.DEFINITIONS_STALE, tags_handler);
+    window.addEventListener(MAIL_EVENTS.AUTH_READY, auth_ready_handler);
+    document.addEventListener("visibilitychange", visibility_handler);
+
+    return () => {
+      if (counts_debounce) clearTimeout(counts_debounce);
+      if (tags_debounce) clearTimeout(tags_debounce);
+      window.removeEventListener(MAIL_EVENTS.MAIL_CHANGED, counts_handler);
+      window.removeEventListener(MAIL_EVENTS.MAIL_SOFT_REFRESH, counts_handler);
+      window.removeEventListener(MAIL_EVENTS.EMAIL_RECEIVED, counts_handler);
+      window.removeEventListener(MAIL_EVENTS.EMAIL_SENT, counts_handler);
+      window.removeEventListener(MAIL_EVENTS.MAIL_ACTION, counts_handler);
+      window.removeEventListener(
+        MAIL_EVENTS.MAIL_ITEM_UPDATED,
+        item_updated_handler,
+      );
+      window.removeEventListener(
+        MAIL_EVENTS.MAIL_ITEMS_REMOVED,
+        counts_handler,
+      );
+      window.removeEventListener(MAIL_EVENTS.TAGS_CHANGED, tags_handler);
+      window.removeEventListener(MAIL_EVENTS.DEFINITIONS_STALE, tags_handler);
+      window.removeEventListener(MAIL_EVENTS.AUTH_READY, auth_ready_handler);
+      document.removeEventListener("visibilitychange", visibility_handler);
+    };
+  }, [fetch_counts, fetch_tags]);
+
+  return {
+    state,
+    counts,
+    fetch_tags,
+    fetch_counts,
+    create_new_tag,
+    update_existing_tag,
+    delete_existing_tag,
+    add_tag_to_email,
+    remove_tag_from_email,
+    get_tag_by_token,
+    refresh,
+  };
+}
+
+export type { TagCounts, TagsState };
+
+export { encrypt_tag_field, generate_tag_token };

@@ -1,0 +1,217 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { useState, useCallback } from "react";
+import { motion } from "framer-motion";
+import {
+  CheckIcon,
+  EnvelopeIcon,
+  QuestionMarkCircleIcon,
+  ShieldExclamationIcon,
+  SignalIcon,
+} from "@heroicons/react/24/outline";
+
+import { SettingsGroup, SettingsHeader, SettingsRow } from "./shared";
+
+import { use_i18n } from "@/lib/i18n/context";
+import { ButtonSpinner } from "@/components/ui/spinner";
+import { api_client } from "@/services/api/client";
+import { API_ENDPOINTS } from "@/services/api/endpoints";
+import { ignore_error } from "@/lib/ignore_error";
+import { show_toast } from "@/components/toast/simple_toast";
+import { is_desktop } from "@/native/invoke_bridge";
+import { open_external } from "@/utils/open_link";
+import { account_hub_url } from "@/services/account_hub_link";
+
+const SUPPORT_ADDRESS = "hello@astermail.org";
+const SECURITY_ADDRESS = "security@astermail.org";
+const HELP_CENTER_URL = "https://astermail.org/help";
+const STATUS_PAGE_URL = "https://status.astermail.org";
+
+function compose_to(address: string) {
+  const url = account_hub_url(`/compose?to=${encodeURIComponent(address)}`);
+
+  window.open(url ?? `mailto:${address}`, "_blank", "noopener,noreferrer");
+}
+
+const FEEDBACK_CATEGORIES = [
+  { value: "general", label_key: "settings.feedback_category_general" },
+  { value: "feature", label_key: "settings.feedback_category_idea" },
+  { value: "bug", label_key: "settings.feedback_category_bug" },
+] as const;
+
+type FeedbackCategory = (typeof FEEDBACK_CATEGORIES)[number]["value"];
+
+export function FeedbackSection({
+  on_back,
+  on_close,
+}: {
+  on_back: () => void;
+  on_close: () => void;
+}) {
+  const { t } = use_i18n();
+  const [message, set_message] = useState("");
+  const [is_sending, set_is_sending] = useState(false);
+  const [sent, set_sent] = useState(false);
+  const [category, set_category] = useState<FeedbackCategory>("general");
+
+  const handle_submit = useCallback(async () => {
+    if (!message.trim() || is_sending) return;
+    set_is_sending(true);
+    try {
+      const response = await api_client.post<{ success: boolean }>(
+        API_ENDPOINTS.core.feedback.base,
+        {
+          message: message.trim(),
+          category,
+          platform: is_desktop() ? "desktop" : "web",
+        },
+      );
+
+      if (response.error) {
+        show_toast(
+          response.code === "RATE_LIMIT_EXCEEDED" ||
+            response.code === "FORBIDDEN"
+            ? t("settings.too_many_requests")
+            : t("settings.failed_send_feedback"),
+          "error",
+        );
+
+        return;
+      }
+      set_sent(true);
+      set_message("");
+      set_category("general");
+    } catch (caught) {
+      ignore_error(
+        "pages/mobile/settings/feedback_section:FeedbackSection",
+        caught,
+      );
+      show_toast(t("common.something_went_wrong_try_again"), "error");
+    } finally {
+      set_is_sending(false);
+    }
+  }, [message, is_sending, category, t]);
+
+  return (
+    <div className="flex h-full flex-col">
+      <SettingsHeader
+        on_back={on_back}
+        on_close={on_close}
+        title={t("settings.feedback")}
+      />
+      <div className="flex-1 overflow-y-auto pb-8">
+        {sent ? (
+          <div className="flex flex-col items-center justify-center gap-3 px-8 pt-16">
+            <CheckIcon className="h-12 w-12 text-[var(--color-success,#22c55e)]" />
+            <p className="text-center text-[15px] text-[var(--mobile-text-primary)]">
+              {t("settings.thank_you_feedback")}
+            </p>
+          </div>
+        ) : (
+          <div className="px-4 pt-4">
+            <p className="mb-3 text-[14px] text-[var(--mobile-text-muted)]">
+              {t("settings.feedback_intro")}
+            </p>
+            <div className="mb-3 flex flex-wrap gap-2">
+              {FEEDBACK_CATEGORIES.map((option) => (
+                <button
+                  key={option.value}
+                  aria-pressed={category === option.value}
+                  className="rounded-[var(--aster-radius-control)] px-3 py-1.5 text-[13px] font-medium"
+                  style={{
+                    background:
+                      category === option.value
+                        ? "var(--accent-color)"
+                        : "var(--mobile-bg-card)",
+                    color:
+                      category === option.value
+                        ? "#fff"
+                        : "var(--mobile-text-muted)",
+                  }}
+                  type="button"
+                  onClick={() => set_category(option.value)}
+                >
+                  {t(option.label_key)}
+                </button>
+              ))}
+            </div>
+            <textarea
+              aria-label={t("settings.your_feedback")}
+              className="w-full resize-none rounded-xl bg-[var(--mobile-bg-card)] p-4 text-[15px] text-[var(--mobile-text-primary)] placeholder:text-[var(--mobile-text-muted)] outline-none"
+              maxLength={2000}
+              placeholder={t("settings.feedback_placeholder")}
+              rows={6}
+              value={message}
+              onChange={(e) => set_message(e.target.value)}
+            />
+            <p className="mt-1.5 text-[12px] text-[var(--mobile-text-muted)]">
+              {t("settings.feedback_not_encrypted")}
+            </p>
+            <motion.button
+              className="mt-4 flex w-full items-center justify-center rounded-xl px-4 py-3.5 text-[16px] font-semibold text-white disabled:opacity-50"
+              disabled={!message.trim() || is_sending}
+              style={{
+                background:
+                  "linear-gradient(180deg, var(--accent-mix-w80, #629bf8) 0%, var(--accent-color) 50%, var(--accent-mix-b80, #2f68c5) 100%)",
+                boxShadow:
+                  "0 2px 4px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.15)",
+              }}
+              type="button"
+              onClick={handle_submit}
+            >
+              {t("settings.send_feedback_button")}
+              {is_sending && <ButtonSpinner />}
+            </motion.button>
+          </div>
+        )}
+        <SettingsGroup title={t("settings.other_ways_to_reach")}>
+          <SettingsRow
+            description={SUPPORT_ADDRESS}
+            icon={<EnvelopeIcon className="h-4 w-4" />}
+            label={t("settings.support_email_label")}
+            on_press={() => compose_to(SUPPORT_ADDRESS)}
+          />
+          <SettingsRow
+            description={t("settings.support_help_desc")}
+            icon={<QuestionMarkCircleIcon className="h-4 w-4" />}
+            label={t("settings.support_help_label")}
+            on_press={() => open_external(HELP_CENTER_URL)}
+          />
+          <SettingsRow
+            description={t("settings.support_status_desc")}
+            icon={<SignalIcon className="h-4 w-4" />}
+            label={t("settings.support_status_label")}
+            on_press={() => open_external(STATUS_PAGE_URL)}
+          />
+          <SettingsRow
+            description={SECURITY_ADDRESS}
+            icon={<ShieldExclamationIcon className="h-4 w-4" />}
+            label={t("settings.support_security_label")}
+            on_press={() => compose_to(SECURITY_ADDRESS)}
+          />
+        </SettingsGroup>
+        <p className="px-5 pt-1 text-[13px] text-[var(--mobile-text-muted)]">
+          {t("settings.support_intro")}
+        </p>
+      </div>
+    </div>
+  );
+}

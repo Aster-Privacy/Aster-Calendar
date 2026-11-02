@@ -1,0 +1,350 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { dirname, join, relative, resolve, sep } from "node:path";
+
+import ts from "typescript";
+import { describe, it, expect } from "vitest";
+
+const src = join(process.cwd(), "src");
+const extensions = [".ts", ".tsx", "/index.ts", "/index.tsx"];
+
+function resolve_import(from: string, specifier: string): string | null {
+  let base: string;
+
+  if (specifier.startsWith("@/")) base = join(src, specifier.slice(2));
+  else if (specifier.startsWith(".")) base = resolve(dirname(from), specifier);
+  else return null;
+
+  for (const extension of extensions) {
+    const candidate = base + extension;
+
+    if (existsSync(candidate) && statSync(candidate).isFile()) return candidate;
+  }
+
+  return null;
+}
+
+function is_type_only(statement: ts.ImportDeclaration): boolean {
+  const clause = statement.importClause;
+
+  if (!clause) return false;
+  if (clause.isTypeOnly) return true;
+
+  const bindings = clause.namedBindings;
+
+  return (
+    !clause.name &&
+    !!bindings &&
+    ts.isNamedImports(bindings) &&
+    bindings.elements.length > 0 &&
+    bindings.elements.every((element) => element.isTypeOnly)
+  );
+}
+
+function static_specifiers(file: string): string[] {
+  const source = ts.createSourceFile(
+    file,
+    readFileSync(file, "utf8"),
+    ts.ScriptTarget.Latest,
+    false,
+    file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  const found: string[] = [];
+
+  for (const statement of source.statements) {
+    let specifier: string | null = null;
+
+    if (ts.isImportDeclaration(statement) && !is_type_only(statement)) {
+      specifier = (statement.moduleSpecifier as ts.StringLiteral).text;
+    } else if (
+      ts.isExportDeclaration(statement) &&
+      statement.moduleSpecifier &&
+      !statement.isTypeOnly
+    ) {
+      specifier = (statement.moduleSpecifier as ts.StringLiteral).text;
+    }
+
+    if (specifier) found.push(specifier);
+  }
+
+  return found;
+}
+
+function static_imports(file: string): string[] {
+  return static_specifiers(file)
+    .map((specifier) => resolve_import(file, specifier))
+    .filter((target): target is string => target !== null);
+}
+
+function package_name(specifier: string): string | null {
+  if (specifier.startsWith(".") || specifier.startsWith("@/")) return null;
+
+  const parts = specifier.split("/");
+
+  return specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0];
+}
+
+function eager_packages(entry: string): Set<string> {
+  const packages = new Set<string>();
+
+  for (const module of eagerly_loaded(entry)) {
+    for (const specifier of static_specifiers(join(src, module))) {
+      const name = package_name(specifier);
+
+      if (name) packages.add(name);
+    }
+  }
+
+  return packages;
+}
+
+const graph_cache = new Map<string, string[]>();
+
+function eagerly_loaded(entry: string): Set<string> {
+  const seen = new Set<string>([join(src, entry)]);
+  const queue = [...seen];
+
+  while (queue.length > 0) {
+    const file = queue.shift()!;
+    let imports = graph_cache.get(file);
+
+    if (!imports) {
+      imports = static_imports(file);
+      graph_cache.set(file, imports);
+    }
+
+    for (const next of imports) {
+      if (seen.has(next)) continue;
+      seen.add(next);
+      queue.push(next);
+    }
+  }
+
+  return new Set(
+    [...seen].map((file) => relative(src, file).split(sep).join("/")),
+  );
+}
+
+const RENDERER_AND_UI_MODULES = [
+  "lib/email_body_styles.ts",
+  "components/email/hooks/preload_cache.ts",
+  "components/email/sandboxed_email_renderer/renderer.tsx",
+  "components/compose/compose_shared.tsx",
+  "components/compose/compose_recipients.tsx",
+  "components/compose/emoji_picker.tsx",
+  "components/upgrade/upgrade_modal.tsx",
+  "components/upgrade/alias_cap_upsell_modal.tsx",
+  "components/upgrade/special_offer_modal.tsx",
+];
+
+const HEAVY_MODULES = [
+  ...RENDERER_AND_UI_MODULES,
+  "services/thread_service.ts",
+];
+
+const MOBILE_SHELL_MODULES = [
+  "components/mobile/mobile_drawer.tsx",
+  "components/mobile/mobile_email_list.tsx",
+  "components/mobile/mobile_email_row.tsx",
+  "components/mobile/mobile_fab.tsx",
+  "components/mobile/swipe_actions.tsx",
+];
+
+const INBOX_ON_DEMAND_MODULES = [
+  "components/compose/compose_window.tsx",
+  "components/compose/emoji_picker.tsx",
+  "utils/print_email.ts",
+  "services/translation/translate_document.ts",
+  "services/translation/engine_bergamot.ts",
+];
+
+function reached(entry: string, modules: string[]): string[] {
+  const loaded = eagerly_loaded(entry);
+
+  return modules.filter((module) => loaded.has(module));
+}
+
+function duplicated_packages(scope: string): string[] {
+  const lock = JSON.parse(
+    readFileSync(join(process.cwd(), "package-lock.json"), "utf8"),
+  ) as { packages: Record<string, { version?: string }> };
+  const versions = new Map<string, Set<string>>();
+
+  for (const [path, entry] of Object.entries(lock.packages)) {
+    const at = path.lastIndexOf(`node_modules/${scope}/`);
+
+    if (at === -1 || !entry.version) continue;
+
+    const name = path.slice(at + "node_modules/".length);
+    const seen = versions.get(name) ?? new Set<string>();
+
+    seen.add(entry.version);
+    versions.set(name, seen);
+  }
+
+  return [...versions]
+    .filter(([, seen]) => seen.size > 1)
+    .map(([name, seen]) => `${name}@${[...seen].sort().join("|")}`);
+}
+
+function inlining_fonts(entry: string): string[] {
+  return [...eagerly_loaded(entry)].filter((module) =>
+    /data:font\/[\w-]+;base64,[\w+/]{64}/.test(
+      readFileSync(join(src, module), "utf8"),
+    ),
+  );
+}
+
+describe("startup bundle", () => {
+  it("finds the modules it guards", () => {
+    for (const module of [
+      ...HEAVY_MODULES,
+      ...MOBILE_SHELL_MODULES,
+      ...INBOX_ON_DEMAND_MODULES,
+    ]) {
+      expect(existsSync(join(src, module))).toBe(true);
+    }
+  });
+
+  it("keeps the mail renderer, compose UI and upgrade modals out of the entry", () => {
+    expect(reached("main.tsx", HEAVY_MODULES)).toEqual([]);
+  });
+
+  it.each([
+    "contexts/preferences_context/use_preferences_core.ts",
+    "contexts/auth/auth_helpers.ts",
+    "hooks/use_email_list.ts",
+    "services/send_queue.ts",
+    "services/forward_attachments.ts",
+  ])("%s does not load the mail renderer or compose UI", (entry) => {
+    expect(reached(entry, RENDERER_AND_UI_MODULES)).toEqual([]);
+  });
+
+  it.each(["App.tsx", "pages/calendar_page.tsx"])(
+    "%s does not load the mobile shell",
+    (entry) => {
+      expect(reached(entry, MOBILE_SHELL_MODULES)).toEqual([]);
+    },
+  );
+
+  it.each([
+    "components/email/sandboxed_email_renderer/renderer.tsx",
+    "components/email/hooks/preload_cache.ts",
+  ])("%s does not inline font files", (entry) => {
+    expect(inlining_fonts(entry)).toEqual([]);
+  });
+
+  it("installs a single copy of each Radix package", () => {
+    expect(duplicated_packages("@radix-ui")).toEqual([]);
+  });
+});
+
+describe("crypto libraries", () => {
+  it("finds the packages the entry imports", () => {
+    expect(eager_packages("main.tsx").has("react")).toBe(true);
+  });
+
+  it.each(["main.tsx", "App.tsx", "pages/calendar_page.tsx"])(
+    "%s does not statically import openpgp",
+    (entry) => {
+      expect(eager_packages(entry).has("openpgp")).toBe(false);
+    },
+  );
+});
+
+describe("calendar route bundle", () => {
+  it("loads compose, reply, forward, emoji, print and translation on demand", () => {
+    expect(reached("pages/calendar_page.tsx", INBOX_ON_DEMAND_MODULES)).toEqual([]);
+  });
+});
+
+function vendor_chunks(): Map<string, string> {
+  const file = join(process.cwd(), "vite.config.ts");
+  const source = ts.createSourceFile(
+    file,
+    readFileSync(file, "utf8"),
+    ts.ScriptTarget.Latest,
+    false,
+    ts.ScriptKind.TS,
+  );
+  const chunk_of = new Map<string, string>();
+
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isPropertyAssignment(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === "manualChunks" &&
+      ts.isObjectLiteralExpression(node.initializer)
+    ) {
+      for (const property of node.initializer.properties) {
+        if (
+          !ts.isPropertyAssignment(property) ||
+          !ts.isStringLiteral(property.name) ||
+          !ts.isArrayLiteralExpression(property.initializer)
+        )
+          continue;
+
+        for (const element of property.initializer.elements) {
+          if (ts.isStringLiteral(element)) {
+            chunk_of.set(element.text, property.name.text);
+          }
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  visit(source);
+
+  return chunk_of;
+}
+
+function heroicons_entry_points(): string[] {
+  const found = new Set<string>();
+
+  for (const file of ts.sys.readDirectory(src, [".ts", ".tsx"])) {
+    for (const match of readFileSync(file, "utf8").matchAll(
+      /from "(@heroicons\/react\/[^"]+)"/g,
+    )) {
+      found.add(match[1]);
+    }
+  }
+
+  return [...found].sort();
+}
+
+describe("vendor chunks", () => {
+  it.each(["@aster/ui", "tailwind-merge"])(
+    "keeps %s out of the app code chunk",
+    (name) => {
+      expect(vendor_chunks().get(name)).toMatch(/^vendor-/);
+    },
+  );
+
+  it("keeps every heroicons entry point the app imports out of the app code chunk", () => {
+    const chunks = vendor_chunks();
+    const entry_points = heroicons_entry_points();
+
+    expect(entry_points.length).toBeGreaterThan(0);
+    expect(entry_points.filter((entry) => !chunks.has(entry))).toEqual([]);
+  });
+});

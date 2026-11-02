@@ -1,0 +1,30 @@
+.calendar_print_root {
+  display: none;
+}
+
+@media print {
+  html,
+  body {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #1a1a1a !important;
+    color-scheme: light !important;
+  }
+
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body:has(> .calendar_print_root) > :not(.calendar_print_root) {
+    display: none !important;
+  }
+
+  .calendar_print_root {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+  }
+}

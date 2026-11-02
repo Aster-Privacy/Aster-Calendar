@@ -1,0 +1,239 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { useState, useEffect, useCallback, useRef } from "react";
+import { TrashIcon } from "@heroicons/react/24/outline";
+
+import { SettingsGroup, SettingsHeader, SettingsRow } from "./shared";
+
+import { use_i18n } from "@/lib/i18n/context";
+import { ButtonSpinner, Spinner } from "@/components/ui/spinner";
+import {
+  list_devices,
+  revoke_device,
+  type Device,
+} from "@/services/api/devices";
+import { show_toast } from "@/components/toast/simple_toast";
+import { ConfirmationModal } from "@/components/modals/confirmation_modal";
+import { app_locale, get_display_time_zone } from "@/utils/date_format";
+
+function format_date(value: string | null): string {
+  if (!value) return "";
+  try {
+    return new Date(value).toLocaleString(app_locale(), {
+      timeZone: get_display_time_zone(),
+    });
+  } catch {
+    return value;
+  }
+}
+
+export function TrustedDevicesSection({
+  on_back,
+  on_close,
+}: {
+  on_back: () => void;
+  on_close: () => void;
+}) {
+  const { t } = use_i18n();
+  const [devices, set_devices] = useState<Device[]>([]);
+  const [loading, set_loading] = useState(true);
+  const [load_error, set_load_error] = useState(false);
+  const [revoking_id, set_revoking_id] = useState<string | null>(null);
+  const [pending_revoke, set_pending_revoke] = useState<Device | null>(null);
+  const [pending_revoke_all, set_pending_revoke_all] = useState(false);
+  const [is_revoking_all, set_is_revoking_all] = useState(false);
+
+  const loaded_once_ref = useRef(false);
+
+  const load_devices = useCallback(async () => {
+    if (!loaded_once_ref.current) set_loading(true);
+    set_load_error(false);
+    try {
+      const response = await list_devices();
+
+      if (response.error) set_load_error(true);
+      set_devices(
+        (response.data?.devices ?? []).filter(
+          (d) => d.device_type !== "bridge",
+        ),
+      );
+    } catch {
+      set_load_error(true);
+      set_devices([]);
+    } finally {
+      loaded_once_ref.current = true;
+      set_loading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load_devices();
+  }, [load_devices]);
+
+  const handle_revoke = useCallback(
+    async (device: Device) => {
+      set_revoking_id(device.id);
+      const response = await revoke_device(device.id);
+
+      if (response.error) {
+        show_toast(response.error, "error");
+      } else {
+        await load_devices();
+      }
+      set_revoking_id(null);
+      set_pending_revoke(null);
+    },
+    [load_devices],
+  );
+
+  const handle_revoke_all = useCallback(async () => {
+    if (is_revoking_all) return;
+    set_is_revoking_all(true);
+    const responses = await Promise.all(
+      devices.map((device) => revoke_device(device.id)),
+    );
+
+    const failed = responses.find((r) => r.error);
+
+    if (failed?.error) {
+      show_toast(failed.error, "error");
+    }
+    await load_devices();
+    set_is_revoking_all(false);
+    set_pending_revoke_all(false);
+  }, [devices, is_revoking_all, load_devices]);
+
+  return (
+    <div className="flex h-full flex-col">
+      <SettingsHeader
+        on_back={on_back}
+        on_close={on_close}
+        title={t("settings.trusted_devices")}
+      />
+      <div className="flex-1 overflow-y-auto pb-8">
+        <div className="px-4 pt-4">
+          <p className="text-[13px] text-[var(--text-muted)]">
+            {t("settings.trusted_devices_description")}
+          </p>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Spinner size="md" />
+          </div>
+        ) : load_error ? (
+          <div className="px-4 py-10 text-center">
+            <p className="text-[14px] text-[var(--text-muted)]">
+              {t("common.something_went_wrong_try_again")}
+            </p>
+            <button
+              className="mt-3 text-[14px] font-medium text-[var(--mobile-accent)]"
+              type="button"
+              onClick={() => load_devices()}
+            >
+              {t("common.retry")}
+            </button>
+          </div>
+        ) : devices.length === 0 ? (
+          <div className="px-4 py-10 text-center text-[14px] text-[var(--text-muted)]">
+            {t("settings.trusted_devices_empty")}
+          </div>
+        ) : (
+          <>
+            <SettingsGroup>
+              {devices.map((device) => (
+                <div
+                  key={device.id}
+                  className="flex items-center gap-3 px-4 py-3.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[15px] font-medium text-[var(--text-primary)]">
+                      {device.name}
+                    </p>
+                    <p className="text-[12px] text-[var(--text-muted)]">
+                      {t("settings.trusted_devices_last_seen")}:{" "}
+                      {device.last_seen_at
+                        ? format_date(device.last_seen_at)
+                        : t("settings.trusted_devices_never")}
+                    </p>
+                  </div>
+                  <button
+                    className="flex shrink-0 items-center gap-1 rounded-[var(--aster-radius-control)] px-3 py-1.5 text-[13px] font-medium text-[var(--color-danger,#ef4444)]"
+                    disabled={revoking_id === device.id}
+                    style={{
+                      background:
+                        "color-mix(in srgb, var(--text-primary) 6%, transparent)",
+                    }}
+                    type="button"
+                    onClick={() => set_pending_revoke(device)}
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                    {revoking_id === device.id && <ButtonSpinner size="xs" />}
+                    {t("settings.trusted_devices_revoke")}
+                  </button>
+                </div>
+              ))}
+            </SettingsGroup>
+
+            {devices.length > 1 && (
+              <SettingsGroup>
+                <SettingsRow
+                  destructive
+                  label={t("settings.trusted_devices_revoke_all")}
+                  on_press={() => set_pending_revoke_all(true)}
+                  trailing={is_revoking_all ? <Spinner size="xs" /> : undefined}
+                />
+              </SettingsGroup>
+            )}
+          </>
+        )}
+      </div>
+
+      <ConfirmationModal
+        cancel_text={t("auth.pair_device_cancel")}
+        confirm_text={t("settings.trusted_devices_revoke")}
+        is_open={!!pending_revoke}
+        message={
+          pending_revoke
+            ? t("settings.trusted_devices_revoke_confirm", {
+                name: pending_revoke.name,
+              })
+            : ""
+        }
+        on_cancel={() => set_pending_revoke(null)}
+        on_confirm={() => pending_revoke && handle_revoke(pending_revoke)}
+        title={t("settings.trusted_devices_revoke")}
+        variant="danger"
+      />
+
+      <ConfirmationModal
+        cancel_text={t("auth.pair_device_cancel")}
+        confirm_text={t("settings.trusted_devices_revoke_all")}
+        is_open={pending_revoke_all}
+        message={t("settings.trusted_devices_revoke_all_confirm")}
+        on_cancel={() => set_pending_revoke_all(false)}
+        on_confirm={handle_revoke_all}
+        title={t("settings.trusted_devices_revoke_all")}
+        variant="danger"
+      />
+    </div>
+  );
+}

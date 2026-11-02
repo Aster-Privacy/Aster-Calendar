@@ -1,0 +1,552 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { DecryptedContact } from "@/types/contacts";
+
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import {
+  StarIcon as StarOutline,
+  EnvelopeIcon,
+  ClipboardIcon,
+  ChevronLeftIcon,
+  PhoneIcon,
+  BuildingOfficeIcon,
+  CakeIcon,
+  GlobeAltIcon,
+  MapPinIcon,
+  ChatBubbleLeftIcon,
+  PencilSquareIcon,
+  TrashIcon,
+  LinkIcon,
+  MagnifyingGlassIcon,
+  ArrowUpOnSquareIcon,
+  ChatBubbleBottomCenterTextIcon,
+  IdentificationIcon,
+} from "@heroicons/react/24/outline";
+import { StarIcon as StarSolid } from "@heroicons/react/24/solid";
+
+import { use_i18n } from "@/lib/i18n/context";
+import { ProfileAvatar } from "@/components/ui/profile_avatar";
+import { use_external_link } from "@/contexts/external_link_context";
+import { build_contact_social_url } from "@/utils/contact_links";
+import { format_contact_date } from "@/utils/date_utils";
+import { build_contact_mail_query } from "@/utils/contact_mail_search";
+import { list_contact_groups } from "@/services/api/contacts";
+import {
+  ADDRESS_TYPE_OPTIONS,
+  EMAIL_TYPE_OPTIONS,
+  PHONE_TYPE_OPTIONS,
+  entry_type_text,
+  format_address_lines,
+  to_address_entries,
+  to_email_entries,
+  to_phone_entries,
+} from "@/components/common/contacts/contact_detail_panel/helpers";
+import {
+  run_share_contact_text,
+  run_share_contact_vcard,
+} from "@/components/common/contacts/contact_share_actions";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown_menu";
+
+function DetailCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="overflow-hidden rounded-xl bg-[var(--mobile-bg-card)]">
+      {children}
+    </div>
+  );
+}
+
+function DetailCardHeader({
+  icon,
+  label,
+}: {
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 px-4 pb-1 pt-3">
+      <span className="text-[var(--text-muted)]">{icon}</span>
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function DetailRow({
+  label,
+  sublabel,
+  is_last,
+  on_action,
+  on_copy,
+  action_icon,
+}: {
+  label: string;
+  sublabel?: string;
+  is_last?: boolean;
+  on_action?: () => void;
+  on_copy?: () => void;
+  action_icon?: React.ReactNode;
+}) {
+  const { t } = use_i18n();
+
+  return (
+    <div
+      className={`flex items-center gap-2 px-4 py-2.5 ${!is_last ? "border-b border-[var(--border-primary)]" : ""}`}
+    >
+      <div className="min-w-0 flex-1">
+        <p
+          className="select-text whitespace-pre-line break-words text-[14px] text-[var(--text-primary)]"
+          dir="auto"
+        >
+          {label}
+        </p>
+        {sublabel && (
+          <p className="text-[11px] text-[var(--text-muted)]">{sublabel}</p>
+        )}
+      </div>
+      {on_copy && (
+        <button
+          aria-label={t("common.copy_value")}
+          className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-muted)] active:bg-[var(--bg-tertiary)]"
+          type="button"
+          onClick={on_copy}
+        >
+          <ClipboardIcon className="h-4 w-4" />
+        </button>
+      )}
+      {on_action && action_icon && (
+        <button
+          className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--accent-color,#3b82f6)] active:bg-[var(--bg-tertiary)]"
+          type="button"
+          onClick={on_action}
+        >
+          {action_icon}
+        </button>
+      )}
+    </div>
+  );
+}
+
+export function ContactDetailView({
+  contact,
+  on_back,
+  on_compose,
+  on_copy,
+  on_edit,
+  on_delete,
+  on_toggle_favorite,
+  reduce_motion,
+}: {
+  contact: DecryptedContact;
+  on_back: () => void;
+  on_compose: (email: string) => void;
+  on_copy: (text: string) => void;
+  on_edit: (contact: DecryptedContact) => void;
+  on_delete: (contact: DecryptedContact) => void;
+  on_toggle_favorite: (contact: DecryptedContact) => void;
+  reduce_motion: boolean;
+}) {
+  const { t } = use_i18n();
+  const { handle_external_link } = use_external_link();
+  const display_name =
+    [contact.first_name, contact.last_name].filter(Boolean).join(" ") ||
+    contact.emails[0] ||
+    "";
+  const primary_email = contact.emails[0] ?? "";
+  const navigate = useNavigate();
+  const contact_mail_query = build_contact_mail_query(contact.emails);
+  const email_entries = to_email_entries(contact);
+  const phone_entries = to_phone_entries(contact);
+  const address_entries = to_address_entries(contact);
+  const primary_phone = phone_entries[0]?.value ?? "";
+  const assigned_group_ids = (contact.groups ?? []).join(",");
+  const [group_names, set_group_names] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!assigned_group_ids) return;
+
+    let cancelled = false;
+
+    list_contact_groups()
+      .then((response) => {
+        if (cancelled || !response.data) return;
+
+        const names: Record<string, string> = {};
+
+        for (const group of response.data.groups) names[group.id] = group.name;
+        set_group_names(names);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [assigned_group_ids]);
+  const has_social =
+    contact.social_links &&
+    Object.values(contact.social_links).some((v) => v && v.trim());
+
+  return (
+    <motion.div
+      animate={{ opacity: 1, x: 0 }}
+      className="fixed inset-0 z-50 flex flex-col bg-[var(--bg-primary)]"
+      exit={reduce_motion ? { opacity: 0 } : { opacity: 0, x: "100%" }}
+      initial={reduce_motion ? false : { opacity: 0, x: "100%" }}
+      transition={
+        reduce_motion
+          ? { duration: 0 }
+          : { type: "tween", duration: 0.25, ease: "easeOut" }
+      }
+    >
+      <div className="flex items-center gap-2 border-b border-[var(--border-primary)] px-2 py-2 safe-area-pt">
+        <motion.button
+          className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-secondary)]"
+          type="button"
+          onClick={on_back}
+        >
+          <ChevronLeftIcon className="h-4 w-4 rtl:-scale-x-100" />
+        </motion.button>
+        <span className="flex-1" />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <motion.button
+              aria-label={t("common.share_contact")}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-secondary)]"
+              type="button"
+            >
+              <ArrowUpOnSquareIcon className="h-4 w-4" />
+            </motion.button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem
+              onSelect={() => void run_share_contact_text(t, contact)}
+            >
+              <ChatBubbleBottomCenterTextIcon className="h-4 w-4" />
+              {t("common.share_as_text")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() =>
+                void run_share_contact_vcard(contact, group_names)
+              }
+            >
+              <IdentificationIcon className="h-4 w-4" />
+              {t("common.share_as_vcard")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <motion.button
+          className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-secondary)]"
+          type="button"
+          onClick={() => on_toggle_favorite(contact)}
+        >
+          {contact.is_favorite ? (
+            <StarSolid className="h-4 w-4 text-amber-400" />
+          ) : (
+            <StarOutline className="h-4 w-4" />
+          )}
+        </motion.button>
+        <motion.button
+          className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-secondary)]"
+          type="button"
+          onClick={() => on_edit(contact)}
+        >
+          <PencilSquareIcon className="h-4 w-4" />
+        </motion.button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        <div className="flex flex-col items-center gap-3 px-6 py-8">
+          <div className="h-24 w-24 overflow-hidden rounded-full shadow-lg">
+            <ProfileAvatar
+              use_domain_logo
+              email={primary_email}
+              name={display_name}
+              size="xl"
+            />
+          </div>
+          <div className="text-center">
+            <p className="text-[20px] font-bold text-[var(--text-primary)]">
+              {display_name}
+            </p>
+            {contact.company && (
+              <p className="mt-0.5 text-[14px] text-[var(--text-muted)]">
+                {contact.job_title
+                  ? `${contact.job_title} · ${contact.company}`
+                  : contact.company}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex justify-center gap-6 px-8 pb-6">
+          {primary_email && (
+            <motion.button
+              className="flex flex-col items-center gap-1.5"
+              type="button"
+              onClick={() => on_compose(primary_email)}
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-full text-[var(--text-secondary)]">
+                <EnvelopeIcon className="h-5 w-5" />
+              </div>
+              <span className="text-[11px] font-medium text-[var(--text-muted)]">
+                {t("common.mail")}
+              </span>
+            </motion.button>
+          )}
+          {primary_phone && (
+            <motion.button
+              className="flex flex-col items-center gap-1.5"
+              type="button"
+              onClick={() => {
+                window.open(`tel:${primary_phone}`, "_self");
+              }}
+            >
+              <div
+                className="flex h-11 w-11 items-center justify-center rounded-full text-white"
+                style={{
+                  background:
+                    "linear-gradient(180deg, #34d399 0%, #10b981 100%)",
+                }}
+              >
+                <PhoneIcon className="h-5 w-5" />
+              </div>
+              <span className="text-[11px] font-medium text-[var(--text-muted)]">
+                {t("common.call")}
+              </span>
+            </motion.button>
+          )}
+          {contact_mail_query && (
+            <motion.button
+              className="flex flex-col items-center gap-1.5"
+              type="button"
+              onClick={() =>
+                navigate("/search", {
+                  state: { search_query: contact_mail_query },
+                })
+              }
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-full text-[var(--text-secondary)]">
+                <MagnifyingGlassIcon className="h-5 w-5" />
+              </div>
+              <span className="text-[11px] font-medium text-[var(--text-muted)]">
+                {t("common.all_mail")}
+              </span>
+            </motion.button>
+          )}
+          <motion.button
+            className="flex flex-col items-center gap-1.5"
+            type="button"
+            onClick={() => on_copy(primary_email || display_name)}
+          >
+            <div className="flex h-11 w-11 items-center justify-center rounded-full text-[var(--text-secondary)]">
+              <ClipboardIcon className="h-5 w-5" />
+            </div>
+            <span className="text-[11px] font-medium text-[var(--text-muted)]">
+              {t("common.copy")}
+            </span>
+          </motion.button>
+        </div>
+
+        <div className="space-y-3 px-4 pb-8">
+          {email_entries.length > 0 && (
+            <DetailCard>
+              <DetailCardHeader
+                icon={<EnvelopeIcon className="h-4 w-4" />}
+                label={t("common.email_section")}
+              />
+              {email_entries.map((entry, i) => (
+                <DetailRow
+                  key={`${entry.value}-${i}`}
+                  is_last={i === email_entries.length - 1}
+                  label={entry.value}
+                  on_copy={() => on_copy(entry.value)}
+                  sublabel={entry_type_text(t, entry, EMAIL_TYPE_OPTIONS)}
+                />
+              ))}
+            </DetailCard>
+          )}
+
+          {phone_entries.length > 0 && (
+            <DetailCard>
+              <DetailCardHeader
+                icon={<PhoneIcon className="h-4 w-4" />}
+                label={t("common.phone_section")}
+              />
+              {phone_entries.map((entry, i) => (
+                <DetailRow
+                  key={`${entry.value}-${i}`}
+                  action_icon={<PhoneIcon className="h-4 w-4" />}
+                  is_last={i === phone_entries.length - 1}
+                  label={entry.value}
+                  on_action={() => window.open(`tel:${entry.value}`, "_self")}
+                  on_copy={() => on_copy(entry.value)}
+                  sublabel={entry_type_text(t, entry, PHONE_TYPE_OPTIONS)}
+                />
+              ))}
+            </DetailCard>
+          )}
+
+          {(contact.company || contact.job_title) && (
+            <DetailCard>
+              <DetailCardHeader
+                icon={<BuildingOfficeIcon className="h-4 w-4" />}
+                label={t("common.work_section")}
+              />
+              {contact.company && (
+                <DetailRow
+                  is_last={!contact.job_title}
+                  label={contact.company}
+                  on_copy={() => on_copy(contact.company!)}
+                  sublabel={t("common.company")}
+                />
+              )}
+              {contact.job_title && (
+                <DetailRow
+                  is_last
+                  label={contact.job_title}
+                  on_copy={() => on_copy(contact.job_title!)}
+                  sublabel={t("common.job_title")}
+                />
+              )}
+            </DetailCard>
+          )}
+
+          {contact.birthday && (
+            <DetailCard>
+              <DetailCardHeader
+                icon={<CakeIcon className="h-4 w-4" />}
+                label={t("common.birthday_section")}
+              />
+              <DetailRow
+                is_last
+                label={format_contact_date(contact.birthday)}
+                on_copy={() => on_copy(contact.birthday!)}
+              />
+            </DetailCard>
+          )}
+
+          {address_entries.length > 0 && (
+            <DetailCard>
+              <DetailCardHeader
+                icon={<MapPinIcon className="h-4 w-4" />}
+                label={t("common.address_section")}
+              />
+              {address_entries.map((entry, i) => {
+                const text = format_address_lines(entry).join("\n");
+
+                if (!text) return null;
+
+                return (
+                  <DetailRow
+                    key={`${text}-${i}`}
+                    is_last={i === address_entries.length - 1}
+                    label={text}
+                    on_copy={() => on_copy(text)}
+                    sublabel={entry_type_text(t, entry, ADDRESS_TYPE_OPTIONS)}
+                  />
+                );
+              })}
+            </DetailCard>
+          )}
+
+          {has_social && (
+            <DetailCard>
+              <DetailCardHeader
+                icon={<GlobeAltIcon className="h-4 w-4" />}
+                label={t("common.social_section")}
+              />
+              {(
+                [
+                  ["website", "common.website"],
+                  ["linkedin", "common.linkedin"],
+                  ["twitter", "common.twitter_x"],
+                  ["github", "common.github"],
+                ] as const
+              ).map(([kind, label_key], index, kinds) => {
+                const value = contact.social_links?.[kind];
+
+                if (!value) return null;
+                const url = build_contact_social_url(kind, value);
+                const is_last = kinds
+                  .slice(index + 1)
+                  .every(([next_kind]) => !contact.social_links?.[next_kind]);
+
+                return (
+                  <DetailRow
+                    key={kind}
+                    action_icon={
+                      url ? <LinkIcon className="h-4 w-4" /> : undefined
+                    }
+                    is_last={is_last}
+                    label={value}
+                    on_action={
+                      url ? () => handle_external_link(url) : undefined
+                    }
+                    on_copy={() => on_copy(value)}
+                    sublabel={t(label_key)}
+                  />
+                );
+              })}
+            </DetailCard>
+          )}
+
+          {contact.notes && (
+            <DetailCard>
+              <DetailCardHeader
+                icon={<ChatBubbleLeftIcon className="h-4 w-4" />}
+                label={t("common.notes_section")}
+              />
+              <div className="px-4 pb-3">
+                <p
+                  className="select-text whitespace-pre-wrap text-[14px] leading-relaxed text-[var(--text-secondary)]"
+                  dir="auto"
+                >
+                  {contact.notes}
+                </p>
+              </div>
+            </DetailCard>
+          )}
+
+          <button
+            className="flex w-full items-center justify-center gap-2 rounded-[16px] py-3.5 text-[14px] font-medium text-white active:opacity-70"
+            style={{
+              background: "linear-gradient(180deg, #ef4444 0%, #dc2626 100%)",
+              boxShadow:
+                "0 2px 4px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.15)",
+            }}
+            type="button"
+            onClick={() => on_delete(contact)}
+          >
+            <TrashIcon className="h-4 w-4" />
+            {t("common.delete")}
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}

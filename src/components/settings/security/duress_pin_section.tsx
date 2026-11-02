@@ -1,0 +1,1073 @@
+// AGPL-3.0 License
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { useState, useCallback, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
+import { Button, Input, Island, IslandRow } from "@aster/ui";
+import {
+  ArrowLeftIcon,
+  BackspaceIcon,
+  CheckIcon,
+  EyeIcon,
+  EyeSlashIcon,
+} from "@heroicons/react/24/outline";
+
+import { show_toast } from "@/components/toast/simple_toast";
+import {
+  Modal,
+  ModalHeader,
+  ModalTitle,
+  ModalDescription,
+  ModalBody,
+  ModalFooter,
+} from "@/components/ui/modal";
+import { use_i18n } from "@/lib/i18n/context";
+import { clamp_password } from "@/services/sanitize";
+import { use_auth_safe } from "@/contexts/auth_context";
+import { cn } from "@/lib/utils";
+import { fetch_step_up_requirements } from "@/services/api/step_up";
+import { verify_vanguard_credentials } from "@/services/api/vanguard";
+import { ignore_error } from "@/lib/ignore_error";
+import {
+  get_app_lock_config,
+  has_duress_pin,
+  save_duress_pin,
+  clear_duress_pin,
+  generate_pin_salt,
+  hash_pin,
+  pin_matches_regular,
+  duress_pin_correct,
+  ensure_pepper,
+  KDF_VERSION_PEPPER,
+} from "@/services/app_lock_store";
+import { is_composing } from "@/utils/ime";
+import { ButtonSpinner } from "@/components/ui/spinner";
+import { derive_current_account_proof } from "@/services/crypto/login_proof";
+
+const TRANSPORT_FAILURE_CODES = new Set([
+  "NETWORK_ERROR",
+  "TIMEOUT_ERROR",
+  "SERVER_ERROR",
+]);
+
+function is_transport_failure(code?: string): boolean {
+  return code !== undefined && TRANSPORT_FAILURE_CODES.has(code);
+}
+
+function PinDots({
+  digits,
+  filled,
+  shake_key,
+}: {
+  digits: number;
+  filled: number;
+  shake_key: number;
+}) {
+  return (
+    <motion.div
+      key={shake_key}
+      animate={shake_key > 0 ? { x: [0, -10, 10, -10, 10, 0] } : { x: 0 }}
+      className="flex items-center gap-3 justify-center"
+      transition={{ duration: 0.35 }}
+    >
+      {Array.from({ length: digits }).map((_, i) => (
+        <div
+          key={i}
+          className={cn(
+            "w-3.5 h-3.5 rounded-full border-2 transition-all duration-150",
+            i < filled
+              ? "bg-primary border-primary"
+              : "border-muted-foreground/40 bg-transparent",
+          )}
+        />
+      ))}
+    </motion.div>
+  );
+}
+
+function PinPad({
+  on_digit,
+  on_backspace,
+  on_check,
+  disabled,
+}: {
+  on_digit: (d: string) => void;
+  on_backspace: () => void;
+  on_check?: () => void;
+  disabled?: boolean;
+}) {
+  const [pressed_key, set_pressed_key] = useState<string | null>(null);
+
+  const flash = useCallback((k: string) => {
+    set_pressed_key(k);
+    setTimeout(() => set_pressed_key(null), 120);
+  }, []);
+
+  useEffect(() => {
+    const on_key = (e: KeyboardEvent) => {
+      if (disabled) return;
+      const k = e.key;
+
+      if (k >= "0" && k <= "9") {
+        flash(k);
+        on_digit(k);
+      } else if (k === "Backspace") {
+        flash("Backspace");
+        on_backspace();
+      } else if (k === "Enter") {
+        flash("Enter");
+        on_check?.();
+      }
+    };
+
+    window.addEventListener("keydown", on_key);
+
+    return () => window.removeEventListener("keydown", on_key);
+  }, [disabled, on_digit, on_backspace, on_check, flash]);
+
+  const btn = (active: boolean) =>
+    cn(
+      "h-12 w-12 mx-auto rounded-full flex items-center justify-center transition-all duration-75 focus:outline-none focus-visible:outline-none",
+      disabled
+        ? "bg-muted/40 text-txt-muted cursor-not-allowed"
+        : "bg-muted hover:bg-muted/70",
+      active && !disabled && "scale-90 bg-muted/50",
+    );
+
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((k) => (
+        <button
+          key={k}
+          className={cn(btn(pressed_key === k), "text-base font-medium")}
+          disabled={disabled}
+          type="button"
+          onClick={() => on_digit(k)}
+        >
+          {k}
+        </button>
+      ))}
+      <button
+        className={btn(pressed_key === "Backspace")}
+        disabled={disabled}
+        type="button"
+        onClick={on_backspace}
+      >
+        <BackspaceIcon className="h-4 w-4 text-txt-primary" />
+      </button>
+      <button
+        key="0"
+        className={cn(btn(pressed_key === "0"), "text-base font-medium")}
+        disabled={disabled}
+        type="button"
+        onClick={() => on_digit("0")}
+      >
+        0
+      </button>
+      <button
+        className={btn(pressed_key === "Enter")}
+        disabled={disabled}
+        type="button"
+        onClick={on_check}
+      >
+        <CheckIcon className="h-4 w-4 text-txt-primary" />
+      </button>
+    </div>
+  );
+}
+
+type SetupStep =
+  | "verify_credentials"
+  | "set_pin"
+  | "confirm_pin"
+  | "set_text"
+  | "confirm_text"
+  | "confirm_setup";
+
+function SetupDuressPinModal({
+  account_id,
+  is_open,
+  on_close,
+  on_success,
+}: {
+  account_id: string;
+  is_open: boolean;
+  on_close: () => void;
+  on_success: () => void;
+}) {
+  const { t } = use_i18n();
+  const config = get_app_lock_config(account_id);
+  const pin_type = config?.pin_type ?? "numeric";
+  const digits = pin_type === "numeric" ? (config?.digits ?? 4) : 0;
+
+  const [step, set_step] = useState<SetupStep>("verify_credentials");
+  const [password, set_password] = useState("");
+  const [show_password, set_show_password] = useState(false);
+  const [totp_code, set_totp_code] = useState("");
+  const [totp_required, set_totp_required] = useState(false);
+  const [totp_loading, set_totp_loading] = useState(false);
+  const [verifying_creds, set_verifying_creds] = useState(false);
+  const [creds_error, set_creds_error] = useState<string | null>(null);
+
+  const [first_pin, set_first_pin] = useState("");
+  const [confirm_input, set_confirm_input] = useState("");
+  const [text_input, set_text_input] = useState("");
+  const [first_text, set_first_text] = useState("");
+  const [shake_key, set_shake_key] = useState(0);
+  const [error_msg, set_error_msg] = useState<string | null>(null);
+  const [saving, set_saving] = useState(false);
+  const [show_passphrase, set_show_passphrase] = useState(false);
+  const [pending_pin, set_pending_pin] = useState("");
+
+  const password_ref = useRef<HTMLInputElement>(null);
+
+  const reset = useCallback(() => {
+    set_step("verify_credentials");
+    set_password("");
+    set_show_password(false);
+    set_totp_code("");
+    set_totp_required(false);
+    set_creds_error(null);
+    set_verifying_creds(false);
+    set_first_pin("");
+    set_confirm_input("");
+    set_text_input("");
+    set_first_text("");
+    set_shake_key(0);
+    set_error_msg(null);
+    set_saving(false);
+    set_show_passphrase(false);
+    set_pending_pin("");
+  }, []);
+
+  useEffect(() => {
+    if (!is_open) {
+      reset();
+
+      return;
+    }
+    set_totp_loading(true);
+    fetch_step_up_requirements()
+      .then((requirements) => set_totp_required(requirements.totp_required))
+      .catch((caught) =>
+        ignore_error(
+          "components/settings/security/duress_pin_section:SetupDuressPinModal",
+          caught,
+        ),
+      )
+      .finally(() => {
+        set_totp_loading(false);
+        setTimeout(() => password_ref.current?.focus(), 150);
+      });
+  }, [is_open, reset]);
+
+  const handle_verify_credentials = useCallback(async () => {
+    if (verifying_creds || !password) return;
+    if (totp_required && totp_code.length !== 6) {
+      set_creds_error(t("settings.please_enter_2fa_code"));
+
+      return;
+    }
+    set_verifying_creds(true);
+    set_creds_error(null);
+
+    let requirements: Awaited<ReturnType<typeof fetch_step_up_requirements>>;
+
+    try {
+      requirements = await fetch_step_up_requirements();
+    } catch {
+      set_creds_error(t("settings.failed_retrieve_auth"));
+      set_verifying_creds(false);
+
+      return;
+    }
+
+    set_totp_required(requirements.totp_required);
+
+    if (requirements.totp_required && totp_code.length !== 6) {
+      set_creds_error(t("settings.please_enter_2fa_code"));
+      set_verifying_creds(false);
+
+      return;
+    }
+
+    try {
+      const password_hash = await derive_current_account_proof(
+        password,
+        requirements.salt,
+        requirements.kdf_version,
+      );
+      const res = await verify_vanguard_credentials({
+        password_hash,
+        totp_code: requirements.totp_required ? totp_code : undefined,
+      });
+
+      if (res.error || !res.data?.valid) {
+        set_creds_error(
+          res.error && is_transport_failure(res.code)
+            ? t("common.something_went_wrong_try_again")
+            : t("settings.duress_pin_invalid_credentials"),
+        );
+        set_verifying_creds(false);
+
+        return;
+      }
+      set_step(pin_type === "numeric" ? "set_pin" : "set_text");
+    } catch {
+      set_creds_error(t("settings.failed_retrieve_auth"));
+    }
+    set_verifying_creds(false);
+  }, [verifying_creds, password, totp_required, totp_code, t, pin_type]);
+
+  const handle_first_digit = useCallback(
+    (d: string) => {
+      const next = first_pin + d;
+
+      set_first_pin(next);
+      if (next.length === digits) {
+        set_confirm_input("");
+        set_step("confirm_pin");
+      }
+    },
+    [first_pin, digits],
+  );
+
+  const handle_confirm_digit = useCallback(
+    async (d: string) => {
+      if (saving) return;
+      const next = confirm_input + d;
+
+      set_confirm_input(next);
+      if (next.length === digits) {
+        if (next !== first_pin) {
+          set_shake_key((k) => k + 1);
+          set_error_msg(t("settings.app_lock_pin_mismatch"));
+          setTimeout(() => {
+            set_confirm_input("");
+            set_first_pin("");
+            set_step("set_pin");
+            set_error_msg(null);
+          }, 800);
+
+          return;
+        }
+        set_saving(true);
+        try {
+          const is_same = await pin_matches_regular(account_id, next);
+
+          if (is_same) {
+            set_shake_key((k) => k + 1);
+            set_error_msg(t("settings.duress_pin_matches_regular"));
+            setTimeout(() => {
+              set_confirm_input("");
+              set_first_pin("");
+              set_step("set_pin");
+              set_error_msg(null);
+            }, 1500);
+            set_saving(false);
+
+            return;
+          }
+          set_pending_pin(next);
+          set_step("confirm_setup");
+        } catch {
+          set_error_msg(t("common.something_went_wrong"));
+        }
+        set_saving(false);
+      }
+    },
+    [account_id, confirm_input, first_pin, digits, saving, t],
+  );
+
+  const handle_text_continue = useCallback(async () => {
+    if (step === "set_text") {
+      if (text_input.length < 4) {
+        set_error_msg(t("settings.app_lock_passphrase_too_short"));
+        setTimeout(() => set_error_msg(null), 2000);
+
+        return;
+      }
+      set_first_text(text_input);
+      set_text_input("");
+      set_step("confirm_text");
+
+      return;
+    }
+    if (step === "confirm_text") {
+      if (text_input !== first_text) {
+        set_shake_key((k) => k + 1);
+        set_error_msg(t("settings.app_lock_passphrase_mismatch"));
+        setTimeout(() => {
+          set_text_input("");
+          set_first_text("");
+          set_step("set_text");
+          set_error_msg(null);
+        }, 800);
+
+        return;
+      }
+      set_saving(true);
+      try {
+        const is_same = await pin_matches_regular(account_id, text_input);
+
+        if (is_same) {
+          set_shake_key((k) => k + 1);
+          set_error_msg(t("settings.duress_pin_matches_regular"));
+          setTimeout(() => {
+            set_text_input("");
+            set_first_text("");
+            set_step("set_text");
+            set_error_msg(null);
+          }, 1500);
+          set_saving(false);
+
+          return;
+        }
+        set_pending_pin(text_input);
+        set_step("confirm_setup");
+      } catch {
+        set_error_msg(t("common.something_went_wrong"));
+      }
+      set_saving(false);
+    }
+  }, [step, text_input, first_text, account_id, t]);
+
+  const handle_confirm_setup = useCallback(async () => {
+    if (!pending_pin) return;
+    set_saving(true);
+    try {
+      const salt = generate_pin_salt();
+      const existing = get_app_lock_config(account_id);
+      const pepper =
+        existing?.kdf_version === KDF_VERSION_PEPPER
+          ? ((await ensure_pepper(account_id)) ?? undefined)
+          : undefined;
+      const pin_hash = await hash_pin(pending_pin, salt, pepper);
+      const pin_salt = Array.from(salt)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+
+      await save_duress_pin(account_id, pin_hash, pin_salt);
+      on_success();
+    } catch {
+      set_error_msg(t("common.something_went_wrong"));
+      set_saving(false);
+    }
+  }, [pending_pin, account_id, on_success, t]);
+
+  const step_index =
+    step === "verify_credentials"
+      ? 0
+      : step === "set_pin" || step === "set_text"
+        ? 1
+        : step === "confirm_pin" || step === "confirm_text"
+          ? 2
+          : 3;
+
+  const modal_title =
+    step === "verify_credentials"
+      ? t("settings.duress_pin_verify_identity")
+      : step === "set_pin" || step === "set_text"
+        ? t("settings.duress_pin_set")
+        : step === "confirm_setup"
+          ? t("settings.duress_pin_how_it_works")
+          : t("settings.duress_pin_confirm");
+
+  return (
+    <Modal
+      close_on_overlay={step === "verify_credentials"}
+      is_open={is_open}
+      on_close={on_close}
+      size="sm"
+    >
+      <ModalHeader>
+        <div className="flex items-center gap-2">
+          {step !== "verify_credentials" && (
+            <button
+              className="p-1 -ms-1 rounded-[var(--aster-radius-control)] hover:bg-muted transition-colors"
+              type="button"
+              onClick={() => {
+                if (step === "set_pin" || step === "set_text") {
+                  set_step("verify_credentials");
+                  set_first_pin("");
+                  set_text_input("");
+                  set_first_text("");
+                  set_show_passphrase(false);
+                  set_show_password(false);
+                  set_creds_error(null);
+                } else if (step === "confirm_pin") {
+                  set_step("set_pin");
+                  set_first_pin("");
+                  set_confirm_input("");
+                  set_error_msg(null);
+                } else if (step === "confirm_text") {
+                  set_step("set_text");
+                  set_text_input("");
+                  set_first_text("");
+                  set_show_passphrase(false);
+                  set_error_msg(null);
+                } else if (step === "confirm_setup") {
+                  set_step(pin_type === "numeric" ? "set_pin" : "set_text");
+                  set_pending_pin("");
+                  set_confirm_input("");
+                  set_first_pin("");
+                  set_text_input("");
+                  set_first_text("");
+                  set_show_passphrase(false);
+                  set_error_msg(null);
+                }
+              }}
+            >
+              <ArrowLeftIcon className="h-4 w-4 rtl:-scale-x-100" />
+            </button>
+          )}
+          <ModalTitle>{modal_title}</ModalTitle>
+        </div>
+        <div className="flex items-center gap-1 mt-2 w-full">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className={cn(
+                "h-1 flex-1 rounded-full transition-all duration-300",
+                i <= step_index ? "bg-brand" : "bg-muted",
+              )}
+            />
+          ))}
+        </div>
+      </ModalHeader>
+      <ModalBody>
+        {step === "verify_credentials" && (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-txt-muted -mt-1">
+              {totp_required
+                ? t("settings.duress_pin_verify_identity_totp_desc")
+                : t("settings.duress_pin_verify_identity_desc")}
+            </p>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-txt-secondary">
+                {t("settings.duress_pin_password_label")}
+              </label>
+              <div className="relative">
+                <Input
+                  ref={password_ref}
+                  autoComplete="current-password"
+                  className="pe-10"
+                  disabled={verifying_creds}
+                  maxLength={128}
+                  name="password"
+                  size="md"
+                  type={show_password ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => set_password(clamp_password(e.target.value))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !is_composing(e))
+                      handle_verify_credentials();
+                  }}
+                />
+                <button
+                  className="absolute end-3 top-1/2 -translate-y-1/2 text-txt-muted hover:text-txt-primary transition-colors"
+                  tabIndex={-1}
+                  type="button"
+                  onClick={() => set_show_password((v) => !v)}
+                >
+                  {show_password ? (
+                    <EyeSlashIcon className="h-4 w-4" />
+                  ) : (
+                    <EyeIcon className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+            {totp_required && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-txt-secondary">
+                  {t("settings.duress_pin_totp_label")}
+                </label>
+                <Input
+                  autoComplete="one-time-code"
+                  className="tracking-widest"
+                  disabled={verifying_creds}
+                  inputMode="numeric"
+                  maxLength={6}
+                  size="md"
+                  type="text"
+                  value={totp_code}
+                  onChange={(e) =>
+                    set_totp_code(e.target.value.replace(/\D/g, "").slice(0, 6))
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !is_composing(e))
+                      handle_verify_credentials();
+                  }}
+                />
+              </div>
+            )}
+            {creds_error && (
+              <p className="text-sm text-red-500 -mt-1">{creds_error}</p>
+            )}
+          </div>
+        )}
+        {step === "set_pin" && (
+          <div className="flex flex-col items-center gap-2 pt-1">
+            <PinDots digits={digits} filled={first_pin.length} shake_key={0} />
+            <PinPad
+              on_backspace={() => set_first_pin((p) => p.slice(0, -1))}
+              on_digit={handle_first_digit}
+            />
+          </div>
+        )}
+        {step === "confirm_pin" && (
+          <div className="flex flex-col items-center gap-2 pt-1">
+            <PinDots
+              digits={digits}
+              filled={confirm_input.length}
+              shake_key={shake_key}
+            />
+            {(error_msg || saving) && (
+              <div className="flex items-center justify-center -mb-1">
+                {error_msg && (
+                  <p className="text-xs text-red-500">{error_msg}</p>
+                )}
+                {saving && (
+                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                )}
+              </div>
+            )}
+            <PinPad
+              disabled={saving}
+              on_backspace={() => set_confirm_input((p) => p.slice(0, -1))}
+              on_digit={handle_confirm_digit}
+            />
+          </div>
+        )}
+        {step === "confirm_setup" && (
+          <div className="flex flex-col gap-3 pt-1">
+            <Island className="flex flex-col gap-2" padding="md">
+              <p className="text-sm text-txt-primary leading-relaxed">
+                {t("settings.duress_pin_how_it_works_body")}
+              </p>
+            </Island>
+            {error_msg && <p className="text-sm text-red-500">{error_msg}</p>}
+          </div>
+        )}
+        {(step === "set_text" || step === "confirm_text") && (
+          <div className="flex flex-col gap-3">
+            <motion.div
+              key={shake_key}
+              animate={
+                shake_key > 0 ? { x: [0, -10, 10, -10, 10, 0] } : { x: 0 }
+              }
+              className="relative"
+              transition={{ duration: 0.35 }}
+            >
+              <Input
+                autoFocus
+                autoComplete="off"
+                className="pe-10"
+                data-form-type="other"
+                placeholder={t("settings.app_lock_text_placeholder")}
+                size="md"
+                type={show_passphrase ? "text" : "password"}
+                value={text_input}
+                onChange={(e) => set_text_input(e.target.value)}
+                onKeyDown={(e) =>
+                  e.key === "Enter" &&
+                  !is_composing(e) &&
+                  handle_text_continue()
+                }
+              />
+              <button
+                className="absolute end-3 top-1/2 -translate-y-1/2 text-txt-muted hover:text-txt-primary transition-colors"
+                tabIndex={-1}
+                type="button"
+                onClick={() => set_show_passphrase((v) => !v)}
+              >
+                {show_passphrase ? (
+                  <EyeSlashIcon className="h-4 w-4" />
+                ) : (
+                  <EyeIcon className="h-4 w-4" />
+                )}
+              </button>
+            </motion.div>
+            {error_msg && (
+              <p className="text-sm text-red-500 -mt-1">{error_msg}</p>
+            )}
+            {saving && (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            )}
+          </div>
+        )}
+      </ModalBody>
+      {step === "verify_credentials" && (
+        <ModalFooter>
+          <Button variant="outline" onClick={on_close}>
+            {t("common.cancel")}
+          </Button>
+          <Button
+            disabled={
+              verifying_creds ||
+              totp_loading ||
+              !password ||
+              (totp_required && totp_code.length !== 6)
+            }
+            variant="depth"
+            onClick={handle_verify_credentials}
+          >
+            {t("common.continue")}
+            {verifying_creds && <ButtonSpinner />}
+          </Button>
+        </ModalFooter>
+      )}
+      {(step === "set_text" || step === "confirm_text") && (
+        <ModalFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (step === "set_text") {
+                set_step("verify_credentials");
+                set_text_input("");
+                set_first_text("");
+              } else {
+                set_step("set_text");
+                set_text_input("");
+                set_first_text("");
+                set_error_msg(null);
+              }
+            }}
+          >
+            {t("common.back")}
+          </Button>
+          <Button
+            disabled={saving || text_input.length < 1}
+            variant="depth"
+            onClick={handle_text_continue}
+          >
+            {t("common.continue")}
+          </Button>
+        </ModalFooter>
+      )}
+      {step === "confirm_setup" && (
+        <ModalFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              set_step(pin_type === "numeric" ? "set_pin" : "set_text");
+              set_pending_pin("");
+              set_confirm_input("");
+              set_first_pin("");
+              set_text_input("");
+              set_first_text("");
+              set_error_msg(null);
+            }}
+          >
+            {t("common.back")}
+          </Button>
+          <Button
+            disabled={saving}
+            variant="depth"
+            onClick={handle_confirm_setup}
+          >
+            {t("settings.duress_pin_confirm_setup")}
+            {saving && <ButtonSpinner />}
+          </Button>
+        </ModalFooter>
+      )}
+    </Modal>
+  );
+}
+
+const REMOVE_MAX_ATTEMPTS = 5;
+
+function RemoveDuressPinModal({
+  account_id,
+  is_open,
+  on_close,
+  on_success,
+}: {
+  account_id: string;
+  is_open: boolean;
+  on_close: () => void;
+  on_success: () => void;
+}) {
+  const { t } = use_i18n();
+  const config = get_app_lock_config(account_id);
+  const pin_type = config?.pin_type ?? "numeric";
+  const digits = pin_type === "numeric" ? (config?.digits ?? 4) : 0;
+
+  const [input, set_input] = useState("");
+  const [shake_key, set_shake_key] = useState(0);
+  const [error_msg, set_error_msg] = useState<string | null>(null);
+  const [verifying, set_verifying] = useState(false);
+  const [show_passphrase, set_show_passphrase] = useState(false);
+  const [attempts_remaining, set_attempts_remaining] =
+    useState(REMOVE_MAX_ATTEMPTS);
+  const verifying_ref = useRef(false);
+  const text_ref = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!is_open) {
+      verifying_ref.current = false;
+      set_input("");
+      set_shake_key(0);
+      set_error_msg(null);
+      set_verifying(false);
+      set_show_passphrase(false);
+      set_attempts_remaining(REMOVE_MAX_ATTEMPTS);
+
+      return;
+    }
+    if (pin_type === "text") setTimeout(() => text_ref.current?.focus(), 150);
+  }, [is_open, pin_type]);
+
+  const attempt = useCallback(
+    async (value: string) => {
+      if (verifying_ref.current) return;
+      verifying_ref.current = true;
+      set_verifying(true);
+      const correct = await duress_pin_correct(account_id, value);
+
+      if (correct) {
+        verifying_ref.current = false;
+        set_verifying(false);
+        on_success();
+
+        return;
+      }
+      const remaining = attempts_remaining - 1;
+
+      set_attempts_remaining(remaining);
+      if (remaining <= 0) {
+        on_close();
+
+        return;
+      }
+      set_shake_key((k) => k + 1);
+      set_input("");
+      set_error_msg(
+        t("settings.app_lock_attempts_remaining", { count: remaining }),
+      );
+      setTimeout(() => set_error_msg(null), 2000);
+      await new Promise<void>((resolve) => setTimeout(resolve, 600));
+      verifying_ref.current = false;
+      set_verifying(false);
+    },
+    [account_id, attempts_remaining, on_success, on_close, t],
+  );
+
+  const handle_digit = useCallback(
+    async (d: string) => {
+      if (verifying_ref.current) return;
+      const next = input + d;
+
+      set_input(next);
+      if (next.length === digits) await attempt(next);
+    },
+    [input, digits, attempt],
+  );
+
+  const handle_text_submit = useCallback(async () => {
+    if (verifying || input.length < 1) return;
+    await attempt(input);
+  }, [verifying, input, attempt]);
+
+  return (
+    <Modal is_open={is_open} on_close={on_close} size="sm">
+      <ModalHeader>
+        <ModalTitle>{t("settings.duress_pin_remove")}</ModalTitle>
+        <ModalDescription>
+          {t("settings.duress_pin_enter_to_remove")}
+        </ModalDescription>
+      </ModalHeader>
+      <ModalBody>
+        {pin_type === "numeric" ? (
+          <div className="flex flex-col items-center gap-2 pt-1">
+            <PinDots
+              digits={digits}
+              filled={input.length}
+              shake_key={shake_key}
+            />
+            {(error_msg || verifying) && (
+              <div className="flex items-center justify-center -mb-1">
+                {error_msg && (
+                  <p className="text-xs text-red-500">{error_msg}</p>
+                )}
+                {verifying && !error_msg && (
+                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                )}
+              </div>
+            )}
+            <PinPad
+              disabled={verifying}
+              on_backspace={() => set_input((p) => p.slice(0, -1))}
+              on_digit={handle_digit}
+            />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <motion.div
+              key={shake_key}
+              animate={
+                shake_key > 0 ? { x: [0, -10, 10, -10, 10, 0] } : { x: 0 }
+              }
+              transition={{ duration: 0.35 }}
+            >
+              <div className="relative">
+                <Input
+                  ref={text_ref}
+                  autoComplete="off"
+                  className="pe-10"
+                  disabled={verifying}
+                  placeholder={t("settings.app_lock_text_placeholder")}
+                  size="md"
+                  type={show_passphrase ? "text" : "password"}
+                  value={input}
+                  onChange={(e) => {
+                    if (!verifying) set_input(e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !is_composing(e))
+                      handle_text_submit();
+                  }}
+                />
+                <button
+                  className="absolute end-3 top-1/2 -translate-y-1/2 text-txt-muted hover:text-txt-primary transition-colors"
+                  tabIndex={-1}
+                  type="button"
+                  onClick={() => set_show_passphrase((v) => !v)}
+                >
+                  {show_passphrase ? (
+                    <EyeSlashIcon className="h-4 w-4" />
+                  ) : (
+                    <EyeIcon className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </motion.div>
+            {error_msg && (
+              <p className="text-sm text-red-500 -mt-1">{error_msg}</p>
+            )}
+            <Button
+              disabled={verifying || input.length < 1}
+              variant="depth"
+              onClick={handle_text_submit}
+            >
+              {t("settings.duress_pin_remove")}
+              {verifying && <ButtonSpinner />}
+            </Button>
+          </div>
+        )}
+      </ModalBody>
+    </Modal>
+  );
+}
+
+type DuressPinModal = "setup" | "change" | "remove" | null;
+
+export function DuressPinSection() {
+  const { t } = use_i18n();
+  const auth = use_auth_safe();
+  const account_id = auth?.current_account_id ?? "";
+  const [enabled, set_enabled] = useState(false);
+  const [modal, set_modal] = useState<DuressPinModal>(null);
+
+  useEffect(() => {
+    if (!account_id) return;
+    let cancelled = false;
+
+    has_duress_pin(account_id)
+      .then((value) => {
+        if (!cancelled) set_enabled(value);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [account_id]);
+
+  const close_modal = useCallback(() => set_modal(null), []);
+
+  const handle_setup_success = useCallback(() => {
+    set_enabled(true);
+    set_modal(null);
+    show_toast(t("settings.duress_pin_enabled_toast"), "success");
+  }, [t]);
+
+  const handle_change_success = useCallback(() => {
+    set_modal(null);
+    show_toast(t("settings.duress_pin_changed_toast"), "success");
+  }, [t]);
+
+  const handle_remove_success = useCallback(() => {
+    clear_duress_pin(account_id);
+    set_enabled(false);
+    set_modal(null);
+    show_toast(t("settings.duress_pin_disabled_toast"), "success");
+  }, [account_id, t]);
+
+  if (!account_id) return null;
+
+  return (
+    <>
+      <IslandRow
+        description={
+          <>
+            {t("settings.duress_pin_description")}
+            {enabled && (
+              <button
+                className="block mt-2 text-xs text-brand underline underline-offset-2 hover:opacity-80"
+                type="button"
+                onClick={() => set_modal("change")}
+              >
+                {t("settings.duress_pin_change")}
+              </button>
+            )}
+          </>
+        }
+        label={t("settings.duress_pin")}
+        layout="stacked"
+        trailing={
+          <Button
+            variant={enabled ? "outline" : "depth"}
+            onClick={() => set_modal(enabled ? "remove" : "setup")}
+          >
+            {enabled
+              ? t("settings.duress_pin_remove")
+              : t("settings.duress_pin_setup")}
+          </Button>
+        }
+      />
+
+      <SetupDuressPinModal
+        account_id={account_id}
+        is_open={modal === "setup" || modal === "change"}
+        on_close={close_modal}
+        on_success={
+          modal === "change" ? handle_change_success : handle_setup_success
+        }
+      />
+
+      <RemoveDuressPinModal
+        account_id={account_id}
+        is_open={modal === "remove"}
+        on_close={close_modal}
+        on_success={handle_remove_success}
+      />
+    </>
+  );
+}

@@ -1,0 +1,1377 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { UseRegistrationReturn } from "@/components/register/hooks/use_registration";
+import type { AvailablePlan } from "@/services/api/billing";
+
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { motion } from "framer-motion";
+import {
+  Button,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@aster/ui";
+import {
+  AcademicCapIcon,
+  ArrowTopRightOnSquareIcon,
+  ShieldCheckIcon,
+  TagIcon,
+  UserGroupIcon,
+} from "@heroicons/react/24/outline";
+
+import { safe_local_set } from "@/lib/safe_storage";
+import { Spinner } from "@/components/ui/spinner";
+import { pricing_comparison_url } from "@/lib/canonical_urls";
+import { CheckoutModal } from "@/components/settings/checkout_modal";
+import { PlanPaymentMethodModal } from "@/components/settings/billing/plan_payment_method_modal";
+import { CryptoTermModal } from "@/components/settings/billing/crypto_term_modal";
+import {
+  get_available_plans,
+  format_price,
+  get_subscription,
+  open_payment_url,
+  start_hosted_checkout,
+  get_my_referral_status,
+  validate_promo_code,
+  type AvailablePlansResponse,
+} from "@/services/api/billing";
+import { create_family_group } from "@/services/api/family";
+import { request_cache } from "@/services/api/request_cache";
+import {
+  show_toast,
+  TOAST_DURATION_BILLING_MS,
+} from "@/components/toast/simple_toast";
+import {
+  PLAN_TIERS,
+  FAMILY_PLAN_TIERS,
+  family_yearly_savings_cents,
+  FAMILY_PLAN_DUO_FEATURES,
+  FAMILY_PLAN_FAMILY_FEATURES,
+  type PlanTier,
+  type FamilyPlanTier,
+  convert_cents,
+  detect_currency_from_locale,
+  SUPPORTED_CURRENCIES,
+  CURRENCY_STORAGE_KEY,
+} from "@/components/settings/billing/billing_constants";
+import { use_currency_rates } from "@/components/settings/billing/use_currency_rates";
+import { OnboardingButton } from "@/components/register/register_shared";
+import {
+  page_variants,
+  page_transition,
+} from "@/components/register/register_types";
+import { read_offer_prefill } from "@/components/register/academic_offer_prefill";
+import { clear_first_run_plan, restore_first_run_plan } from "@/lib/first_run";
+import { checkout_error_text } from "@/components/settings/billing/checkout_error_text";
+import { promo_code_error_text } from "@/components/settings/billing/plan_change_discount_text";
+import { calendar_feature_list_for_tier } from "@/components/settings/billing/plan_upgrade_selection";
+import { DatedCalendarLogo } from "@/components/calendar/dated_calendar_logo";
+import { calendar_booking_available, is_calendar_app } from "@/lib/app_kind";
+import { calendar_plan_limits } from "@/lib/calendar_plan_limits";
+
+interface RegisterStepPlanSelectionProps {
+  reg: UseRegistrationReturn;
+}
+
+const PLAN_LOAD_TIMEOUT_MS = 12000;
+
+interface SelectedCheckout {
+  plan: AvailablePlan;
+  tier: PlanTier;
+  billing_interval: "month" | "year";
+}
+
+let plans_promise_cache: Promise<{
+  data?: AvailablePlansResponse;
+  error?: string;
+}> | null = null;
+
+function is_desktop(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+export function prefetch_plans(): void {
+  if (plans_promise_cache) return;
+  plans_promise_cache = get_available_plans().catch((e: unknown) => ({
+    error: e instanceof Error ? e.message : "fetch_failed",
+  }));
+}
+
+async function load_plans(): Promise<AvailablePlan[]> {
+  if (!plans_promise_cache) prefetch_plans();
+  const pending = plans_promise_cache!;
+  const res = await pending;
+
+  if (!res.data?.plans?.length) {
+    if (plans_promise_cache === pending) plans_promise_cache = null;
+
+    return [];
+  }
+
+  return res.data.plans;
+}
+
+function fallback_api_plan(tier: { id: string; name: string }): AvailablePlan {
+  return {
+    id: tier.id,
+    code: tier.id,
+    name: tier.name,
+    description: null,
+    storage_limit_bytes: 0,
+    max_attachment_size_bytes: 0,
+    max_email_aliases: 0,
+    max_custom_domains: 0,
+    price_cents: 0,
+    billing_period: null,
+    stripe_price_id: null,
+  };
+}
+
+interface FeatureRow {
+  on: boolean;
+  text: React.ReactNode;
+}
+
+function bold(text: string): React.ReactNode {
+  return <strong className="font-bold">{text}</strong>;
+}
+
+function with_bold(prefix: string, rest: string): React.ReactNode {
+  return (
+    <>
+      {bold(prefix)} {rest}
+    </>
+  );
+}
+
+function feature_list_for_tier(
+  tier_id: string,
+  t: UseRegistrationReturn["t"],
+): FeatureRow[] {
+  if (is_calendar_app()) return calendar_feature_list_for_tier(tier_id, t);
+
+  const unlimited = t("settings.unlimited");
+
+  if (tier_id === "star") {
+    return [
+      {
+        on: true,
+        text: with_bold("50 GB", t("settings.encrypted_storage_suffix")),
+      },
+      { on: true, text: with_bold("15", t("settings.email_aliases_suffix")) },
+      { on: true, text: with_bold("5", t("settings.custom_domains_suffix")) },
+      { on: true, text: with_bold("50 MB", t("settings.attachments_suffix")) },
+      { on: true, text: with_bold(unlimited, t("settings.mail_rules_suffix")) },
+      { on: true, text: t("settings.f_e2ee") },
+      { on: true, text: t("settings.f_zero_knowledge") },
+      { on: true, text: t("settings.f_tracker_protection_long") },
+      { on: true, text: t("settings.plan_f_alias_avatars") },
+      { on: true, text: t("settings.plan_f_catch_all") },
+      { on: true, text: t("settings.f_auto_forward") },
+      { on: true, text: t("settings.plan_f_support_priority") },
+      { on: true, text: t("settings.plan_f_imap_smtp_bridge") },
+      { on: false, text: t("settings.f_folder_lock") },
+      { on: false, text: t("settings.plan_f_smart_folders") },
+      { on: false, text: t("settings.lockdown_title") },
+    ];
+  }
+  if (tier_id === "nova") {
+    return [
+      {
+        on: true,
+        text: with_bold("500 GB", t("settings.encrypted_storage_suffix")),
+      },
+      {
+        on: true,
+        text: with_bold(unlimited, t("settings.email_aliases_suffix")),
+      },
+      { on: true, text: with_bold("30", t("settings.custom_domains_suffix")) },
+      { on: true, text: with_bold("100 MB", t("settings.attachments_suffix")) },
+      { on: true, text: with_bold(unlimited, t("settings.mail_rules_suffix")) },
+      { on: true, text: t("settings.f_e2ee") },
+      { on: true, text: t("settings.f_zero_knowledge") },
+      { on: true, text: t("settings.f_tracker_protection_long") },
+      { on: true, text: t("settings.plan_f_alias_avatars") },
+      { on: true, text: t("settings.plan_f_catch_all") },
+      { on: true, text: t("settings.f_auto_forward") },
+      { on: true, text: t("settings.plan_f_support_priority") },
+      { on: true, text: t("settings.plan_f_imap_smtp_bridge") },
+      { on: true, text: t("settings.f_folder_lock") },
+      { on: true, text: t("settings.plan_f_smart_folders") },
+      { on: true, text: t("settings.lockdown_title") },
+    ];
+  }
+
+  return [
+    {
+      on: true,
+      text: with_bold("5 TB", t("settings.encrypted_storage_suffix")),
+    },
+    {
+      on: true,
+      text: with_bold(unlimited, t("settings.email_aliases_suffix")),
+    },
+    {
+      on: true,
+      text: with_bold(unlimited, t("settings.custom_domains_suffix")),
+    },
+    { on: true, text: with_bold("250 MB", t("settings.attachments_suffix")) },
+    { on: true, text: with_bold(unlimited, t("settings.mail_rules_suffix")) },
+    { on: true, text: t("settings.f_e2ee") },
+    { on: true, text: t("settings.f_zero_knowledge") },
+    { on: true, text: t("settings.f_tracker_protection_long") },
+    { on: true, text: t("settings.plan_f_alias_avatars") },
+    { on: true, text: t("settings.plan_f_catch_all") },
+    { on: true, text: t("settings.f_auto_forward") },
+    { on: true, text: t("settings.plan_f_support_priority") },
+    { on: true, text: t("settings.plan_f_imap_smtp_bridge") },
+    { on: true, text: t("settings.f_folder_lock") },
+    { on: true, text: t("settings.plan_f_smart_folders") },
+    { on: true, text: t("settings.lockdown_title") },
+  ];
+}
+
+const CHECK_SVG = (
+  <svg
+    fill="none"
+    height="18"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    viewBox="0 0 24 24"
+    width="18"
+  >
+    <path
+      d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const CROSS_SVG = (
+  <svg
+    fill="none"
+    height="18"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    viewBox="0 0 24 24"
+    width="18"
+  >
+    <path
+      d="M9.75 9.75 14.25 14.25M14.25 9.75 9.75 14.25M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const TIER_DESCRIPTION_KEYS: Record<string, string> = {
+  star: "auth.plan_star_description",
+  nova: "auth.plan_nova_description",
+  supernova: "auth.plan_supernova_description",
+};
+
+export const RegisterStepPlanSelection = ({
+  reg,
+}: RegisterStepPlanSelectionProps) => {
+  const { t } = reg;
+  const offer = read_offer_prefill();
+  const [plan_type, set_plan_type] = useState<"individual" | "family">(
+    "individual",
+  );
+  const [billing_period, set_billing_period] = useState<"monthly" | "yearly">(
+    "monthly",
+  );
+  const [currency, set_currency] = useState<string>("usd");
+  const [plans, set_plans] = useState<AvailablePlan[]>([]);
+  const [is_loading, set_is_loading] = useState(true);
+  const [checkout, set_checkout] = useState<SelectedCheckout | null>(null);
+  const [is_finalizing, set_is_finalizing] = useState(false);
+  const pending_desktop_checkout_ref = useRef(false);
+  const [pending_tier, set_pending_tier] = useState<{
+    tier: PlanTier;
+    plan: AvailablePlan;
+  } | null>(null);
+  const [crypto_tier, set_crypto_tier] = useState<{
+    tier: PlanTier;
+    plan: AvailablePlan;
+  } | null>(null);
+  const [pending_family_tier, set_pending_family_tier] =
+    useState<FamilyPlanTier | null>(null);
+  const [crypto_family_tier, set_crypto_family_tier] =
+    useState<FamilyPlanTier | null>(null);
+  const [referral_discount_percent, set_referral_discount_percent] = useState<
+    number | null
+  >(null);
+  const [is_promo_open, set_is_promo_open] = useState(false);
+  const [promo_input, set_promo_input] = useState("");
+  const [promo_error, set_promo_error] = useState("");
+  const [is_promo_checking, set_is_promo_checking] = useState(false);
+  const [applied_promo, set_applied_promo] = useState<{
+    code: string;
+    percent_off: number | null;
+  } | null>(null);
+  const applied_promo_code = applied_promo?.code;
+  const display_discount_percent = applied_promo
+    ? applied_promo.percent_off
+    : referral_discount_percent;
+
+  use_currency_rates();
+
+  useEffect(() => {
+    set_currency(detect_currency_from_locale());
+  }, []);
+
+  useEffect(() => {
+    if (!reg.is_invited) return;
+    let cancelled = false;
+
+    (async () => {
+      const status = await get_my_referral_status();
+      const code = status.data?.discount_promo_code;
+
+      if (!code || cancelled) return;
+
+      const promo = await validate_promo_code(code);
+
+      if (cancelled) return;
+
+      if (
+        promo.data?.valid &&
+        promo.data.discount_type === "percent_off" &&
+        typeof promo.data.discount_value === "number"
+      ) {
+        set_referral_discount_percent(promo.data.discount_value);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reg.is_invited]);
+
+  const apply_referral_discount = useCallback(
+    (cents: number) => {
+      if (!display_discount_percent) return cents;
+
+      return Math.max(
+        0,
+        Math.round(cents * (1 - display_discount_percent / 100)),
+      );
+    },
+    [display_discount_percent],
+  );
+
+  const handle_apply_promo = useCallback(async () => {
+    const code = promo_input.trim();
+
+    if (!code || is_promo_checking) return;
+    set_is_promo_checking(true);
+    set_promo_error("");
+
+    const res = await validate_promo_code(code);
+
+    set_is_promo_checking(false);
+
+    if (!res.data) {
+      set_promo_error(promo_code_error_text(t, res.server_code));
+
+      return;
+    }
+
+    if (!res.data.valid) {
+      set_promo_error(t("settings.promo_error_invalid"));
+
+      return;
+    }
+
+    set_applied_promo({
+      code,
+      percent_off:
+        res.data.discount_type === "percent_off" &&
+        typeof res.data.discount_value === "number"
+          ? res.data.discount_value
+          : null,
+    });
+  }, [promo_input, is_promo_checking, t]);
+
+  const handle_remove_promo = useCallback(() => {
+    set_applied_promo(null);
+    set_promo_input("");
+    set_promo_error("");
+  }, []);
+
+  useEffect(() => {
+    const handle_page_show = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        set_is_finalizing(false);
+        set_pending_tier(null);
+        set_pending_family_tier(null);
+        set_crypto_family_tier(null);
+      }
+    };
+
+    window.addEventListener("pageshow", handle_page_show);
+
+    return () => window.removeEventListener("pageshow", handle_page_show);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const loaded = await Promise.race([
+        load_plans(),
+        new Promise<AvailablePlan[]>((resolve) =>
+          setTimeout(() => resolve([]), PLAN_LOAD_TIMEOUT_MS),
+        ),
+      ]);
+
+      if (!cancelled) {
+        set_plans(loaded);
+        set_is_loading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handle_currency_change = (next: string) => {
+    set_currency(next);
+    safe_local_set(CURRENCY_STORAGE_KEY, next);
+  };
+
+  const billing_interval: "month" | "year" =
+    billing_period === "yearly" ? "year" : "month";
+
+  const resolve_api_plan = useCallback(
+    (tier: { id: string; name: string }): AvailablePlan =>
+      plans.find((p) => p.code === tier.id) ?? fallback_api_plan(tier),
+    [plans],
+  );
+
+  const handle_select_tier = useCallback(
+    (tier: PlanTier) => {
+      set_pending_tier({ tier, plan: resolve_api_plan(tier) });
+    },
+    [resolve_api_plan],
+  );
+
+  const handle_pay_with_card = useCallback(async () => {
+    if (!pending_tier) return;
+
+    set_pending_tier(null);
+    set_is_finalizing(true);
+    safe_local_set("show_onboarding", "true");
+    clear_first_run_plan();
+
+    const result = await start_hosted_checkout(
+      pending_tier.plan.code,
+      billing_interval,
+      currency,
+      undefined,
+      applied_promo_code,
+    );
+
+    if (!result.ok) {
+      restore_first_run_plan();
+      set_is_finalizing(false);
+      show_toast(
+        checkout_error_text(t, result.server_code),
+        "error",
+        TOAST_DURATION_BILLING_MS,
+      );
+
+      return;
+    }
+
+    if (is_desktop()) {
+      pending_desktop_checkout_ref.current = true;
+      set_is_finalizing(false);
+    }
+  }, [pending_tier, billing_interval, currency, applied_promo_code, t]);
+
+  const handle_pay_with_crypto = useCallback(() => {
+    if (!pending_tier) return;
+    set_crypto_tier(pending_tier);
+    set_pending_tier(null);
+  }, [pending_tier]);
+
+  const handle_family_card = useCallback(async () => {
+    if (!pending_family_tier) return;
+    const tier = pending_family_tier;
+
+    set_pending_family_tier(null);
+    set_is_finalizing(true);
+    safe_local_set("show_onboarding", "true");
+    clear_first_run_plan();
+    const res = await create_family_group(
+      tier.id,
+      billing_interval,
+      undefined,
+      undefined,
+      applied_promo_code,
+    );
+
+    if (res.data?.checkout_url) {
+      try {
+        const parsed = new URL(res.data.checkout_url);
+
+        if (parsed.protocol !== "https:") throw new Error("invalid_protocol");
+        await open_payment_url(parsed.toString());
+        if (is_desktop()) {
+          pending_desktop_checkout_ref.current = true;
+          set_is_finalizing(false);
+        }
+      } catch {
+        restore_first_run_plan();
+        set_is_finalizing(false);
+        show_toast(
+          t("settings.failed_checkout"),
+          "error",
+          TOAST_DURATION_BILLING_MS,
+        );
+      }
+    } else {
+      restore_first_run_plan();
+      set_is_finalizing(false);
+      show_toast(
+        checkout_error_text(t, res.server_code),
+        "error",
+        TOAST_DURATION_BILLING_MS,
+      );
+    }
+  }, [pending_family_tier, billing_interval, applied_promo_code, t]);
+
+  const handle_family_crypto = useCallback(() => {
+    if (!pending_family_tier) return;
+    set_crypto_family_tier(pending_family_tier);
+    set_pending_family_tier(null);
+  }, [pending_family_tier]);
+
+  const handle_continue_free = useCallback(async () => {
+    if (is_finalizing) return;
+    set_is_finalizing(true);
+    try {
+      await reg.finish_plan_selection();
+    } catch {
+      set_is_finalizing(false);
+    }
+  }, [is_finalizing, reg]);
+
+  const handle_checkout_success = useCallback(async () => {
+    clear_first_run_plan();
+    set_is_finalizing(true);
+    try {
+      await reg.finish_plan_selection();
+    } catch {
+      set_is_finalizing(false);
+    }
+  }, [reg]);
+
+  useEffect(() => {
+    if (!is_desktop()) return;
+
+    const handle_focus = async () => {
+      if (!pending_desktop_checkout_ref.current) return;
+      pending_desktop_checkout_ref.current = false;
+
+      for (let attempt = 0; attempt < 6; attempt++) {
+        request_cache.invalidate("/payments/v1");
+        const response = await get_subscription();
+
+        if (response.data && response.data.plan.code !== "free") {
+          await handle_checkout_success();
+
+          return;
+        }
+        await new Promise((resolve) =>
+          setTimeout(resolve, attempt === 0 ? 1000 : 2000),
+        );
+      }
+    };
+
+    window.addEventListener("focus", handle_focus);
+
+    return () => window.removeEventListener("focus", handle_focus);
+  }, [handle_checkout_success]);
+
+  const yearly_savings_percent = useMemo(() => {
+    const tiers =
+      plan_type === "family"
+        ? FAMILY_PLAN_TIERS.map((tier) => ({
+            monthly_cents: tier.monthly_cents,
+            yearly_cents: tier.yearly_cents,
+          }))
+        : PLAN_TIERS.map((tier) => ({
+            monthly_cents: tier.monthly_cents,
+            yearly_cents: tier.yearly_cents,
+          }));
+
+    const percents = tiers
+      .filter((tier) => tier.monthly_cents > 0)
+      .map((tier) =>
+        Math.round(
+          ((tier.monthly_cents * 12 - tier.yearly_cents) /
+            (tier.monthly_cents * 12)) *
+            100,
+        ),
+      );
+
+    return percents.length > 0 ? Math.max(...percents) : 0;
+  }, [plan_type]);
+
+  const price_display_for_checkout = useMemo(() => {
+    if (!checkout) return "";
+    const cents =
+      checkout.billing_interval === "year"
+        ? checkout.tier.yearly_cents
+        : checkout.tier.monthly_cents;
+
+    return format_price(convert_cents(cents, currency), currency);
+  }, [checkout, currency]);
+
+  const promo_slot = applied_promo ? (
+    <div className="flex items-center justify-between gap-3 rounded-[var(--aster-radius-control)] bg-[var(--aster-field-bg)] py-2 pe-2 ps-4">
+      <p
+        className="flex min-w-0 items-center gap-2 text-[13px] text-txt-primary"
+        role="status"
+      >
+        <TagIcon aria-hidden="true" className="h-4 w-4 flex-shrink-0" />
+        <span className="min-w-0 break-words">
+          {t("settings.plan_change_discount_label", {
+            code: applied_promo.code,
+          })}
+          {applied_promo.percent_off !== null &&
+            ` \u00b7 ${t("settings.promo_discount_percent", {
+              value: applied_promo.percent_off,
+            })}`}
+        </span>
+      </p>
+      <Button
+        disabled={is_finalizing}
+        size="sm"
+        variant="ghost"
+        onClick={handle_remove_promo}
+      >
+        {t("settings.plan_change_promo_remove")}
+      </Button>
+    </div>
+  ) : is_promo_open ? (
+    <div className="flex flex-col gap-2">
+      <label
+        className="text-[11px] font-semibold uppercase tracking-wider text-txt-muted"
+        htmlFor="register_promo_code"
+      >
+        {t("settings.promo_code")}
+      </label>
+      <div className="flex items-center gap-2">
+        <Input
+          aria-describedby={promo_error ? "register_promo_error" : undefined}
+          aria-invalid={promo_error ? true : undefined}
+          autoComplete="off"
+          className="!h-10 min-w-0 flex-1 !border-0 !bg-[var(--aster-field-bg)] !px-4 !text-[14px] !shadow-none hover:!bg-[var(--aster-field-hover)] focus:!shadow-[inset_0_0_0_2px_var(--accent-color)] aria-[invalid=true]:!shadow-[inset_0_0_0_2px_var(--color-danger)]"
+          disabled={is_finalizing || is_promo_checking}
+          id="register_promo_code"
+          maxLength={64}
+          placeholder={t("settings.promo_code_placeholder")}
+          value={promo_input}
+          onChange={(event) => {
+            set_promo_input(event.target.value);
+            if (promo_error) set_promo_error("");
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              handle_apply_promo();
+            }
+          }}
+        />
+        <Button
+          disabled={
+            is_finalizing ||
+            is_promo_checking ||
+            promo_input.trim().length === 0
+          }
+          className="!h-10 flex-shrink-0 !px-5 !text-[14px]"
+          variant="secondary"
+          onClick={handle_apply_promo}
+        >
+          {is_promo_checking
+            ? t("settings.promo_validating")
+            : t("settings.promo_apply")}
+        </Button>
+      </div>
+      {promo_error && (
+        <p
+          className="text-xs"
+          id="register_promo_error"
+          role="alert"
+          style={{ color: "var(--color-danger)" }}
+        >
+          {promo_error}
+        </p>
+      )}
+    </div>
+  ) : (
+    <button
+      className="flex items-center gap-1.5 rounded px-1 text-[13px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] disabled:opacity-60"
+      disabled={is_finalizing}
+      style={{ color: "var(--accent-color)" }}
+      type="button"
+      onClick={() => set_is_promo_open(true)}
+    >
+      <TagIcon aria-hidden="true" className="h-4 w-4 flex-shrink-0" />
+      {t("settings.checkout_add_promo")}
+    </button>
+  );
+
+  return (
+    <motion.div
+      key="plan_selection"
+      animate="animate"
+      className="flex flex-col items-center w-full max-w-md md:max-w-6xl px-4 pt-6 pb-10 md:pt-10"
+      exit="exit"
+      initial="initial"
+      transition={page_transition}
+      variants={page_variants}
+    >
+      {is_calendar_app() ? (
+        <DatedCalendarLogo
+          alt={t("calendar.aster_calendar_brand")}
+          className="h-7 w-auto object-contain"
+        />
+      ) : (
+        <img
+          alt="Aster"
+          className="h-7"
+          decoding="async"
+          draggable={false}
+          src="/text_logo.png"
+        />
+      )}
+
+      <h1 className="mt-5 text-base font-semibold text-txt-primary">
+        {t("auth.plan_selection_title")}
+      </h1>
+      <p className="mt-1.5 max-w-md text-center text-sm leading-relaxed text-txt-tertiary">
+        {t("auth.plan_selection_subtitle")}
+      </p>
+
+      {offer.has_offer && !applied_promo && (
+        <div
+          className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-lg text-sm font-medium"
+          style={{
+            backgroundColor: "var(--accent-blue)",
+            color: "var(--accent-fg, #ffffff)",
+          }}
+        >
+          <AcademicCapIcon className="w-4 h-4 shrink-0" />
+          {t("auth.plan_academic_discount_note")}
+        </div>
+      )}
+
+      {!offer.has_offer && reg.is_invited && !applied_promo && (
+        <div
+          className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-lg text-sm font-medium"
+          style={{
+            backgroundColor: "var(--accent-blue)",
+            color: "var(--accent-fg, #ffffff)",
+          }}
+        >
+          <AcademicCapIcon className="w-4 h-4 shrink-0" />
+          {referral_discount_percent
+            ? t("auth.plan_referral_discount_percent_note", {
+                percent: referral_discount_percent,
+              })
+            : t("auth.plan_referral_discount_note")}
+        </div>
+      )}
+
+      <div className="mt-6 flex w-full flex-wrap items-center justify-center gap-2">
+        <div
+          aria-label={t("auth.plan_selection_title")}
+          className="aster_segmented"
+          role="group"
+        >
+          {(["individual", "family"] as const).map((type) => (
+            <button
+              key={type}
+              aria-pressed={plan_type === type}
+              className="aster_segmented_option"
+              type="button"
+              onClick={() => set_plan_type(type)}
+            >
+              {type === "individual"
+                ? t("settings.plan_type_individual")
+                : t("settings.plan_type_family")}
+            </button>
+          ))}
+        </div>
+        <div
+          aria-label={t("settings.billing_term_heading")}
+          className="aster_segmented"
+          role="group"
+        >
+          {(["monthly", "yearly"] as const).map((period) => (
+            <button
+              key={period}
+              aria-pressed={billing_period === period}
+              className="aster_segmented_option"
+              type="button"
+              onClick={() => set_billing_period(period)}
+            >
+              {period === "yearly"
+                ? t("settings.billing_yearly")
+                : t("settings.billing_monthly")}
+              {period === "yearly" && yearly_savings_percent > 0 && (
+                <span
+                  className="ms-1.5 text-[11.5px] font-semibold"
+                  style={{
+                    color:
+                      billing_period === "yearly"
+                        ? "inherit"
+                        : "var(--color-success)",
+                  }}
+                >
+                  {t("settings.billing_save_percent", {
+                    percent: yearly_savings_percent,
+                  })}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        <Select value={currency} onValueChange={handle_currency_change}>
+          <SelectTrigger
+            aria-label={t("settings.select_currency")}
+            className="h-10 w-auto flex-shrink-0"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="end">
+            {SUPPORTED_CURRENCIES.map((c) => (
+              <SelectItem key={c.code} value={c.code}>
+                {c.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <p className="mt-3 max-w-md text-center text-xs text-txt-muted">
+        {currency === "usd"
+          ? t("settings.prices_in_usd_note")
+          : t("settings.prices_converted_note")}
+      </p>
+
+      {is_loading ? (
+        <div className="flex items-center gap-2 mt-10 text-txt-tertiary">
+          <Spinner size="md" />
+          <span className="text-sm">{t("auth.plan_loading")}</span>
+        </div>
+      ) : plan_type === "family" ? (
+        <div className="w-full grid gap-5 mt-10 md:grid-cols-2 max-w-3xl items-stretch">
+          {FAMILY_PLAN_TIERS.map((tier) => {
+            const base_price_cents =
+              billing_period === "yearly"
+                ? tier.yearly_cents
+                : tier.monthly_cents;
+            const price_cents = apply_referral_discount(base_price_cents);
+            const features = (
+              tier.max_members === 2
+                ? FAMILY_PLAN_DUO_FEATURES
+                : FAMILY_PLAN_FAMILY_FEATURES
+            ).map((feature) => ({
+              label: t(feature.label_key),
+              on: feature.on,
+              icon: feature.icon,
+            }));
+
+            return (
+              <div
+                key={tier.id}
+                className={`relative rounded-3xl border flex flex-col gap-6 p-7 transition-colors duration-300 ${
+                  tier.is_recommended
+                    ? "plan_galaxy z-10"
+                    : "border-edge-secondary bg-surf-tertiary hover:border-edge-primary"
+                }`}
+              >
+                {tier.is_recommended && (
+                  <span className="plan_galaxy_badge absolute -top-3 left-1/2 -translate-x-1/2 inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider">
+                    {t("settings.plan_recommended")}
+                  </span>
+                )}
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <UserGroupIcon
+                      className={`w-5 h-5 ${tier.is_recommended ? "plan_galaxy_text_primary" : "text-txt-primary"}`}
+                    />
+                    <h3
+                      className={`text-lg font-bold ${tier.is_recommended ? "plan_galaxy_text_primary" : "text-txt-primary"}`}
+                    >
+                      {tier.name}
+                    </h3>
+                  </div>
+                  <div className="flex items-baseline gap-1.5 flex-wrap">
+                    {referral_discount_percent && (
+                      <span className="text-lg font-medium leading-none text-txt-muted line-through">
+                        {format_price(
+                          convert_cents(base_price_cents, currency),
+                          currency,
+                        )}
+                      </span>
+                    )}
+                    <span className="text-[40px] font-bold leading-none tracking-tight text-txt-primary">
+                      {format_price(
+                        convert_cents(price_cents, currency),
+                        currency,
+                      )}
+                    </span>
+                    <span className="text-sm text-txt-muted">
+                      {billing_period === "monthly"
+                        ? t("settings.per_month_short")
+                        : t("settings.per_year_short")}
+                    </span>
+                    {billing_period === "yearly" && (
+                      <span
+                        className="ms-1 px-2 py-[3px] rounded-full text-[10px] font-bold uppercase tracking-wider text-[var(--accent-fg,#ffffff)]"
+                        style={{ backgroundColor: "var(--accent-blue)" }}
+                      >
+                        {t("settings.save_yearly", {
+                          amount: format_price(
+                            convert_cents(
+                              family_yearly_savings_cents(tier),
+                              currency,
+                            ),
+                            currency,
+                          ),
+                        })}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[13px] leading-relaxed text-txt-tertiary">
+                    {tier.max_members === 2
+                      ? t("settings.family_duo_tagline")
+                      : t("settings.family_plan_tagline")}
+                  </p>
+                </div>
+                <ul className="flex flex-col gap-3 flex-1">
+                  {features.map((feat, i) => (
+                    <li
+                      key={i}
+                      className="flex items-start gap-2.5 text-[13px] leading-snug"
+                      style={{
+                        color: feat.on
+                          ? "var(--text-primary)"
+                          : "var(--text-muted)",
+                      }}
+                    >
+                      <span
+                        className="shrink-0 mt-[1px]"
+                        style={{
+                          color: feat.on ? "var(--accent-blue)" : "#dc2626",
+                        }}
+                      >
+                        {feat.on ? CHECK_SVG : CROSS_SVG}
+                      </span>
+                      <span className="flex-1">{feat.label}</span>
+                    </li>
+                  ))}
+                </ul>
+                <OnboardingButton
+                  className={`w-full ${tier.is_recommended ? "plan_galaxy_cta" : ""}`}
+                  disabled={is_finalizing}
+                  variant={tier.is_recommended ? "primary" : "secondary"}
+                  onClick={() => set_pending_family_tier(tier)}
+                >
+                  {t("settings.get_plan", { name: tier.name })}
+                </OnboardingButton>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="w-full grid gap-5 mt-10 md:grid-cols-3 max-w-5xl items-stretch">
+          {PLAN_TIERS.map((tier) => {
+            const base_cents =
+              billing_period === "yearly"
+                ? tier.yearly_cents
+                : tier.monthly_cents;
+            const cents = apply_referral_discount(base_cents);
+            const display_price = format_price(
+              convert_cents(cents, currency),
+              currency,
+            );
+            const saves = billing_period === "yearly" ? tier.savings_cents : 0;
+            const features = feature_list_for_tier(tier.id, t);
+            const description = is_calendar_app()
+              ? calendar_booking_available()
+                ? t("auth.calendar_plan_tier_description", {
+                    calendars: calendar_plan_limits(tier.id).calendars,
+                    booking_pages: calendar_plan_limits(tier.id).booking_pages,
+                  })
+                : t("auth.calendar_plan_tier_description_no_booking", {
+                    calendars: calendar_plan_limits(tier.id).calendars,
+                  })
+              : (t(TIER_DESCRIPTION_KEYS[tier.id] as never) as string);
+
+            return (
+              <div
+                key={tier.id}
+                className={`relative rounded-3xl border flex flex-col gap-6 p-7 transition-colors duration-300 ${
+                  tier.is_recommended
+                    ? "plan_galaxy z-10"
+                    : "border-edge-secondary bg-surf-tertiary hover:border-edge-primary"
+                }`}
+              >
+                {tier.is_recommended && (
+                  <span className="plan_galaxy_badge absolute -top-3 left-1/2 -translate-x-1/2 inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider">
+                    {t("settings.plan_recommended")}
+                  </span>
+                )}
+                <div className="flex flex-col gap-3">
+                  <h3
+                    className={`text-lg font-bold leading-tight ${tier.is_recommended ? "plan_galaxy_text_primary" : "text-txt-primary"}`}
+                  >
+                    {tier.name}
+                  </h3>
+                  <div className="flex items-baseline gap-1.5 flex-wrap">
+                    {referral_discount_percent && (
+                      <span className="text-lg font-medium leading-none text-txt-muted line-through">
+                        {format_price(
+                          convert_cents(base_cents, currency),
+                          currency,
+                        )}
+                      </span>
+                    )}
+                    <span className="text-[40px] font-bold leading-none tracking-tight text-txt-primary">
+                      {display_price}
+                    </span>
+                    <span className="text-sm text-txt-muted">
+                      {billing_period === "monthly"
+                        ? t("settings.per_month_short")
+                        : t("settings.per_year_short")}
+                    </span>
+                    {saves > 0 && (
+                      <span
+                        className="ms-1 px-2 py-[3px] rounded-full text-[10px] font-bold uppercase tracking-wider text-[var(--accent-fg,#ffffff)]"
+                        style={{ backgroundColor: "var(--accent-blue)" }}
+                      >
+                        {t("settings.save_yearly", {
+                          amount: format_price(
+                            convert_cents(saves, currency),
+                            currency,
+                          ),
+                        })}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[13px] leading-relaxed text-txt-tertiary">
+                    {description}
+                  </p>
+                </div>
+
+                <ul className="flex flex-col gap-3 flex-1">
+                  {features.map((f, i) => (
+                    <li
+                      key={i}
+                      className="flex items-start gap-2.5 text-[13px] leading-snug"
+                      style={{
+                        color: f.on
+                          ? "var(--text-primary)"
+                          : "var(--text-muted)",
+                      }}
+                    >
+                      <span
+                        className="shrink-0 mt-[1px]"
+                        style={{
+                          color: f.on ? "var(--accent-blue)" : "#dc2626",
+                        }}
+                      >
+                        {f.on ? CHECK_SVG : CROSS_SVG}
+                      </span>
+                      <span className="flex-1">{f.text}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <OnboardingButton
+                  className={`w-full ${tier.is_recommended ? "plan_galaxy_cta" : ""}`}
+                  disabled={is_finalizing}
+                  variant={tier.is_recommended ? "primary" : "secondary"}
+                  onClick={() => handle_select_tier(tier)}
+                >
+                  {t("settings.get_plan", { name: tier.name })}
+                </OnboardingButton>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {pending_family_tier && (
+        <PlanPaymentMethodModal
+          busy={is_finalizing}
+          features={(pending_family_tier.max_members === 2
+            ? FAMILY_PLAN_DUO_FEATURES
+            : FAMILY_PLAN_FAMILY_FEATURES
+          )
+            .filter((feature) => feature.on)
+            .map((feature) => ({ label: t(feature.label_key) }))}
+          on_choose_card={handle_family_card}
+          on_choose_crypto={handle_family_crypto}
+          on_close={() => set_pending_family_tier(null)}
+          on_select_plan={(id) => {
+            const next = FAMILY_PLAN_TIERS.find((entry) => entry.id === id);
+
+            if (next) set_pending_family_tier(next);
+          }}
+          on_select_term={(id) =>
+            set_billing_period(id === "yearly" ? "yearly" : "monthly")
+          }
+          open={!!pending_family_tier}
+          plan_choices={FAMILY_PLAN_TIERS.map((entry) => ({
+            id: entry.id,
+            name: entry.name,
+            is_recommended: entry.is_recommended,
+            price_label: `${format_price(
+              convert_cents(
+                apply_referral_discount(
+                  billing_period === "yearly"
+                    ? Math.round(entry.yearly_cents / 12)
+                    : entry.monthly_cents,
+                ),
+                currency,
+              ),
+              currency,
+            )}${t("settings.per_month_short")}`,
+          }))}
+          plan_name={pending_family_tier.name}
+          promo_slot={promo_slot}
+          selected_plan_id={pending_family_tier.id}
+          selected_term={billing_period}
+          term_options={[
+            {
+              id: "monthly",
+              label: t("settings.billing_monthly"),
+              per_month_cents: pending_family_tier.monthly_cents,
+              total_cents: pending_family_tier.monthly_cents,
+              save_cents: 0,
+            },
+            {
+              id: "yearly",
+              label: t("settings.billing_yearly"),
+              per_month_cents: Math.round(
+                pending_family_tier.yearly_cents / 12,
+              ),
+              total_cents: pending_family_tier.yearly_cents,
+              save_cents: family_yearly_savings_cents(pending_family_tier),
+            },
+          ]}
+        />
+      )}
+
+      {crypto_family_tier && (
+        <CryptoTermModal
+          enable_native={false}
+          is_open={!!crypto_family_tier}
+          monthly_price_cents={crypto_family_tier.monthly_cents}
+          on_checkout_opened={clear_first_run_plan}
+          on_close={() => {
+            const tier = crypto_family_tier;
+
+            set_crypto_family_tier(null);
+            set_pending_family_tier(tier);
+          }}
+          on_finished={() => set_crypto_family_tier(null)}
+          plan_code={crypto_family_tier.id}
+          plan_name={crypto_family_tier.name}
+          preferred_currency={currency}
+          promo_code={applied_promo_code ?? null}
+          yearly_price_cents={crypto_family_tier.yearly_cents}
+        />
+      )}
+
+      <div className="mt-8 flex w-full max-w-md flex-col items-center gap-4">
+        {is_calendar_app() && (
+          <p className="text-center text-sm text-txt-tertiary">
+            {calendar_booking_available()
+              ? t("auth.calendar_plan_free_limits", {
+                  calendars: calendar_plan_limits("free").calendars,
+                  booking_pages: calendar_plan_limits("free").booking_pages,
+                })
+              : t("auth.calendar_plan_free_limits_no_booking", {
+                  calendars: calendar_plan_limits("free").calendars,
+                })}
+          </p>
+        )}
+        <div className="flex w-full flex-col gap-2 sm:flex-row">
+          <OnboardingButton
+            className="w-full sm:flex-1"
+            disabled={is_finalizing}
+            variant="secondary"
+            onClick={handle_continue_free}
+          >
+            {t("auth.plan_continue_as_free")}
+          </OnboardingButton>
+          <OnboardingButton
+            as_child
+            className="w-full sm:flex-1"
+            variant="secondary"
+          >
+            <a
+              href={pricing_comparison_url()}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              <span>{t("auth.plan_view_full_features")}</span>
+              <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+            </a>
+          </OnboardingButton>
+        </div>
+        <p className="flex items-center justify-center gap-1.5 text-center text-xs text-txt-muted">
+          <ShieldCheckIcon
+            aria-hidden="true"
+            className="h-3.5 w-3.5 flex-shrink-0"
+          />
+          <span>{t("auth.no_ads_no_tracking")}</span>
+        </p>
+        <p className="text-center text-xs leading-relaxed text-txt-muted">
+          {t("auth.plan_footer_reassurance")}
+        </p>
+      </div>
+
+      {is_finalizing && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backgroundColor: "rgba(0,0,0,0.45)" }}
+        >
+          <div className="flex flex-col items-center gap-3">
+            <Spinner size="lg" />
+          </div>
+        </div>
+      )}
+
+      {checkout && (
+        <CheckoutModal
+          billing_interval={checkout.billing_interval}
+          currency={currency}
+          on_close={() => set_checkout(null)}
+          on_success={handle_checkout_success}
+          open={!!checkout}
+          plan_code={checkout.plan.code}
+          plan_name={checkout.tier.name}
+          price_cents={
+            checkout.billing_interval === "year"
+              ? checkout.tier.yearly_cents
+              : checkout.tier.monthly_cents
+          }
+          price_display={price_display_for_checkout}
+        />
+      )}
+
+      {pending_tier && (
+        <PlanPaymentMethodModal
+          busy={is_finalizing}
+          features={feature_list_for_tier(pending_tier.tier.id, t)
+            .filter((feature) => feature.on)
+            .map((feature) => ({ label: feature.text }))}
+          on_choose_card={handle_pay_with_card}
+          on_choose_crypto={handle_pay_with_crypto}
+          on_close={() => set_pending_tier(null)}
+          on_select_plan={(id) => {
+            const next = PLAN_TIERS.find((entry) => entry.id === id);
+
+            if (next)
+              set_pending_tier({ tier: next, plan: resolve_api_plan(next) });
+          }}
+          on_select_term={(id) =>
+            set_billing_period(id === "yearly" ? "yearly" : "monthly")
+          }
+          open={!!pending_tier}
+          plan_choices={PLAN_TIERS.map((entry) => ({
+            id: entry.id,
+            name: entry.name,
+            is_recommended: entry.is_recommended,
+            price_label: `${format_price(
+              convert_cents(
+                apply_referral_discount(
+                  billing_period === "yearly"
+                    ? Math.round(entry.yearly_cents / 12)
+                    : entry.monthly_cents,
+                ),
+                currency,
+              ),
+              currency,
+            )}${t("settings.per_month_short")}`,
+          }))}
+          plan_name={pending_tier.tier.name}
+          promo_slot={promo_slot}
+          selected_plan_id={pending_tier.tier.id}
+          selected_term={billing_period}
+          term_options={[
+            {
+              id: "monthly",
+              label: t("settings.billing_monthly"),
+              per_month_cents: pending_tier.tier.monthly_cents,
+              total_cents: pending_tier.tier.monthly_cents,
+              save_cents: 0,
+            },
+            {
+              id: "yearly",
+              label: t("settings.billing_yearly"),
+              per_month_cents: Math.round(pending_tier.tier.yearly_cents / 12),
+              total_cents: pending_tier.tier.yearly_cents,
+              save_cents: pending_tier.tier.savings_cents,
+            },
+          ]}
+        />
+      )}
+
+      {crypto_tier && (
+        <CryptoTermModal
+          enable_native={false}
+          is_open={!!crypto_tier}
+          monthly_price_cents={crypto_tier.tier.monthly_cents}
+          on_checkout_opened={clear_first_run_plan}
+          on_close={() => {
+            const tier = crypto_tier;
+
+            set_crypto_tier(null);
+            set_pending_tier(tier);
+          }}
+          on_finished={() => set_crypto_tier(null)}
+          plan_code={crypto_tier.plan.code}
+          plan_name={crypto_tier.tier.name}
+          preferred_currency={currency}
+          promo_code={applied_promo_code ?? null}
+          yearly_price_cents={crypto_tier.tier.yearly_cents}
+        />
+      )}
+    </motion.div>
+  );
+};

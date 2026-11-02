@@ -1,0 +1,343 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from "react";
+
+export interface SettingsTabBarItem<T extends string> {
+  key: T;
+  label: string;
+  icon?: ReactNode;
+}
+
+interface SettingsTabBarProps<T extends string> {
+  tabs: SettingsTabBarItem<T>[];
+  active: T;
+  on_change: (key: T) => void;
+  layout_id: string;
+  class_name?: string;
+}
+
+interface Rect {
+  left: number;
+  width: number;
+}
+
+const EMPTY_RECT: Rect = { left: 0, width: 0 };
+
+export function SettingsTabBar<T extends string>({
+  tabs,
+  active,
+  on_change,
+  class_name = "mb-7",
+}: SettingsTabBarProps<T>) {
+  const scroller_ref = useRef<HTMLDivElement | null>(null);
+  const row_ref = useRef<HTMLDivElement | null>(null);
+  const button_refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const has_rendered_ref = useRef(false);
+  const pointer_inside_ref = useRef(false);
+  const [active_rect, set_active_rect] = useState<Rect>(EMPTY_RECT);
+  const [hover_rect, set_hover_rect] = useState<Rect>(EMPTY_RECT);
+  const [hover_visible, set_hover_visible] = useState(false);
+  const [overflow, set_overflow] = useState({
+    start: false,
+    end: false,
+    rtl: false,
+  });
+
+  const active_index = Math.max(
+    0,
+    tabs.findIndex((tab) => tab.key === active),
+  );
+
+  const rect_of = (index: number): Rect => {
+    const node = button_refs.current[index];
+
+    if (!node) return EMPTY_RECT;
+
+    return { left: node.offsetLeft, width: node.offsetWidth };
+  };
+
+  const measure_active = useCallback(() => {
+    const node = button_refs.current[active_index];
+
+    if (!node) return;
+
+    set_active_rect((current) =>
+      current.left === node.offsetLeft && current.width === node.offsetWidth
+        ? current
+        : { left: node.offsetLeft, width: node.offsetWidth },
+    );
+  }, [active_index]);
+
+  useLayoutEffect(() => {
+    measure_active();
+  }, [measure_active, tabs]);
+
+  const measure_overflow = useCallback(() => {
+    const scroller = scroller_ref.current;
+
+    if (!scroller) return;
+
+    const max_scroll = scroller.scrollWidth - scroller.clientWidth;
+    const position = Math.abs(scroller.scrollLeft);
+    const start = max_scroll > 1 && position > 1;
+    const end = max_scroll > 1 && position < max_scroll - 1;
+    const rtl = getComputedStyle(scroller).direction === "rtl";
+
+    set_overflow((current) =>
+      current.start === start && current.end === end && current.rtl === rtl
+        ? current
+        : { start, end, rtl },
+    );
+  }, []);
+
+  useEffect(() => {
+    const row = row_ref.current;
+    const scroller = scroller_ref.current;
+
+    if (!row || !scroller || typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(() => {
+      measure_active();
+      measure_overflow();
+    });
+
+    observer.observe(row);
+    observer.observe(scroller);
+
+    return () => observer.disconnect();
+  }, [measure_active, measure_overflow]);
+
+  useEffect(() => {
+    const scroller = scroller_ref.current;
+
+    if (!scroller) return;
+
+    const handle_wheel = (event: WheelEvent) => {
+      if (scroller.scrollWidth <= scroller.clientWidth) return;
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+
+      const max_scroll = scroller.scrollWidth - scroller.clientWidth;
+      const position = Math.abs(scroller.scrollLeft);
+
+      if (
+        (event.deltaY < 0 && position <= 0) ||
+        (event.deltaY > 0 && position >= max_scroll - 1)
+      )
+        return;
+
+      event.preventDefault();
+      scroller.scrollLeft +=
+        getComputedStyle(scroller).direction === "rtl"
+          ? -event.deltaY
+          : event.deltaY;
+    };
+
+    scroller.addEventListener("wheel", handle_wheel, { passive: false });
+
+    return () => scroller.removeEventListener("wheel", handle_wheel);
+  }, []);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      has_rendered_ref.current = true;
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  const point_at = (index: number) => {
+    set_hover_rect(rect_of(index));
+    set_hover_visible(true);
+  };
+
+  const is_keyboard_focus = (node: HTMLElement) => {
+    try {
+      return node.matches(":focus-visible");
+    } catch {
+      return false;
+    }
+  };
+
+  const reveal = useCallback((index: number) => {
+    const scroller = scroller_ref.current;
+    const node = button_refs.current[index];
+
+    if (!scroller || !node) return;
+
+    const left = node.offsetLeft;
+    const right = left + node.offsetWidth;
+    const view_start = scroller.scrollLeft;
+    const view_end = view_start + scroller.clientWidth;
+
+    if (left < view_start + 16) {
+      scroller.scrollTo({ left: Math.max(0, left - 16), behavior: "smooth" });
+
+      return;
+    }
+
+    if (right > view_end - 16) {
+      scroller.scrollTo({
+        left: right - scroller.clientWidth + 16,
+        behavior: "smooth",
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    reveal(active_index);
+  }, [active_index, reveal]);
+
+  const select = (index: number) => {
+    const tab = tabs[index];
+
+    if (!tab) return;
+
+    on_change(tab.key);
+    button_refs.current[index]?.focus();
+  };
+
+  const handle_key = (event: ReactKeyboardEvent, index: number) => {
+    if (tabs.length === 0) return;
+
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      event.preventDefault();
+      select((index + 1) % tabs.length);
+
+      return;
+    }
+
+    if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      event.preventDefault();
+      select((index - 1 + tabs.length) % tabs.length);
+
+      return;
+    }
+
+    if (event.key === "Home") {
+      event.preventDefault();
+      select(0);
+
+      return;
+    }
+
+    if (event.key === "End") {
+      event.preventDefault();
+      select(tabs.length - 1);
+    }
+  };
+
+  const motion = has_rendered_ref.current
+    ? "transform 180ms cubic-bezier(0.32, 0.72, 0, 1), width 180ms cubic-bezier(0.32, 0.72, 0, 1), opacity 140ms ease"
+    : "opacity 140ms ease";
+
+  return (
+    <div className={class_name}>
+      <div
+        ref={scroller_ref}
+        className="max-w-full overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={{
+          maskImage: `linear-gradient(to ${overflow.rtl ? "left" : "right"}, ${overflow.start ? "transparent" : "#000"}, #000 32px, #000 calc(100% - 32px), ${overflow.end ? "transparent" : "#000"})`,
+        }}
+        onScroll={measure_overflow}
+      >
+        <div
+          ref={row_ref}
+          className="relative inline-flex items-center gap-0.5 rounded-full p-1 bg-[color-mix(in_srgb,var(--text-primary)_6%,var(--bg-primary))]"
+          role="tablist"
+          onPointerCancel={() => {
+            pointer_inside_ref.current = false;
+            set_hover_visible(false);
+          }}
+          onPointerLeave={() => {
+            pointer_inside_ref.current = false;
+            set_hover_visible(false);
+          }}
+        >
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1 bottom-1 start-0 rounded-full bg-[color-mix(in_srgb,var(--text-primary)_5%,transparent)]"
+            style={{
+              width: hover_rect.width,
+              transform: `translateX(${hover_rect.left}px)`,
+              opacity: hover_visible ? 1 : 0,
+              transition: motion,
+            }}
+          />
+          {tabs.map(({ key, label, icon }, index) => {
+            const selected = active === key;
+
+            return (
+              <button
+                key={key}
+                ref={(node) => {
+                  button_refs.current[index] = node;
+                }}
+                aria-selected={selected}
+                className={`relative z-[1] flex h-9 md:h-8 items-center gap-2 rounded-full px-4 text-[14px] font-medium whitespace-nowrap transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent-color)_50%,transparent)] ${
+                  selected ? "text-txt-primary" : "text-txt-muted"
+                }`}
+                role="tab"
+                tabIndex={selected ? 0 : -1}
+                type="button"
+                onBlur={() => {
+                  if (pointer_inside_ref.current) return;
+                  set_hover_visible(false);
+                }}
+                onClick={() => on_change(key)}
+                onFocus={(event) => {
+                  if (!is_keyboard_focus(event.currentTarget)) return;
+                  point_at(index);
+                }}
+                onKeyDown={(event) => handle_key(event, index)}
+                onPointerEnter={(event) => {
+                  if (event.pointerType !== "mouse") return;
+                  pointer_inside_ref.current = true;
+                  point_at(index);
+                }}
+              >
+                {icon}
+                {label}
+              </button>
+            );
+          })}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1 bottom-1 start-0 rounded-full bg-[var(--bg-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.12)] dark:bg-[color-mix(in_srgb,var(--text-primary)_15%,var(--bg-primary))] dark:shadow-none"
+            style={{
+              width: active_rect.width,
+              transform: `translateX(${active_rect.left}px)`,
+              opacity: active_rect.width > 0 ? 1 : 0,
+              transition: motion,
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}

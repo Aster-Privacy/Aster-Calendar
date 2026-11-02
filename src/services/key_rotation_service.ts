@@ -1,0 +1,528 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { load_openpgp } from "@/services/crypto/openpgp_loader";
+import { user_facing_error } from "@/utils/user_facing_error";
+import { HASH_ALG } from "@/services/crypto/constants";
+import {
+  type EncryptedVault,
+  generate_identity_keypair,
+  generate_signed_prekey,
+  encrypt_vault,
+  decrypt_vault,
+} from "@/services/crypto/key_manager";
+import { get_stored_encrypted_vault } from "@/contexts/auth/session_passphrase";
+import { retain_previous_ratchet_keys } from "@/services/crypto/key_manager_core";
+import { MASTER_KEY_VAULT_FORMAT } from "@/services/crypto/memory_key_store";
+import {
+  parse_ratchet_envelope,
+  decrypt_ratchet_message,
+  generate_ratchet_keys,
+  upload_prekey_bundle,
+} from "@/services/crypto/ratchet_manager";
+import { clear_all_ratchet_states } from "@/services/crypto/ratchet_state_store";
+import { collect_vault_key_fingerprints } from "@/services/crypto/vault_key_fingerprints";
+import {
+  get_identity_key_status,
+  rotate_identity_key,
+  type RotateIdentityKeyRequest,
+} from "@/services/api/key_rotation";
+import {
+  type UserPreferences,
+  derive_preferences_key_raw,
+  derive_dev_mode_key_raw,
+} from "@/services/api/preferences";
+import {
+  prepend_kek_to_list,
+  serialize_kek_for_vault,
+} from "@/services/crypto/legacy_keks";
+import { with_aes_kw_fallback } from "@/services/crypto/webcrypto_aes_kw";
+import { ignore_error } from "@/lib/ignore_error";
+
+export interface RotationCheckResult {
+  needs_rotation: boolean;
+  key_age_hours: number | null;
+  key_fingerprint: string | null;
+  current_public_key: string | null;
+  error?: string;
+}
+
+export interface RotationResult {
+  success: boolean;
+  new_vault?: EncryptedVault;
+  encrypted_vault?: string;
+  vault_nonce?: string;
+  new_fingerprint?: string;
+  bundle_published?: boolean;
+  error?: string;
+  error_code?: string;
+}
+
+/*
+ * Rotation re-encrypts the vault with whatever password is supplied, so a
+ * typo here would lock the user out at their next login. The stored
+ * encrypted vault (refreshed at every login) is the authoritative check;
+ * the identity key passphrase is the fallback when no local copy exists.
+ */
+export async function verify_vault_password(
+  user_id: string,
+  vault: EncryptedVault,
+  password: string,
+): Promise<boolean> {
+  const stored = get_stored_encrypted_vault(user_id);
+
+  if (stored) {
+    try {
+      await decrypt_vault(stored.encrypted_vault, stored.vault_nonce, password);
+
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  const openpgp = await load_openpgp();
+
+  try {
+    await openpgp.decryptKey({
+      ["privateKey" as const]: await openpgp.readPrivateKey({
+        armoredKey: vault.identity_key,
+      }),
+      passphrase: password,
+    });
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function array_to_base64(arr: Uint8Array): string {
+  let binary = "";
+
+  for (let i = 0; i < arr.length; i++) {
+    binary += String.fromCharCode(arr[i]);
+  }
+
+  return btoa(binary);
+}
+
+async function compute_rotation_proof(
+  current_key_hash: Uint8Array,
+  new_key_bytes: Uint8Array,
+): Promise<string> {
+  const combined = new Uint8Array(
+    current_key_hash.length + new_key_bytes.length,
+  );
+
+  combined.set(current_key_hash, 0);
+  combined.set(new_key_bytes, current_key_hash.length);
+
+  const hash = await crypto.subtle.digest(HASH_ALG, combined);
+
+  return array_to_base64(new Uint8Array(hash));
+}
+
+async function compute_key_hash(public_key: string): Promise<Uint8Array> {
+  const encoder = new TextEncoder();
+  const key_bytes = encoder.encode(public_key);
+  const hash = await crypto.subtle.digest(HASH_ALG, key_bytes);
+
+  return new Uint8Array(hash);
+}
+
+async function sign_new_identity_key(
+  current_identity_key: string,
+  password: string,
+  new_key_bytes: Uint8Array,
+): Promise<string | null> {
+  const openpgp = await load_openpgp();
+
+  try {
+    const signing_key = await openpgp.decryptKey({
+      privateKey: await openpgp.readPrivateKey({
+        armoredKey: current_identity_key,
+      }),
+      passphrase: password,
+    });
+
+    const message = await openpgp.createMessage({ binary: new_key_bytes });
+    const detached = await openpgp.sign({
+      message,
+      signingKeys: signing_key,
+      detached: true,
+      format: "armored",
+    });
+
+    return btoa(String(detached));
+  } catch {
+    return null;
+  }
+}
+
+export async function check_rotation_needed(
+  preferences: UserPreferences,
+): Promise<RotationCheckResult> {
+  if (!preferences.forward_secrecy_enabled) {
+    return {
+      needs_rotation: false,
+      key_age_hours: null,
+      key_fingerprint: null,
+      current_public_key: null,
+    };
+  }
+
+  try {
+    const response = await get_identity_key_status();
+
+    if (response.error || !response.data) {
+      return {
+        needs_rotation: false,
+        key_age_hours: null,
+        key_fingerprint: null,
+        current_public_key: null,
+        error: response.error ?? "Failed to get key status",
+      };
+    }
+
+    const { key_age_hours, key_fingerprint, current_public_key } =
+      response.data;
+
+    if (key_age_hours === null) {
+      return {
+        needs_rotation: false,
+        key_age_hours: null,
+        key_fingerprint: null,
+        current_public_key: null,
+      };
+    }
+
+    const needs_rotation = key_age_hours >= preferences.key_rotation_hours;
+
+    return {
+      needs_rotation,
+      key_age_hours,
+      key_fingerprint,
+      current_public_key,
+    };
+  } catch (error) {
+    return {
+      needs_rotation: false,
+      key_age_hours: null,
+      key_fingerprint: null,
+      current_public_key: null,
+      error: user_facing_error(error, "Unknown error"),
+    };
+  }
+}
+
+export async function perform_key_rotation(
+  current_vault: EncryptedVault,
+  password: string,
+  user_email: string,
+  user_name: string,
+  key_history_limit: number,
+  server_public_key: string,
+): Promise<RotationResult> {
+  try {
+    const current_public_key = atob(server_public_key);
+    const current_key_hash = await compute_key_hash(current_public_key);
+
+    const new_keypair = await generate_identity_keypair(
+      user_name,
+      user_email,
+      password,
+    );
+
+    const { keypair: new_prekey, signature: prekey_signature } =
+      await generate_signed_prekey(
+        user_name,
+        user_email,
+        password,
+        new_keypair.secret_key,
+      );
+
+    const old_identity_key = current_vault.identity_key;
+    const old_prefs_key_raw =
+      await derive_preferences_key_raw(old_identity_key);
+    const old_dev_mode_key_raw =
+      await derive_dev_mode_key_raw(old_identity_key);
+    const old_folder_material = new TextEncoder().encode(
+      old_identity_key + "astermail-labels-v1",
+    );
+    const old_folder_hash = new Uint8Array(
+      await crypto.subtle.digest(HASH_ALG, old_folder_material),
+    );
+    const old_tag_material = new TextEncoder().encode(
+      old_identity_key + "astermail-tags-v1",
+    );
+    const old_tag_hash = new Uint8Array(
+      await crypto.subtle.digest(HASH_ALG, old_tag_material),
+    );
+
+    let previous_keys = current_vault.previous_keys
+      ? [...current_vault.previous_keys]
+      : [];
+
+    previous_keys.unshift(old_identity_key);
+
+    if (key_history_limit > 0 && previous_keys.length > key_history_limit) {
+      previous_keys = previous_keys.slice(0, key_history_limit);
+    }
+
+    let legacy_keks = current_vault.legacy_keks;
+
+    legacy_keks = prepend_kek_to_list(
+      legacy_keks,
+      serialize_kek_for_vault(old_prefs_key_raw),
+    );
+    legacy_keks = prepend_kek_to_list(
+      legacy_keks,
+      serialize_kek_for_vault(old_dev_mode_key_raw),
+    );
+    legacy_keks = prepend_kek_to_list(
+      legacy_keks,
+      serialize_kek_for_vault(old_folder_hash),
+    );
+    legacy_keks = prepend_kek_to_list(
+      legacy_keks,
+      serialize_kek_for_vault(old_tag_hash),
+    );
+
+    const new_ratchet_keys = await generate_ratchet_keys();
+
+    if (!new_ratchet_keys) {
+      return {
+        success: false,
+        error: "Failed to generate ratchet keys",
+      };
+    }
+
+    const new_vault: EncryptedVault = {
+      ...current_vault,
+      identity_key: new_keypair.secret_key,
+      previous_keys,
+      signed_prekey: new_prekey.public_key,
+      signed_prekey_private: new_prekey.secret_key,
+      legacy_keks,
+      ratchet_identity_key: new_ratchet_keys.identity_jwk,
+      ratchet_identity_public: new_ratchet_keys.identity_public,
+      ratchet_signed_prekey: new_ratchet_keys.signed_prekey_jwk,
+      ratchet_signed_prekey_public: new_ratchet_keys.signed_prekey_public,
+      ratchet_pq_identity_key: new_ratchet_keys.pq_identity_secret,
+      ratchet_pq_identity_public: new_ratchet_keys.pq_identity_public,
+      ratchet_pq_identity_seed: new_ratchet_keys.pq_identity_seed,
+      ratchet_previous_keys: retain_previous_ratchet_keys(current_vault),
+      ratchet_regen_v4_done: true,
+    };
+
+    const { encrypted_vault, vault_nonce } = await encrypt_vault(
+      new_vault,
+      password,
+    );
+
+    const new_key_bytes = new TextEncoder().encode(new_keypair.public_key);
+    const rotation_proof = await compute_rotation_proof(
+      current_key_hash,
+      new_key_bytes,
+    );
+
+    const prekey_id_bytes = new Uint32Array(1);
+
+    crypto.getRandomValues(prekey_id_bytes);
+    const prekey_id = prekey_id_bytes[0] % 2147483647;
+
+    const rotation_signature_pgp = await sign_new_identity_key(
+      current_vault.identity_key,
+      password,
+      new_key_bytes,
+    );
+
+    const request: RotateIdentityKeyRequest = {
+      new_identity_key: btoa(new_keypair.public_key),
+      rotation_signature: rotation_proof,
+      ...(rotation_signature_pgp ? { rotation_signature_pgp } : {}),
+      new_signed_prekey: btoa(new_prekey.public_key),
+      new_signed_prekey_id: prekey_id,
+      new_signed_prekey_signature: btoa(prekey_signature),
+      encrypted_vault,
+      vault_nonce,
+      vault_format: current_vault.data_kek
+        ? MASTER_KEY_VAULT_FORMAT
+        : (new_vault.vault_format ?? 1),
+    };
+
+    const vault_key_fingerprints =
+      await collect_vault_key_fingerprints(new_vault);
+
+    if (vault_key_fingerprints.length) {
+      request.vault_key_fingerprints = vault_key_fingerprints;
+    }
+
+    const response = await rotate_identity_key(request);
+
+    if (response.error || !response.data?.success) {
+      return {
+        success: false,
+        error: response.error ?? "Rotation failed",
+        error_code: response.error_code,
+      };
+    }
+
+    /*
+     * The server has committed the new key and vault at this point, so the
+     * rotation must be reported as successful even if the bundle publish
+     * fails - failing here used to strand the client on the old vault while
+     * the server held the new one, making every retry fail proof
+     * verification. ensure_ratchet_keys republishes the bundle on the next
+     * app start, so a miss self-heals.
+     */
+    let bundle_published = false;
+
+    try {
+      bundle_published = await upload_prekey_bundle(new_vault);
+
+      if (!bundle_published) {
+        bundle_published = await upload_prekey_bundle(new_vault);
+      }
+    } catch (caught) {
+      ignore_error(
+        "services/key_rotation_service:perform_key_rotation",
+        caught,
+      );
+    }
+
+    await clear_all_ratchet_states().catch((caught) =>
+      ignore_error(
+        "services/key_rotation_service:perform_key_rotation",
+        caught,
+      ),
+    );
+
+    return {
+      success: true,
+      new_vault,
+      encrypted_vault,
+      vault_nonce,
+      bundle_published,
+      new_fingerprint: response.data.new_key_fingerprint ?? undefined,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: user_facing_error(error, "Unknown rotation error"),
+    };
+  }
+}
+
+export async function get_decryption_key_for_message(
+  vault: EncryptedVault,
+  encrypted_message: string,
+  passphrase: string,
+): Promise<string | null> {
+  const keys_to_try = [vault.identity_key, ...(vault.previous_keys ?? [])];
+  const openpgp = await load_openpgp();
+
+  for (const private_key_armored of keys_to_try) {
+    try {
+      const decrypted_key = await openpgp.decryptKey({
+        ["privateKey" as const]: await openpgp.readPrivateKey({
+          armoredKey: private_key_armored,
+        }),
+        passphrase,
+      });
+
+      await with_aes_kw_fallback(async () =>
+        openpgp.decrypt({
+          message: await openpgp.readMessage({
+            armoredMessage: encrypted_message,
+          }),
+          decryptionKeys: decrypted_key,
+        }),
+      );
+
+      return private_key_armored;
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+export async function decrypt_with_key_fallback(
+  vault: EncryptedVault,
+  encrypted_message: string,
+  passphrase: string,
+  ratchet_context?: {
+    our_email: string;
+    sender_email: string;
+    message_id?: string;
+  },
+): Promise<{ decrypted: string; used_key_index: number } | null> {
+  if (ratchet_context) {
+    const envelope = parse_ratchet_envelope(encrypted_message);
+
+    if (envelope) {
+      const decrypted = await decrypt_ratchet_message(
+        ratchet_context.our_email,
+        ratchet_context.sender_email,
+        envelope,
+        vault,
+        ratchet_context.message_id,
+      );
+
+      if (decrypted) {
+        return { decrypted, used_key_index: -1 };
+      }
+
+      return null;
+    }
+  }
+
+  const keys_to_try = [vault.identity_key, ...(vault.previous_keys ?? [])];
+  const openpgp = await load_openpgp();
+
+  for (let i = 0; i < keys_to_try.length; i++) {
+    try {
+      const decrypted_key = await openpgp.decryptKey({
+        ["privateKey" as const]: await openpgp.readPrivateKey({
+          armoredKey: keys_to_try[i],
+        }),
+        passphrase,
+      });
+
+      const { data } = await with_aes_kw_fallback(async () =>
+        openpgp.decrypt({
+          message: await openpgp.readMessage({
+            armoredMessage: encrypted_message,
+          }),
+          decryptionKeys: decrypted_key,
+        }),
+      );
+
+      return { decrypted: data.toString(), used_key_index: i };
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}

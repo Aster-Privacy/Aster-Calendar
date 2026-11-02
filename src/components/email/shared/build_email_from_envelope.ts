@@ -1,0 +1,285 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { DecryptedEnvelope, UnsubscribeInfo } from "@/types/email";
+import type { DecryptedThreadMessage } from "@/types/thread";
+
+import { get_email_username } from "@/lib/utils";
+import { is_html_content } from "@/lib/html_text";
+import { get_active_translations } from "@/lib/i18n/translations";
+import {
+  try_decrypt_ratchet_body,
+  try_decrypt_pgp_body,
+  try_extract_mime_body,
+  extract_subject_bundle,
+  unwrap_bundle_html,
+  is_ratchet_envelope,
+  is_password_protected_body,
+  is_ratchet_verified_body,
+} from "@/utils/email_crypto";
+import { detect_unsubscribe_info } from "@/utils/unsubscribe_detector";
+import { resolve_forwarding_display } from "@/utils/forwarding_alias";
+import { build_body_preview } from "@/utils/preview_text";
+import { ignore_error } from "@/lib/ignore_error";
+
+export interface ProcessedEnvelope {
+  body_text: string;
+  safe_html: string | undefined;
+  unsubscribe_info: UnsubscribeInfo | undefined;
+  e2e_verified: boolean;
+}
+
+function as_displayable(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value) return undefined;
+  if (is_ratchet_envelope(value)) return undefined;
+  if (value.includes("-----BEGIN PGP MESSAGE-----")) return undefined;
+
+  return value;
+}
+
+export function raw_envelope_body(
+  envelope: DecryptedEnvelope,
+): ProcessedEnvelope {
+  return {
+    body_text:
+      as_displayable(envelope?.body_text) ??
+      as_displayable(envelope?.text_body) ??
+      "",
+    safe_html:
+      as_displayable(envelope?.body_html) ??
+      as_displayable(envelope?.html_body),
+    unsubscribe_info: undefined,
+    e2e_verified: false,
+  };
+}
+
+export async function process_envelope_body(
+  envelope: DecryptedEnvelope,
+  user_email?: string,
+  message_id?: string,
+  dkim_result?: string,
+): Promise<ProcessedEnvelope> {
+  try {
+    return await resolve_envelope_body(
+      envelope,
+      user_email,
+      message_id,
+      dkim_result,
+    );
+  } catch (caught) {
+    ignore_error(
+      "components/email/shared/build_email_from_envelope:process",
+      caught,
+    );
+
+    return raw_envelope_body(envelope);
+  }
+}
+
+async function resolve_envelope_body(
+  envelope: DecryptedEnvelope,
+  user_email?: string,
+  message_id?: string,
+  dkim_result?: string,
+): Promise<ProcessedEnvelope> {
+  let resolved_html = envelope.body_html || envelope.html_body || undefined;
+
+  if (resolved_html && /^content-type\s*:/im.test(resolved_html)) {
+    resolved_html = try_extract_mime_body(resolved_html) || undefined;
+  }
+
+  if (is_ratchet_envelope(resolved_html)) {
+    resolved_html = undefined;
+  }
+  const resolved_text = envelope.body_text ?? envelope.text_body ?? "";
+
+  let body_text = user_email
+    ? await try_decrypt_ratchet_body(
+        resolved_text,
+        user_email,
+        envelope.from.email,
+        message_id,
+      )
+    : resolved_text;
+
+  const e2e_verified = is_ratchet_verified_body(resolved_text, body_text);
+  const pre_pgp_text = body_text;
+
+  body_text = await try_decrypt_pgp_body(body_text);
+
+  if (is_password_protected_body(body_text)) {
+    return {
+      body_text,
+      safe_html: undefined,
+      unsubscribe_info: undefined,
+      e2e_verified,
+    };
+  }
+
+  const pre_mime_text = body_text;
+
+  body_text = try_extract_mime_body(body_text);
+  const mime_extracted = body_text !== pre_mime_text;
+
+  const bundle = extract_subject_bundle(body_text);
+
+  if (bundle.subject !== null) {
+    body_text = bundle.body;
+    if (!envelope.subject) {
+      envelope.subject = bundle.subject;
+    }
+  }
+
+  const pgp_was_decrypted = body_text !== pre_pgp_text;
+  const html_has_pgp =
+    resolved_html?.includes("-----BEGIN PGP MESSAGE-----") ?? false;
+  const text_had_pgp =
+    pre_pgp_text.includes("-----BEGIN PGP MESSAGE-----") && pgp_was_decrypted;
+  const content_is_html = is_html_content(body_text);
+  const decrypted_is_html =
+    (html_has_pgp || text_had_pgp) && pgp_was_decrypted && content_is_html;
+  let safe_html: string | undefined =
+    mime_extracted && content_is_html
+      ? body_text
+      : html_has_pgp || text_had_pgp
+        ? decrypted_is_html
+          ? body_text
+          : undefined
+        : resolved_html;
+
+  if (is_ratchet_envelope(safe_html)) {
+    safe_html = undefined;
+  }
+
+  if (
+    is_ratchet_envelope(resolved_text) &&
+    !is_ratchet_envelope(body_text) &&
+    !safe_html
+  ) {
+    safe_html = body_text;
+  }
+
+  const html_bundle = unwrap_bundle_html(safe_html);
+
+  safe_html = html_bundle.html;
+  if (html_bundle.subject !== null && !envelope.subject) {
+    envelope.subject = html_bundle.subject;
+  }
+
+  let unsubscribe: UnsubscribeInfo | null | undefined;
+
+  try {
+    unsubscribe = detect_unsubscribe_info(resolved_html || "", body_text, {
+      list_unsubscribe: envelope.list_unsubscribe,
+      list_unsubscribe_post: envelope.list_unsubscribe_post,
+      dkim_result,
+    });
+  } catch (caught) {
+    ignore_error(
+      "components/email/shared/build_email_from_envelope:unsubscribe",
+      caught,
+    );
+  }
+
+  return {
+    body_text,
+    safe_html,
+    unsubscribe_info: unsubscribe ?? undefined,
+    e2e_verified,
+  };
+}
+
+export function build_preview_text(
+  body_text: string,
+  safe_html: string | undefined,
+): string {
+  if (is_password_protected_body(body_text)) return "";
+
+  return build_body_preview(body_text, safe_html ?? "");
+}
+
+export function build_single_thread_message(
+  item: {
+    id: string;
+    item_type: string;
+    message_ts?: string;
+    created_at: string;
+    is_external: boolean;
+    system_origin?: boolean;
+    sender_verified?: boolean;
+    sender_verified_domain?: string;
+    has_recipient_key?: boolean;
+    encrypted_metadata?: string;
+    metadata_nonce?: string;
+    message_group_id?: string;
+    reactions?: DecryptedThreadMessage["reactions"];
+    spf_result?: string;
+    dkim_result?: string;
+    dmarc_result?: string;
+  },
+  envelope: DecryptedEnvelope,
+  body_text: string,
+  safe_html: string | undefined,
+  decrypted_metadata: { is_read?: boolean; is_starred?: boolean } | null,
+  e2e_verified = false,
+): DecryptedThreadMessage {
+  const forwarding = resolve_forwarding_display(
+    envelope.from,
+    envelope.raw_headers,
+    item,
+  );
+
+  return {
+    id: item.id,
+    item_type: item.item_type as "received" | "sent" | "draft",
+    sender_name:
+      envelope.from.name ||
+      get_email_username(envelope.from.email) ||
+      get_active_translations().common.unknown_sender,
+    sender_email: envelope.from.email || "",
+    ...(forwarding ?? {}),
+    subject: envelope.subject || "",
+    body: body_text || "",
+    html_content: safe_html,
+    timestamp: item.message_ts || item.created_at,
+    is_read: decrypted_metadata?.is_read ?? false,
+    is_starred: decrypted_metadata?.is_starred ?? false,
+    is_deleted: false,
+    is_external: item.is_external,
+    system_origin: item.system_origin,
+    e2e_verified,
+    sender_verified_domain: item.sender_verified
+      ? item.sender_verified_domain
+      : undefined,
+    has_recipient_key: item.has_recipient_key,
+    encrypted_metadata: item.encrypted_metadata,
+    metadata_nonce: item.metadata_nonce,
+    to_recipients: envelope.to || [],
+    cc_recipients: envelope.cc || [],
+    bcc_recipients: envelope.bcc || [],
+    raw_headers: envelope.raw_headers,
+    sender_verification: envelope.sender_verification,
+    message_group_id: item.message_group_id,
+    reactions: item.reactions,
+    spf_result: item.spf_result,
+    dkim_result: item.dkim_result,
+    dmarc_result: item.dmarc_result,
+  };
+}

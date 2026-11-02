@@ -1,0 +1,157 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import {
+  list_mail_items,
+  list_encrypted_mail_items,
+  type MailItem,
+} from "@/services/api/mail";
+import {
+  decrypt_mail_metadata,
+  extract_metadata_from_server,
+} from "@/services/crypto/mail_metadata";
+import { yield_to_browser } from "@/lib/scheduling";
+
+export const SCAN_PAGE_SIZE = 150;
+export const SCAN_ITEM_CAP = 5000;
+export const FULL_MAILBOX_ITEM_CAP = 50000;
+export const DECRYPT_YIELD_CHUNK = 25;
+
+export interface ScanReceivedResult {
+  items: MailItem[];
+  reached_cap: boolean;
+  failed: boolean;
+}
+
+export async function decrypt_items_metadata_for_action(
+  items: MailItem[],
+  signal?: AbortSignal,
+): Promise<void> {
+  let processed = 0;
+
+  for (const item of items) {
+    if (signal?.aborted) return;
+
+    processed += 1;
+    if (processed % DECRYPT_YIELD_CHUNK === 0) await yield_to_browser();
+
+    if (item.metadata) continue;
+
+    if (!item.encrypted_metadata || !item.metadata_nonce) {
+      item.metadata = extract_metadata_from_server(null, item);
+      continue;
+    }
+
+    let decrypted = null;
+
+    try {
+      decrypted = await decrypt_mail_metadata(
+        item.encrypted_metadata,
+        item.metadata_nonce,
+        item.metadata_version,
+      );
+    } catch {
+      decrypted = null;
+    }
+
+    item.metadata = extract_metadata_from_server(decrypted, item);
+  }
+}
+
+interface PageResponse {
+  data?: { items?: MailItem[]; next_cursor?: string };
+}
+
+export type ScanProgress = (page_count: number, has_more: boolean) => void;
+
+async function scan_pages(
+  fetch_page: (cursor?: string) => Promise<PageResponse>,
+  signal?: AbortSignal,
+  on_progress?: ScanProgress,
+  item_cap: number = SCAN_ITEM_CAP,
+): Promise<ScanReceivedResult> {
+  const items: MailItem[] = [];
+  let cursor: string | undefined;
+  let reached_cap = false;
+  let failed = false;
+  let page_count = 0;
+
+  for (;;) {
+    if (signal?.aborted) break;
+
+    const response = await fetch_page(cursor);
+
+    if (!response.data?.items) {
+      failed = true;
+      break;
+    }
+
+    items.push(...response.data.items);
+    cursor = response.data.next_cursor;
+    page_count += 1;
+
+    if (items.length >= item_cap) {
+      items.length = item_cap;
+      reached_cap = true;
+      cursor = undefined;
+    }
+
+    on_progress?.(page_count, Boolean(cursor));
+
+    if (!cursor) break;
+
+    await yield_to_browser();
+  }
+
+  return { items, reached_cap, failed };
+}
+
+export function scan_received_items(
+  signal?: AbortSignal,
+  on_progress?: ScanProgress,
+  item_cap?: number,
+): Promise<ScanReceivedResult> {
+  return scan_pages(
+    (cursor) =>
+      list_mail_items({
+        item_type: "received",
+        limit: SCAN_PAGE_SIZE,
+        ...(cursor ? { cursor } : {}),
+      }),
+    signal,
+    on_progress,
+    item_cap,
+  );
+}
+
+export function scan_encrypted_items(
+  signal?: AbortSignal,
+  on_progress?: ScanProgress,
+): Promise<ScanReceivedResult> {
+  return scan_pages(
+    (cursor) =>
+      list_encrypted_mail_items({
+        limit: SCAN_PAGE_SIZE,
+        ...(cursor ? { cursor } : {}),
+      }),
+    signal,
+    on_progress,
+  );
+}

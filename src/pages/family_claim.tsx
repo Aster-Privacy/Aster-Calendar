@@ -1,0 +1,302 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
+import { LinkIcon } from "@heroicons/react/24/outline";
+
+import { copy_text_or_throw } from "@/utils/copy_text";
+import { ErrorBoundary } from "@/components/ui/error_boundary";
+import { LoadFailedNotice } from "@/components/settings/load_failed_notice";
+import { Spinner } from "@/components/ui/spinner";
+import { use_registration } from "@/components/register/hooks/use_registration";
+import { RegisterStepPassword } from "@/components/register/register_step_password";
+import { RegisterStepKeys } from "@/components/register/register_step_keys";
+import {
+  RegisterStepRecoveryCodes,
+  RegisterStepRecoveryEmail,
+  RegisterStepRecoveryEmailVerification,
+  RegisterStepRecoveryEmailGate,
+} from "@/components/register/register_step_recovery";
+import { preview_claim } from "@/services/api/family";
+import { use_i18n } from "@/lib/i18n/context";
+import { use_auth_safe } from "@/contexts/auth_context";
+import { show_toast } from "@/components/toast/simple_toast";
+import { DesktopSignUpHandoff } from "@/pages/desktop_sign_up_handoff";
+import { is_tauri } from "@/native/desktop_device_auth";
+import { public_web_url } from "@/lib/public_origin";
+
+const TRANSIENT_ERROR_CODES = [
+  "NETWORK_ERROR",
+  "TIMEOUT_ERROR",
+  "SERVER_ERROR",
+];
+
+type Preview =
+  | { state: "loading" }
+  | { state: "error" }
+  | { state: "load_failed" }
+  | { state: "ready"; username: string; domain: "astermail.org" | "aster.cx" };
+
+function ClaimFlow({
+  token,
+  username,
+  domain,
+}: {
+  token: string;
+  username: string;
+  domain: "astermail.org" | "aster.cx";
+}) {
+  const reg = use_registration({
+    claim_token: token,
+    claim_username: username,
+    claim_domain: domain,
+  });
+
+  const render_step_content = () => {
+    switch (reg.step) {
+      case "password":
+        return <RegisterStepPassword reg={reg} />;
+      case "generating":
+        return <RegisterStepKeys reg={reg} />;
+      case "recovery_key":
+        return <RegisterStepRecoveryCodes reg={reg} />;
+      case "recovery_email":
+        return <RegisterStepRecoveryEmail reg={reg} />;
+      case "recovery_email_verification":
+        return <RegisterStepRecoveryEmailVerification reg={reg} />;
+      case "recovery_email_gate":
+        return <RegisterStepRecoveryEmailGate reg={reg} />;
+      default:
+        return <RegisterStepPassword reg={reg} />;
+    }
+  };
+
+  return (
+    <div className="w-full flex flex-col items-center">
+      <ErrorBoundary>
+        <AnimatePresence mode="wait">{render_step_content()}</AnimatePresence>
+      </ErrorBoundary>
+    </div>
+  );
+}
+
+function SignedInPanel() {
+  const { t } = use_i18n();
+
+  const handle_copy = async () => {
+    try {
+      await copy_text_or_throw(public_web_url(window.location.href));
+      show_toast(t("settings.fam_kids_link_copied"), "success");
+    } catch {
+      show_toast(t("common.failed_to_copy"), "error");
+    }
+  };
+
+  return (
+    <div className="max-w-sm w-full space-y-5 text-center">
+      <div>
+        <h2 className="text-base font-semibold text-txt-primary">
+          {t("settings.fam_kids_claim_signed_in_title")}
+        </h2>
+        <p className="text-sm text-txt-secondary mt-2 leading-relaxed">
+          {t("settings.fam_kids_claim_signed_in_body")}
+        </p>
+      </div>
+      <button
+        className="aster_btn aster_btn_primary aster_btn_sm inline-flex items-center gap-2"
+        onClick={handle_copy}
+      >
+        <LinkIcon className="w-4 h-4" /> {t("settings.fam_kids_copy_link")}
+      </button>
+    </div>
+  );
+}
+
+export default function FamilyClaimPage() {
+  if (is_tauri()) {
+    return <DesktopSignUpHandoff />;
+  }
+
+  return <BrowserFamilyClaimPage />;
+}
+
+function BrowserFamilyClaimPage() {
+  const { token } = useParams<{ token: string }>();
+  const { t } = use_i18n();
+  const auth = use_auth_safe();
+  const auth_loading = auth?.is_loading ?? false;
+  const auth_signed_in = auth?.is_authenticated ?? false;
+  const [gate, set_gate] = useState<"unknown" | "signed_in" | "claim">(
+    "unknown",
+  );
+  const [preview, set_preview] = useState<Preview>({ state: "loading" });
+  const [reload_count, set_reload_count] = useState(0);
+
+  useEffect(() => {
+    if (gate !== "unknown" || auth_loading) return;
+    set_gate(auth_signed_in ? "signed_in" : "claim");
+  }, [gate, auth_loading, auth_signed_in]);
+
+  useEffect(() => {
+    let active = true;
+
+    if (!token) {
+      set_preview({ state: "error" });
+
+      return;
+    }
+    void (async () => {
+      const r = await preview_claim(token);
+
+      if (!active) return;
+      if (r.data) {
+        set_preview({
+          state: "ready",
+          username: r.data.username,
+          domain:
+            r.data.email_domain === "aster.cx" ? "aster.cx" : "astermail.org",
+        });
+      } else if (TRANSIENT_ERROR_CODES.includes(r.code ?? "")) {
+        set_preview({ state: "load_failed" });
+      } else {
+        set_preview({ state: "error" });
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [token, reload_count]);
+
+  const render_content = () => {
+    if (preview.state === "loading" || gate === "unknown") {
+      return (
+        <motion.div
+          key="loading"
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          initial={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+        >
+          <Spinner />
+        </motion.div>
+      );
+    }
+    if (preview.state === "load_failed") {
+      return (
+        <motion.div
+          key="load-failed"
+          animate={{ opacity: 1 }}
+          className="w-full max-w-md"
+          exit={{ opacity: 0 }}
+          initial={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+        >
+          <LoadFailedNotice
+            on_retry={() => {
+              set_preview({ state: "loading" });
+              set_reload_count((v) => v + 1);
+            }}
+          />
+        </motion.div>
+      );
+    }
+    if (preview.state === "error") {
+      return (
+        <motion.div
+          key="error"
+          animate={{ opacity: 1 }}
+          className="max-w-md text-center"
+          exit={{ opacity: 0 }}
+          initial={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+        >
+          <h1 className="text-lg font-semibold text-txt-primary">
+            {t("settings.fam_kids_claim_invalid_title")}
+          </h1>
+          <p className="text-sm text-txt-muted mt-2">
+            {t("settings.fam_kids_claim_invalid_body")}
+          </p>
+        </motion.div>
+      );
+    }
+    if (gate === "signed_in") {
+      return (
+        <motion.div
+          key="signed-in"
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          initial={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+        >
+          <SignedInPanel />
+        </motion.div>
+      );
+    }
+
+    return (
+      <motion.div
+        key="claim"
+        animate={{ opacity: 1 }}
+        className="w-full flex justify-center"
+        exit={{ opacity: 0 }}
+        initial={{ opacity: 0 }}
+        transition={{ duration: 0.15 }}
+      >
+        {token && (
+          <ClaimFlow
+            domain={preview.domain}
+            token={token}
+            username={preview.username}
+          />
+        )}
+      </motion.div>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 flex flex-col transition-colors duration-200 bg-surf-primary">
+      {preview.state === "ready" && (
+        <div
+          className="w-full flex-shrink-0 text-[var(--accent-fg,#ffffff)]"
+          style={{ backgroundColor: "var(--accent-color)" }}
+        >
+          <div className="px-4 py-2 text-center">
+            <p className="text-sm font-semibold">
+              {t("settings.fam_kids_claim_setup_for", {
+                address: `${preview.username}@${preview.domain}`,
+              })}
+            </p>
+            <p className="text-xs opacity-90 mt-0.5">
+              {t("settings.fam_kids_claim_intro")}
+            </p>
+          </div>
+        </div>
+      )}
+      <div className="flex-1 overflow-y-auto">
+        <div className="min-h-full flex items-start md:items-center justify-center py-8 md:py-4 px-4">
+          <AnimatePresence mode="wait">{render_content()}</AnimatePresence>
+        </div>
+      </div>
+    </div>
+  );
+}

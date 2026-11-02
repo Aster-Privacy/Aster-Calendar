@@ -1,0 +1,759 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import * as React from "react";
+import { PlusIcon, ClockIcon } from "@heroicons/react/24/outline";
+import {
+  Button,
+  Input,
+  Island,
+  IslandEmpty,
+  IslandSection,
+  IslandStack,
+  Switch,
+} from "@aster/ui";
+
+import { commit_on_enter } from "@/lib/commit_on_enter";
+import {
+  Modal,
+  ModalHeader,
+  ModalTitle,
+  ModalDescription,
+  ModalBody,
+  ModalFooter,
+} from "@/components/ui/modal";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { use_i18n } from "@/lib/i18n/context";
+import { use_folders } from "@/hooks/use_folders";
+import { use_plan_limits } from "@/hooks/use_plan_limits";
+import { show_toast } from "@/components/toast/simple_toast";
+import { use_register_search_items } from "@/components/settings/search_context";
+import { ConfirmationModal } from "@/components/modals/confirmation_modal";
+import { LoadFailedNotice } from "@/components/settings/load_failed_notice";
+import {
+  list_retention_policies,
+  create_retention_policy,
+  update_retention_policy,
+  delete_retention_policy,
+  preview_retention_policy,
+  type RetentionPolicy,
+  type DeleteMode,
+} from "@/services/api/retention_policies";
+
+const DAY_PRESETS = [7, 30, 90, 180, 365];
+
+export interface UseFolderRetention {
+  policies: RetentionPolicy[];
+  loading: boolean;
+  load_failed: boolean;
+  reload: () => void;
+  entitled: boolean;
+  plan_loading: boolean;
+  custom_folders: { folder_token: string; name: string }[];
+  existing_tokens: string[];
+  editor_open: boolean;
+  editing: RetentionPolicy | null;
+  show_upgrade: boolean;
+  set_show_upgrade: (v: boolean) => void;
+  set_editor_open: (v: boolean) => void;
+  open_new: () => void;
+  open_edit: (p: RetentionPolicy) => void;
+  get_folder_name: (token: string) => string;
+  handle_delete: (p: RetentionPolicy) => void;
+  handle_toggle: (p: RetentionPolicy) => void;
+  handle_saved: (p: RetentionPolicy) => void;
+}
+
+export function use_folder_retention(): UseFolderRetention {
+  const { t } = use_i18n();
+  const {
+    state: folders_state,
+    fetch_folders,
+    get_folder_by_token,
+  } = use_folders();
+  const {
+    limits,
+    is_loading: plan_loading,
+    load_failed: plan_load_failed,
+  } = use_plan_limits();
+  const entitled =
+    plan_load_failed ||
+    (limits?.limits["has_folder_retention"]?.limit ?? 0) >= 1;
+
+  const [policies, set_policies] = React.useState<RetentionPolicy[]>([]);
+  const [loading, set_loading] = React.useState(true);
+  const [load_failed, set_load_failed] = React.useState(false);
+  const [editor_open, set_editor_open] = React.useState(false);
+  const [editing, set_editing] = React.useState<RetentionPolicy | null>(null);
+  const [show_upgrade, set_show_upgrade] = React.useState(false);
+
+  const load = React.useCallback(async () => {
+    set_loading(true);
+    const res = await list_retention_policies();
+
+    if (res.data) {
+      set_policies(res.data);
+      set_load_failed(false);
+    } else {
+      set_load_failed(true);
+      show_toast(t("folder_retention.load_failed"), "error");
+    }
+    set_loading(false);
+  }, [t]);
+
+  React.useEffect(() => {
+    load();
+  }, [load]);
+
+  React.useEffect(() => {
+    if (folders_state.folders.length === 0 && !folders_state.is_loading) {
+      fetch_folders();
+    }
+  }, []);
+
+  const custom_folders = React.useMemo(
+    () => folders_state.folders.filter((f) => !f.is_system),
+    [folders_state.folders],
+  );
+
+  const open_new = () => {
+    if (!plan_loading && !entitled) {
+      set_show_upgrade(true);
+
+      return;
+    }
+    set_editing(null);
+    set_editor_open(true);
+  };
+
+  const open_edit = (policy: RetentionPolicy) => {
+    if (!plan_loading && !entitled) {
+      set_show_upgrade(true);
+
+      return;
+    }
+    set_editing(policy);
+    set_editor_open(true);
+  };
+
+  const handle_delete = async (policy: RetentionPolicy) => {
+    let previous: RetentionPolicy[] = [];
+
+    set_policies((prev) => {
+      previous = prev;
+
+      return prev.filter((p) => p.id !== policy.id);
+    });
+    const res = await delete_retention_policy(policy.id);
+
+    if (res.error) {
+      show_toast(t("folder_retention.save_failed"), "error");
+      set_policies(previous);
+    } else {
+      show_toast(t("folder_retention.deleted_toast"), "success");
+    }
+  };
+
+  const handle_toggle = async (policy: RetentionPolicy) => {
+    const next = !policy.enabled;
+    let previous: RetentionPolicy[] = [];
+
+    set_policies((prev) => {
+      previous = prev;
+
+      return prev.map((p) =>
+        p.id === policy.id ? { ...p, enabled: next } : p,
+      );
+    });
+    const res = await update_retention_policy(policy.id, { enabled: next });
+
+    if (res.error) {
+      show_toast(t("folder_retention.save_failed"), "error");
+      set_policies(previous);
+    }
+  };
+
+  const handle_saved = (saved: RetentionPolicy) => {
+    set_policies((prev) => {
+      const exists = prev.some((p) => p.id === saved.id);
+
+      return exists
+        ? prev.map((p) => (p.id === saved.id ? saved : p))
+        : [...prev, saved];
+    });
+    set_editor_open(false);
+  };
+
+  const get_folder_name = (token: string) =>
+    get_folder_by_token(token)?.name ?? "—";
+
+  return {
+    policies,
+    loading,
+    load_failed,
+    reload: load,
+    entitled,
+    plan_loading,
+    custom_folders,
+    existing_tokens: policies.map((p) => p.folder_token),
+    editor_open,
+    editing,
+    show_upgrade,
+    set_show_upgrade,
+    set_editor_open,
+    open_new,
+    open_edit,
+    get_folder_name,
+    handle_delete,
+    handle_toggle,
+    handle_saved,
+  };
+}
+
+export function RetentionPolicyCard({
+  policy,
+  folder_name,
+  on_edit,
+  on_toggle,
+  on_delete,
+}: {
+  policy: RetentionPolicy;
+  folder_name: string;
+  on_edit: () => void;
+  on_toggle: () => void;
+  on_delete: () => void;
+}) {
+  const { t } = use_i18n();
+  const mode_summary =
+    policy.delete_mode === "permanent"
+      ? t("folder_retention.summary_permanent")
+      : policy.delete_mode === "archive"
+        ? t("folder_retention.summary_archive")
+        : t("folder_retention.summary_trash");
+  const summary = `${t("folder_retention.summary_older_than", {
+    days: policy.retention_days,
+  })} · ${mode_summary}`;
+
+  return (
+    <Island
+      className={`group relative transition-opacity ${
+        policy.enabled ? "" : "opacity-60"
+      }`}
+      padding="md"
+    >
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          className="flex-1 text-start min-w-0 cursor-pointer"
+          type="button"
+          onClick={on_edit}
+        >
+          <div className="flex flex-wrap items-center gap-2 mb-0.5">
+            <ClockIcon className="w-4 h-4 text-txt-tertiary flex-shrink-0" />
+            <span className="text-[13px] font-medium text-txt-primary truncate">
+              {folder_name}
+            </span>
+            <span className="aster_badge aster_badge_blue flex-shrink-0">
+              {t("folder_retention.card_badge")}
+            </span>
+            {!policy.enabled && (
+              <span className="aster_badge aster_badge_gray flex-shrink-0">
+                {t("folder_retention.disabled_badge")}
+              </span>
+            )}
+          </div>
+          <div className="text-xs text-txt-muted">{summary}</div>
+        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <Switch
+            aria-label={folder_name}
+            checked={policy.enabled}
+            size="lg"
+            onCheckedChange={on_toggle}
+          />
+          <Button variant="ghost" onClick={on_delete}>
+            {t("folder_retention.remove")}
+          </Button>
+        </div>
+      </div>
+    </Island>
+  );
+}
+
+export function RetentionUpgradeModal({
+  is_open,
+  on_close,
+}: {
+  is_open: boolean;
+  on_close: () => void;
+}) {
+  const { t } = use_i18n();
+
+  return (
+    <Modal is_open={is_open} on_close={on_close} size="md">
+      <ModalHeader>
+        <ModalTitle>{t("folder_retention.upgrade_title")}</ModalTitle>
+        <ModalDescription>
+          {t("folder_retention.upgrade_body")}
+        </ModalDescription>
+      </ModalHeader>
+      <ModalFooter>
+        <Button variant="outline" onClick={on_close}>
+          {t("common.cancel")}
+        </Button>
+        <Button
+          variant="depth"
+          onClick={() => {
+            on_close();
+            window.dispatchEvent(
+              new CustomEvent("navigate-settings", { detail: "billing" }),
+            );
+          }}
+        >
+          {t("common.upgrade_plan")}
+        </Button>
+      </ModalFooter>
+    </Modal>
+  );
+}
+
+export function FolderRetentionSection() {
+  const { t } = use_i18n();
+  const r = use_folder_retention();
+  const [confirm_delete_policy, set_confirm_delete_policy] =
+    React.useState<RetentionPolicy | null>(null);
+
+  use_register_search_items("mail_rules", [
+    {
+      label: t("folder_retention.title"),
+      breadcrumb: `${t("mail_rules.title")} > ${t("folder_retention.title")}`,
+      keywords: [
+        "auto delete",
+        "retention",
+        "expire",
+        "clean folder",
+        "older than",
+      ],
+    },
+  ]);
+
+  return (
+    <div>
+      <IslandSection
+        bare
+        description={t("folder_retention.subtitle")}
+        icon={<ClockIcon />}
+        title={t("folder_retention.title")}
+        trailing={
+          <Button variant="depth" onClick={r.open_new}>
+            <PlusIcon className="w-4 h-4" />
+            {t("folder_retention.add")}
+          </Button>
+        }
+      >
+        {r.loading && r.policies.length === 0 && (
+          <IslandStack>
+            {[0, 1].map((i) => (
+              <Island key={i} className="h-16 animate-pulse" />
+            ))}
+          </IslandStack>
+        )}
+
+        {!r.loading && r.load_failed && r.policies.length === 0 && (
+          <LoadFailedNotice on_retry={r.reload} />
+        )}
+
+        {!r.loading && !r.load_failed && r.policies.length === 0 && (
+          <IslandEmpty
+            description={t("folder_retention.empty_description")}
+            icon={<ClockIcon />}
+            title={t("folder_retention.empty_title")}
+          />
+        )}
+
+        {r.policies.length > 0 && (
+          <IslandStack>
+            {r.policies.map((policy) => (
+              <RetentionPolicyCard
+                key={policy.id}
+                folder_name={r.get_folder_name(policy.folder_token)}
+                on_delete={() => set_confirm_delete_policy(policy)}
+                on_edit={() => r.open_edit(policy)}
+                on_toggle={() => r.handle_toggle(policy)}
+                policy={policy}
+              />
+            ))}
+          </IslandStack>
+        )}
+      </IslandSection>
+
+      {r.editor_open && (
+        <RetentionEditorModal
+          custom_folders={r.custom_folders}
+          existing_tokens={r.existing_tokens}
+          is_open={r.editor_open}
+          on_close={() => r.set_editor_open(false)}
+          on_saved={r.handle_saved}
+          policy={r.editing}
+        />
+      )}
+
+      <RetentionUpgradeModal
+        is_open={r.show_upgrade}
+        on_close={() => r.set_show_upgrade(false)}
+      />
+
+      <ConfirmationModal
+        confirm_text={t("folder_retention.remove")}
+        is_open={confirm_delete_policy !== null}
+        message={t("common.action_cannot_be_undone")}
+        on_cancel={() => set_confirm_delete_policy(null)}
+        on_confirm={() => {
+          const target = confirm_delete_policy;
+
+          set_confirm_delete_policy(null);
+
+          if (target) void r.handle_delete(target);
+        }}
+        title={t("folder_retention.delete")}
+        variant="danger"
+      />
+    </div>
+  );
+}
+
+interface RetentionEditorModalProps {
+  is_open: boolean;
+  on_close: () => void;
+  policy: RetentionPolicy | null;
+  custom_folders: { folder_token: string; name: string }[];
+  existing_tokens: string[];
+  on_saved: (policy: RetentionPolicy) => void;
+}
+
+export function RetentionEditorModal({
+  is_open,
+  on_close,
+  policy,
+  custom_folders,
+  existing_tokens,
+  on_saved,
+}: RetentionEditorModalProps) {
+  const { t } = use_i18n();
+  const [folder_token, set_folder_token] = React.useState(
+    policy?.folder_token ?? "",
+  );
+  const [days, set_days] = React.useState(policy?.retention_days ?? 30);
+  const [days_input, set_days_input] = React.useState<string | null>(null);
+  const [mode, set_mode] = React.useState<DeleteMode>(
+    policy?.delete_mode ?? "trash",
+  );
+  const [enabled] = React.useState(policy?.enabled ?? true);
+  const [preview_count, set_preview_count] = React.useState<number | null>(
+    null,
+  );
+  const [saving, set_saving] = React.useState(false);
+  const [confirm_permanent, set_confirm_permanent] = React.useState(false);
+
+  const is_edit = policy !== null;
+
+  const available_folders = React.useMemo(() => {
+    if (is_edit) return custom_folders;
+    const taken = new Set(existing_tokens);
+
+    return custom_folders.filter((f) => !taken.has(f.folder_token));
+  }, [custom_folders, existing_tokens, is_edit]);
+
+  React.useEffect(() => {
+    if (!folder_token || days < 1) {
+      set_preview_count(null);
+
+      return;
+    }
+    let cancelled = false;
+    const handle = setTimeout(async () => {
+      const res = await preview_retention_policy(folder_token, days);
+
+      if (!cancelled) {
+        set_preview_count(res.data ?? null);
+      }
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [folder_token, days]);
+
+  const clamp_days = (raw: number) => {
+    if (Number.isNaN(raw)) return 1;
+
+    return Math.min(3650, Math.max(1, Math.floor(raw)));
+  };
+
+  const do_save = async () => {
+    set_confirm_permanent(false);
+    set_saving(true);
+    const res = is_edit
+      ? await update_retention_policy(policy!.id, {
+          retention_days: days,
+          delete_mode: mode,
+          enabled,
+        })
+      : await create_retention_policy({
+          folder_token,
+          retention_days: days,
+          delete_mode: mode,
+          enabled,
+        });
+
+    set_saving(false);
+    if (res.data) {
+      show_toast(t("folder_retention.saved_toast"), "success");
+      on_saved(res.data);
+    } else {
+      show_toast(t("folder_retention.save_failed"), "error");
+    }
+  };
+
+  const handle_save = () => {
+    if (!folder_token) return;
+    if (mode === "permanent") {
+      set_confirm_permanent(true);
+
+      return;
+    }
+    do_save();
+  };
+
+  return (
+    <>
+      <Modal is_open={is_open} on_close={on_close} size="md">
+        <ModalHeader>
+          <ModalTitle>{t("folder_retention.edit_title")}</ModalTitle>
+        </ModalHeader>
+        <ModalBody>
+          <div className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-txt-primary mb-1.5">
+                {t("folder_retention.folder")}
+              </label>
+              {available_folders.length === 0 ? (
+                <p className="text-xs text-txt-muted">
+                  {t("folder_retention.no_folders")}
+                </p>
+              ) : (
+                <Select
+                  disabled={is_edit}
+                  value={folder_token}
+                  onValueChange={set_folder_token}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue
+                      placeholder={t("folder_retention.select_folder")}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {available_folders.map((f) => (
+                      <SelectItem key={f.folder_token} value={f.folder_token}>
+                        {f.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-txt-primary mb-1.5">
+                {t("folder_retention.retention_period")}
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                {DAY_PRESETS.map((preset) => (
+                  <button
+                    key={preset}
+                    className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
+                      days === preset
+                        ? "bg-[var(--accent-color)] text-[var(--accent-fg,#ffffff)]"
+                        : "bg-surf-secondary text-txt-muted hover:bg-surf-tertiary"
+                    }`}
+                    type="button"
+                    onClick={() => {
+                      set_days(preset);
+                      set_days_input(null);
+                    }}
+                  >
+                    {preset}
+                  </button>
+                ))}
+                <Input
+                  className="!w-20"
+                  max={3650}
+                  min={1}
+                  size="sm"
+                  type="number"
+                  value={days_input ?? days}
+                  onBlur={(e) => {
+                    const raw = e.target.value.trim();
+
+                    if (raw !== "") set_days(clamp_days(Number(raw)));
+                    set_days_input(null);
+                  }}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+
+                    set_days_input(raw);
+
+                    const parsed = Number(raw.trim());
+
+                    if (raw.trim() !== "" && Number.isFinite(parsed)) {
+                      set_days(clamp_days(parsed));
+                    }
+                  }}
+                  onKeyDown={commit_on_enter}
+                />
+                <span className="text-sm text-txt-muted">
+                  {t("folder_retention.days_suffix")}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-txt-primary mb-1.5">
+                {t("folder_retention.mode")}
+              </label>
+              <div className="space-y-2">
+                <ModeOption
+                  active={mode === "archive"}
+                  hint={t("folder_retention.mode_archive_hint")}
+                  on_click={() => set_mode("archive")}
+                  title={t("folder_retention.mode_archive")}
+                />
+                <ModeOption
+                  active={mode === "trash"}
+                  hint={t("folder_retention.mode_trash_hint")}
+                  on_click={() => set_mode("trash")}
+                  title={t("folder_retention.mode_trash")}
+                />
+                <ModeOption
+                  danger
+                  active={mode === "permanent"}
+                  hint={t("folder_retention.mode_permanent_hint")}
+                  on_click={() => set_mode("permanent")}
+                  title={t("folder_retention.mode_permanent")}
+                />
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-surf-secondary px-3 py-2.5 text-xs text-txt-muted">
+              {preview_count === null
+                ? t("folder_retention.keeps_note")
+                : preview_count === 0
+                  ? t("folder_retention.preview_none")
+                  : t("folder_retention.preview_some", {
+                      count: preview_count,
+                    })}
+            </div>
+          </div>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="outline" onClick={on_close}>
+            {t("folder_retention.cancel")}
+          </Button>
+          <Button
+            disabled={!folder_token || saving}
+            variant="depth"
+            onClick={handle_save}
+          >
+            {t("folder_retention.save")}
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      <Modal
+        is_open={confirm_permanent}
+        on_close={() => set_confirm_permanent(false)}
+        size="md"
+      >
+        <ModalHeader>
+          <ModalTitle>{t("folder_retention.mode_permanent")}</ModalTitle>
+          <ModalDescription>
+            {t("folder_retention.permanent_confirm", { days })}
+          </ModalDescription>
+        </ModalHeader>
+        <ModalFooter>
+          <Button
+            variant="outline"
+            onClick={() => set_confirm_permanent(false)}
+          >
+            {t("folder_retention.cancel")}
+          </Button>
+          <Button disabled={saving} variant="depth" onClick={do_save}>
+            {t("folder_retention.delete")}
+          </Button>
+        </ModalFooter>
+      </Modal>
+    </>
+  );
+}
+
+interface ModeOptionProps {
+  active: boolean;
+  title: string;
+  hint: string;
+  danger?: boolean;
+  on_click: () => void;
+}
+
+function ModeOption({
+  active,
+  title,
+  hint,
+  danger,
+  on_click,
+}: ModeOptionProps) {
+  return (
+    <button
+      className={`w-full text-start rounded-[var(--aster-radius-control)] px-3 py-2.5 transition-colors ${
+        active
+          ? danger
+            ? "bg-[var(--color-danger)]"
+            : "bg-[var(--accent-color)]"
+          : "bg-surf-secondary hover:bg-surf-tertiary"
+      }`}
+      type="button"
+      onClick={on_click}
+    >
+      <div
+        className={`text-sm font-medium ${active ? "text-white" : "text-txt-primary"}`}
+      >
+        {title}
+      </div>
+      <div className={`text-xs ${active ? "text-white/80" : "text-txt-muted"}`}>
+        {hint}
+      </div>
+    </button>
+  );
+}

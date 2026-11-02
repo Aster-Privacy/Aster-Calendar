@@ -1,0 +1,418 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { EyeSlashIcon, PencilSquareIcon } from "@heroicons/react/24/outline";
+import {
+  Button,
+  Island,
+  IslandEmpty,
+  IslandRow,
+  IslandSection,
+  IslandSections,
+  PillButton,
+} from "@aster/ui";
+
+import {
+  list_ghost_aliases,
+  decrypt_ghost_aliases,
+  expire_ghost_alias,
+  extend_ghost_alias,
+  type DecryptedGhostAlias,
+} from "@/services/api/ghost_aliases";
+import { register_ghost_email } from "@/stores/ghost_alias_store";
+import { show_toast } from "@/components/toast/simple_toast";
+import { SettingsSkeleton } from "@/components/settings/settings_skeleton";
+import { InfoHint } from "@/components/settings/aliases/info_hint";
+import { INSTANT_ALIAS_DELETE_KEY } from "@/components/settings/hooks/use_aliases";
+import { ConfirmationModal } from "@/components/modals/confirmation_modal";
+import { use_i18n } from "@/lib/i18n/context";
+import { use_plan_limits } from "@/hooks/use_plan_limits";
+import { app_locale, get_display_time_zone } from "@/utils/date_format";
+
+const GHOST_ALIAS_MAX_LIFETIME_MS = 90 * 24 * 60 * 60 * 1000;
+const GHOST_ALIAS_GRACE_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
+
+function format_alias_date(date: Date): string {
+  return date.toLocaleDateString(app_locale(), {
+    timeZone: get_display_time_zone(),
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function is_at_max_extension(alias: DecryptedGhostAlias): boolean {
+  if (!alias.expires_at) return false;
+  const max_expires =
+    new Date(alias.created_at).getTime() + GHOST_ALIAS_MAX_LIFETIME_MS;
+  const current_expires = new Date(alias.expires_at).getTime();
+
+  return current_expires >= max_expires - 60_000;
+}
+
+export function GhostAliasesSection() {
+  const { t } = use_i18n();
+  const { limits } = use_plan_limits();
+  const can_expire_instantly = useMemo(
+    () =>
+      !limits || (limits.limits[INSTANT_ALIAS_DELETE_KEY]?.limit ?? 0) !== 0,
+    [limits],
+  );
+  const [aliases, set_aliases] = useState<DecryptedGhostAlias[]>([]);
+  const [loading, set_loading] = useState(true);
+  const [load_error, set_load_error] = useState(false);
+  const [action_loading, set_action_loading] = useState<string | null>(null);
+  const [too_new_info, set_too_new_info] = useState<{
+    is_open: boolean;
+    eligible_date: string | null;
+  }>({ is_open: false, eligible_date: null });
+  const [confirm_expire_info, set_confirm_expire_info] = useState<{
+    alias_id: string;
+    grace_date: string;
+  } | null>(null);
+
+  const expiring_alias_address = confirm_expire_info
+    ? aliases.find((a) => a.id === confirm_expire_info.alias_id)?.full_address
+    : undefined;
+
+  const loaded_once_ref = useRef(false);
+
+  const load_aliases = useCallback(async () => {
+    if (!loaded_once_ref.current) set_loading(true);
+    set_load_error(false);
+    try {
+      const response = await list_ghost_aliases();
+
+      if (response.data?.aliases) {
+        const decrypted = await decrypt_ghost_aliases(response.data.aliases);
+
+        decrypted.forEach((a) => register_ghost_email(a.full_address));
+        set_aliases(decrypted);
+      } else {
+        set_load_error(true);
+      }
+    } catch {
+      set_load_error(true);
+    } finally {
+      loaded_once_ref.current = true;
+      set_loading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load_aliases();
+  }, [load_aliases]);
+
+  useEffect(() => {
+    const handle_created = () => load_aliases();
+
+    window.addEventListener("astermail:ghost-alias-created", handle_created);
+
+    return () =>
+      window.removeEventListener(
+        "astermail:ghost-alias-created",
+        handle_created,
+      );
+  }, [load_aliases]);
+
+  const handle_expire = useCallback(
+    async (alias_id: string) => {
+      const alias = aliases.find((a) => a.id === alias_id);
+
+      if (alias && !can_expire_instantly) {
+        const created = new Date(alias.created_at);
+        const eligible = new Date(created.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+        if (new Date() < eligible) {
+          set_too_new_info({
+            is_open: true,
+            eligible_date: eligible.toLocaleDateString(app_locale(), {
+              timeZone: get_display_time_zone(),
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            }),
+          });
+
+          return;
+        }
+      }
+      set_confirm_expire_info({
+        alias_id,
+        grace_date: format_alias_date(
+          new Date(Date.now() + GHOST_ALIAS_GRACE_PERIOD_MS),
+        ),
+      });
+    },
+    [aliases, can_expire_instantly],
+  );
+
+  const confirm_expire = useCallback(async () => {
+    if (!confirm_expire_info) return;
+    const alias_id = confirm_expire_info.alias_id;
+
+    set_confirm_expire_info(null);
+    set_action_loading(alias_id);
+    try {
+      const result = await expire_ghost_alias(alias_id);
+
+      if (result.error) {
+        show_toast(
+          result.error || t("common.something_went_wrong_try_again"),
+          "error",
+        );
+
+        return;
+      }
+      await load_aliases();
+    } finally {
+      set_action_loading(null);
+    }
+  }, [confirm_expire_info, load_aliases, t]);
+
+  const handle_extend = useCallback(
+    async (alias: DecryptedGhostAlias) => {
+      if (is_at_max_extension(alias)) {
+        show_toast(t("settings.ghost_alias_max_extension_toast"), "error");
+
+        return;
+      }
+      set_action_loading(alias.id);
+      try {
+        const result = await extend_ghost_alias(alias.id, 30);
+
+        if (result.error) {
+          show_toast(
+            result.error || t("common.something_went_wrong_try_again"),
+            "error",
+          );
+
+          return;
+        }
+        await load_aliases();
+      } finally {
+        set_action_loading(null);
+      }
+    },
+    [load_aliases, t],
+  );
+
+  const now = new Date();
+  const active_aliases = aliases.filter(
+    (a) => a.is_enabled && (!a.expires_at || new Date(a.expires_at) > now),
+  );
+  const expired_aliases = aliases.filter(
+    (a) => !a.is_enabled || (a.expires_at && new Date(a.expires_at) <= now),
+  );
+  const this_month_count = aliases.filter((a) => {
+    const created = new Date(a.created_at);
+
+    return (
+      created.getMonth() === now.getMonth() &&
+      created.getFullYear() === now.getFullYear()
+    );
+  }).length;
+
+  const format_date = (iso?: string) => {
+    if (!iso) return "-";
+
+    return new Date(iso).toLocaleDateString(app_locale(), {
+      timeZone: get_display_time_zone(),
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  const days_until = (iso?: string) => {
+    if (!iso) return null;
+    const diff = Math.ceil(
+      (new Date(iso).getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+    );
+
+    return diff > 0 ? diff : 0;
+  };
+
+  if (loading) {
+    return <SettingsSkeleton variant="list" />;
+  }
+
+  return (
+    <div>
+      <IslandSections>
+        <IslandSection
+          bare
+          description={t("settings.ghost_aliases_description")}
+          icon={<EyeSlashIcon />}
+          title={t("settings.ghost_aliases_title")}
+          title_info={
+            <InfoHint
+              learn_more_url="https://astermail.org/blog/what-ghost-aliases-are-and-how-they-work"
+              tip={t("settings.ghost_aliases_info")}
+              title={t("settings.ghost_aliases_title")}
+            />
+          }
+          trailing={
+            <span className="text-xs text-txt-muted">
+              {t("settings.ghost_aliases_this_month", {
+                count: this_month_count,
+              })}
+            </span>
+          }
+        >
+          {load_error ? (
+            <Island
+              className="flex flex-wrap items-center justify-between gap-2"
+              padding="sm"
+            >
+              <p className="text-xs text-txt-muted">
+                {t("settings.aliases_load_failed")}
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => load_aliases()}
+              >
+                {t("common.retry")}
+              </Button>
+            </Island>
+          ) : aliases.length === 0 ? (
+            <IslandEmpty
+              action={
+                <PillButton
+                  leading={<PencilSquareIcon className="w-4 h-4" />}
+                  variant="filled"
+                  onClick={() =>
+                    window.dispatchEvent(
+                      new CustomEvent("astermail:open-compose-ghost"),
+                    )
+                  }
+                >
+                  {t("settings.ghost_aliases_compose_cta")}
+                </PillButton>
+              }
+              icon={<EyeSlashIcon className="w-6 h-6" />}
+              title={t("settings.ghost_aliases_empty")}
+            />
+          ) : null}
+        </IslandSection>
+
+        {!load_error && active_aliases.length > 0 && (
+          <IslandSection divided title={t("settings.ghost_alias_active")}>
+            {active_aliases.map((alias) => (
+              <IslandRow
+                key={alias.id}
+                description={
+                  <>
+                    {t("settings.ghost_alias_expires_in", {
+                      days: days_until(alias.expires_at) ?? 0,
+                    })}{" "}
+                    ({format_date(alias.expires_at)})
+                  </>
+                }
+                icon={<EyeSlashIcon />}
+                label={
+                  <span className="block truncate">{alias.full_address}</span>
+                }
+                layout="stacked"
+                trailing={
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <Button
+                      disabled={action_loading === alias.id}
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => handle_extend(alias)}
+                    >
+                      {t("settings.ghost_alias_extend")}
+                    </Button>
+                    <Button
+                      disabled={action_loading === alias.id}
+                      size="sm"
+                      style={{ color: "var(--color-danger)" }}
+                      variant="secondary"
+                      onClick={() => handle_expire(alias.id)}
+                    >
+                      {t("settings.ghost_alias_expire_now")}
+                    </Button>
+                  </div>
+                }
+              />
+            ))}
+          </IslandSection>
+        )}
+
+        {!load_error && expired_aliases.length > 0 && (
+          <IslandSection
+            divided
+            title={t("settings.ghost_alias_expired_grace")}
+          >
+            {expired_aliases.map((alias) => (
+              <IslandRow
+                key={alias.id}
+                disabled
+                description={t("settings.ghost_alias_grace_until", {
+                  date: format_date(alias.grace_expires_at),
+                })}
+                icon={<EyeSlashIcon />}
+                label={
+                  <span className="block truncate">{alias.full_address}</span>
+                }
+              />
+            ))}
+          </IslandSection>
+        )}
+      </IslandSections>
+      <ConfirmationModal
+        confirm_text={null}
+        is_open={too_new_info.is_open}
+        message={t("settings.ghost_alias_too_new_message", {
+          date: too_new_info.eligible_date ?? "",
+        })}
+        on_cancel={() =>
+          set_too_new_info({ is_open: false, eligible_date: null })
+        }
+        on_confirm={() =>
+          set_too_new_info({ is_open: false, eligible_date: null })
+        }
+        title={t("settings.ghost_alias_too_new_title")}
+        variant="info"
+      />
+      <ConfirmationModal
+        is_open={confirm_expire_info !== null}
+        learn_more_url="https://astermail.org/blog/what-ghost-aliases-are-and-how-they-work"
+        message={
+          expiring_alias_address
+            ? t("settings.ghost_alias_expire_confirm_message_named", {
+                address: expiring_alias_address,
+                date: confirm_expire_info?.grace_date ?? "",
+              })
+            : t("settings.ghost_alias_expire_confirm_message", {
+                date: confirm_expire_info?.grace_date ?? "",
+              })
+        }
+        on_cancel={() => set_confirm_expire_info(null)}
+        on_confirm={confirm_expire}
+        title={t("settings.ghost_alias_expire_confirm_title")}
+        variant="danger"
+      />
+    </div>
+  );
+}

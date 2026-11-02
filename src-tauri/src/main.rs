@@ -1,0 +1,821 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod badge;
+mod badges_data;
+mod boot_guard;
+mod device;
+mod http_client;
+mod translation_assets;
+
+use std::sync::Mutex;
+#[cfg(windows)]
+use tauri::menu::Submenu;
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    webview::{DownloadEvent, NewWindowResponse},
+    Emitter, Manager, State, Url, WindowEvent,
+};
+use tauri_plugin_window_state::{AppHandleExt, StateFlags};
+
+pub const APP_IDENTIFIER: &str = "com.astermail.calendar";
+
+const LINK_ACTIVATED_EVENT: &str = "aster://link-activated";
+
+const APP_NAVIGATION_HOSTS: &[&str] = &[
+    "tauri.localhost",
+    "asset.localhost",
+    "ipc.localhost",
+    "challenges.cloudflare.com",
+    "js.stripe.com",
+    "hooks.stripe.com",
+    "api.stripe.com",
+    "m.stripe.network",
+    "r.stripe.com",
+    "q.stripe.com",
+];
+
+const DEV_NAVIGATION_HOSTS: &[&str] = &["localhost", "127.0.0.1"];
+
+const APP_NAVIGATION_SUFFIXES: &[&str] = &[
+    ".astermail.org",
+    ".astermail.com",
+    ".stripe.com",
+    ".stripe.network",
+];
+
+const APP_ONION_HOSTS: &[&str] = &[
+    "asterwkopxf427ndjpgco5swerhivljvwcsggsxmfgmve4awbahpcrqd.onion",
+    "asterabf3d5xhqtphx5u462oegteygodgae5y542vmcai22ipkd3ojqd.onion",
+];
+
+const INTERNAL_SCHEMES: &[&str] = &["about", "blob", "tauri", "asset", "ipc"];
+
+const FORWARDED_SCHEMES: &[&str] = &["http", "https", "mailto", "aster"];
+
+fn is_app_navigation(url: &Url) -> bool {
+    is_app_navigation_for_build(url, cfg!(debug_assertions))
+}
+
+fn is_app_navigation_for_build(url: &Url, allow_dev_hosts: bool) -> bool {
+    if INTERNAL_SCHEMES.contains(&url.scheme()) {
+        return true;
+    }
+
+    if !matches!(url.scheme(), "http" | "https") {
+        return false;
+    }
+
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    let host = host.to_ascii_lowercase();
+
+    APP_NAVIGATION_HOSTS.iter().any(|entry| host == *entry)
+        || (allow_dev_hosts && DEV_NAVIGATION_HOSTS.iter().any(|entry| host == *entry))
+        || APP_ONION_HOSTS.iter().any(|entry| host == *entry)
+        || APP_NAVIGATION_SUFFIXES
+            .iter()
+            .any(|suffix| host.ends_with(suffix))
+}
+
+fn should_forward_to_app(url: &Url) -> bool {
+    FORWARDED_SCHEMES.contains(&url.scheme())
+}
+
+fn unique_download_path(dir: &std::path::Path, suggested: &std::path::Path) -> std::path::PathBuf {
+    let file_name = suggested
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .unwrap_or("download");
+    let stem = std::path::Path::new(file_name)
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("download");
+    let extension = std::path::Path::new(file_name)
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| format!(".{value}"))
+        .unwrap_or_default();
+    let mut candidate = dir.join(file_name);
+    let mut counter = 1;
+
+    while candidate.exists() {
+        candidate = dir.join(format!("{stem} ({counter}){extension}"));
+        counter += 1;
+    }
+
+    candidate
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn quarantine_attribute_value(epoch_seconds: u64) -> String {
+    format!("0081;{epoch_seconds:x};Aster Calendar;")
+}
+
+#[cfg(target_os = "macos")]
+fn mark_download_quarantined(path: &std::path::Path) {
+    let epoch_seconds = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_secs())
+        .unwrap_or(0);
+    let _ = std::process::Command::new("/usr/bin/xattr")
+        .arg("-w")
+        .arg("com.apple.quarantine")
+        .arg(quarantine_attribute_value(epoch_seconds))
+        .arg(path)
+        .status();
+}
+
+#[cfg(not(target_os = "macos"))]
+fn mark_download_quarantined(_path: &std::path::Path) {}
+
+fn resolve_download_destination(app: &tauri::AppHandle, destination: &mut std::path::PathBuf) {
+    if destination.is_absolute() {
+        return;
+    }
+
+    let Ok(dir) = app.path().download_dir() else {
+        return;
+    };
+
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+
+    *destination = unique_download_path(&dir, destination);
+}
+
+#[cfg(target_os = "macos")]
+const TRAY_ICON: &[u8] = include_bytes!("../icons/icon_macos_template.png");
+#[cfg(windows)]
+const TRAY_ICON: &[u8] = include_bytes!("../icons/32x32.png");
+#[cfg(windows)]
+const TRAY_ICON_UNREAD: &[u8] = include_bytes!("../icons/tray_unread_32x32.png");
+#[cfg(all(unix, not(target_os = "macos")))]
+const TRAY_ICON: &[u8] = include_bytes!("../icons/icon_hires.png");
+#[cfg(all(unix, not(target_os = "macos")))]
+const TRAY_ICON_UNREAD: &[u8] = include_bytes!("../icons/tray_unread_hires.png");
+
+fn window_state_flags() -> StateFlags {
+    StateFlags::SIZE | StateFlags::POSITION | StateFlags::MAXIMIZED
+}
+
+struct TrayState(Mutex<Option<tauri::tray::TrayIcon>>);
+
+struct TrayMenuItems {
+    show: MenuItem<tauri::Wry>,
+    quit: MenuItem<tauri::Wry>,
+    #[cfg(windows)]
+    troubleshooting: Submenu<tauri::Wry>,
+    #[cfg(windows)]
+    compat_on: MenuItem<tauri::Wry>,
+    #[cfg(windows)]
+    compat_off: MenuItem<tauri::Wry>,
+    #[cfg(windows)]
+    display_reset: MenuItem<tauri::Wry>,
+}
+
+struct TrayMenuState(Mutex<Option<TrayMenuItems>>);
+
+struct CloseToTrayState(Mutex<bool>);
+
+#[derive(serde::Deserialize)]
+struct TrayLabels {
+    show: String,
+    quit: String,
+    troubleshooting: String,
+    compat_on: String,
+    compat_off: String,
+    display_reset: String,
+}
+
+#[tauri::command]
+fn set_tray_labels(state: State<TrayMenuState>, labels: TrayLabels) {
+    let Ok(guard) = state.0.lock() else { return };
+    let Some(items) = guard.as_ref() else { return };
+    let _ = items.show.set_text(&labels.show);
+    let _ = items.quit.set_text(&labels.quit);
+    #[cfg(windows)]
+    {
+        let _ = items.troubleshooting.set_text(&labels.troubleshooting);
+        let _ = items.compat_on.set_text(&labels.compat_on);
+        let _ = items.compat_off.set_text(&labels.compat_off);
+        let _ = items.display_reset.set_text(&labels.display_reset);
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = &labels.troubleshooting;
+        let _ = &labels.compat_on;
+        let _ = &labels.compat_off;
+        let _ = &labels.display_reset;
+    }
+}
+
+#[tauri::command]
+fn set_tray_visible(state: State<TrayState>, visible: bool) {
+    let Ok(guard) = state.0.lock() else { return };
+    if let Some(tray) = guard.as_ref() {
+        let _ = tray.set_visible(visible);
+    }
+}
+
+#[tauri::command]
+fn set_close_to_tray(state: State<CloseToTrayState>, enabled: bool) {
+    if let Ok(mut guard) = state.0.lock() {
+        *guard = enabled;
+    }
+}
+
+#[tauri::command]
+fn set_tray_tooltip(state: State<TrayState>, tooltip: String) {
+    let Ok(guard) = state.0.lock() else { return };
+    if let Some(tray) = guard.as_ref() {
+        let _ = tray.set_tooltip(Some(&tooltip));
+    }
+}
+
+#[tauri::command]
+fn frontend_ready(state: State<boot_guard::BootState>) {
+    state.mark_script_ran();
+}
+
+#[tauri::command]
+fn frontend_painted(state: State<boot_guard::BootState>) {
+    state.mark_painted();
+}
+
+#[tauri::command]
+fn set_content_protection(window: tauri::WebviewWindow, enabled: bool) -> std::result::Result<(), String> {
+    window
+        .set_content_protected(enabled)
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn open_in_default_handler(app: &tauri::AppHandle, url: String) {
+    let _ = app.run_on_main_thread(move || {
+        use objc2_app_kit::NSWorkspace;
+        use objc2_foundation::{NSString, NSURL};
+
+        let target = NSURL::URLWithString(&NSString::from_str(&url));
+
+        if let Some(target) = target {
+            NSWorkspace::sharedWorkspace().openURL(&target);
+        }
+    });
+}
+
+#[tauri::command]
+async fn open_external_url(app: tauri::AppHandle, url: String) -> std::result::Result<(), String> {
+    if url.chars().any(|c| c.is_control() || c.is_whitespace()) {
+        return Err("url contains invalid characters".into());
+    }
+
+    let parsed = reqwest::Url::parse(&url).map_err(|_| "invalid url".to_string())?;
+    match parsed.scheme() {
+        "https" | "http" => {
+            if parsed.host_str().map(|h| h.is_empty()).unwrap_or(true) {
+                return Err("url must have a host".into());
+            }
+        }
+        "mailto" => {}
+        _ => return Err("scheme not allowed".into()),
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        open_in_default_handler(&app, url);
+
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        tauri::async_runtime::spawn_blocking(move || {
+            use tauri_plugin_shell::ShellExt;
+
+            #[allow(deprecated)]
+            app.shell().open(&url, None).map_err(|e| e.to_string())
+        })
+        .await
+        .map_err(|e| e.to_string())?
+    }
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn ensure_system_wayland() {
+    use std::os::unix::process::CommandExt;
+
+    if std::env::var("_ASTER_REEXEC").is_ok() {
+        return;
+    }
+
+    if std::env::var("APPIMAGE").is_err() {
+        return;
+    }
+
+    let multiarch_dir = format!("/usr/lib/{}-linux-gnu", std::env::consts::ARCH);
+
+    let system_lib = [
+        "/usr/lib64/libwayland-client.so.0".to_string(),
+        "/usr/lib64/libwayland-client.so".to_string(),
+        format!("{multiarch_dir}/libwayland-client.so.0"),
+        format!("{multiarch_dir}/libwayland-client.so"),
+        "/usr/lib/libwayland-client.so.0".to_string(),
+        "/usr/lib/libwayland-client.so".to_string(),
+    ].iter().find(|p| std::path::Path::new(p).exists()).cloned();
+
+    let system_lib = match system_lib {
+        Some(lib) => lib,
+        None => {
+            let lib_dirs = [
+                "/usr/lib64".to_string(),
+                "/usr/lib".to_string(),
+                multiarch_dir,
+            ];
+            let mut found = None;
+            for dir in &lib_dirs {
+                if let Ok(entries) = std::fs::read_dir(dir) {
+                    for entry in entries.flatten() {
+                        let name = entry.file_name();
+                        if let Some(name_str) = name.to_str() {
+                            if name_str.starts_with("libwayland-client.so") {
+                                found = Some(format!("{dir}/{name_str}"));
+                                break;
+                            }
+                        }
+                    }
+                }
+                if found.is_some() {
+                    break;
+                }
+            }
+            match found {
+                Some(lib) => lib,
+                None => return,
+            }
+        }
+    };
+
+    let current_preload = std::env::var("LD_PRELOAD").unwrap_or_default();
+    let new_preload = if current_preload.is_empty() {
+        system_lib
+    } else {
+        format!("{system_lib}:{current_preload}")
+    };
+
+    std::env::set_var("LD_PRELOAD", &new_preload);
+    std::env::set_var("_ASTER_REEXEC", "1");
+
+    let Ok(exe) = std::env::current_exe() else {
+        return;
+    };
+
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let _err = std::process::Command::new(exe).args(&args).exec();
+}
+
+#[cfg(target_os = "macos")]
+static WEBKIT_KEYCHAIN_RESET_DONE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+#[cfg(target_os = "macos")]
+fn clear_stale_webkit_keychain() {
+    use std::process::Command;
+
+    for _ in 0..5 {
+        let result = Command::new("security")
+            .args(["delete-generic-password", "-s", APP_IDENTIFIER, "-l", "Aster Calendar Desktop web mail web crypto master key"])
+            .output();
+        match result {
+            Ok(output) if output.status.success() => continue,
+            _ => break,
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn reset_webkit_crypto_keychain() -> bool {
+    use std::sync::atomic::Ordering;
+
+    if WEBKIT_KEYCHAIN_RESET_DONE.swap(true, Ordering::SeqCst) {
+        return false;
+    }
+
+    clear_stale_webkit_keychain();
+
+    true
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn reset_webkit_crypto_keychain() -> bool {
+    false
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+mod webkit_sandbox;
+
+fn main() {
+    boot_guard::prepare();
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    ensure_system_wayland();
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        if boot_guard::compat_mode_active() {
+            std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+            std::env::set_var("WEBKIT_DISABLE_THREADED_COMPOSITOR", "1");
+        }
+        if std::env::var("WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS").is_err()
+            && !webkit_sandbox::can_start()
+        {
+            std::env::set_var("WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS", "1");
+        }
+    }
+
+    tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let was_visible = window.is_visible().unwrap_or(true);
+                if !was_visible {
+                    let _ = window.eval("window.location.reload()");
+                }
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
+        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(
+            tauri_plugin_window_state::Builder::new()
+                .with_state_flags(window_state_flags())
+                .build(),
+        )
+        .manage(TrayState(Mutex::new(None)))
+        .manage(TrayMenuState(Mutex::new(None)))
+        .manage(CloseToTrayState(Mutex::new(true)))
+        .manage(boot_guard::BootState::new())
+        .invoke_handler(tauri::generate_handler![
+            frontend_ready,
+            frontend_painted,
+            reset_webkit_crypto_keychain,
+            badge::set_unread_badge,
+            set_tray_visible,
+            set_close_to_tray,
+            set_tray_tooltip,
+            set_tray_labels,
+            set_content_protection,
+            open_external_url,
+            translation_assets::fetch_translation_asset,
+            device::crypto::device_get_pubkeys,
+            device::crypto::device_set_id,
+            device::crypto::device_sign_challenge,
+            device::crypto::device_unseal_vault_envelope,
+            device::crypto::device_get_stored_passphrase,
+            device::crypto::device_forget_account,
+            device::crypto::device_clear_session,
+            device::crypto::device_clear_identity,
+            device::crypto::device_auth_store_set,
+            device::crypto::device_auth_store_get,
+            device::crypto::device_auth_store_clear,
+            device::crypto::device_http_request,
+            device::crypto::crypto_pbkdf2,
+            device::crypto::crypto_hkdf,
+            device::crypto::crypto_aes_gcm_encrypt,
+            device::crypto::crypto_aes_gcm_decrypt,
+            device::crypto::crypto_hmac_sign,
+        ])
+        .setup(|app| {
+            #[cfg(any(windows, target_os = "linux"))]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+
+                if let Err(error) = app.deep_link().register_all() {
+                    tracing::warn!(%error, "deep link scheme registration failed");
+                }
+            }
+
+            let window_config = app
+                .config()
+                .app
+                .windows
+                .iter()
+                .find(|window| window.label == "main")
+                .cloned()
+                .ok_or("main window is missing from the app configuration")?;
+
+            let navigation_handle = app.handle().clone();
+            let new_window_handle = app.handle().clone();
+            let download_handle = app.handle().clone();
+            let pending_downloads: std::sync::Arc<
+                std::sync::Mutex<std::collections::HashMap<String, std::path::PathBuf>>,
+            > = Default::default();
+
+            tauri::WebviewWindowBuilder::from_config(app, &window_config)?
+                .on_navigation(move |url| {
+                    if is_app_navigation(url) {
+                        return true;
+                    }
+                    if should_forward_to_app(url) {
+                        let _ = navigation_handle.emit(LINK_ACTIVATED_EVENT, url.to_string());
+                    }
+
+                    false
+                })
+                .on_new_window(move |url, _features| {
+                    if should_forward_to_app(&url) {
+                        let _ = new_window_handle.emit(LINK_ACTIVATED_EVENT, url.to_string());
+                    }
+
+                    NewWindowResponse::Deny
+                })
+                .on_download(move |_webview, event| {
+                    match event {
+                        DownloadEvent::Requested { url, destination } => {
+                            resolve_download_destination(&download_handle, destination);
+                            if let Ok(mut pending) = pending_downloads.lock() {
+                                pending.insert(url.to_string(), destination.clone());
+                            }
+                        }
+                        DownloadEvent::Finished { url, path, success } => {
+                            let requested = pending_downloads
+                                .lock()
+                                .ok()
+                                .and_then(|mut pending| pending.remove(url.as_str()));
+
+                            if success {
+                                if let Some(saved) = path.or(requested) {
+                                    mark_download_quarantined(&saved);
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+
+                    true
+                })
+                .build()?;
+
+            let tray_icon = tauri::image::Image::from_bytes(TRAY_ICON)
+                .expect("failed to load tray icon");
+
+            let show =
+                MenuItem::with_id(app, "show", "Show Aster Calendar", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            #[cfg(windows)]
+            let compat_on = MenuItem::with_id(
+                app,
+                "compat_on",
+                "Restart in compatibility mode",
+                !boot_guard::compat_mode_active(),
+                None::<&str>,
+            )?;
+            #[cfg(windows)]
+            let compat_off = MenuItem::with_id(
+                app,
+                "compat_off",
+                "Restart with hardware acceleration",
+                boot_guard::compat_mode_active(),
+                None::<&str>,
+            )?;
+            #[cfg(windows)]
+            let display_reset = MenuItem::with_id(
+                app,
+                "display_reset",
+                "Reset display cache and restart",
+                true,
+                None::<&str>,
+            )?;
+            #[cfg(windows)]
+            let troubleshooting = Submenu::with_items(
+                app,
+                "If the window is blank",
+                true,
+                &[&compat_on, &compat_off, &display_reset],
+            )?;
+            #[cfg(windows)]
+            let menu = Menu::with_items(app, &[&show, &troubleshooting, &quit])?;
+            #[cfg(not(windows))]
+            let menu = Menu::with_items(app, &[&show, &quit])?;
+
+            let tray = TrayIconBuilder::with_id("aster-calendar")
+                .icon(tray_icon)
+                .icon_as_template(true)
+                .menu(&menu)
+                .tooltip("Aster Calendar")
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.unminimize();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    "compat_on" => {
+                        boot_guard::enable_compat_mode();
+                        app.restart();
+                    }
+                    "compat_off" => {
+                        boot_guard::disable_compat_mode();
+                        app.restart();
+                    }
+                    "display_reset" => {
+                        boot_guard::request_display_reset();
+                        app.restart();
+                    }
+                    "quit" => {
+                        app.exit(0);
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.unminimize();
+                            let _ = window.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+
+            let state: State<TrayState> = app.state();
+            if let Ok(mut guard) = state.0.lock() {
+                *guard = Some(tray);
+            }
+
+            let menu_state: State<TrayMenuState> = app.state();
+            if let Ok(mut guard) = menu_state.0.lock() {
+                *guard = Some(TrayMenuItems {
+                    show,
+                    quit,
+                    #[cfg(windows)]
+                    troubleshooting,
+                    #[cfg(windows)]
+                    compat_on,
+                    #[cfg(windows)]
+                    compat_off,
+                    #[cfg(windows)]
+                    display_reset,
+                });
+            }
+
+            boot_guard::spawn_watchdog(app.handle().clone());
+
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let WindowEvent::Focused(false) = event {
+                let _ = window.app_handle().save_window_state(window_state_flags());
+            }
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                let state: State<boot_guard::BootState> = window.state();
+                if !state.is_usable() {
+                    return;
+                }
+                let close_to_tray: State<CloseToTrayState> = window.state();
+                let hide_instead_of_quit = close_to_tray
+                    .0
+                    .lock()
+                    .map(|guard| *guard)
+                    .unwrap_or(true);
+                if !hide_instead_of_quit {
+                    return;
+                }
+                api.prevent_close();
+                let _ = window.app_handle().save_window_state(window_state_flags());
+                let _ = window.hide();
+            }
+        })
+        .build({
+            #[allow(unused_mut)]
+            let mut context = tauri::generate_context!();
+            #[cfg(windows)]
+            boot_guard::apply_compat_browser_args(context.config_mut());
+            context
+        })
+        .unwrap_or_else(|error| {
+            boot_guard::show_fatal_webview_error(&error.to_string());
+            std::process::exit(1);
+        })
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { has_visible_windows: false, .. } = &event {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.unminimize();
+                    let _ = window.set_focus();
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        });
+}
+
+#[cfg(test)]
+mod navigation_tests {
+    use super::*;
+
+    fn allowed(url: &str) -> bool {
+        is_app_navigation(&Url::parse(url).expect("valid url"))
+    }
+
+    #[test]
+    fn keeps_app_and_payment_hosts() {
+        assert!(allowed("tauri://localhost/inbox"));
+        assert!(allowed("http://tauri.localhost/inbox"));
+        assert!(allowed("https://app.astermail.org/api"));
+        assert!(allowed("https://js.stripe.com/v3"));
+        assert!(allowed("https://challenges.cloudflare.com/turnstile"));
+        assert!(allowed("about:srcdoc"));
+        assert!(allowed("blob:http://tauri.localhost/0f4c"));
+    }
+
+    #[test]
+    fn quarantine_value_uses_downloaded_flag_and_hex_time() {
+        assert_eq!(
+            super::quarantine_attribute_value(0x6700_0000),
+            "0081;67000000;Aster Calendar;"
+        );
+    }
+
+    #[test]
+    fn keeps_first_party_onion_hosts() {
+        for host in APP_ONION_HOSTS {
+            assert!(allowed(&format!("http://{host}/")));
+        }
+    }
+
+    #[test]
+    fn rejects_local_files_data_documents_and_other_onions() {
+        assert!(!allowed("file:///etc/passwd"));
+        assert!(!allowed("data:text/html,<p>hi</p>"));
+        assert!(!allowed("http://exampleexampleexampleexampleexampleexampleexampleexam.onion/"));
+        assert!(!allowed("https://astermail.org.example.com/"));
+        assert!(!allowed("https://example.com/"));
+    }
+
+    #[test]
+    fn loopback_hosts_are_only_allowed_in_debug_builds() {
+        for url in [
+            "http://127.0.0.1:1420/",
+            "http://localhost:5173/bridge.html",
+        ] {
+            let parsed = Url::parse(url).expect("valid url");
+            assert!(is_app_navigation_for_build(&parsed, true), "{url}");
+            assert!(!is_app_navigation_for_build(&parsed, false), "{url}");
+        }
+    }
+
+    #[test]
+    fn release_builds_keep_app_origins() {
+        for url in [
+            "tauri://localhost/inbox",
+            "http://tauri.localhost/inbox",
+            "http://ipc.localhost/plugin",
+            "https://app.astermail.org/",
+            "https://js.stripe.com/v3",
+        ] {
+            let parsed = Url::parse(url).expect("valid url");
+            assert!(is_app_navigation_for_build(&parsed, false), "{url}");
+        }
+    }
+}

@@ -1,0 +1,821 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { Badge, BadgePreferences } from "@/services/api/user";
+import type { StepUpCredentials } from "@/services/api/step_up";
+import type { RecoveryEmailData } from "@/services/api/recovery_email";
+
+import { useEffect, useState, useCallback } from "react";
+import {
+  CheckIcon,
+  CameraIcon,
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+} from "@heroicons/react/24/outline";
+import { Switch } from "@aster/ui";
+
+import { SettingsGroup, SettingsHeader, SettingsRow } from "./shared";
+
+import { Button } from "@/components/ui/button";
+import { use_auth } from "@/contexts/auth_context";
+import { use_preferences } from "@/contexts/preferences_context";
+import { use_i18n } from "@/lib/i18n/context";
+import { ProfileAvatar } from "@/components/ui/profile_avatar";
+import { Spinner } from "@/components/ui/spinner";
+import { use_plan_limits } from "@/hooks/use_plan_limits";
+import { open_profile_picture_dialog } from "@/stores/profile_picture_dialog_store";
+import { PROFILE_COLORS } from "@/constants/profile";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { show_toast } from "@/components/toast/simple_toast";
+import { ConfirmationModal } from "@/components/modals/confirmation_modal";
+import { StepUpModal } from "@/components/settings/step_up_modal";
+import {
+  Modal,
+  ModalHeader,
+  ModalTitle,
+  ModalDescription,
+  ModalBody,
+  ModalFooter,
+} from "@/components/ui/modal";
+import {
+  fetch_my_badges,
+  fetch_badge_preferences,
+  update_badge_preferences,
+} from "@/services/api/user";
+import { get_badge_visual } from "@/components/ui/badge_registry";
+import { set_my_badge_prefs } from "@/stores/my_badge_prefs_store";
+import { ignore_error } from "@/lib/ignore_error";
+import {
+  get_recovery_email,
+  save_recovery_email,
+  resend_recovery_verification,
+  remove_recovery_email,
+  normalize_recovery_email,
+  EMPTY_RECOVERY_EMAIL,
+} from "@/services/api/recovery_email";
+import { app_locale } from "@/utils/date_format";
+import { is_composing } from "@/utils/ime";
+import { MAX_DISPLAY_NAME_LENGTH } from "@/services/sanitize";
+import { user_facing_error } from "@/utils/user_facing_error";
+import { use_primary_identity } from "@/lib/primary_identity";
+import { format_date } from "@/utils/date_format";
+import { ChangePrimaryAddressModal } from "@/components/settings/change_primary_address_modal";
+import {
+  load_primary_address_eligibility,
+  primary_address_eligibility_failed,
+  type PrimaryAddressEligibility,
+} from "@/services/api/primary_address";
+
+function mask_email(email: string): string {
+  const [local, domain] = email.split("@");
+
+  if (!domain) return email;
+  const masked_local = local.length > 0 ? local[0] + "***" : "***";
+
+  return `${masked_local}@${domain}`;
+}
+
+function RecoveryModal({
+  is_open,
+  on_close,
+  on_save,
+  current,
+}: {
+  is_open: boolean;
+  on_close: () => void;
+  on_save: (email: string) => Promise<void>;
+  current: string | null;
+}) {
+  const { t } = use_i18n();
+  const [email, set_email] = useState(current || "");
+  const [saving, set_saving] = useState(false);
+  const [error, set_error] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (is_open) {
+      set_email(current || "");
+      set_error(null);
+    }
+  }, [is_open, current]);
+
+  const handle_save = async () => {
+    const trimmed_email = email.trim();
+
+    if (!trimmed_email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed_email)) {
+      set_error(t("common.enter_valid_email"));
+
+      return;
+    }
+    set_saving(true);
+    try {
+      await on_save(trimmed_email);
+      on_close();
+    } catch (err) {
+      set_error(user_facing_error(err, t("common.failed_to_save")));
+    } finally {
+      set_saving(false);
+    }
+  };
+
+  return (
+    <Modal is_open={is_open} on_close={on_close} size="md">
+      <ModalHeader>
+        <ModalTitle>{t("common.recovery_email")}</ModalTitle>
+        <ModalDescription>
+          {t("common.recovery_email_modal_description")}
+        </ModalDescription>
+      </ModalHeader>
+      <ModalBody>
+        <Input
+          autoFocus
+          placeholder={t("common.enter_recovery_email")}
+          status={error ? "error" : "default"}
+          type="email"
+          value={email}
+          onChange={(e) => set_email(e.target.value)}
+          onKeyDown={(e) =>
+            e["key"] === "Enter" && !is_composing(e) && handle_save()
+          }
+        />
+        {error && <p className="mt-3 text-sm text-red-500">{error}</p>}
+      </ModalBody>
+      <ModalFooter>
+        <Button variant="ghost" onClick={on_close}>
+          {t("common.cancel")}
+        </Button>
+        <Button disabled={saving} is_loading={saving} onClick={handle_save}>
+          {t("common.save")}
+        </Button>
+      </ModalFooter>
+    </Modal>
+  );
+}
+
+export function AccountSection({
+  on_back,
+  on_close,
+}: {
+  on_back: () => void;
+  on_close: () => void;
+}) {
+  const { t } = use_i18n();
+  const { user, update_user, vault } = use_auth();
+  const { preferences, update_preference, reset_to_defaults } =
+    use_preferences();
+  const [pending_profile_color, set_pending_profile_color] = useState<
+    string | null
+  >(null);
+  const active_profile_color =
+    pending_profile_color ?? (user?.profile_color || preferences.profile_color);
+  const { limits } = use_plan_limits();
+  const is_paid_plan = !!limits && limits.plan_code !== "free";
+  const account_email = user?.email ?? "";
+  const primary_identity = use_primary_identity(account_email);
+
+  const [display_name, set_display_name] = useState(
+    user?.display_name || user?.username || "",
+  );
+  const [saving_name, set_saving_name] = useState(false);
+  const [badges, set_badges] = useState<Badge[]>([]);
+  const [badge_prefs, set_badge_prefs] = useState<BadgePreferences | null>(
+    null,
+  );
+  const [is_badge_saving, set_is_badge_saving] = useState(false);
+  const [recovery, set_recovery] =
+    useState<RecoveryEmailData>(EMPTY_RECOVERY_EMAIL);
+  const [recovery_load_failed, set_recovery_load_failed] = useState(false);
+  const [show_recovery_modal, set_show_recovery_modal] = useState(false);
+  const [resending, set_resending] = useState(false);
+  const [show_step_up, set_show_step_up] = useState(false);
+  const [step_up_mode, set_step_up_mode] = useState<"change" | "remove">(
+    "change",
+  );
+  const [pending_recovery_email, set_pending_recovery_email] = useState("");
+  const [show_reset_confirm, set_show_reset_confirm] = useState(false);
+  const [address_eligibility, set_address_eligibility] =
+    useState<PrimaryAddressEligibility | null>(null);
+  const [address_eligibility_failed, set_address_eligibility_failed] =
+    useState(false);
+  const [show_address_change, set_show_address_change] = useState(false);
+
+  const retry_address_eligibility = useCallback(async () => {
+    set_address_eligibility_failed(false);
+
+    const response = await load_primary_address_eligibility();
+
+    set_address_eligibility((prev) => response.data ?? prev);
+    set_address_eligibility_failed(
+      primary_address_eligibility_failed(response),
+    );
+  }, []);
+
+  const can_change_address = !!address_eligibility;
+
+  const address_cooldown_date = (() => {
+    const raw = address_eligibility?.next_change_available_at;
+    const parsed = raw ? new Date(raw) : null;
+
+    if (!parsed || Number.isNaN(parsed.getTime())) return null;
+
+    return format_date(parsed);
+  })();
+
+  const address_lock_message = (() => {
+    if (!address_eligibility || address_eligibility.eligible) return null;
+
+    switch (address_eligibility.reason) {
+      case "plan":
+        return t("settings.address_change_locked_plan");
+      case "account_kind":
+        return t("settings.address_change_locked_account_kind");
+      case "custom_domain":
+        return t("settings.address_change_locked_custom_domain");
+      case "cooldown":
+        return address_cooldown_date
+          ? t("settings.address_change_locked_cooldown", {
+              date: address_cooldown_date,
+            })
+          : t("settings.address_change_locked_cooldown_unknown");
+      default:
+        return t("settings.address_change_locked_unavailable");
+    }
+  })();
+
+  const handle_address_changed = useCallback(
+    async (new_address: string) => {
+      if (user) {
+        await update_user({
+          ...user,
+          email: new_address,
+          username: new_address.slice(0, new_address.lastIndexOf("@")),
+        });
+      }
+
+      const refreshed = await load_primary_address_eligibility();
+
+      set_address_eligibility((prev) => refreshed.data ?? prev);
+      set_address_eligibility_failed(
+        primary_address_eligibility_failed(refreshed),
+      );
+      show_toast(t("settings.primary_address_set"), "success");
+    },
+    [user, update_user, t],
+  );
+
+  const reload_recovery = useCallback(async () => {
+    if (!vault) return;
+    const response = await get_recovery_email(vault).catch(() => ({
+      data: null,
+    }));
+
+    if (response.data) {
+      set_recovery(response.data);
+      set_recovery_load_failed(false);
+    } else {
+      set_recovery_load_failed(true);
+    }
+  }, [vault]);
+
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const [
+          badges_response,
+          prefs_response,
+          recovery_response,
+          eligibility_response,
+        ] = await Promise.all([
+          fetch_my_badges(),
+          fetch_badge_preferences(),
+          vault
+            ? get_recovery_email(vault).catch(() => ({
+                data: null,
+              }))
+            : Promise.resolve({ data: EMPTY_RECOVERY_EMAIL }),
+          load_primary_address_eligibility(),
+        ]);
+
+        if (badges_response.data) set_badges(badges_response.data);
+        if (prefs_response.data) {
+          set_badge_prefs(prefs_response.data);
+          set_my_badge_prefs(prefs_response.data);
+        }
+        if (recovery_response.data) {
+          set_recovery(recovery_response.data);
+          set_recovery_load_failed(false);
+        } else {
+          set_recovery_load_failed(true);
+        }
+        set_address_eligibility(eligibility_response.data ?? null);
+        set_address_eligibility_failed(
+          primary_address_eligibility_failed(eligibility_response),
+        );
+      } catch (error) {
+        if (import.meta.env.DEV) console.error(error);
+      }
+    };
+
+    run();
+  }, [vault]);
+
+  const persist_badge_prefs = async (patch: {
+    active_badge_slug?: string | null;
+    show_badge_profile?: boolean;
+    show_badge_signature?: boolean;
+    show_badge_ring?: boolean;
+  }) => {
+    if (!badge_prefs) return;
+    const previous = badge_prefs;
+    const optimistic: BadgePreferences = { ...badge_prefs, ...patch };
+
+    set_badge_prefs(optimistic);
+    set_my_badge_prefs(optimistic);
+    set_is_badge_saving(true);
+    try {
+      const response = await update_badge_preferences(patch);
+
+      if (response.data) {
+        set_badge_prefs(response.data);
+        set_my_badge_prefs(response.data);
+      } else {
+        set_badge_prefs(previous);
+        set_my_badge_prefs(previous);
+        show_toast(response.error || t("badges.claim_failed"), "error");
+      }
+    } catch {
+      set_badge_prefs(previous);
+      set_my_badge_prefs(previous);
+      show_toast(t("badges.claim_failed"), "error");
+    } finally {
+      set_is_badge_saving(false);
+    }
+  };
+
+  const request_recovery_step_up = (email: string) => {
+    set_pending_recovery_email(email);
+    set_step_up_mode("change");
+    set_show_step_up(true);
+  };
+
+  const save_recovery = async (email: string) => {
+    if (!vault) throw new Error(t("common.something_went_wrong_try_again"));
+
+    const normalized = normalize_recovery_email(email);
+
+    if (recovery.step_up_required) {
+      request_recovery_step_up(normalized);
+
+      return;
+    }
+
+    const r = await save_recovery_email(normalized, vault);
+
+    if (r.code === "STEP_UP_REQUIRED" || r.code === "TOTP_REQUIRED") {
+      request_recovery_step_up(normalized);
+
+      return;
+    }
+    if (r.code === "CONFLICT") {
+      throw new Error(r.error || t("common.recovery_conflict"));
+    }
+    if (r.error || !r.data?.success) {
+      throw new Error(r.error || t("common.failed_to_save"));
+    }
+
+    set_recovery({
+      email: normalized,
+      verified: false,
+      exists: true,
+      step_up_required: false,
+    });
+  };
+
+  const handle_step_up_confirm = async (credentials: StepUpCredentials) => {
+    if (step_up_mode === "change") {
+      if (!vault) throw new Error(t("common.failed_to_save"));
+      const r = await save_recovery_email(
+        pending_recovery_email,
+        vault,
+        credentials,
+      );
+
+      if (r.code === "CONFLICT") {
+        throw new Error(r.error || t("common.recovery_conflict"));
+      }
+      if (r.error || !r.data?.success) {
+        throw new Error(r.error || t("common.step_up_error"));
+      }
+
+      set_recovery({
+        email: pending_recovery_email,
+        verified: false,
+        exists: true,
+        step_up_required: false,
+      });
+      set_show_step_up(false);
+    } else {
+      const r = await remove_recovery_email(credentials);
+
+      if (r.error || !r.data?.success) {
+        throw new Error(r.error || t("common.step_up_error"));
+      }
+
+      set_recovery(EMPTY_RECOVERY_EMAIL);
+      set_show_step_up(false);
+      show_toast(t("common.recovery_email_removed"), "success");
+    }
+  };
+
+  const handle_resend = async () => {
+    if (resending) return;
+    set_resending(true);
+    try {
+      const r = await resend_recovery_verification();
+
+      if (!r.error && r.data?.success) {
+        show_toast(t("common.verification_email_sent"), "success");
+      } else {
+        show_toast(r.error || t("common.failed_verification_email"), "error");
+      }
+    } catch (error) {
+      if (import.meta.env.DEV) console.error(error);
+      show_toast(t("common.failed_to_send_verification"), "error");
+    } finally {
+      set_resending(false);
+    }
+  };
+
+  const handle_save_name = useCallback(async () => {
+    if (saving_name) return;
+
+    const trimmed = display_name.trim();
+
+    if (!trimmed || !user || trimmed === (user.display_name || user.username))
+      return;
+    set_saving_name(true);
+    try {
+      const { update_display_name } = await import("@/services/api/user");
+      const r = await update_display_name(trimmed);
+
+      if (r.data?.user) {
+        await update_user({
+          ...user,
+          display_name: r.data.user.display_name || undefined,
+        });
+      } else {
+        show_toast(r.error || t("common.failed_to_save"), "error");
+      }
+    } catch (caught) {
+      ignore_error(
+        "pages/mobile/settings/account_section:handle_save_name",
+        caught,
+      );
+      show_toast(t("common.failed_to_save"), "error");
+    }
+    set_saving_name(false);
+  }, [display_name, saving_name, user, update_user, t]);
+
+  return (
+    <div className="flex h-full flex-col">
+      <SettingsHeader
+        on_back={on_back}
+        on_close={on_close}
+        title={t("settings.account")}
+      />
+      <div className="flex-1 overflow-y-auto pb-8">
+        <div className="flex flex-col items-center gap-3 px-4 py-6">
+          <button
+            aria-label={t("auth.change_photo")}
+            className="relative touch-manipulation rounded-full"
+            type="button"
+            onClick={open_profile_picture_dialog}
+          >
+            <span
+              className={
+                is_paid_plan ? "plan_ring" : "inline-flex leading-none"
+              }
+            >
+              <ProfileAvatar
+                use_domain_logo
+                email={user?.email ?? ""}
+                image_url={user?.profile_picture}
+                name={user?.display_name ?? user?.username ?? ""}
+                profile_color={active_profile_color}
+                size="xl"
+              />
+            </span>
+            <span className="absolute bottom-0 end-0 flex h-8 w-8 items-center justify-center rounded-full border-2 border-[var(--bg-primary)] bg-[var(--aster-field-bg)] text-[var(--text-primary)]">
+              <CameraIcon className="h-4 w-4" />
+            </span>
+          </button>
+          <p className="text-[16px] font-semibold text-[var(--text-primary)]">
+            {user?.display_name ?? user?.username ?? ""}
+          </p>
+          <p className="text-[13px] text-[var(--text-muted)]">
+            {user?.email ?? ""}
+          </p>
+        </div>
+
+        <SettingsGroup title={t("auth.display_name_optional")}>
+          <div className="flex items-center gap-2 px-4 py-3">
+            <Input
+              aria-label={t("auth.display_name_optional")}
+              className="min-w-0 flex-1 bg-transparent"
+              maxLength={MAX_DISPLAY_NAME_LENGTH}
+              value={display_name}
+              onBlur={handle_save_name}
+              onChange={(e) => set_display_name(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !is_composing(e)) handle_save_name();
+              }}
+            />
+            {saving_name && <Spinner size="xs" />}
+          </div>
+        </SettingsGroup>
+
+        <SettingsGroup title={t("auth.profile_color")}>
+          <div
+            aria-label={t("auth.profile_color")}
+            className="flex flex-wrap gap-2.5 px-4 py-4"
+            role="radiogroup"
+          >
+            {PROFILE_COLORS.map((color) => (
+              <button
+                key={color}
+                aria-checked={active_profile_color === color}
+                aria-label={color}
+                className="flex h-10 w-10 items-center justify-center rounded-full"
+                role="radio"
+                style={{
+                  backgroundColor: color,
+                  boxShadow:
+                    active_profile_color === color
+                      ? `0 0 0 2px var(--bg-primary), 0 0 0 4px ${color}`
+                      : "none",
+                }}
+                type="button"
+                onClick={async () => {
+                  const prev = active_profile_color;
+
+                  set_pending_profile_color(color);
+                  try {
+                    update_preference("profile_color", color, true);
+                    if (user) {
+                      await update_user({ ...user, profile_color: color });
+                    }
+                    const { update_profile_color } =
+                      await import("@/services/api/user");
+                    const response = await update_profile_color(color);
+
+                    if (response.error) {
+                      update_preference("profile_color", prev, true);
+                      if (user) {
+                        await update_user({
+                          ...user,
+                          profile_color: prev || undefined,
+                        });
+                      }
+                      show_toast(
+                        t("common.failed_save_profile_color"),
+                        "error",
+                      );
+                    }
+                  } finally {
+                    set_pending_profile_color(null);
+                  }
+                }}
+              >
+                {active_profile_color === color && (
+                  <CheckIcon
+                    className="h-4.5 w-4.5 text-white"
+                    strokeWidth={2.5}
+                  />
+                )}
+              </button>
+            ))}
+          </div>
+        </SettingsGroup>
+
+        {badges.length > 0 && badge_prefs && (
+          <SettingsGroup title={t("badges.active_badge")}>
+            <div className="flex flex-wrap gap-2 px-4 py-4">
+              {badges.map((badge) => {
+                const visual = get_badge_visual(badge.slug);
+                const Icon = visual.icon;
+                const is_active = badge_prefs.active_badge_slug === badge.slug;
+
+                return (
+                  <button
+                    key={badge.slug}
+                    className={cn(
+                      "inline-flex select-none items-center gap-1.5 rounded-[var(--aster-radius-control)] px-3 py-1.5 text-xs font-medium",
+                      is_active
+                        ? "bg-[var(--accent-blue)] text-[var(--accent-fg,#ffffff)]"
+                        : "bg-[var(--mobile-bg-card-hover)] text-[var(--text-secondary)]",
+                    )}
+                    disabled={is_badge_saving}
+                    type="button"
+                    onClick={() =>
+                      persist_badge_prefs({
+                        active_badge_slug: is_active ? null : badge.slug,
+                      })
+                    }
+                  >
+                    <Icon className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span className="truncate">{badge.display_name}</span>
+                    {badge.find_order != null && (
+                      <span className="tabular-nums opacity-80">
+                        #{badge.find_order.toLocaleString(app_locale())}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <SettingsRow
+              label={t("badges.show_on_profile")}
+              trailing={
+                <Switch
+                  checked={badge_prefs.show_badge_profile}
+                  disabled={is_badge_saving || !badge_prefs.active_badge_slug}
+                  onCheckedChange={(v) =>
+                    persist_badge_prefs({ show_badge_profile: v })
+                  }
+                />
+              }
+            />
+            <SettingsRow
+              label={t("badges.show_in_signature")}
+              trailing={
+                <Switch
+                  checked={badge_prefs.show_badge_signature}
+                  disabled={is_badge_saving || !badge_prefs.active_badge_slug}
+                  onCheckedChange={(v) =>
+                    persist_badge_prefs({ show_badge_signature: v })
+                  }
+                />
+              }
+            />
+          </SettingsGroup>
+        )}
+
+        <SettingsGroup title={t("settings.primary_address_label")}>
+          <SettingsRow
+            description={
+              address_eligibility_failed
+                ? t("settings.address_change_eligibility_failed")
+                : can_change_address && address_eligibility
+                  ? address_eligibility.eligible
+                    ? t("settings.address_change_once_title")
+                    : (address_lock_message ?? undefined)
+                  : undefined
+            }
+            label={primary_identity.email || account_email}
+            on_press={
+              address_eligibility?.eligible
+                ? () => set_show_address_change(true)
+                : () => void retry_address_eligibility()
+            }
+            value={
+              address_eligibility_failed
+                ? t("common.retry")
+                : can_change_address && address_eligibility?.eligible
+                  ? t("settings.change_address")
+                  : undefined
+            }
+          />
+        </SettingsGroup>
+
+        <SettingsGroup title={t("common.recovery_email")}>
+          {recovery.exists && (
+            <div className="flex items-center justify-between px-4 py-3">
+              <span className="text-[14px] text-[var(--text-secondary)]">
+                {recovery.email
+                  ? mask_email(recovery.email)
+                  : t("common.recovery_email_hidden")}
+              </span>
+              {recovery.verified ? (
+                <span className="flex items-center gap-1 text-xs text-green-500">
+                  <CheckCircleIcon className="h-4 w-4" />
+                  {t("common.verified")}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-xs text-amber-500">
+                  <ExclamationCircleIcon className="h-4 w-4" />
+                  {t("common.not_verified")}
+                </span>
+              )}
+            </div>
+          )}
+          <SettingsRow
+            label={
+              recovery_load_failed
+                ? t("common.retry")
+                : recovery.exists
+                  ? t("common.update")
+                  : t("common.add")
+            }
+            on_press={() => {
+              if (recovery_load_failed) {
+                reload_recovery();
+
+                return;
+              }
+              set_show_recovery_modal(true);
+            }}
+          />
+          {recovery.exists && !recovery.verified && (
+            <SettingsRow
+              label={t("common.resend")}
+              on_press={handle_resend}
+              trailing={resending ? <Spinner size="xs" /> : undefined}
+            />
+          )}
+          {recovery.exists && (
+            <SettingsRow
+              destructive
+              label={t("common.remove")}
+              on_press={() => {
+                set_step_up_mode("remove");
+                set_show_step_up(true);
+              }}
+            />
+          )}
+        </SettingsGroup>
+
+        <SettingsGroup title={t("common.reset_all_settings")}>
+          <SettingsRow
+            destructive
+            label={t("settings.reset")}
+            on_press={() => set_show_reset_confirm(true)}
+          />
+        </SettingsGroup>
+      </div>
+
+      {address_eligibility && can_change_address && (
+        <ChangePrimaryAddressModal
+          eligibility={address_eligibility}
+          is_open={show_address_change}
+          on_changed={handle_address_changed}
+          on_close={() => set_show_address_change(false)}
+        />
+      )}
+
+      <RecoveryModal
+        current={recovery.email}
+        is_open={show_recovery_modal}
+        on_close={() => set_show_recovery_modal(false)}
+        on_save={save_recovery}
+      />
+
+      <StepUpModal
+        confirm_label={
+          step_up_mode === "remove" ? t("common.remove") : t("common.save")
+        }
+        description={t("common.step_up_description")}
+        destructive={step_up_mode === "remove"}
+        is_open={show_step_up}
+        on_close={() => set_show_step_up(false)}
+        on_confirm={handle_step_up_confirm}
+        title={
+          step_up_mode === "remove"
+            ? t("common.remove_recovery_email")
+            : t("common.recovery_email")
+        }
+      />
+
+      <ConfirmationModal
+        cancel_text={t("common.cancel")}
+        confirm_text={t("settings.reset")}
+        is_open={show_reset_confirm}
+        message={t("common.reset_confirm_message")}
+        on_cancel={() => set_show_reset_confirm(false)}
+        on_confirm={() => {
+          reset_to_defaults();
+          set_show_reset_confirm(false);
+          show_toast(t("common.all_settings_reset"), "success");
+        }}
+        title={t("common.reset_all_settings")}
+        variant="warning"
+      />
+    </div>
+  );
+}

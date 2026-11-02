@@ -1,0 +1,563 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type {
+  DecryptedCustomFieldDefinition,
+  DecryptedCustomFieldValue,
+  CustomFieldType,
+} from "@/types/contacts";
+
+import { useState, useCallback, useEffect, useRef } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  PlusIcon,
+  TrashIcon,
+  XMarkIcon,
+  PencilIcon,
+  CheckIcon,
+} from "@heroicons/react/24/outline";
+import { Button } from "@aster/ui";
+
+import { use_should_reduce_motion } from "@/provider";
+import { use_i18n } from "@/lib/i18n/context";
+import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  list_custom_field_definitions,
+  list_contact_custom_field_values,
+  create_custom_field_definition,
+  delete_custom_field_definition,
+  set_contact_custom_field_value,
+  delete_contact_custom_field_value,
+} from "@/services/api/contact_custom_fields";
+import { is_composing } from "@/utils/ime";
+import { user_facing_error } from "@/utils/user_facing_error";
+import { ConfirmationModal } from "@/components/modals/confirmation_modal";
+import { ButtonSpinner, Spinner } from "@/components/ui/spinner";
+
+interface ContactCustomFieldsProps {
+  contact_id: string;
+  field_values: DecryptedCustomFieldValue[];
+  on_field_values_change: (values: DecryptedCustomFieldValue[]) => void;
+  disabled?: boolean;
+}
+
+const FIELD_TYPE_LABEL_KEYS: Record<CustomFieldType, string> = {
+  text: "common.text_type",
+  date: "common.date_type",
+  url: "URL",
+  phone: "common.phone_type",
+  email: "common.email_type",
+  number: "common.number_type",
+};
+
+const FIELD_TYPE_INPUTS: Record<CustomFieldType, string> = {
+  text: "text",
+  date: "date",
+  url: "url",
+  phone: "tel",
+  email: "email",
+  number: "number",
+};
+
+export function ContactCustomFields({
+  contact_id,
+  field_values,
+  on_field_values_change,
+  disabled = false,
+}: ContactCustomFieldsProps) {
+  const { t } = use_i18n();
+  const reduce_motion = use_should_reduce_motion();
+  const [definitions, set_definitions] = useState<
+    DecryptedCustomFieldDefinition[]
+  >([]);
+  const [is_loading, set_is_loading] = useState(true);
+  const [is_adding, set_is_adding] = useState(false);
+  const [new_field_name, set_new_field_name] = useState("");
+  const [new_field_type, set_new_field_type] =
+    useState<CustomFieldType>("text");
+  const [editing_field_id, set_editing_field_id] = useState<string | null>(
+    null,
+  );
+  const [editing_value, set_editing_value] = useState("");
+  const [saving_field_id, set_saving_field_id] = useState<string | null>(null);
+  const [deleting_definition_id, set_deleting_definition_id] = useState<
+    string | null
+  >(null);
+  const [error, set_error] = useState<string | null>(null);
+  const [pending_delete_definition_id, set_pending_delete_definition_id] =
+    useState<string | null>(null);
+  const [values, set_values] =
+    useState<DecryptedCustomFieldValue[]>(field_values);
+
+  const on_field_values_change_ref = useRef(on_field_values_change);
+
+  useEffect(() => {
+    on_field_values_change_ref.current = on_field_values_change;
+  }, [on_field_values_change]);
+
+  useEffect(() => {
+    if (field_values.length > 0) {
+      set_values(field_values);
+    }
+  }, [field_values]);
+
+  const update_values = useCallback((next: DecryptedCustomFieldValue[]) => {
+    set_values(next);
+    on_field_values_change_ref.current(next);
+  }, []);
+
+  const load_definitions = useCallback(async () => {
+    set_is_loading(true);
+    try {
+      const response = await list_custom_field_definitions();
+
+      if (response.error || !response.data) {
+        set_error(response.error || t("common.failed_to_load_custom_fields"));
+
+        return;
+      }
+
+      set_definitions(response.data);
+
+      const values_response = await list_contact_custom_field_values(
+        contact_id,
+        response.data,
+      );
+
+      if (values_response.error || !values_response.data) {
+        set_error(
+          values_response.error || t("common.failed_to_load_custom_fields"),
+        );
+
+        return;
+      }
+
+      set_error(null);
+      update_values(values_response.data);
+    } catch (err) {
+      set_error(
+        user_facing_error(err, t("common.failed_to_load_custom_fields")),
+      );
+    } finally {
+      set_is_loading(false);
+    }
+  }, [contact_id, update_values, t]);
+
+  useEffect(() => {
+    load_definitions();
+  }, [load_definitions]);
+
+  const handle_create_definition = useCallback(async () => {
+    if (!new_field_name.trim()) return;
+
+    set_is_adding(true);
+    set_error(null);
+
+    try {
+      const response = await create_custom_field_definition(
+        new_field_name.trim(),
+        new_field_type,
+      );
+
+      if (response.error || !response.data) {
+        set_error(response.error || t("common.failed_to_create_field"));
+
+        return;
+      }
+
+      set_definitions((prev) => [...prev, response.data!]);
+      set_new_field_name("");
+      set_new_field_type("text");
+    } catch (err) {
+      set_error(user_facing_error(err, t("common.failed_to_create_field")));
+    } finally {
+      set_is_adding(false);
+    }
+  }, [new_field_name, new_field_type, t]);
+
+  const handle_delete_definition = useCallback(
+    async (definition_id: string) => {
+      set_deleting_definition_id(definition_id);
+      set_error(null);
+
+      try {
+        const response = await delete_custom_field_definition(definition_id);
+
+        if (response.error) {
+          set_error(response.error);
+
+          return;
+        }
+
+        set_definitions((prev) => prev.filter((d) => d.id !== definition_id));
+        update_values(
+          values.filter((v) => v.field_definition_id !== definition_id),
+        );
+      } catch (err) {
+        set_error(
+          err instanceof Error
+            ? err.message
+            : t("common.failed_to_delete_field"),
+        );
+      } finally {
+        set_deleting_definition_id(null);
+      }
+    },
+    [values, update_values, t],
+  );
+
+  const handle_start_edit = useCallback(
+    (definition: DecryptedCustomFieldDefinition) => {
+      const existing_value = values.find(
+        (v) => v.field_definition_id === definition.id,
+      );
+
+      set_editing_field_id(definition.id);
+      set_editing_value(existing_value?.value || "");
+    },
+    [values],
+  );
+
+  const handle_save_value = useCallback(async () => {
+    if (!editing_field_id) return;
+
+    set_saving_field_id(editing_field_id);
+    set_error(null);
+
+    try {
+      if (editing_value.trim()) {
+        const response = await set_contact_custom_field_value(
+          contact_id,
+          editing_field_id,
+          editing_value.trim(),
+        );
+
+        if (response.error) {
+          set_error(response.error);
+
+          return;
+        }
+
+        const existing_index = values.findIndex(
+          (v) => v.field_definition_id === editing_field_id,
+        );
+
+        if (existing_index >= 0) {
+          const updated = [...values];
+
+          updated[existing_index] = {
+            ...updated[existing_index],
+            value: editing_value.trim(),
+          };
+          update_values(updated);
+        } else {
+          const definition = definitions.find((d) => d.id === editing_field_id);
+
+          if (definition) {
+            update_values([
+              ...values,
+              {
+                id: crypto.randomUUID(),
+                contact_id,
+                field_definition_id: editing_field_id,
+                field_name: definition.name,
+                field_type: definition.field_type,
+                value: editing_value.trim(),
+                created_at: new Date().toISOString(),
+              },
+            ]);
+          }
+        }
+      } else {
+        const existing = values.find(
+          (v) => v.field_definition_id === editing_field_id,
+        );
+
+        if (existing) {
+          const response = await delete_contact_custom_field_value(
+            contact_id,
+            editing_field_id,
+          );
+
+          if (response.error) {
+            set_error(response.error);
+
+            return;
+          }
+
+          update_values(
+            values.filter((v) => v.field_definition_id !== editing_field_id),
+          );
+        }
+      }
+
+      set_editing_field_id(null);
+      set_editing_value("");
+    } catch (err) {
+      set_error(user_facing_error(err, t("common.failed_to_save_value")));
+    } finally {
+      set_saving_field_id(null);
+    }
+  }, [
+    contact_id,
+    editing_field_id,
+    editing_value,
+    values,
+    update_values,
+    definitions,
+    t,
+  ]);
+
+  const handle_cancel_edit = useCallback(() => {
+    set_editing_field_id(null);
+    set_editing_value("");
+  }, []);
+
+  const get_field_value = useCallback(
+    (definition_id: string): string => {
+      return (
+        values.find((v) => v.field_definition_id === definition_id)?.value || ""
+      );
+    },
+    [values],
+  );
+
+  if (is_loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Spinner className="text-txt-muted" size="md" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <ConfirmationModal
+        confirm_text={t("common.delete")}
+        is_open={pending_delete_definition_id !== null}
+        message={t("common.delete_custom_field_message")}
+        on_cancel={() => set_pending_delete_definition_id(null)}
+        on_confirm={() => {
+          const target = pending_delete_definition_id;
+
+          set_pending_delete_definition_id(null);
+          if (target) handle_delete_definition(target);
+        }}
+        title={t("common.delete_custom_field_title")}
+        variant="danger"
+      />
+      <div className="flex items-center justify-between">
+        <label className="text-sm font-medium text-foreground-600">
+          {t("common.custom_fields")}
+        </label>
+      </div>
+
+      <div className="space-y-3">
+        <AnimatePresence mode="popLayout">
+          {definitions.map((definition) => {
+            const is_editing = editing_field_id === definition.id;
+            const is_saving = saving_field_id === definition.id;
+            const is_deleting = deleting_definition_id === definition.id;
+            const current_value = get_field_value(definition.id);
+
+            return (
+              <motion.div
+                key={definition.id}
+                animate={{ opacity: 1, y: 0 }}
+                className="group"
+                exit={{ opacity: 0, x: -10 }}
+                initial={reduce_motion ? false : { opacity: 0, y: -10 }}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-medium text-txt-secondary">
+                    {definition.name}
+                  </span>
+                  <span className="text-[10px] text-txt-muted bg-[var(--aster-field-bg)] px-1.5 py-0.5 rounded">
+                    {FIELD_TYPE_LABEL_KEYS[definition.field_type] === "URL"
+                      ? "URL"
+                      : t(
+                          FIELD_TYPE_LABEL_KEYS[
+                            definition.field_type
+                          ] as "common.text_type",
+                        )}
+                  </span>
+                  <div className="flex-1" />
+                  <Button
+                    className="p-1 h-auto opacity-0 group-hover:opacity-100 transition-opacity text-danger hover:bg-danger/10"
+                    disabled={disabled || is_deleting}
+                    size="md"
+                    variant="ghost"
+                    onClick={() =>
+                      set_pending_delete_definition_id(definition.id)
+                    }
+                  >
+                    {is_deleting ? (
+                      <Spinner size="xs" />
+                    ) : (
+                      <TrashIcon className="w-3 h-3" />
+                    )}
+                  </Button>
+                </div>
+
+                {is_editing ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      autoFocus
+                      className="aster_input_tonal flex-1"
+                      placeholder={t("common.enter_field_value", {
+                        field: definition.name.toLowerCase(),
+                      })}
+                      type={FIELD_TYPE_INPUTS[definition.field_type]}
+                      value={editing_value}
+                      onChange={(e) => set_editing_value(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e["key"] === "Enter" && !is_composing(e))
+                          handle_save_value();
+                        if (e["key"] === "Escape") {
+                          e.stopPropagation();
+                          handle_cancel_edit();
+                        }
+                      }}
+                    />
+                    <Button
+                      className="p-1.5 h-auto text-aster-success hover:bg-aster-success/10"
+                      disabled={is_saving}
+                      size="md"
+                      variant="ghost"
+                      onClick={handle_save_value}
+                    >
+                      {is_saving ? (
+                        <Spinner size="sm" />
+                      ) : (
+                        <CheckIcon className="w-4 h-4" />
+                      )}
+                    </Button>
+                    <Button
+                      className="p-1.5 h-auto text-txt-secondary hover:bg-[var(--aster-floating-hover)]"
+                      disabled={is_saving}
+                      size="md"
+                      variant="ghost"
+                      onClick={handle_cancel_edit}
+                    >
+                      <XMarkIcon className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <button
+                    className={cn(
+                      "flex w-full items-center gap-2 h-9 px-3 rounded-[var(--aster-radius-field)] bg-[var(--aster-field-bg)] text-start cursor-pointer hover:bg-[var(--aster-field-hover)] transition-colors",
+                      disabled && "cursor-not-allowed opacity-50",
+                    )}
+                    disabled={disabled}
+                    type="button"
+                    onClick={() => handle_start_edit(definition)}
+                  >
+                    {current_value ? (
+                      <span className="text-sm flex-1">{current_value}</span>
+                    ) : (
+                      <span className="text-sm text-txt-muted flex-1 italic">
+                        {t("common.click_to_add_value")}
+                      </span>
+                    )}
+                    <PencilIcon className="w-4 h-4 text-txt-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                )}
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+
+        {definitions.length === 0 && !error && (
+          <p className="text-sm text-txt-secondary text-center py-4">
+            {t("common.no_custom_fields_yet")}
+          </p>
+        )}
+      </div>
+
+      <div className="border-t border-[var(--aster-floating-divider)] pt-4">
+        <p className="text-xs text-txt-secondary mb-3">
+          {t("common.add_new_field_type")}
+        </p>
+        <div className="flex items-center gap-2">
+          <Input
+            className="aster_input_tonal flex-1"
+            placeholder={t("common.field_name_placeholder")}
+            value={new_field_name}
+            onChange={(e) => set_new_field_name(e.target.value)}
+            onKeyDown={(e) => {
+              if (e["key"] === "Enter" && !is_composing(e))
+                handle_create_definition();
+            }}
+          />
+          <Select
+            value={new_field_type}
+            onValueChange={(value) =>
+              set_new_field_type(value as CustomFieldType)
+            }
+          >
+            <SelectTrigger className="contact_form_select h-9 w-[116px] flex-shrink-0 ps-3 pe-3 font-normal">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(FIELD_TYPE_LABEL_KEYS).map(([value, key]) => (
+                <SelectItem key={value} value={value}>
+                  {key === "URL" ? "URL" : t(key as "common.text_type")}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            className="h-9 flex-shrink-0 gap-1.5 rounded-[var(--aster-radius-field)] px-3 text-[13px]"
+            disabled={!new_field_name.trim() || is_adding}
+            size="md"
+            variant="ghost"
+            onClick={handle_create_definition}
+          >
+            <PlusIcon className="w-4 h-4" />
+            {is_adding && <ButtonSpinner />}
+            {t("common.add")}
+          </Button>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-2 text-xs text-danger"
+            exit={{ opacity: 0, y: -10 }}
+            initial={reduce_motion ? false : { opacity: 0, y: -10 }}
+          >
+            <XMarkIcon className="w-4 h-4" />
+            {error}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

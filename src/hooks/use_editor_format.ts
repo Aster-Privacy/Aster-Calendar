@@ -1,0 +1,826 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { useCallback, useState, useRef, useMemo } from "react";
+
+import { ignore_error } from "@/lib/ignore_error";
+import {
+  type HeadingLevel,
+  type TextAlignment,
+  type FontSizeLabel,
+  type EditorFormatState,
+  FONT_SIZE_MAP,
+  FONT_SIZE_INDEX_MAP,
+  validate_hex_color,
+  is_inside_list,
+  is_inside_tag,
+  get_current_block_tag,
+  escape_html,
+  replace_font_element,
+  is_allowed_font_family,
+  encode_link_url,
+  get_selection_anchor,
+} from "@/hooks/editor_utils";
+
+const ZERO_WIDTH_SPACE = "\u200B";
+
+export const MAX_HORIZONTAL_RULES = 25;
+
+function same_format_state(
+  a: EditorFormatState,
+  b: EditorFormatState,
+): boolean {
+  if (
+    a.current_heading !== b.current_heading ||
+    a.current_alignment !== b.current_alignment ||
+    a.is_in_blockquote !== b.is_in_blockquote ||
+    a.is_in_ordered_list !== b.is_in_ordered_list ||
+    a.is_in_unordered_list !== b.is_in_unordered_list ||
+    a.current_font_color !== b.current_font_color ||
+    a.current_bg_color !== b.current_bg_color ||
+    a.current_font_size !== b.current_font_size ||
+    a.current_font_family !== b.current_font_family ||
+    a.active_formats.size !== b.active_formats.size
+  ) {
+    return false;
+  }
+
+  for (const entry of a.active_formats) {
+    if (!b.active_formats.has(entry)) return false;
+  }
+
+  return true;
+}
+
+function set_style_with_css(use_css: boolean) {
+  try {
+    document.execCommand("styleWithCSS", false, use_css ? "true" : "false");
+  } catch (caught) {
+    ignore_error("hooks/use_editor_format:set_style_with_css", caught);
+  }
+}
+
+function element_for_selection(selection: Selection): HTMLElement | null {
+  const node = selection.anchorNode;
+
+  if (!node) return null;
+
+  if (node.nodeType !== Node.ELEMENT_NODE) return node.parentElement;
+
+  const element = node as HTMLElement;
+  const child = element.childNodes[selection.anchorOffset];
+
+  if (!child) return element;
+
+  return child.nodeType === Node.ELEMENT_NODE
+    ? (child as HTMLElement)
+    : child.parentElement;
+}
+
+function break_out_of_link(editor: HTMLElement) {
+  const selection = window.getSelection();
+
+  if (!selection || selection.rangeCount === 0) return;
+
+  const range = selection.getRangeAt(0);
+  let node: Node | null = range.endContainer;
+  let anchor: HTMLAnchorElement | null = null;
+
+  while (node && node !== editor) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const element = node as HTMLElement;
+
+      if (element.tagName === "A") {
+        anchor = element as HTMLAnchorElement;
+        break;
+      }
+    }
+
+    node = node.parentNode;
+  }
+
+  if (!anchor || !anchor.parentNode) return;
+
+  const spacer = document.createTextNode(ZERO_WIDTH_SPACE);
+
+  anchor.parentNode.insertBefore(spacer, anchor.nextSibling);
+
+  const after_range = document.createRange();
+
+  after_range.setStart(spacer, 1);
+  after_range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(after_range);
+}
+
+export function use_editor_format(
+  editor_ref: React.RefObject<HTMLDivElement | null>,
+  is_plain_text_mode: boolean,
+  handle_input: () => void,
+) {
+  const [format_state, set_format_state] = useState<EditorFormatState>({
+    active_formats: new Set(),
+    current_heading: "p",
+    current_alignment: "left",
+    is_in_blockquote: false,
+    is_in_ordered_list: false,
+    is_in_unordered_list: false,
+    current_font_color: "",
+    current_bg_color: "",
+    current_font_size: "",
+    current_font_family: "",
+  });
+
+  const saved_selection_ref = useRef<Range | null>(null);
+
+  const is_mac = useMemo(() => {
+    if (typeof navigator !== "undefined") {
+      return /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+    }
+
+    return false;
+  }, []);
+
+  const save_selection = useCallback(() => {
+    const editor = editor_ref.current;
+
+    if (!editor) return;
+
+    const selection = window.getSelection();
+
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+
+      if (editor.contains(range.commonAncestorContainer)) {
+        saved_selection_ref.current = range.cloneRange();
+      }
+    }
+  }, [editor_ref]);
+
+  const restore_selection = useCallback(() => {
+    const editor = editor_ref.current;
+
+    if (!editor) return;
+
+    editor.focus();
+    const selection = window.getSelection();
+
+    if (!selection) return;
+
+    const saved = saved_selection_ref.current;
+    const saved_is_usable =
+      saved !== null &&
+      saved.commonAncestorContainer.isConnected &&
+      editor.contains(saved.commonAncestorContainer);
+
+    if (!saved_is_usable) saved_selection_ref.current = null;
+
+    if (saved_is_usable && saved) {
+      selection.removeAllRanges();
+      selection.addRange(saved);
+    } else if (
+      selection.rangeCount === 0 ||
+      !editor.contains(selection.anchorNode)
+    ) {
+      const range = document.createRange();
+
+      range.selectNodeContents(editor);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+  }, [editor_ref]);
+
+  const check_active_formats = useCallback(() => {
+    const editor = editor_ref.current;
+
+    if (!editor) return;
+
+    const selection = window.getSelection();
+
+    if (!selection || selection.rangeCount === 0) return;
+
+    const range = selection.getRangeAt(0);
+
+    if (!editor.contains(range.commonAncestorContainer)) return;
+
+    const formats = new Set<string>();
+
+    try {
+      if (document.queryCommandState("bold")) formats.add("bold");
+      if (document.queryCommandState("italic")) formats.add("italic");
+      if (document.queryCommandState("underline")) formats.add("underline");
+      if (document.queryCommandState("strikeThrough"))
+        formats.add("strikethrough");
+
+      const anchor = selection.anchorNode;
+
+      if (is_inside_list(anchor, "ol")) formats.add("orderedList");
+      if (is_inside_list(anchor, "ul")) formats.add("unorderedList");
+
+      const in_blockquote = is_inside_tag(anchor, "blockquote");
+      const block_tag = get_current_block_tag(anchor);
+
+      let heading: HeadingLevel = "p";
+
+      if (block_tag === "h1") heading = "h1";
+      else if (block_tag === "h2") heading = "h2";
+      else if (block_tag === "h3") heading = "h3";
+
+      let alignment: TextAlignment = "left";
+
+      try {
+        if (document.queryCommandState("justifyCenter")) alignment = "center";
+        else if (document.queryCommandState("justifyRight"))
+          alignment = "right";
+        else if (document.queryCommandState("justifyFull"))
+          alignment = "justify";
+      } catch {
+        alignment = "left";
+      }
+
+      let font_color = "";
+      let bg_color = "";
+      let font_size = "";
+      let font_family = "";
+
+      try {
+        font_color = document.queryCommandValue("foreColor") || "";
+        bg_color =
+          document.queryCommandValue("hiliteColor") ||
+          document.queryCommandValue("backColor") ||
+          "";
+
+        const anchor_element = element_for_selection(selection);
+
+        const computed = anchor_element
+          ? window.getComputedStyle(anchor_element)
+          : null;
+
+        font_size = computed ? computed.fontSize : "";
+        font_family = computed ? computed.fontFamily : "";
+      } catch (caught) {
+        ignore_error("hooks/use_editor_format:use_editor_format", caught);
+      }
+
+      const next: EditorFormatState = {
+        active_formats: formats,
+        current_heading: heading,
+        current_alignment: alignment,
+        is_in_blockquote: in_blockquote,
+        is_in_ordered_list: formats.has("orderedList"),
+        is_in_unordered_list: formats.has("unorderedList"),
+        current_font_color: font_color,
+        current_bg_color: bg_color,
+        current_font_size: font_size,
+        current_font_family: font_family,
+      };
+
+      set_format_state((prev) => (same_format_state(prev, next) ? prev : next));
+    } catch {
+      return;
+    }
+  }, [editor_ref]);
+
+  const exec_format = useCallback(
+    (command: string, value?: string, use_css = false) => {
+      const editor = editor_ref.current;
+
+      if (!editor || is_plain_text_mode) return;
+
+      const selection = window.getSelection();
+
+      if (
+        !selection ||
+        selection.rangeCount === 0 ||
+        !editor.contains(selection.anchorNode)
+      ) {
+        restore_selection();
+      } else {
+        editor.focus();
+      }
+
+      set_style_with_css(use_css);
+      document.execCommand(command, false, value);
+      handle_input();
+      requestAnimationFrame(() => {
+        save_selection();
+        check_active_formats();
+      });
+    },
+    [
+      editor_ref,
+      is_plain_text_mode,
+      restore_selection,
+      handle_input,
+      save_selection,
+      check_active_formats,
+    ],
+  );
+
+  const toggle_bold = useCallback(() => exec_format("bold"), [exec_format]);
+  const toggle_italic = useCallback(() => exec_format("italic"), [exec_format]);
+  const toggle_underline = useCallback(
+    () => exec_format("underline"),
+    [exec_format],
+  );
+  const toggle_strikethrough = useCallback(
+    () => exec_format("strikeThrough"),
+    [exec_format],
+  );
+
+  const split_br_in_list_items = useCallback(() => {
+    const editor = editor_ref.current;
+
+    if (!editor) return;
+
+    const lists = editor.querySelectorAll("ol, ul");
+
+    lists.forEach((list) => {
+      const items = Array.from(list.querySelectorAll("li"));
+
+      items.forEach((li) => {
+        const brs = li.querySelectorAll("br");
+
+        if (brs.length === 0) return;
+
+        const frag = document.createDocumentFragment();
+        const temp = document.createElement("div");
+
+        temp.innerHTML = li.innerHTML;
+
+        const parts = temp.innerHTML.split(/<br\s*\/?>/gi);
+
+        parts.forEach((part) => {
+          const trimmed = part.replace(/&nbsp;/g, " ").trim();
+
+          if (!trimmed) return;
+
+          const new_li = document.createElement("li");
+
+          new_li.innerHTML = part;
+          frag.appendChild(new_li);
+        });
+
+        if (frag.childNodes.length > 0) {
+          li.replaceWith(frag);
+        }
+      });
+    });
+  }, [editor_ref]);
+
+  const toggle_ordered_list = useCallback(() => {
+    exec_format("insertOrderedList");
+    requestAnimationFrame(split_br_in_list_items);
+  }, [exec_format, split_br_in_list_items]);
+
+  const toggle_unordered_list = useCallback(() => {
+    exec_format("insertUnorderedList");
+    requestAnimationFrame(split_br_in_list_items);
+  }, [exec_format, split_br_in_list_items]);
+
+  const insert_blockquote = useCallback(() => {
+    const editor = editor_ref.current;
+
+    if (!editor || is_plain_text_mode) return;
+
+    restore_selection();
+
+    if (format_state.is_in_blockquote) {
+      document.execCommand("outdent", false);
+    } else {
+      const selection = window.getSelection();
+      const range =
+        selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+      let inner = "<br>";
+
+      if (range && !range.collapsed) {
+        const holder = document.createElement("div");
+
+        holder.appendChild(range.cloneContents());
+        if (holder.innerHTML.trim()) inner = holder.innerHTML;
+      }
+
+      document.execCommand(
+        "insertHTML",
+        false,
+        `<blockquote style="border-left: 3px solid #ccc; padding-left: 12px; margin: 4px 0;">${inner}</blockquote>`,
+      );
+    }
+
+    handle_input();
+    requestAnimationFrame(() => {
+      save_selection();
+      check_active_formats();
+    });
+  }, [
+    editor_ref,
+    is_plain_text_mode,
+    restore_selection,
+    format_state.is_in_blockquote,
+    handle_input,
+    save_selection,
+    check_active_formats,
+  ]);
+
+  const insert_horizontal_rule = useCallback(() => {
+    const editor = editor_ref.current;
+
+    if (!editor || is_plain_text_mode) return false;
+
+    if (editor.querySelectorAll("hr").length >= MAX_HORIZONTAL_RULES) {
+      return false;
+    }
+
+    restore_selection();
+    document.execCommand("insertHorizontalRule", false);
+    handle_input();
+    requestAnimationFrame(() => {
+      save_selection();
+      check_active_formats();
+    });
+
+    return true;
+  }, [
+    editor_ref,
+    is_plain_text_mode,
+    restore_selection,
+    handle_input,
+    save_selection,
+    check_active_formats,
+  ]);
+
+  const set_heading = useCallback(
+    (level: HeadingLevel) => {
+      const editor = editor_ref.current;
+
+      if (!editor || is_plain_text_mode) return;
+
+      restore_selection();
+
+      if (level === "p") {
+        document.execCommand("formatBlock", false, "p");
+      } else {
+        document.execCommand("formatBlock", false, level);
+      }
+
+      handle_input();
+      requestAnimationFrame(() => {
+        save_selection();
+        check_active_formats();
+      });
+    },
+    [
+      editor_ref,
+      is_plain_text_mode,
+      restore_selection,
+      handle_input,
+      save_selection,
+      check_active_formats,
+    ],
+  );
+
+  const set_alignment = useCallback(
+    (alignment: TextAlignment) => {
+      const command_map: Record<TextAlignment, string> = {
+        left: "justifyLeft",
+        center: "justifyCenter",
+        right: "justifyRight",
+        justify: "justifyFull",
+      };
+
+      exec_format(command_map[alignment]);
+    },
+    [exec_format],
+  );
+
+  const remove_formatting = useCallback(() => {
+    exec_format("removeFormat");
+    exec_format("unlink");
+  }, [exec_format]);
+
+  const insert_link = useCallback(
+    (url: string, text?: string) => {
+      const editor = editor_ref.current;
+
+      if (!editor || is_plain_text_mode) return;
+
+      const trimmed_url = url.trim();
+      const lower_url = trimmed_url.toLowerCase();
+
+      if (
+        !lower_url.startsWith("http://") &&
+        !lower_url.startsWith("https://") &&
+        !lower_url.startsWith("mailto:")
+      ) {
+        return;
+      }
+
+      const safe_url = encode_link_url(trimmed_url);
+
+      if (!safe_url) return;
+
+      restore_selection();
+      const selection = window.getSelection();
+      const selected_text = selection?.toString() || "";
+      const existing = get_selection_anchor(editor);
+
+      if (existing) {
+        existing.setAttribute("href", safe_url);
+
+        if (text && text !== existing.textContent) {
+          existing.textContent = text;
+        }
+
+        const after = document.createRange();
+
+        after.setStartAfter(existing);
+        after.collapse(true);
+        selection?.removeAllRanges();
+        selection?.addRange(after);
+      } else if (selected_text && !text) {
+        document.execCommand("createLink", false, safe_url);
+        editor.querySelectorAll(`a[href="${safe_url}"]`).forEach((link) => {
+          (link as HTMLElement).style.color = "#3b82f6";
+          (link as HTMLElement).style.textDecoration = "underline";
+        });
+      } else {
+        const link_text = text || trimmed_url;
+        const safe_text = escape_html(link_text);
+
+        document.execCommand(
+          "insertHTML",
+          false,
+          `<a href="${escape_html(safe_url)}" style="color: #3b82f6; text-decoration: underline;">${safe_text}</a>`,
+        );
+      }
+
+      break_out_of_link(editor);
+      handle_input();
+      requestAnimationFrame(() => {
+        save_selection();
+        check_active_formats();
+      });
+    },
+    [
+      editor_ref,
+      is_plain_text_mode,
+      restore_selection,
+      handle_input,
+      save_selection,
+      check_active_formats,
+    ],
+  );
+
+  const insert_emoji = useCallback(
+    (emoji: string) => {
+      const editor = editor_ref.current;
+
+      if (!editor) return;
+
+      restore_selection();
+      document.execCommand("insertText", false, emoji);
+      handle_input();
+      requestAnimationFrame(save_selection);
+    },
+    [editor_ref, restore_selection, handle_input, save_selection],
+  );
+
+  const insert_text = useCallback(
+    (text: string) => {
+      const editor = editor_ref.current;
+
+      if (!editor) return;
+
+      editor.focus();
+      document.execCommand("insertText", false, text);
+      handle_input();
+    },
+    [editor_ref, handle_input],
+  );
+
+  const insert_html = useCallback(
+    (html: string) => {
+      const editor = editor_ref.current;
+
+      if (!editor || is_plain_text_mode) return;
+
+      restore_selection();
+      document.execCommand("insertHTML", false, html);
+      handle_input();
+      requestAnimationFrame(() => {
+        save_selection();
+        check_active_formats();
+      });
+    },
+    [
+      editor_ref,
+      is_plain_text_mode,
+      restore_selection,
+      handle_input,
+      save_selection,
+      check_active_formats,
+    ],
+  );
+
+  const apply_inline_color = useCallback(
+    (
+      property: "color" | "backgroundColor" | "fontFamily",
+      command: string,
+      color: string,
+    ) => {
+      const editor = editor_ref.current;
+
+      if (!editor || is_plain_text_mode) return;
+
+      restore_selection();
+
+      const selection = window.getSelection();
+      const range =
+        selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+
+      if (
+        !selection ||
+        !range ||
+        !range.collapsed ||
+        !editor.contains(range.commonAncestorContainer)
+      ) {
+        exec_format(command, color, true);
+
+        return;
+      }
+
+      const span = document.createElement("span");
+      const filler = document.createTextNode(ZERO_WIDTH_SPACE);
+
+      span.style[property] = color;
+      span.appendChild(filler);
+      range.insertNode(span);
+
+      const caret = document.createRange();
+
+      caret.setStart(filler, filler.length);
+      caret.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(caret);
+
+      handle_input();
+      requestAnimationFrame(() => {
+        save_selection();
+        check_active_formats();
+      });
+    },
+    [
+      editor_ref,
+      is_plain_text_mode,
+      restore_selection,
+      exec_format,
+      handle_input,
+      save_selection,
+      check_active_formats,
+    ],
+  );
+
+  const set_font_color = useCallback(
+    (color: string) => {
+      if (!validate_hex_color(color)) return;
+
+      apply_inline_color("color", "foreColor", color);
+    },
+    [apply_inline_color],
+  );
+
+  const set_background_color = useCallback(
+    (color: string) => {
+      if (!validate_hex_color(color)) return;
+
+      apply_inline_color("backgroundColor", "hiliteColor", color);
+    },
+    [apply_inline_color],
+  );
+
+  const set_font_family = useCallback(
+    (family: string) => {
+      if (!is_allowed_font_family(family)) return;
+
+      apply_inline_color("fontFamily", "fontName", family);
+    },
+    [apply_inline_color],
+  );
+
+  const set_font_size = useCallback(
+    (size: FontSizeLabel) => {
+      const editor = editor_ref.current;
+
+      if (!editor || is_plain_text_mode) return;
+
+      const px = FONT_SIZE_MAP[size];
+
+      restore_selection();
+
+      const selection = window.getSelection();
+
+      if (!selection || selection.rangeCount === 0) return;
+
+      const range = selection.getRangeAt(0);
+
+      if (!editor.contains(range.commonAncestorContainer)) return;
+
+      if (range.collapsed) {
+        const span = document.createElement("span");
+        const filler = document.createTextNode(ZERO_WIDTH_SPACE);
+
+        span.style.fontSize = px;
+        span.appendChild(filler);
+        range.insertNode(span);
+
+        const caret = document.createRange();
+
+        caret.setStart(filler, filler.length);
+        caret.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(caret);
+      } else {
+        const fallback_range = range.cloneRange();
+
+        set_style_with_css(false);
+        document.execCommand("fontSize", false, FONT_SIZE_INDEX_MAP[size]);
+
+        const active_selection = window.getSelection();
+        const scope =
+          active_selection && active_selection.rangeCount > 0
+            ? active_selection.getRangeAt(0)
+            : fallback_range;
+
+        const targets: HTMLElement[] = [];
+
+        editor.querySelectorAll("font[size]").forEach((node) => {
+          if (scope.intersectsNode(node)) {
+            targets.push(node as HTMLElement);
+          }
+        });
+
+        targets.forEach((font) => replace_font_element(font, px));
+      }
+
+      handle_input();
+      requestAnimationFrame(() => {
+        save_selection();
+        check_active_formats();
+      });
+    },
+    [
+      editor_ref,
+      is_plain_text_mode,
+      restore_selection,
+      handle_input,
+      save_selection,
+      check_active_formats,
+    ],
+  );
+
+  return {
+    format_state,
+    is_mac,
+    save_selection,
+    restore_selection,
+    check_active_formats,
+    exec_format,
+    toggle_bold,
+    toggle_italic,
+    toggle_underline,
+    toggle_strikethrough,
+    toggle_ordered_list,
+    toggle_unordered_list,
+    insert_blockquote,
+    insert_horizontal_rule,
+    set_heading,
+    set_alignment,
+    remove_formatting,
+    insert_link,
+    insert_emoji,
+    insert_text,
+    insert_html,
+    set_font_color,
+    set_background_color,
+    set_font_size,
+    set_font_family,
+  };
+}

@@ -1,0 +1,1045 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { useState, useCallback, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
+import { Button, Input, IslandRow } from "@aster/ui";
+import {
+  ArrowLeftIcon,
+  BackspaceIcon,
+  CheckIcon,
+  EyeIcon,
+  EyeSlashIcon,
+} from "@heroicons/react/24/outline";
+
+import { show_toast } from "@/components/toast/simple_toast";
+import {
+  Modal,
+  ModalHeader,
+  ModalTitle,
+  ModalDescription,
+  ModalBody,
+  ModalFooter,
+} from "@/components/ui/modal";
+import { use_i18n } from "@/lib/i18n/context";
+import { use_auth_safe } from "@/contexts/auth_context";
+import { cn } from "@/lib/utils";
+import {
+  get_app_lock_config,
+  save_app_lock_config,
+  clear_app_lock_config,
+  clear_session_unlock,
+  generate_pin_salt,
+  hash_pin,
+  verify_pin,
+  is_locked_out,
+  mark_session_unlocked,
+  duress_pin_correct,
+  has_duress_pin,
+  ensure_pepper,
+  KDF_VERSION_PEPPER,
+} from "@/services/app_lock_store";
+import { DuressPinSection } from "@/components/settings/security/duress_pin_section";
+import { is_composing } from "@/utils/ime";
+import { ButtonSpinner } from "@/components/ui/spinner";
+
+function PinDots({
+  digits,
+  filled,
+  shake_key,
+}: {
+  digits: number;
+  filled: number;
+  shake_key: number;
+}) {
+  return (
+    <motion.div
+      key={shake_key}
+      animate={shake_key > 0 ? { x: [0, -10, 10, -10, 10, 0] } : { x: 0 }}
+      className="flex items-center gap-3 justify-center"
+      transition={{ duration: 0.35 }}
+    >
+      {Array.from({ length: digits }).map((_, i) => (
+        <div
+          key={i}
+          className={cn(
+            "w-3.5 h-3.5 rounded-full border-2 transition-all duration-150",
+            i < filled
+              ? "bg-primary border-primary"
+              : "border-muted-foreground/40 bg-transparent",
+          )}
+        />
+      ))}
+    </motion.div>
+  );
+}
+
+function PinPad({
+  on_digit,
+  on_backspace,
+  on_check,
+  disabled,
+}: {
+  on_digit: (d: string) => void;
+  on_backspace: () => void;
+  on_check?: () => void;
+  disabled?: boolean;
+}) {
+  const [pressed_key, set_pressed_key] = useState<string | null>(null);
+
+  const flash = useCallback((k: string) => {
+    set_pressed_key(k);
+    setTimeout(() => set_pressed_key(null), 120);
+  }, []);
+
+  useEffect(() => {
+    const on_key = (e: KeyboardEvent) => {
+      if (disabled) return;
+      const k = e.key;
+
+      if (k >= "0" && k <= "9") {
+        flash(k);
+        on_digit(k);
+      } else if (k === "Backspace") {
+        flash("Backspace");
+        on_backspace();
+      } else if (k === "Enter") {
+        flash("Enter");
+        on_check?.();
+      }
+    };
+
+    window.addEventListener("keydown", on_key);
+
+    return () => window.removeEventListener("keydown", on_key);
+  }, [disabled, on_digit, on_backspace, on_check, flash]);
+
+  const btn = (active: boolean) =>
+    cn(
+      "h-12 w-12 mx-auto rounded-full flex items-center justify-center transition-all duration-75 focus:outline-none focus-visible:outline-none",
+      disabled
+        ? "bg-muted/40 text-txt-muted cursor-not-allowed"
+        : "bg-muted hover:bg-muted/70",
+      active && !disabled && "scale-90 bg-muted/50",
+    );
+
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((k) => (
+        <button
+          key={k}
+          className={cn(btn(pressed_key === k), "text-base font-medium")}
+          disabled={disabled}
+          type="button"
+          onClick={() => on_digit(k)}
+        >
+          {k}
+        </button>
+      ))}
+      <button
+        className={btn(pressed_key === "Backspace")}
+        disabled={disabled}
+        type="button"
+        onClick={on_backspace}
+      >
+        <BackspaceIcon className="h-4 w-4 text-txt-primary" />
+      </button>
+      <button
+        key="0"
+        className={cn(btn(pressed_key === "0"), "text-base font-medium")}
+        disabled={disabled}
+        type="button"
+        onClick={() => on_digit("0")}
+      >
+        0
+      </button>
+      <button
+        className={btn(pressed_key === "Enter")}
+        disabled={disabled}
+        type="button"
+        onClick={on_check}
+      >
+        <CheckIcon className="h-4 w-4 text-txt-primary" />
+      </button>
+    </div>
+  );
+}
+
+function VerifyPinModal({
+  account_id,
+  is_open,
+  on_close,
+  on_success,
+  description,
+}: {
+  account_id: string;
+  is_open: boolean;
+  on_close: () => void;
+  on_success: () => void;
+  description: string;
+}) {
+  const { t } = use_i18n();
+  const config = get_app_lock_config(account_id);
+  const pin_type = config?.pin_type ?? "numeric";
+  const digits = pin_type === "numeric" ? (config?.digits ?? 4) : 0;
+  const text_input_ref = useRef<HTMLInputElement>(null);
+  const verifying_ref = useRef(false);
+  const [input, set_input] = useState("");
+  const [shake_key, set_shake_key] = useState(0);
+  const [error_msg, set_error_msg] = useState<string | null>(null);
+  const [verifying, set_verifying] = useState(false);
+  const [locked_out, set_locked_out] = useState(false);
+  const [lockout_secs, set_lockout_secs] = useState(0);
+  const [show_passphrase, set_show_passphrase] = useState(false);
+
+  useEffect(() => {
+    if (!is_open) {
+      verifying_ref.current = false;
+      set_input("");
+      set_shake_key(0);
+      set_error_msg(null);
+      set_verifying(false);
+      set_locked_out(false);
+      set_lockout_secs(0);
+      set_show_passphrase(false);
+
+      return;
+    }
+    const { locked, remaining_ms } = is_locked_out(account_id);
+
+    if (locked) {
+      set_locked_out(true);
+      set_lockout_secs(Math.ceil(remaining_ms / 1000));
+    }
+    if (pin_type === "text") {
+      const timer = setTimeout(() => text_input_ref.current?.focus(), 150);
+
+      return () => clearTimeout(timer);
+    }
+  }, [is_open, account_id, pin_type]);
+
+  useEffect(() => {
+    if (!locked_out) return;
+    const interval = setInterval(() => {
+      const { locked, remaining_ms } = is_locked_out(account_id);
+
+      if (!locked) {
+        set_locked_out(false);
+        set_lockout_secs(0);
+      } else {
+        set_lockout_secs(Math.ceil(remaining_ms / 1000));
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [locked_out, account_id]);
+
+  const attempt_verify = useCallback(
+    async (value: string) => {
+      if (verifying_ref.current) return;
+      verifying_ref.current = true;
+      set_verifying(true);
+      const result = await verify_pin(account_id, value);
+
+      if (result.ok) {
+        set_input("");
+        verifying_ref.current = false;
+        set_verifying(false);
+        on_success();
+
+        return;
+      }
+      if (result.locked) {
+        set_locked_out(true);
+        set_input("");
+        const { remaining_ms } = is_locked_out(account_id);
+
+        set_lockout_secs(Math.ceil(remaining_ms / 1000));
+        set_error_msg(null);
+      } else {
+        set_shake_key((k) => k + 1);
+        set_input("");
+        const msg =
+          result.attempts_remaining > 0
+            ? t("settings.app_lock_attempts_remaining", {
+                count: result.attempts_remaining,
+              })
+            : t("settings.app_lock_wrong_pin");
+
+        set_error_msg(msg);
+        setTimeout(() => set_error_msg(null), 2000);
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, 600));
+      verifying_ref.current = false;
+      set_verifying(false);
+    },
+    [account_id, on_success, t],
+  );
+
+  const handle_digit = useCallback(
+    async (d: string) => {
+      if (verifying_ref.current || locked_out) return;
+      const next = input + d;
+
+      set_input(next);
+      if (next.length === digits) {
+        await attempt_verify(next);
+      }
+    },
+    [input, digits, locked_out, attempt_verify],
+  );
+
+  const handle_backspace = useCallback(() => {
+    if (locked_out || verifying) return;
+    set_input((prev) => prev.slice(0, -1));
+  }, [locked_out, verifying]);
+
+  const handle_text_submit = useCallback(async () => {
+    if (verifying || locked_out || input.length < 1) return;
+    await attempt_verify(input);
+  }, [verifying, locked_out, input, attempt_verify]);
+
+  useEffect(() => {
+    if (!is_open || pin_type !== "text") return;
+    const on_key = (e: KeyboardEvent) => {
+      if (e.key === "Enter") handle_text_submit();
+    };
+
+    window.addEventListener("keydown", on_key);
+
+    return () => window.removeEventListener("keydown", on_key);
+  }, [is_open, pin_type, handle_text_submit]);
+
+  return (
+    <Modal is_open={is_open} on_close={on_close} size="sm">
+      <ModalHeader>
+        <ModalTitle>{t("settings.app_lock_pin")}</ModalTitle>
+        <ModalDescription>
+          {locked_out
+            ? t("settings.app_lock_locked_out_for", { s: lockout_secs })
+            : description}
+        </ModalDescription>
+      </ModalHeader>
+      <ModalBody>
+        {pin_type === "numeric" ? (
+          <div className="flex flex-col items-center gap-2 pt-1">
+            <PinDots
+              digits={digits}
+              filled={input.length}
+              shake_key={shake_key}
+            />
+            {(error_msg || verifying) && (
+              <div className="flex items-center justify-center -mb-1">
+                {error_msg && (
+                  <p className="text-xs text-red-500">{error_msg}</p>
+                )}
+                {verifying && !error_msg && (
+                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                )}
+              </div>
+            )}
+            <PinPad
+              disabled={verifying || locked_out}
+              on_backspace={handle_backspace}
+              on_digit={handle_digit}
+            />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <motion.div
+              key={shake_key}
+              animate={
+                shake_key > 0 ? { x: [0, -10, 10, -10, 10, 0] } : { x: 0 }
+              }
+              transition={{ duration: 0.35 }}
+            >
+              <div className="relative">
+                <Input
+                  ref={text_input_ref}
+                  autoComplete="off"
+                  className="pe-10"
+                  data-form-type="other"
+                  disabled={verifying || locked_out}
+                  placeholder={t("settings.app_lock_text_placeholder")}
+                  size="md"
+                  type={show_passphrase ? "text" : "password"}
+                  value={input}
+                  onChange={(e) => {
+                    if (!verifying && !locked_out) set_input(e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !is_composing(e))
+                      handle_text_submit();
+                  }}
+                />
+                <button
+                  className="absolute end-3 top-1/2 -translate-y-1/2 text-txt-muted hover:text-txt-primary transition-colors"
+                  tabIndex={-1}
+                  type="button"
+                  onClick={() => set_show_passphrase((v) => !v)}
+                >
+                  {show_passphrase ? (
+                    <EyeSlashIcon className="h-4 w-4" />
+                  ) : (
+                    <EyeIcon className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </motion.div>
+            {error_msg && (
+              <p className="text-sm text-red-500 -mt-1">{error_msg}</p>
+            )}
+            <Button
+              disabled={verifying || locked_out || input.length < 1}
+              variant="depth"
+              onClick={handle_text_submit}
+            >
+              {t("common.continue")}
+              {verifying && <ButtonSpinner />}
+            </Button>
+          </div>
+        )}
+      </ModalBody>
+    </Modal>
+  );
+}
+
+type SetupStep =
+  | "choose_mode"
+  | "choose_digits"
+  | "set_pin"
+  | "confirm_pin"
+  | "set_text"
+  | "confirm_text";
+
+function SetupPinModal({
+  account_id,
+  is_open,
+  on_close,
+  on_success,
+}: {
+  account_id: string;
+  is_open: boolean;
+  on_close: () => void;
+  on_success: () => void;
+}) {
+  const { t } = use_i18n();
+  const [step, set_step] = useState<SetupStep>("choose_mode");
+  const [chosen_mode, set_chosen_mode] = useState<"numeric" | "text">(
+    "numeric",
+  );
+  const [chosen_digits, set_chosen_digits] = useState(4);
+  const [first_pin, set_first_pin] = useState("");
+  const [confirm_input, set_confirm_input] = useState("");
+  const [text_input, set_text_input] = useState("");
+  const [first_text, set_first_text] = useState("");
+  const [shake_key, set_shake_key] = useState(0);
+  const [error_msg, set_error_msg] = useState<string | null>(null);
+  const [saving, set_saving] = useState(false);
+  const [show_passphrase, set_show_passphrase] = useState(false);
+
+  const reset = useCallback(() => {
+    set_step("choose_mode");
+    set_chosen_mode("numeric");
+    set_chosen_digits(4);
+    set_first_pin("");
+    set_confirm_input("");
+    set_text_input("");
+    set_first_text("");
+    set_shake_key(0);
+    set_error_msg(null);
+    set_saving(false);
+    set_show_passphrase(false);
+  }, []);
+
+  useEffect(() => {
+    if (!is_open) reset();
+  }, [is_open, reset]);
+
+  const handle_back = useCallback(() => {
+    if (step === "choose_digits") {
+      set_step("choose_mode");
+    } else if (step === "set_pin") {
+      set_step("choose_digits");
+      set_first_pin("");
+    } else if (step === "confirm_pin") {
+      set_step("set_pin");
+      set_first_pin("");
+      set_confirm_input("");
+      set_error_msg(null);
+    } else if (step === "set_text") {
+      set_step("choose_mode");
+      set_text_input("");
+      set_first_text("");
+    } else if (step === "confirm_text") {
+      set_step("set_text");
+      set_text_input("");
+      set_first_text("");
+      set_show_passphrase(false);
+      set_error_msg(null);
+    }
+  }, [step]);
+
+  const handle_mode_continue = useCallback(() => {
+    if (chosen_mode === "numeric") set_step("choose_digits");
+    else set_step("set_text");
+  }, [chosen_mode]);
+
+  const handle_first_digit = useCallback(
+    (d: string) => {
+      const next = first_pin + d;
+
+      set_first_pin(next);
+      if (next.length === chosen_digits) {
+        set_confirm_input("");
+        set_step("confirm_pin");
+      }
+    },
+    [first_pin, chosen_digits],
+  );
+
+  const handle_first_backspace = useCallback(() => {
+    set_first_pin((prev) => prev.slice(0, -1));
+  }, []);
+
+  const handle_confirm_digit = useCallback(
+    async (d: string) => {
+      if (saving) return;
+      const next = confirm_input + d;
+
+      set_confirm_input(next);
+      if (next.length === chosen_digits) {
+        if (next !== first_pin) {
+          set_shake_key((k) => k + 1);
+          set_error_msg(t("settings.app_lock_pin_mismatch"));
+          setTimeout(() => {
+            set_confirm_input("");
+            set_first_pin("");
+            set_step("set_pin");
+            set_error_msg(null);
+          }, 800);
+
+          return;
+        }
+        set_saving(true);
+        try {
+          const salt = generate_pin_salt();
+          const existing = get_app_lock_config(account_id);
+          const had_duress = await has_duress_pin(account_id);
+          const duress_collides = had_duress
+            ? await duress_pin_correct(account_id, next)
+            : false;
+          const duress_format_changed =
+            existing?.pin_type !== "numeric" ||
+            existing?.digits !== chosen_digits;
+          const carrying_duress =
+            !duress_collides && !duress_format_changed && had_duress;
+          const dropping_duress =
+            !carrying_duress && had_duress && !duress_collides;
+          const duress_fields = carrying_duress
+            ? {
+                duress_pin_hash: existing!.duress_pin_hash,
+                duress_pin_salt: existing!.duress_pin_salt,
+                duress_tag: existing!.duress_tag,
+              }
+            : {};
+          const use_pepper =
+            !carrying_duress || existing?.kdf_version === KDF_VERSION_PEPPER;
+          const pepper = use_pepper
+            ? ((await ensure_pepper(account_id)) ?? undefined)
+            : undefined;
+          const pin_hash = await hash_pin(next, salt, pepper);
+          const pin_salt = Array.from(salt)
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join("");
+
+          save_app_lock_config(account_id, {
+            enabled: true,
+            pin_type: "numeric",
+            digits: chosen_digits,
+            pin_hash,
+            pin_salt,
+            kdf_version: pepper ? KDF_VERSION_PEPPER : undefined,
+            ...duress_fields,
+          });
+
+          if (duress_collides) {
+            show_toast(t("settings.duress_pin_matches_regular"), "warning");
+          } else if (dropping_duress) {
+            show_toast(
+              t("settings.duress_pin_cleared_length_change"),
+              "warning",
+            );
+          }
+          mark_session_unlocked(account_id);
+          on_success();
+        } catch {
+          set_error_msg(t("common.something_went_wrong"));
+        }
+        set_saving(false);
+      }
+    },
+    [
+      account_id,
+      confirm_input,
+      first_pin,
+      chosen_digits,
+      saving,
+      on_success,
+      t,
+    ],
+  );
+
+  const handle_confirm_backspace = useCallback(() => {
+    set_confirm_input((prev) => prev.slice(0, -1));
+  }, []);
+
+  const handle_text_continue = useCallback(() => {
+    if (step === "set_text") {
+      if (text_input.length < 4) {
+        set_error_msg(t("settings.app_lock_passphrase_too_short"));
+        setTimeout(() => set_error_msg(null), 2000);
+
+        return;
+      }
+      set_first_text(text_input);
+      set_text_input("");
+      set_step("confirm_text");
+    } else if (step === "confirm_text") {
+      if (text_input !== first_text) {
+        set_shake_key((k) => k + 1);
+        set_error_msg(t("settings.app_lock_passphrase_mismatch"));
+        setTimeout(() => {
+          set_text_input("");
+          set_first_text("");
+          set_step("set_text");
+          set_error_msg(null);
+        }, 800);
+
+        return;
+      }
+      set_saving(true);
+      (async () => {
+        try {
+          const salt = generate_pin_salt();
+          const existing = get_app_lock_config(account_id);
+          const had_duress = await has_duress_pin(account_id);
+          const duress_collides = had_duress
+            ? await duress_pin_correct(account_id, text_input)
+            : false;
+          const duress_format_changed = existing?.pin_type !== "text";
+          const carrying_duress =
+            !duress_collides && !duress_format_changed && had_duress;
+          const dropping_duress =
+            !carrying_duress && had_duress && !duress_collides;
+          const duress_fields = carrying_duress
+            ? {
+                duress_pin_hash: existing!.duress_pin_hash,
+                duress_pin_salt: existing!.duress_pin_salt,
+                duress_tag: existing!.duress_tag,
+              }
+            : {};
+          const use_pepper =
+            !carrying_duress || existing?.kdf_version === KDF_VERSION_PEPPER;
+          const pepper = use_pepper
+            ? ((await ensure_pepper(account_id)) ?? undefined)
+            : undefined;
+          const pin_hash = await hash_pin(text_input, salt, pepper);
+          const pin_salt = Array.from(salt)
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join("");
+
+          save_app_lock_config(account_id, {
+            enabled: true,
+            pin_type: "text",
+            digits: 0,
+            pin_hash,
+            pin_salt,
+            kdf_version: pepper ? KDF_VERSION_PEPPER : undefined,
+            ...duress_fields,
+          });
+
+          if (duress_collides) {
+            show_toast(t("settings.duress_pin_matches_regular"), "warning");
+          } else if (dropping_duress) {
+            show_toast(
+              t("settings.duress_pin_cleared_length_change"),
+              "warning",
+            );
+          }
+          mark_session_unlocked(account_id);
+          on_success();
+        } catch {
+          set_error_msg(t("common.something_went_wrong"));
+        }
+        set_saving(false);
+      })();
+    }
+  }, [step, text_input, first_text, account_id, on_success, t]);
+
+  const step_index =
+    step === "choose_mode"
+      ? 0
+      : step === "choose_digits" || step === "set_text"
+        ? 1
+        : 2;
+
+  const is_first_step = step === "choose_mode";
+
+  const modal_title =
+    step === "choose_mode"
+      ? t("settings.app_lock_choose_mode")
+      : step === "choose_digits"
+        ? t("settings.app_lock_choose_digits")
+        : step === "set_pin"
+          ? t("settings.app_lock_set_pin")
+          : step === "confirm_pin"
+            ? t("settings.app_lock_confirm_pin")
+            : step === "set_text"
+              ? t("settings.app_lock_set_passphrase")
+              : t("settings.app_lock_confirm_passphrase");
+
+  return (
+    <Modal
+      close_on_overlay={is_first_step}
+      is_open={is_open}
+      on_close={on_close}
+      size="sm"
+    >
+      <ModalHeader>
+        <div className="flex items-center gap-2">
+          {!is_first_step && (
+            <button
+              className="p-1 -ms-1 rounded-[var(--aster-radius-control)] hover:bg-muted transition-colors"
+              type="button"
+              onClick={handle_back}
+            >
+              <ArrowLeftIcon className="h-4 w-4 rtl:-scale-x-100" />
+            </button>
+          )}
+          <ModalTitle>{modal_title}</ModalTitle>
+        </div>
+        <div className="flex items-center gap-1 mt-2 w-full">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className={cn(
+                "h-1 flex-1 rounded-full transition-all duration-300",
+                i <= step_index ? "bg-brand" : "bg-muted",
+              )}
+            />
+          ))}
+        </div>
+      </ModalHeader>
+      <ModalBody>
+        {step === "choose_mode" && (
+          <div className="flex flex-col gap-2">
+            <button
+              className={cn(
+                "w-full py-3 px-4 rounded-[var(--aster-radius-control)] text-sm font-medium transition-colors text-start",
+                chosen_mode === "numeric"
+                  ? "bg-brand text-[var(--accent-fg,#ffffff)] border border-brand"
+                  : "bg-surf-secondary text-txt-primary hover:bg-surf-tertiary border border-edge-secondary",
+              )}
+              type="button"
+              onClick={() => set_chosen_mode("numeric")}
+            >
+              <div className="font-medium">
+                {t("settings.app_lock_mode_numeric")}
+              </div>
+              <div
+                className={cn(
+                  "text-xs mt-0.5",
+                  chosen_mode === "numeric"
+                    ? "text-white/70"
+                    : "text-txt-muted",
+                )}
+              >
+                {t("settings.app_lock_mode_numeric_desc")}
+              </div>
+            </button>
+            <button
+              className={cn(
+                "w-full py-3 px-4 rounded-[var(--aster-radius-control)] text-sm font-medium transition-colors text-start",
+                chosen_mode === "text"
+                  ? "bg-brand text-[var(--accent-fg,#ffffff)] border border-brand"
+                  : "bg-surf-secondary text-txt-primary hover:bg-surf-tertiary border border-edge-secondary",
+              )}
+              type="button"
+              onClick={() => set_chosen_mode("text")}
+            >
+              <div className="font-medium">
+                {t("settings.app_lock_mode_text")}
+              </div>
+              <div
+                className={cn(
+                  "text-xs mt-0.5",
+                  chosen_mode === "text" ? "text-white/70" : "text-txt-muted",
+                )}
+              >
+                {t("settings.app_lock_mode_text_desc")}
+              </div>
+            </button>
+          </div>
+        )}
+        {step === "choose_digits" && (
+          <div className="flex flex-col gap-2">
+            {([4, 6, 8] as const).map((n) => (
+              <button
+                key={n}
+                className={cn(
+                  "w-full py-3 px-4 rounded-[var(--aster-radius-control)] text-sm font-medium transition-colors text-start",
+                  chosen_digits === n
+                    ? "bg-brand text-[var(--accent-fg,#ffffff)] border border-brand"
+                    : "bg-surf-secondary text-txt-primary hover:bg-surf-tertiary border border-edge-secondary",
+                )}
+                type="button"
+                onClick={() => set_chosen_digits(n)}
+              >
+                {n === 4
+                  ? t("settings.app_lock_digits_4")
+                  : n === 6
+                    ? t("settings.app_lock_digits_6")
+                    : t("settings.app_lock_digits_8")}
+              </button>
+            ))}
+          </div>
+        )}
+        {step === "set_pin" && (
+          <div className="flex flex-col items-center gap-2 pt-1">
+            <PinDots
+              digits={chosen_digits}
+              filled={first_pin.length}
+              shake_key={0}
+            />
+            <PinPad
+              on_backspace={handle_first_backspace}
+              on_digit={handle_first_digit}
+            />
+          </div>
+        )}
+        {step === "confirm_pin" && (
+          <div className="flex flex-col items-center gap-2 pt-1">
+            <PinDots
+              digits={chosen_digits}
+              filled={confirm_input.length}
+              shake_key={shake_key}
+            />
+            {(error_msg || saving) && (
+              <div className="flex items-center justify-center -mb-1">
+                {error_msg && (
+                  <p className="text-xs text-red-500">{error_msg}</p>
+                )}
+                {saving && (
+                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                )}
+              </div>
+            )}
+            <PinPad
+              disabled={saving}
+              on_backspace={handle_confirm_backspace}
+              on_digit={handle_confirm_digit}
+            />
+          </div>
+        )}
+        {(step === "set_text" || step === "confirm_text") && (
+          <div className="flex flex-col gap-3">
+            <motion.div
+              key={shake_key}
+              animate={
+                shake_key > 0 ? { x: [0, -10, 10, -10, 10, 0] } : { x: 0 }
+              }
+              className="relative"
+              transition={{ duration: 0.35 }}
+            >
+              <Input
+                autoFocus
+                autoComplete="off"
+                className="pe-10"
+                data-form-type="other"
+                placeholder={t("settings.app_lock_text_placeholder")}
+                size="md"
+                type={show_passphrase ? "text" : "password"}
+                value={text_input}
+                onChange={(e) => set_text_input(e.target.value)}
+                onKeyDown={(e) =>
+                  e.key === "Enter" &&
+                  !is_composing(e) &&
+                  handle_text_continue()
+                }
+              />
+              <button
+                className="absolute end-3 top-1/2 -translate-y-1/2 text-txt-muted hover:text-txt-primary transition-colors"
+                tabIndex={-1}
+                type="button"
+                onClick={() => set_show_passphrase((v) => !v)}
+              >
+                {show_passphrase ? (
+                  <EyeSlashIcon className="h-4 w-4" />
+                ) : (
+                  <EyeIcon className="h-4 w-4" />
+                )}
+              </button>
+            </motion.div>
+            {error_msg && (
+              <p className="text-sm text-red-500 -mt-1">{error_msg}</p>
+            )}
+            {saving && (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            )}
+          </div>
+        )}
+      </ModalBody>
+      {(step === "choose_mode" ||
+        step === "choose_digits" ||
+        step === "set_text" ||
+        step === "confirm_text") && (
+        <ModalFooter>
+          <Button
+            variant="outline"
+            onClick={is_first_step ? on_close : handle_back}
+          >
+            {is_first_step ? t("common.cancel") : t("common.back")}
+          </Button>
+          {(step === "choose_mode" || step === "choose_digits") && (
+            <Button
+              variant="depth"
+              onClick={
+                step === "choose_mode"
+                  ? handle_mode_continue
+                  : () => set_step("set_pin")
+              }
+            >
+              {t("common.continue")}
+            </Button>
+          )}
+          {(step === "set_text" || step === "confirm_text") && (
+            <Button
+              disabled={saving || text_input.length < 1}
+              variant="depth"
+              onClick={handle_text_continue}
+            >
+              {t("common.continue")}
+            </Button>
+          )}
+        </ModalFooter>
+      )}
+    </Modal>
+  );
+}
+
+type AppLockModal = "setup" | "verify_to_change" | "change" | "disable" | null;
+
+export function AppLockSection() {
+  const { t } = use_i18n();
+  const auth = use_auth_safe();
+  const account_id = auth?.current_account_id ?? "";
+  const [enabled, set_enabled] = useState(false);
+  const [modal, set_modal] = useState<AppLockModal>(null);
+
+  useEffect(() => {
+    if (account_id)
+      set_enabled(get_app_lock_config(account_id)?.enabled ?? false);
+  }, [account_id]);
+
+  const close_modal = useCallback(() => set_modal(null), []);
+
+  const handle_toggle = useCallback((checked: boolean) => {
+    set_modal(checked ? "setup" : "disable");
+  }, []);
+
+  const handle_setup_success = useCallback(() => {
+    set_enabled(true);
+    set_modal(null);
+    show_toast(t("settings.app_lock_enabled_toast"), "success");
+  }, [t]);
+
+  const handle_disable_success = useCallback(() => {
+    clear_app_lock_config(account_id);
+    clear_session_unlock(account_id);
+    set_enabled(false);
+    set_modal(null);
+    show_toast(t("settings.app_lock_disabled_toast"), "success");
+  }, [account_id, t]);
+
+  const handle_verify_to_change_success = useCallback(() => {
+    set_modal("change");
+  }, []);
+
+  const handle_change_success = useCallback(() => {
+    set_modal(null);
+    show_toast(t("settings.app_lock_enabled_toast"), "success");
+  }, [t]);
+
+  return (
+    <>
+      <IslandRow
+        description={
+          <>
+            {t("settings.app_lock_pin_description")}
+            {enabled && (
+              <button
+                className="block mt-2 text-xs text-brand underline underline-offset-2 hover:opacity-80"
+                type="button"
+                onClick={() => set_modal("verify_to_change")}
+              >
+                {t("settings.app_lock_change_pin")}
+              </button>
+            )}
+          </>
+        }
+        label={t("settings.app_lock_pin")}
+        toggle={{
+          checked: enabled,
+          on_change: handle_toggle,
+          size: "lg",
+          aria_label: t("settings.app_lock_pin"),
+        }}
+      />
+
+      {enabled && <DuressPinSection />}
+
+      <SetupPinModal
+        account_id={account_id}
+        is_open={modal === "setup" || modal === "change"}
+        on_close={close_modal}
+        on_success={
+          modal === "change" ? handle_change_success : handle_setup_success
+        }
+      />
+
+      <VerifyPinModal
+        account_id={account_id}
+        description={t("settings.app_lock_enter_to_change")}
+        is_open={modal === "verify_to_change"}
+        on_close={close_modal}
+        on_success={handle_verify_to_change_success}
+      />
+
+      <VerifyPinModal
+        account_id={account_id}
+        description={t("settings.app_lock_enter_to_disable")}
+        is_open={modal === "disable"}
+        on_close={close_modal}
+        on_success={handle_disable_success}
+      />
+    </>
+  );
+}

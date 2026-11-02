@@ -1,0 +1,380 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { afterEach, beforeEach, vi } from "vitest";
+
+const NODE_NAME_BY_TYPE: Record<number, string> = {
+  3: "#text",
+  4: "#cdata-section",
+  8: "#comment",
+  9: "#document",
+  11: "#document-fragment",
+};
+
+function inherited_node_name(node: Node): string {
+  let prototype = Object.getPrototypeOf(node);
+
+  while (prototype && prototype !== Node.prototype) {
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, "nodeName");
+
+    if (descriptor && descriptor.get)
+      return descriptor.get.call(node) as string;
+
+    prototype = Object.getPrototypeOf(prototype);
+  }
+
+  return NODE_NAME_BY_TYPE[node.nodeType] ?? "";
+}
+
+function repair_node_name_getter(): void {
+  if (typeof Node === "undefined" || typeof document === "undefined") return;
+
+  const descriptor = Object.getOwnPropertyDescriptor(
+    Node.prototype,
+    "nodeName",
+  );
+
+  if (!descriptor || !descriptor.get) return;
+  if (descriptor.get.call(document.createElement("div")) !== "") return;
+
+  Object.defineProperty(Node.prototype, "nodeName", {
+    configurable: true,
+    enumerable: descriptor.enumerable,
+    get(this: Node): string {
+      return inherited_node_name(this);
+    },
+  });
+}
+
+repair_node_name_getter();
+
+function quiet_canceled_animations(): void {
+  if (typeof Element === "undefined") return;
+
+  const animate = Element.prototype.animate;
+
+  if (typeof animate !== "function") return;
+
+  const patched = new WeakSet<object>();
+
+  Element.prototype.animate = function (
+    this: Element,
+    ...args: Parameters<Element["animate"]>
+  ): Animation {
+    const animation = animate.apply(this, args);
+    const prototype = Object.getPrototypeOf(animation) as Animation;
+
+    if (!patched.has(prototype)) {
+      patched.add(prototype);
+      const cancel = prototype.cancel;
+
+      prototype.cancel = function (this: Animation): void {
+        this.finished?.catch(() => undefined);
+        cancel.call(this);
+      };
+    }
+
+    return animation;
+  };
+}
+
+quiet_canceled_animations();
+
+const subtle_crypto_mock = {
+  generateKey: vi.fn(),
+  importKey: vi.fn(),
+  exportKey: vi.fn(),
+  encrypt: vi.fn(),
+  decrypt: vi.fn(),
+  sign: vi.fn(),
+  verify: vi.fn(),
+  digest: vi.fn(),
+  deriveBits: vi.fn(),
+  deriveKey: vi.fn(),
+};
+
+const crypto_mock = {
+  subtle: subtle_crypto_mock,
+  getRandomValues: <T extends ArrayBufferView>(array: T): T => {
+    if (array instanceof Uint8Array) {
+      for (let i = 0; i < array.length; i++) {
+        array[i] = Math.floor(Math.random() * 256);
+      }
+    }
+
+    return array;
+  },
+  randomUUID: () => crypto.randomUUID(),
+};
+
+if (typeof globalThis.crypto === "undefined") {
+  Object.defineProperty(globalThis, "crypto", {
+    value: crypto_mock,
+    writable: true,
+  });
+}
+
+if (typeof globalThis.indexedDB === "undefined") {
+  const stores = new Map<string, Map<string, unknown>>();
+  const db_store_names = new Set<string>(["encrypted_data"]);
+
+  const mock_store_name_list = () => {
+    const names = Array.from(db_store_names);
+
+    return Object.assign(names, {
+      contains: (name: string) => db_store_names.has(name),
+      item: (index: number) => names[index] ?? null,
+    });
+  };
+
+  const mock_idb_request = (result: unknown, error: unknown = null) => ({
+    result,
+    error,
+    onsuccess: null as ((event: Event) => void) | null,
+    onerror: null as ((event: Event) => void) | null,
+    onupgradeneeded: null as ((event: Event) => void) | null,
+    onblocked: null as ((event: Event) => void) | null,
+    readyState: "done" as IDBRequestReadyState,
+    source: null,
+    transaction: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(() => true),
+  });
+
+  const mock_object_store = (name: string) => {
+    if (!stores.has(name)) {
+      stores.set(name, new Map());
+    }
+    const store = stores.get(name)!;
+
+    return {
+      name,
+      keyPath: null,
+      indexNames: [],
+      autoIncrement: false,
+      transaction: null,
+      add: vi.fn((value, key) => {
+        store.set(key, value);
+        const request = mock_idb_request(key);
+
+        setTimeout(
+          () => request.onsuccess?.({ target: request } as unknown as Event),
+          0,
+        );
+
+        return request;
+      }),
+      put: vi.fn((value, key) => {
+        store.set(key, value);
+        const request = mock_idb_request(key);
+
+        setTimeout(
+          () => request.onsuccess?.({ target: request } as unknown as Event),
+          0,
+        );
+
+        return request;
+      }),
+      get: vi.fn((key) => {
+        const value = store.get(key);
+        const request = mock_idb_request(value);
+
+        setTimeout(
+          () => request.onsuccess?.({ target: request } as unknown as Event),
+          0,
+        );
+
+        return request;
+      }),
+      getKey: vi.fn((key) => {
+        const exists = store.has(key);
+        const request = mock_idb_request(exists ? key : undefined);
+
+        setTimeout(
+          () => request.onsuccess?.({ target: request } as unknown as Event),
+          0,
+        );
+
+        return request;
+      }),
+      getAll: vi.fn(() => {
+        const values = Array.from(store.values());
+        const request = mock_idb_request(values);
+
+        setTimeout(
+          () => request.onsuccess?.({ target: request } as unknown as Event),
+          0,
+        );
+
+        return request;
+      }),
+      getAllKeys: vi.fn(() => {
+        const keys = Array.from(store.keys());
+        const request = mock_idb_request(keys);
+
+        setTimeout(
+          () => request.onsuccess?.({ target: request } as unknown as Event),
+          0,
+        );
+
+        return request;
+      }),
+      delete: vi.fn((key) => {
+        store.delete(key);
+        const request = mock_idb_request(undefined);
+
+        setTimeout(
+          () => request.onsuccess?.({ target: request } as unknown as Event),
+          0,
+        );
+
+        return request;
+      }),
+      clear: vi.fn(() => {
+        store.clear();
+        const request = mock_idb_request(undefined);
+
+        setTimeout(
+          () => request.onsuccess?.({ target: request } as unknown as Event),
+          0,
+        );
+
+        return request;
+      }),
+      count: vi.fn(() => {
+        const request = mock_idb_request(store.size);
+
+        setTimeout(
+          () => request.onsuccess?.({ target: request } as unknown as Event),
+          0,
+        );
+
+        return request;
+      }),
+      createIndex: vi.fn(),
+      deleteIndex: vi.fn(),
+      index: vi.fn(),
+      openCursor: vi.fn(),
+      openKeyCursor: vi.fn(),
+    };
+  };
+
+  const mock_transaction = (store_names: string[]) => ({
+    objectStoreNames: store_names,
+    mode: "readwrite",
+    db: null,
+    durability: "default",
+    error: null,
+    onabort: null,
+    oncomplete: null,
+    onerror: null,
+    objectStore: vi.fn((name: string) => mock_object_store(name)),
+    abort: vi.fn(),
+    commit: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(() => true),
+  });
+
+  const mock_database = {
+    name: "astermail_secure_db",
+    version: 1,
+    get objectStoreNames() {
+      return mock_store_name_list();
+    },
+    onabort: null,
+    onclose: null,
+    onerror: null,
+    onversionchange: null,
+    close: vi.fn(),
+    createObjectStore: vi.fn((name: string) => {
+      db_store_names.add(name);
+
+      return mock_object_store(name);
+    }),
+    deleteObjectStore: vi.fn((name: string) => {
+      db_store_names.delete(name);
+      stores.delete(name);
+    }),
+    transaction: vi.fn((names: string | string[]) =>
+      mock_transaction(Array.isArray(names) ? names : [names]),
+    ),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(() => true),
+  };
+
+  Object.defineProperty(globalThis, "indexedDB", {
+    value: {
+      open: vi.fn((_name: string, _version?: number) => {
+        const request = mock_idb_request(mock_database);
+
+        setTimeout(() => {
+          if (request.onupgradeneeded) {
+            request.onupgradeneeded({
+              target: { result: mock_database },
+            } as unknown as Event);
+          }
+          request.onsuccess?.({ target: request } as unknown as Event);
+        }, 0);
+
+        return request;
+      }),
+      deleteDatabase: vi.fn((_name: string) => {
+        stores.clear();
+        const request = mock_idb_request(undefined);
+
+        setTimeout(
+          () => request.onsuccess?.({ target: request } as unknown as Event),
+          0,
+        );
+
+        return request;
+      }),
+      cmp: vi.fn(),
+      databases: vi.fn(() => Promise.resolve([])),
+    },
+    writable: true,
+  });
+}
+
+async function load_english_strings(): Promise<void> {
+  try {
+    const translations = await import("@/lib/i18n/translations");
+
+    await translations.get_translations_async("en");
+  } catch {
+    return;
+  }
+}
+
+await load_english_strings();
+
+beforeEach(async () => {
+  vi.clearAllMocks();
+  await load_english_strings();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+export { crypto_mock, subtle_crypto_mock };

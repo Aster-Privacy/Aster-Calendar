@@ -1,0 +1,353 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+
+import { BackupCodeInput } from "./backup_code_input";
+
+import { verify_backup_code_login } from "@/services/api/totp";
+
+vi.mock("@/services/api/totp", () => ({
+  verify_backup_code_login: vi.fn(),
+  classify_totp_error: (response: { code?: string; server_code?: string }) =>
+    response.server_code === "ACCOUNT_LOCKED"
+      ? "locked"
+      : response.server_code === "PENDING_LOGIN_EXPIRED"
+        ? "pending_expired"
+        : response.code === "RATE_LIMIT_EXCEEDED"
+          ? "rate_limited"
+          : "other",
+}));
+
+vi.mock("@/lib/i18n/context", () => ({
+  use_i18n: () => ({ t: (key: string) => key }),
+}));
+
+vi.mock("@aster/ui", async (import_original) => ({
+  ...(await import_original<typeof import("@aster/ui")>()),
+  Button: ({
+    children,
+    disabled,
+    onClick,
+  }: {
+    children?: unknown;
+    disabled?: boolean;
+    onClick?: () => void;
+  }) => (
+    <button disabled={disabled} onClick={onClick}>
+      {children as never}
+    </button>
+  ),
+  Checkbox: (props: Record<string, unknown>) => (
+    <input type="checkbox" {...(props as object)} />
+  ),
+}));
+
+const mocked_verify = vi.mocked(verify_backup_code_login);
+
+declare global {
+  var IS_REACT_ACT_ENVIRONMENT: boolean;
+}
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
+const native_value_setter = Object.getOwnPropertyDescriptor(
+  window.HTMLInputElement.prototype,
+  "value",
+)!.set!;
+
+describe("BackupCodeInput", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  const props = () => ({
+    pending_login_token: "pending-token",
+    on_success: vi.fn(),
+    on_use_authenticator: vi.fn(),
+    on_cancel: vi.fn(),
+    on_reset_with_recovery_code: vi.fn(),
+  });
+
+  const text_input = () => container.querySelector("input") as HTMLInputElement;
+
+  const submit_button = () =>
+    Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("common.continue"),
+    ) as HTMLButtonElement;
+
+  const type_code = async (value: string) => {
+    const input = text_input();
+
+    await act(async () => {
+      native_value_setter.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  };
+
+  const render = async (overrides = {}) => {
+    const p = { ...props(), ...overrides };
+
+    await act(async () => {
+      root.render(<BackupCodeInput {...p} />);
+    });
+
+    return p;
+  };
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    mocked_verify.mockReset();
+  });
+
+  afterEach(async () => {
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("keeps submit disabled until 8 or 12 alphanumeric characters are present", async () => {
+    await render();
+
+    await type_code("ABCD-EFG");
+    expect(submit_button().disabled).toBe(true);
+
+    await type_code("ABCD-EFGH-JK");
+    expect(submit_button().disabled).toBe(true);
+
+    await type_code("ABCD-EFGH");
+    expect(submit_button().disabled).toBe(false);
+
+    await type_code("ABCD-EFGH-JKMN");
+    expect(submit_button().disabled).toBe(false);
+  });
+
+  it("sends a pasted ASTER recovery code to the reset flow instead of verifying it", async () => {
+    const p = await render();
+
+    await type_code("ASTER-7KQ2-M9XD-4HPT-WN3C");
+
+    expect(text_input().value).toBe("ASTER-7KQ2-M9XD-4HPT-WN3C");
+    expect(container.textContent).toContain(
+      "auth.recovery_code_in_backup_field",
+    );
+
+    const reset_button = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent?.includes("auth.reset_with_recovery_code"),
+    ) as HTMLButtonElement;
+
+    await act(async () => {
+      reset_button.click();
+    });
+
+    expect(p.on_reset_with_recovery_code).toHaveBeenCalledTimes(1);
+    expect(mocked_verify).not.toHaveBeenCalled();
+  });
+
+  it("offers recovery code reset and passkey retry when the account has no backup codes", async () => {
+    const p = await render({ has_backup_codes: false });
+
+    expect(text_input()).toBeNull();
+    expect(container.textContent).toContain("auth.no_backup_codes_title");
+    expect(container.textContent).not.toContain(
+      "auth.use_authenticator_instead",
+    );
+
+    const find_button = (key: string) =>
+      Array.from(container.querySelectorAll("button")).find((b) =>
+        b.textContent?.includes(key),
+      ) as HTMLButtonElement;
+
+    await act(async () => {
+      find_button("auth.reset_with_recovery_code").click();
+    });
+    await act(async () => {
+      find_button("auth.try_passkey_again").click();
+    });
+
+    expect(p.on_reset_with_recovery_code).toHaveBeenCalledTimes(1);
+    expect(p.on_use_authenticator).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts an 8-character legacy code and dash-formats it", async () => {
+    mocked_verify.mockResolvedValue({ data: undefined, error: "x" });
+    await render();
+
+    await type_code("abcdefgh");
+    await act(async () => {
+      submit_button().click();
+    });
+
+    expect(mocked_verify).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "ABCD-EFGH" }),
+    );
+  });
+
+  it("passes trust_device when the checkbox is ticked", async () => {
+    mocked_verify.mockResolvedValue({ data: undefined, error: "x" });
+    await render();
+
+    const checkbox = container.querySelector(
+      "input[type=checkbox]",
+    ) as HTMLInputElement;
+
+    await act(async () => {
+      checkbox.click();
+    });
+
+    await type_code("ABCD-EFGH-JKMN");
+    await act(async () => {
+      submit_button().click();
+    });
+
+    expect(mocked_verify).toHaveBeenCalledWith(
+      expect.objectContaining({ trust_device: true }),
+    );
+  });
+
+  it("shows the translated lockout message on ACCOUNT_LOCKED", async () => {
+    mocked_verify.mockResolvedValue({
+      data: undefined,
+      error: "Account temporarily locked. Please try again later",
+      code: "FORBIDDEN",
+      server_code: "ACCOUNT_LOCKED",
+    });
+    await render();
+
+    await type_code("ABCD-EFGH-JKMN");
+    await act(async () => {
+      submit_button().click();
+    });
+
+    expect(container.textContent).toContain("auth.two_fa_temporarily_locked");
+    expect(container.textContent).not.toContain("temporarily locked. Please");
+  });
+
+  it("shows the translated expiry message on PENDING_LOGIN_EXPIRED", async () => {
+    mocked_verify.mockResolvedValue({
+      data: undefined,
+      error: "Sign-in session expired. Please sign in again",
+      code: "VALIDATION_ERROR",
+      server_code: "PENDING_LOGIN_EXPIRED",
+    });
+    await render();
+
+    await type_code("ABCD-EFGH-JKMN");
+    await act(async () => {
+      submit_button().click();
+    });
+
+    expect(container.textContent).toContain("auth.sign_in_session_expired");
+  });
+
+  it("disables cancel and method switch while a verify is in flight", async () => {
+    mocked_verify.mockReturnValue(new Promise(() => {}));
+    await render();
+
+    await type_code("ABCD-EFGH-JKMN");
+    await act(async () => {
+      submit_button().click();
+    });
+
+    const cancel = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("common.cancel"),
+    ) as HTMLButtonElement;
+    const switch_btn = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent?.includes("auth.use_authenticator_instead"),
+    ) as HTMLButtonElement;
+
+    expect(cancel.disabled).toBe(true);
+    expect(switch_btn.disabled).toBe(true);
+  });
+
+  it("normalizes and dash-formats the code before sending", async () => {
+    mocked_verify.mockResolvedValue({ data: undefined, error: "x" });
+    await render();
+
+    await type_code("abcdefghjkmn");
+    await act(async () => {
+      submit_button().click();
+    });
+
+    expect(mocked_verify).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "ABCD-EFGH-JKMN" }),
+    );
+  });
+
+  it("calls on_success when the code is accepted", async () => {
+    mocked_verify.mockResolvedValue({
+      data: {
+        user_id: "u1",
+        username: "fate",
+        email: "fate@aster.cx",
+        csrf_token: "c",
+        encrypted_vault: "v",
+        vault_nonce: "n",
+      },
+    });
+    const p = await render();
+
+    await type_code("ABCD-EFGH-JKMN");
+    await act(async () => {
+      submit_button().click();
+    });
+
+    expect(p.on_success).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the code and shows the error on failure", async () => {
+    mocked_verify.mockResolvedValue({
+      data: undefined,
+      error: "Invalid backup code",
+    });
+    await render();
+
+    await type_code("ABCD-EFGH-JKMN");
+    await act(async () => {
+      submit_button().click();
+    });
+
+    expect(text_input().value).toBe("ABCD-EFGH-JKMN");
+    expect(container.textContent).toContain("Invalid backup code");
+  });
+
+  it("ignores a second submit while one is already in flight", async () => {
+    mocked_verify.mockReturnValue(new Promise(() => {}));
+    await render();
+
+    await type_code("ABCD-EFGH-JKMN");
+
+    await act(async () => {
+      const input = text_input();
+      const enter = () =>
+        input.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+        );
+
+      enter();
+      enter();
+    });
+
+    expect(mocked_verify).toHaveBeenCalledTimes(1);
+  });
+});

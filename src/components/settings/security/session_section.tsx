@@ -1,0 +1,351 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { Session } from "@/services/api/sessions";
+
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+  FingerPrintIcon,
+  TrashIcon,
+} from "@heroicons/react/24/outline";
+import { Button, Badge, Island, IslandRow, IslandSection } from "@aster/ui";
+
+import { ConfirmationModal } from "@/components/modals/confirmation_modal";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ButtonSpinner, Spinner } from "@/components/ui/spinner";
+import { use_should_reduce_motion } from "@/provider";
+import { use_i18n } from "@/lib/i18n/context";
+import { BrowserIcon } from "@/components/settings/security/browser_icon";
+import { app_locale, get_display_time_zone } from "@/utils/date_format";
+
+const SESSIONS_PER_PAGE = 5;
+
+interface SessionSectionProps {
+  sessions: Session[];
+  sessions_loading: boolean;
+  sessions_error: string | null;
+  on_revoke_session: (session_id: string) => Promise<void>;
+  on_revoke_all_sessions: () => Promise<void>;
+  logout_others_loading: boolean;
+  logout_others_result: { success: boolean; message: string } | null;
+}
+
+function format_last_active(date_string: string) {
+  const date = new Date(date_string);
+  const now = new Date();
+  const diff_ms = now.getTime() - date.getTime();
+  const diff_mins = Math.floor(diff_ms / 60000);
+  const diff_hours = Math.floor(diff_ms / 3600000);
+  const diff_days = Math.floor(diff_ms / 86400000);
+
+  if (diff_mins < 5) return { key: "settings.active_now" as const, count: 0 };
+  if (diff_mins < 60)
+    return { key: "settings.minutes_ago" as const, count: diff_mins };
+  if (diff_hours < 24)
+    return { key: "settings.hours_ago" as const, count: diff_hours };
+  if (diff_days < 7)
+    return { key: "settings.days_ago" as const, count: diff_days };
+
+  return {
+    key: null,
+    formatted: date.toLocaleDateString(app_locale(), {
+      timeZone: get_display_time_zone(),
+    }),
+  };
+}
+
+function format_created_at(date_string: string) {
+  const date = new Date(date_string);
+
+  return date.toLocaleDateString(app_locale(), {
+    timeZone: get_display_time_zone(),
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+export function SessionSection({
+  sessions,
+  sessions_loading,
+  sessions_error,
+  on_revoke_session,
+  on_revoke_all_sessions,
+  logout_others_loading,
+  logout_others_result,
+}: SessionSectionProps) {
+  const reduce_motion = use_should_reduce_motion();
+  const { t } = use_i18n();
+  const [show_confirm_single, set_show_confirm_single] = useState<
+    string | null
+  >(null);
+  const [show_confirm_all, set_show_confirm_all] = useState(false);
+  const [revoking_id, set_revoking_id] = useState<string | null>(null);
+  const [revoking_all, set_revoking_all] = useState(false);
+  const [visible_count, set_visible_count] = useState(SESSIONS_PER_PAGE);
+
+  const other_sessions = sessions.filter((s) => !s.is_current);
+  const current_session = sessions.find((s) => s.is_current);
+  const sorted_sessions = current_session
+    ? [current_session, ...other_sessions]
+    : other_sessions;
+  const visible_sessions = sorted_sessions.slice(0, visible_count);
+  const has_more = sorted_sessions.length > visible_count;
+
+  const handle_revoke_single = async (session_id: string) => {
+    set_show_confirm_single(null);
+    set_revoking_id(session_id);
+    await on_revoke_session(session_id);
+    set_revoking_id(null);
+  };
+
+  const handle_revoke_all = async () => {
+    set_show_confirm_all(false);
+    set_revoking_all(true);
+    await on_revoke_all_sessions();
+    set_revoking_all(false);
+    set_visible_count(SESSIONS_PER_PAGE);
+  };
+
+  return (
+    <>
+      <IslandSection
+        bare
+        icon={<FingerPrintIcon />}
+        title={t("settings.browsers_and_devices")}
+      >
+        {sessions_loading ? (
+          <Island>
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between gap-3 px-4 py-3"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Skeleton className="h-8 w-8 rounded-lg" />
+                  <div className="min-w-0">
+                    <Skeleton className="h-4 w-36 max-w-full mb-1.5" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                </div>
+                <Skeleton className="h-8 w-20 rounded-lg" />
+              </div>
+            ))}
+          </Island>
+        ) : sessions_error && sessions.length === 0 ? (
+          <Island className="text-center" padding="lg">
+            <p className="text-sm text-txt-muted">{sessions_error}</p>
+          </Island>
+        ) : (
+          <>
+            {sessions_error && (
+              <p className="px-1 text-sm text-red-500">{sessions_error}</p>
+            )}
+
+            {sessions.length > 0 && (
+              <Island>
+                {visible_sessions.map((session) => {
+                  const browser_label =
+                    session.browser?.trim() || t("common.unknown");
+                  const os_label = session.os?.trim();
+                  const os_redundant =
+                    !!os_label &&
+                    browser_label
+                      .toLowerCase()
+                      .includes(os_label.toLowerCase());
+                  const device_label =
+                    os_label && !os_redundant
+                      ? t("settings.browser_on_os", {
+                          browser: browser_label,
+                          os: os_label,
+                        })
+                      : browser_label;
+                  const location_label = [session.city, session.country]
+                    .filter((part) => part && part.trim().length > 0)
+                    .join(", ");
+
+                  return (
+                    <IslandRow
+                      key={session.id}
+                      description={
+                        <>
+                          {(() => {
+                            const active = format_last_active(
+                              session.last_active,
+                            );
+
+                            return active.key
+                              ? t(active.key).replace(
+                                  "{{count}}",
+                                  String(active.count),
+                                )
+                              : active.formatted;
+                          })()}
+                          {" · "}
+                          {t("settings.signed_in_date").replace(
+                            "{{date}}",
+                            format_created_at(session.created_at),
+                          )}
+                        </>
+                      }
+                      icon={
+                        <BrowserIcon
+                          browser={browser_label}
+                          className="w-5 h-5"
+                        />
+                      }
+                      label={
+                        <span className="flex items-center gap-2 flex-wrap min-w-0">
+                          <span className="truncate">{device_label}</span>
+                          {session.is_current && (
+                            <Badge color="blue">
+                              {t("settings.this_device")}
+                            </Badge>
+                          )}
+                        </span>
+                      }
+                      trailing={
+                        <>
+                          {location_label && (
+                            <span className="hidden sm:flex items-center gap-1.5 text-xs text-txt-muted">
+                              {location_label}
+                            </span>
+                          )}
+                          <button
+                            aria-label={t("settings.sign_out")}
+                            className="w-8 h-8 rounded-[var(--aster-radius-control)] flex items-center justify-center text-txt-muted hover:text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                            disabled={revoking_id === session.id}
+                            type="button"
+                            onClick={() => set_show_confirm_single(session.id)}
+                          >
+                            {revoking_id === session.id ? (
+                              <Spinner size="sm" />
+                            ) : (
+                              <TrashIcon className="w-4 h-4" />
+                            )}
+                          </button>
+                        </>
+                      }
+                    />
+                  );
+                })}
+
+                {has_more && (
+                  <div className="px-4 pb-3">
+                    <Button
+                      className="w-full"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() =>
+                        set_visible_count((prev) => prev + SESSIONS_PER_PAGE)
+                      }
+                    >
+                      {t("settings.load_more_sessions", {
+                        count: sorted_sessions.length - visible_count,
+                      })}
+                    </Button>
+                  </div>
+                )}
+              </Island>
+            )}
+
+            {sessions.length === 0 && (
+              <Island className="text-center" padding="lg">
+                <FingerPrintIcon className="w-8 h-8 text-txt-muted mx-auto mb-2" />
+                <p className="text-sm text-txt-muted">
+                  {t("settings.no_active_sessions")}
+                </p>
+              </Island>
+            )}
+
+            {other_sessions.length > 0 && (
+              <div className="flex justify-end">
+                <Button
+                  className="text-red-500 hover:text-red-600"
+                  disabled={revoking_all || logout_others_loading}
+                  variant="outline"
+                  onClick={() => set_show_confirm_all(true)}
+                >
+                  <TrashIcon className="w-3.5 h-3.5 me-1.5" />
+                  {t("settings.sign_out_all_other")}
+                  {(revoking_all || logout_others_loading) && <ButtonSpinner />}
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+
+        <AnimatePresence>
+          {logout_others_result && (
+            <motion.div
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-2 p-3 rounded-lg text-sm"
+              exit={{ opacity: 0, y: -10 }}
+              initial={reduce_motion ? false : { opacity: 0, y: -10 }}
+              style={{
+                backgroundColor: logout_others_result.success
+                  ? "#16a34a"
+                  : "#dc2626",
+                color: "#fff",
+              }}
+              transition={{ duration: reduce_motion ? 0 : 0.2 }}
+            >
+              {logout_others_result.success ? (
+                <CheckCircleIcon className="w-4 h-4 flex-shrink-0" />
+              ) : (
+                <ExclamationCircleIcon className="w-4 h-4 flex-shrink-0" />
+              )}
+              <span>{logout_others_result.message}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </IslandSection>
+
+      <ConfirmationModal
+        cancel_text={t("common.cancel")}
+        confirm_text={t("settings.sign_out")}
+        is_open={show_confirm_single !== null}
+        message={t("settings.sign_out_session_confirm")}
+        on_cancel={() => set_show_confirm_single(null)}
+        on_confirm={() => {
+          if (show_confirm_single) {
+            handle_revoke_single(show_confirm_single);
+          }
+        }}
+        title={t("settings.session_security")}
+        variant="danger"
+      />
+
+      <ConfirmationModal
+        cancel_text={t("common.cancel")}
+        confirm_text={t("settings.sign_out")}
+        is_open={show_confirm_all}
+        message={t("settings.sign_out_everywhere_confirm")}
+        on_cancel={() => set_show_confirm_all(false)}
+        on_confirm={handle_revoke_all}
+        title={t("settings.session_security")}
+        variant="danger"
+      />
+    </>
+  );
+}

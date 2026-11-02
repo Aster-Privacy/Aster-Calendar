@@ -1,0 +1,697 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { TranslationKey } from "@/lib/i18n/types";
+
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { XMarkIcon } from "@heroicons/react/24/solid";
+import { Button } from "@aster/ui";
+
+import { useTheme } from "@/contexts/theme_context";
+import { use_i18n } from "@/lib/i18n/context";
+import { use_onboarding } from "@/hooks/use_onboarding";
+import { cn, format_number } from "@/lib/utils";
+import { use_body_scroll_lock } from "@/lib/body_scroll_lock";
+import { safe_local_get, safe_local_set } from "@/lib/safe_storage";
+import {
+  is_top_overlay_layer,
+  use_escape_layer,
+} from "@/lib/overlay_layer_stack";
+import { use_should_reduce_motion } from "@/provider";
+
+const pulse_style = `
+  .tour-highlight-box {
+    border: 2px solid var(--tour-color);
+    box-shadow: 0 0 20px 2px var(--tour-color-fade);
+    border-radius: 10px;
+    pointer-events: none;
+  }
+  .tour-arrow {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-primary);
+    transform: rotate(45deg);
+  }
+  .tour-arrow-left {
+    left: -7px;
+    top: 50%;
+    margin-top: -6px;
+    border-right: none;
+    border-top: none;
+  }
+  .tour-arrow-right {
+    right: -7px;
+    top: 50%;
+    margin-top: -6px;
+    border-left: none;
+    border-bottom: none;
+  }
+  .tour-arrow-top {
+    top: -7px;
+    left: 50%;
+    margin-left: -6px;
+    border-bottom: none;
+    border-right: none;
+  }
+  .tour-arrow-bottom {
+    bottom: -7px;
+    left: 50%;
+    margin-left: -6px;
+    border-top: none;
+    border-left: none;
+  }
+`;
+
+export interface OnboardingStep {
+  title: string;
+  description: string;
+  target_selector?: string;
+  position?: "top" | "bottom" | "left" | "right" | "center";
+}
+
+interface OnboardingTourProps {
+  steps?: OnboardingStep[];
+  storage_key?: string;
+  on_finish?: () => void;
+}
+
+const LOCAL_TOUR_DONE = "done";
+
+function is_local_tour_done(storage_key: string): boolean {
+  return safe_local_get(storage_key) === LOCAL_TOUR_DONE;
+}
+
+function get_onboarding_steps(
+  t: (key: TranslationKey) => string,
+): OnboardingStep[] {
+  return [
+    {
+      title: t("common.welcome_to_aster"),
+      description: t("common.welcome_description"),
+      position: "center",
+    },
+    {
+      title: t("settings.onboarding_compose_title"),
+      description: t("settings.onboarding_compose_description"),
+      target_selector: "[data-onboarding='compose-button']",
+      position: "right",
+    },
+    {
+      title: t("settings.onboarding_search_title"),
+      description: t("settings.onboarding_search_description"),
+      target_selector: "[data-onboarding='search-bar']",
+      position: "bottom",
+    },
+    {
+      title: t("common.organize_with_folders"),
+      description: t("common.organize_folders_description"),
+      target_selector: "[data-onboarding='folders-section']",
+      position: "right",
+    },
+    {
+      title: t("settings.title"),
+      description: t("common.customize_settings_description"),
+      target_selector: "[data-onboarding='settings-button']",
+      position: "bottom",
+    },
+    {
+      title: t("common.youre_ready"),
+      description: t("common.youre_ready_description"),
+      position: "center",
+    },
+  ];
+}
+
+export function OnboardingTour({
+  steps,
+  storage_key,
+  on_finish,
+}: OnboardingTourProps = {}) {
+  const { t } = use_i18n();
+  const { theme } = useTheme();
+  const reduce_motion = use_should_reduce_motion();
+  const remote = use_onboarding();
+  const [local_done, set_local_done] = useState(() =>
+    storage_key ? is_local_tour_done(storage_key) : true,
+  );
+
+  const uses_local_key = storage_key !== undefined;
+  const should_show_onboarding = uses_local_key
+    ? !local_done
+    : remote.should_show_onboarding;
+  const state = uses_local_key ? null : remote.state;
+
+  const finish_local = useCallback(() => {
+    if (!storage_key) return;
+    safe_local_set(storage_key, LOCAL_TOUR_DONE);
+    set_local_done(true);
+    on_finish?.();
+  }, [storage_key, on_finish]);
+
+  const skip_onboarding = useCallback(async () => {
+    if (uses_local_key) {
+      finish_local();
+
+      return;
+    }
+
+    await remote.skip_onboarding();
+  }, [uses_local_key, finish_local, remote]);
+
+  const complete_onboarding = useCallback(async () => {
+    if (uses_local_key) {
+      finish_local();
+
+      return;
+    }
+
+    await remote.complete_onboarding();
+  }, [uses_local_key, finish_local, remote]);
+
+  const advance_to_step = useCallback(
+    async (step: number) => {
+      if (uses_local_key) return;
+
+      await remote.advance_to_step(step);
+    },
+    [uses_local_key, remote],
+  );
+
+  const default_steps = useMemo(() => get_onboarding_steps(t), [t]);
+  const onboarding_steps = steps ?? default_steps;
+
+  const is_dark = theme === "dark";
+  const [current_step, set_current_step] = useState(0);
+  const [target_rect, set_target_rect] = useState<DOMRect | null>(null);
+  const [is_transitioning, set_is_transitioning] = useState(false);
+
+  useEffect(() => {
+    if (state?.current_step !== undefined) {
+      set_current_step(state.current_step);
+    }
+  }, [state]);
+
+  use_body_scroll_lock(should_show_onboarding);
+
+  const scroll_to_element = useCallback((element: Element) => {
+    const rect = element.getBoundingClientRect();
+    const is_visible =
+      rect.top >= 0 &&
+      rect.left >= 0 &&
+      rect.bottom <= window.innerHeight &&
+      rect.right <= window.innerWidth;
+
+    if (!is_visible) {
+      element.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+        inline: "center",
+      });
+    }
+  }, []);
+
+  const update_target_rect = useCallback(() => {
+    const selector = onboarding_steps[current_step].target_selector;
+    const element = selector ? document.querySelector(selector) : null;
+
+    set_target_rect(element ? element.getBoundingClientRect() : null);
+  }, [current_step, onboarding_steps]);
+
+  useEffect(() => {
+    if (!should_show_onboarding) return;
+
+    const selector = onboarding_steps[current_step].target_selector;
+
+    if (!selector) {
+      set_target_rect(null);
+
+      return;
+    }
+
+    let frame = 0;
+    let resize_observer: ResizeObserver | null = null;
+    let mutation_observer: MutationObserver | null = null;
+
+    const reposition = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(update_target_rect);
+    };
+
+    const attach = (element: Element) => {
+      scroll_to_element(element);
+      reposition();
+      resize_observer = new ResizeObserver(reposition);
+      resize_observer.observe(element);
+      resize_observer.observe(document.documentElement);
+    };
+
+    const initial = document.querySelector(selector);
+
+    if (initial) {
+      attach(initial);
+    } else {
+      set_target_rect(null);
+      mutation_observer = new MutationObserver(() => {
+        const late = document.querySelector(selector);
+
+        if (!late) return;
+        mutation_observer?.disconnect();
+        mutation_observer = null;
+        attach(late);
+      });
+      mutation_observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+    }
+
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      resize_observer?.disconnect();
+      mutation_observer?.disconnect();
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+    };
+  }, [
+    should_show_onboarding,
+    current_step,
+    onboarding_steps,
+    scroll_to_element,
+    update_target_rect,
+  ]);
+
+  const handle_next = useCallback(async () => {
+    if (is_transitioning) return;
+
+    set_is_transitioning(true);
+
+    try {
+      if (current_step === onboarding_steps.length - 1) {
+        await complete_onboarding();
+      } else {
+        const next_step = current_step + 1;
+
+        set_current_step(next_step);
+        await advance_to_step(next_step);
+      }
+    } finally {
+      setTimeout(() => set_is_transitioning(false), 80);
+    }
+  }, [
+    current_step,
+    is_transitioning,
+    advance_to_step,
+    complete_onboarding,
+    onboarding_steps.length,
+  ]);
+
+  const handle_previous = useCallback(async () => {
+    if (is_transitioning || current_step === 0) return;
+
+    set_is_transitioning(true);
+
+    try {
+      const prev_step = current_step - 1;
+
+      set_current_step(prev_step);
+      await advance_to_step(prev_step);
+    } finally {
+      setTimeout(() => set_is_transitioning(false), 80);
+    }
+  }, [current_step, is_transitioning, advance_to_step]);
+
+  const handle_skip = useCallback(async () => {
+    if (is_transitioning) return;
+
+    set_is_transitioning(true);
+
+    try {
+      await skip_onboarding();
+    } finally {
+      set_is_transitioning(false);
+    }
+  }, [is_transitioning, skip_onboarding]);
+
+  const layer_id = use_escape_layer(
+    should_show_onboarding,
+    handle_skip,
+    "onboarding_tour",
+  );
+
+  useEffect(() => {
+    if (!should_show_onboarding) return;
+
+    const handle_keydown = (e: KeyboardEvent) => {
+      if (!is_top_overlay_layer(layer_id)) return;
+
+      if (e["key"] === "ArrowRight") {
+        handle_next();
+      } else if (e["key"] === "ArrowLeft") {
+        handle_previous();
+      }
+    };
+
+    window.addEventListener("keydown", handle_keydown);
+
+    return () => window.removeEventListener("keydown", handle_keydown);
+  }, [should_show_onboarding, layer_id, handle_next, handle_previous]);
+
+  const current = onboarding_steps[current_step];
+  const progress = ((current_step + 1) / onboarding_steps.length) * 100;
+  const is_final_step = current_step === onboarding_steps.length - 1;
+
+  const TOOLTIP_WIDTH = 400;
+  const TOOLTIP_HEIGHT = 280;
+
+  const get_tooltip_position = (): { top: number; left: number } | null => {
+    if (!target_rect || current.position === "center") {
+      return null;
+    }
+
+    const tooltip_width = TOOLTIP_WIDTH;
+    const tooltip_height = TOOLTIP_HEIGHT;
+    const gap = 20;
+
+    let top = 0;
+    let left = 0;
+
+    switch (current.position) {
+      case "right":
+        top = target_rect.top + target_rect.height / 2 - tooltip_height / 2;
+        left = target_rect.right + gap;
+        break;
+      case "left":
+        top = target_rect.top + target_rect.height / 2 - tooltip_height / 2;
+        left = target_rect.left - tooltip_width - gap;
+        break;
+      case "bottom":
+        top = target_rect.bottom + gap;
+        left = target_rect.left + target_rect.width / 2 - tooltip_width / 2;
+        break;
+      case "top":
+        top = target_rect.top - tooltip_height - gap;
+        left = target_rect.left + target_rect.width / 2 - tooltip_width / 2;
+        break;
+    }
+
+    top = Math.max(16, Math.min(top, window.innerHeight - tooltip_height - 16));
+    left = Math.max(16, Math.min(left, window.innerWidth - tooltip_width - 16));
+
+    return { top, left };
+  };
+
+  const get_tooltip_style = (): React.CSSProperties => {
+    const position = get_tooltip_position();
+
+    if (!position) return {};
+
+    return {
+      position: "absolute",
+      top: position.top,
+      left: position.left,
+      width: TOOLTIP_WIDTH,
+    };
+  };
+
+  const get_arrow_style = (): React.CSSProperties => {
+    const position = get_tooltip_position();
+
+    if (!position || !target_rect) return {};
+
+    const inset = 20;
+
+    if (current.position === "bottom" || current.position === "top") {
+      const center = target_rect.left + target_rect.width / 2 - position.left;
+
+      return {
+        left: Math.max(inset, Math.min(center, TOOLTIP_WIDTH - inset)) - 6,
+        marginLeft: 0,
+      };
+    }
+
+    const center = target_rect.top + target_rect.height / 2 - position.top;
+
+    return {
+      top: Math.max(inset, Math.min(center, TOOLTIP_HEIGHT - inset)) - 6,
+      marginTop: 0,
+    };
+  };
+
+  const get_arrow_class = (): string => {
+    if (!target_rect || current.position === "center") return "";
+    switch (current.position) {
+      case "right":
+        return "tour-arrow tour-arrow-left";
+      case "left":
+        return "tour-arrow tour-arrow-right";
+      case "bottom":
+        return "tour-arrow tour-arrow-top";
+      case "top":
+        return "tour-arrow tour-arrow-bottom";
+      default:
+        return "";
+    }
+  };
+
+  const is_positioned = target_rect && current.position !== "center";
+
+  return (
+    <>
+      {should_show_onboarding && <style>{pulse_style}</style>}
+      <AnimatePresence>
+        {should_show_onboarding && (
+          <motion.div
+            key="onboarding-overlay"
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 z-[9999] select-none"
+            exit={{ opacity: 0 }}
+            initial={reduce_motion ? false : { opacity: 0 }}
+            transition={{ duration: reduce_motion ? 0 : 0.3, ease: "easeOut" }}
+          >
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={`step-${current_step}`}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                initial={reduce_motion ? false : { opacity: 0 }}
+                transition={{ duration: reduce_motion ? 0 : 0.2 }}
+              >
+                {target_rect && (
+                  <>
+                    <svg
+                      className="absolute inset-0 cursor-pointer"
+                      style={{ width: "100%", height: "100%" }}
+                      onClick={handle_skip}
+                    >
+                      <defs>
+                        <mask id={`spotlight-mask-${current_step}`}>
+                          <rect
+                            fill="white"
+                            height="100%"
+                            width="100%"
+                            x="0"
+                            y="0"
+                          />
+                          <rect
+                            fill="black"
+                            height={target_rect.height + 16}
+                            rx="10"
+                            width={target_rect.width + 16}
+                            x={target_rect.left - 8}
+                            y={target_rect.top - 8}
+                          />
+                        </mask>
+                      </defs>
+                      <rect
+                        fill={
+                          is_dark
+                            ? "rgba(0, 0, 0, 0.62)"
+                            : "rgba(0, 0, 0, 0.45)"
+                        }
+                        height="100%"
+                        mask={`url(#spotlight-mask-${current_step})`}
+                        width="100%"
+                        x="0"
+                        y="0"
+                      />
+                    </svg>
+                    <div
+                      className="tour-highlight-box absolute"
+                      style={
+                        {
+                          top: target_rect.top - 8,
+                          left: target_rect.left - 8,
+                          width: target_rect.width + 16,
+                          height: target_rect.height + 16,
+                          "--tour-color": is_dark
+                            ? "var(--accent-color-hover)"
+                            : "var(--accent-color)",
+                          "--tour-color-fade": is_dark
+                            ? "color-mix(in srgb, var(--accent-color-hover) 30%, transparent)"
+                            : "color-mix(in srgb, var(--accent-color) 25%, transparent)",
+                        } as React.CSSProperties
+                      }
+                    />
+                  </>
+                )}
+
+                {!target_rect && (
+                  <div
+                    className="absolute inset-0 cursor-pointer"
+                    role="button"
+                    style={{
+                      backgroundColor: is_dark
+                        ? "rgba(0, 0, 0, 0.62)"
+                        : "rgba(0, 0, 0, 0.45)",
+                    }}
+                    tabIndex={0}
+                    onClick={handle_skip}
+                    onKeyDown={(e) => {
+                      if (e["key"] === "Enter" || e["key"] === " ") {
+                        e.preventDefault();
+                        handle_skip();
+                      }
+                    }}
+                  />
+                )}
+
+                <div
+                  className={cn(
+                    "absolute inset-0 pointer-events-none",
+                    !is_positioned && "flex items-center justify-center p-4",
+                  )}
+                >
+                  <motion.div
+                    animate={{ opacity: 1, scale: 1 }}
+                    className={cn(
+                      "relative rounded-[var(--aster-radius-floating,16px)] shadow-[var(--aster-floating-shadow)] pointer-events-auto bg-[var(--aster-floating-bg,var(--modal-bg))]",
+                      !is_positioned && "w-[560px] max-w-full",
+                    )}
+                    initial={
+                      reduce_motion ? false : { opacity: 0, scale: 0.95 }
+                    }
+                    style={get_tooltip_style()}
+                    transition={{
+                      duration: reduce_motion ? 0 : 0.25,
+                      ease: "easeOut",
+                    }}
+                  >
+                    {is_positioned && (
+                      <div
+                        className={get_arrow_class()}
+                        style={get_arrow_style()}
+                      />
+                    )}
+                    <button
+                      aria-label={t("common.skip_tour")}
+                      className="absolute top-4 end-4 z-10 p-2 rounded-[14px] transition-colors hover:bg-[var(--aster-hover)] disabled:opacity-50 text-txt-muted"
+                      disabled={is_transitioning}
+                      onClick={handle_skip}
+                    >
+                      <XMarkIcon className="w-5 h-5" />
+                    </button>
+
+                    <div className="px-8 pt-8 pb-6">
+                      <div className="flex items-start gap-1 mb-3">
+                        <span className="aster_badge aster_badge_blue tabular-nums select-none">
+                          {t("common.step")} {current_step + 1} {t("common.of")}{" "}
+                          {format_number(onboarding_steps.length)}
+                        </span>
+                      </div>
+
+                      <h2 className="text-2xl font-bold mb-3 text-txt-primary">
+                        {current.title}
+                      </h2>
+
+                      <p className="text-base leading-relaxed text-txt-secondary">
+                        {current.description}
+                      </p>
+                    </div>
+
+                    <div
+                      className="px-8 pb-8"
+                      style={{
+                        borderTop: `1px solid ${is_dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
+                      }}
+                    >
+                      <div className="pt-6">
+                        <div className="w-full bg-[var(--border-secondary)] rounded-full h-1.5 mb-6 overflow-hidden">
+                          <motion.div
+                            animate={{ width: `${progress}%` }}
+                            className="h-full rounded-full"
+                            initial={false}
+                            style={{
+                              backgroundColor: is_dark
+                                ? "var(--accent-color-hover)"
+                                : "var(--accent-color)",
+                            }}
+                            transition={{
+                              duration: reduce_motion ? 0 : 0.3,
+                              ease: "easeOut",
+                            }}
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between gap-4">
+                          <Button
+                            disabled={current_step === 0 || is_transitioning}
+                            variant="outline"
+                            onClick={handle_previous}
+                          >
+                            {t("common.previous")}
+                          </Button>
+
+                          {!is_final_step && (
+                            <Button
+                              disabled={is_transitioning}
+                              variant="ghost"
+                              onClick={handle_skip}
+                            >
+                              {t("common.skip_tour")}
+                            </Button>
+                          )}
+
+                          <Button
+                            disabled={is_transitioning}
+                            onClick={handle_next}
+                          >
+                            {is_final_step
+                              ? t("common.get_started")
+                              : t("common.next")}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}

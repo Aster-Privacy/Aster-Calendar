@@ -1,0 +1,491 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { useState, useEffect } from "react";
+import { Badge, IslandRow, Skeleton, UpgradeBtn } from "@aster/ui";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { InfoPopover } from "@/components/ui/info_popover";
+import { show_toast } from "@/components/toast/simple_toast";
+import {
+  Modal,
+  ModalHeader,
+  ModalTitle,
+  ModalDescription,
+  ModalBody,
+  ModalFooter,
+} from "@/components/ui/modal";
+import { use_i18n } from "@/lib/i18n/context";
+import { clamp_password } from "@/services/sanitize";
+import { use_plan_limits } from "@/hooks/use_plan_limits";
+import { use_auth_safe } from "@/contexts/auth_context";
+import { AppLockSection } from "@/components/settings/security/app_lock_section";
+import {
+  is_vanguard_enabled,
+  set_vanguard_enabled,
+  init_vanguard_from_server,
+} from "@/services/vanguard_store";
+import {
+  is_lockdown_enabled,
+  set_lockdown_enabled,
+  init_lockdown_from_server,
+} from "@/services/lockdown_store";
+import {
+  clear_app_lock_config,
+  clear_session_unlock,
+} from "@/services/app_lock_store";
+import { prompt_upgrade } from "@/components/settings/aliases/feature_lock";
+import {
+  enable_vanguard,
+  disable_vanguard,
+  get_vanguard_status,
+} from "@/services/api/vanguard";
+import { enable_lockdown, disable_lockdown } from "@/services/api/lockdown";
+import { fetch_step_up_requirements } from "@/services/api/step_up";
+import { ignore_error } from "@/lib/ignore_error";
+import { derive_current_account_proof } from "@/services/crypto/login_proof";
+
+const TRANSPORT_FAILURE_CODES = new Set([
+  "NETWORK_ERROR",
+  "TIMEOUT_ERROR",
+  "SERVER_ERROR",
+]);
+
+function is_transport_failure(code?: string): boolean {
+  return code !== undefined && TRANSPORT_FAILURE_CODES.has(code);
+}
+
+function LockdownSection({ account_id }: { account_id: string }) {
+  const { t } = use_i18n();
+
+  const [enabled, set_enabled] = useState(false);
+  const [show_disable_modal, set_show_disable_modal] = useState(false);
+  const [password, set_password] = useState("");
+  const [totp_code, set_totp_code] = useState("");
+  const [totp_required, set_totp_required] = useState(false);
+  const [totp_loading, set_totp_loading] = useState(false);
+  const [creds_error, set_creds_error] = useState<string | null>(null);
+  const [disabling, set_disabling] = useState(false);
+  const [enabling, set_enabling] = useState(false);
+
+  useEffect(() => {
+    if (!account_id) return;
+
+    let cancelled = false;
+
+    set_enabled(is_lockdown_enabled(account_id));
+    init_lockdown_from_server(account_id).then((server_enabled) => {
+      if (cancelled) return;
+
+      set_enabled(server_enabled);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [account_id]);
+
+  const handle_toggle = (checked: boolean) => {
+    if (checked) {
+      if (enabling) return;
+
+      set_enabling(true);
+      enable_lockdown()
+        .then((res) => {
+          if (res.error) {
+            show_toast(res.error, "error");
+          } else {
+            set_lockdown_enabled(account_id, true);
+            set_enabled(true);
+            show_toast(t("settings.lockdown_enabled_toast"), "success");
+          }
+        })
+        .finally(() => set_enabling(false));
+    } else {
+      set_totp_loading(true);
+      fetch_step_up_requirements()
+        .then((requirements) => set_totp_required(requirements.totp_required))
+        .catch((caught) =>
+          ignore_error(
+            "components/settings/security/vanguard_section:handle_toggle",
+            caught,
+          ),
+        )
+        .finally(() => set_totp_loading(false));
+      set_show_disable_modal(true);
+    }
+  };
+
+  const confirm_disable = async () => {
+    set_disabling(true);
+    set_creds_error(null);
+
+    let requirements: Awaited<ReturnType<typeof fetch_step_up_requirements>>;
+
+    try {
+      requirements = await fetch_step_up_requirements();
+    } catch {
+      set_creds_error(t("settings.failed_retrieve_auth"));
+      set_disabling(false);
+
+      return;
+    }
+
+    set_totp_required(requirements.totp_required);
+
+    if (requirements.totp_required && totp_code.trim().length !== 6) {
+      set_creds_error(t("settings.please_enter_2fa_code"));
+      set_disabling(false);
+
+      return;
+    }
+
+    try {
+      const password_hash = await derive_current_account_proof(
+        password,
+        requirements.salt,
+        requirements.kdf_version,
+      );
+      const res = await disable_lockdown({
+        password_hash,
+        totp_code: requirements.totp_required ? totp_code : undefined,
+      });
+
+      if (res.error) {
+        set_creds_error(
+          is_transport_failure(res.code)
+            ? t("common.something_went_wrong_try_again")
+            : t("settings.duress_pin_invalid_credentials"),
+        );
+        set_disabling(false);
+
+        return;
+      }
+      set_lockdown_enabled(account_id, false);
+      set_enabled(false);
+      set_show_disable_modal(false);
+      set_password("");
+      set_totp_code("");
+      show_toast(t("settings.lockdown_disabled_toast"), "success");
+    } catch {
+      set_creds_error(t("settings.duress_pin_invalid_credentials"));
+    }
+    set_disabling(false);
+  };
+
+  return (
+    <>
+      <IslandRow
+        description={t("settings.lockdown_description")}
+        label={
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            {t("settings.lockdown_enable")}
+            <InfoPopover
+              description={t("settings.lockdown_info")}
+              title={t("settings.lockdown_title")}
+            />
+            {enabled && (
+              <Badge color="red">{t("settings.lockdown_active")}</Badge>
+            )}
+          </span>
+        }
+        toggle={{
+          checked: enabled,
+          on_change: handle_toggle,
+          disabled: enabling,
+          size: "lg",
+          aria_label: t("settings.lockdown_enable"),
+        }}
+      />
+
+      <Modal
+        is_open={show_disable_modal}
+        on_close={() => {
+          set_show_disable_modal(false);
+          set_password("");
+          set_totp_code("");
+          set_creds_error(null);
+        }}
+        size="sm"
+      >
+        <ModalHeader>
+          <ModalTitle>
+            {t("settings.lockdown_confirm_disable_title")}
+          </ModalTitle>
+          <ModalDescription>
+            {t("settings.lockdown_confirm_disable_desc")}
+          </ModalDescription>
+        </ModalHeader>
+        <ModalBody>
+          <div className="space-y-3">
+            <Input
+              autoComplete="current-password"
+              disabled={disabling}
+              maxLength={128}
+              name="password"
+              placeholder={t("settings.current_password")}
+              type="password"
+              value={password}
+              onChange={(e) => set_password(clamp_password(e.target.value))}
+            />
+            {totp_required && (
+              <Input
+                autoComplete="one-time-code"
+                disabled={disabling}
+                inputMode="numeric"
+                maxLength={6}
+                placeholder={t("common.two_fa_code_placeholder")}
+                type="text"
+                value={totp_code}
+                onChange={(e) =>
+                  set_totp_code(e.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+              />
+            )}
+            {creds_error && (
+              <p className="text-xs text-red-500">{creds_error}</p>
+            )}
+          </div>
+        </ModalBody>
+        <ModalFooter>
+          <Button
+            disabled={disabling}
+            variant="outline"
+            onClick={() => {
+              set_show_disable_modal(false);
+              set_password("");
+              set_totp_code("");
+              set_creds_error(null);
+            }}
+          >
+            {t("common.cancel")}
+          </Button>
+          <Button
+            disabled={
+              disabling ||
+              totp_loading ||
+              !password ||
+              (totp_required && totp_code.length !== 6)
+            }
+            is_loading={disabling}
+            variant="destructive"
+            onClick={confirm_disable}
+          >
+            {t("settings.lockdown_disable")}
+          </Button>
+        </ModalFooter>
+      </Modal>
+    </>
+  );
+}
+
+export function VanguardSection() {
+  const { t } = use_i18n();
+  const { limits, is_loading } = use_plan_limits();
+  const auth = use_auth_safe();
+  const account_id = auth?.current_account_id ?? "";
+
+  const is_nova_plus = [
+    "nova",
+    "supernova",
+    "duo",
+    "family",
+    "family_duo",
+    "family_full",
+  ].includes(limits?.plan_code ?? "");
+
+  const [enabled, set_enabled] = useState(false);
+  const [show_disable_confirm, set_show_disable_confirm] = useState(false);
+  const [is_disabling, set_is_disabling] = useState(false);
+
+  useEffect(() => {
+    if (!account_id) return;
+
+    let cancelled = false;
+
+    set_enabled(is_vanguard_enabled(account_id));
+    init_vanguard_from_server(account_id).then((server_enabled) => {
+      if (cancelled) return;
+
+      set_enabled(server_enabled);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [account_id]);
+
+  useEffect(() => {
+    if (is_loading || !limits || !limits.plan_code) return;
+    if (!is_nova_plus && enabled && account_id) {
+      disable_vanguard().then((res) => {
+        if (res.error) return;
+
+        set_vanguard_enabled(account_id, false);
+        set_lockdown_enabled(account_id, false);
+        clear_app_lock_config(account_id);
+        clear_session_unlock(account_id);
+        set_enabled(false);
+      });
+    }
+  }, [is_loading, limits, is_nova_plus, enabled, account_id]);
+
+  const handle_toggle = (checked: boolean) => {
+    if (checked) {
+      set_enabled(true);
+      set_vanguard_enabled(account_id, true);
+      enable_vanguard().then((res) => {
+        if (res.error) {
+          set_enabled(false);
+          set_vanguard_enabled(account_id, false);
+          show_toast(res.error, "error");
+        } else {
+          show_toast(t("settings.vanguard_enabled_toast"), "success");
+        }
+      });
+    } else {
+      set_show_disable_confirm(true);
+    }
+  };
+
+  const confirm_disable = async () => {
+    if (is_lockdown_enabled(account_id)) {
+      set_show_disable_confirm(false);
+      show_toast(t("settings.lockdown_must_disable_first"), "error");
+
+      return;
+    }
+
+    if (is_disabling) return;
+    set_is_disabling(true);
+    set_show_disable_confirm(false);
+
+    const res = await disable_vanguard();
+
+    if (res.error) {
+      const status = await get_vanguard_status();
+
+      if (status.data) {
+        set_enabled(status.data.enabled);
+        set_vanguard_enabled(account_id, status.data.enabled);
+      }
+      show_toast(res.error, "error");
+      set_is_disabling(false);
+
+      return;
+    }
+
+    set_enabled(false);
+    set_vanguard_enabled(account_id, false);
+    set_lockdown_enabled(account_id, false);
+    clear_app_lock_config(account_id);
+    clear_session_unlock(account_id);
+    show_toast(t("settings.vanguard_disabled_toast"), "success");
+    set_is_disabling(false);
+  };
+
+  if (is_loading) {
+    return <Skeleton className="h-14 rounded-[inherit]" />;
+  }
+
+  const vanguard_label = (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      {t("settings.vanguard_enable")}
+      <InfoPopover
+        description={t("settings.vanguard_info")}
+        title={t("settings.vanguard_title")}
+      />
+      {enabled && <Badge color="green">{t("settings.vanguard_active")}</Badge>}
+    </span>
+  );
+
+  return (
+    <>
+      {is_nova_plus ? (
+        <IslandRow
+          description={t("settings.vanguard_description")}
+          label={vanguard_label}
+          toggle={{
+            checked: enabled,
+            on_change: handle_toggle,
+            disabled: is_disabling,
+            size: "lg",
+            aria_label: t("settings.vanguard_title"),
+          }}
+        />
+      ) : (
+        <IslandRow
+          description={t("settings.vanguard_description")}
+          label={vanguard_label}
+          layout="stacked"
+          trailing={
+            <UpgradeBtn
+              size="sm"
+              onClick={() =>
+                prompt_upgrade(
+                  t("settings.feature_requires_upgrade"),
+                  undefined,
+                  "nova",
+                )
+              }
+            >
+              {t("settings.vanguard_upgrade_cta")}
+            </UpgradeBtn>
+          }
+        />
+      )}
+
+      {enabled && (
+        <>
+          <AppLockSection />
+          <LockdownSection account_id={account_id} />
+        </>
+      )}
+
+      <Modal
+        is_open={show_disable_confirm}
+        on_close={() => set_show_disable_confirm(false)}
+        size="sm"
+      >
+        <ModalHeader>
+          <ModalTitle>
+            {t("settings.vanguard_confirm_disable_title")}
+          </ModalTitle>
+          <ModalDescription>
+            {t("settings.vanguard_confirm_disable_desc")}
+          </ModalDescription>
+        </ModalHeader>
+        <ModalBody />
+        <ModalFooter>
+          <Button
+            variant="outline"
+            onClick={() => set_show_disable_confirm(false)}
+          >
+            {t("common.cancel")}
+          </Button>
+          <Button variant="destructive" onClick={() => void confirm_disable()}>
+            {t("settings.vanguard_disable")}
+          </Button>
+        </ModalFooter>
+      </Modal>
+    </>
+  );
+}

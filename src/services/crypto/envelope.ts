@@ -1,0 +1,518 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import { zero_uint8_array } from "./secure_memory";
+import { array_to_base64, base64_to_array } from "./base64";
+import { HASH_ALG } from "./key_manager_core";
+import { with_cached_envelope_key } from "./envelope_key_cache";
+import {
+  normalize_envelope_from,
+  normalize_envelope_recipients,
+} from "./envelope_normalize";
+
+import {
+  decrypt_aes_gcm_with_fallback,
+  decrypt_with_legacy_derived_keys,
+} from "@/services/crypto/legacy_keks";
+import { ignore_error } from "@/lib/ignore_error";
+
+export { normalize_envelope_from, normalize_envelope_recipients };
+export { array_to_base64, base64_to_array, first_base64_byte } from "./base64";
+
+export function normalize_parsed_envelope<T>(parsed: T): T {
+  if (!parsed || typeof parsed !== "object") return parsed;
+
+  const record = parsed as Record<string, unknown>;
+
+  if (
+    !normalize_envelope_from(record.from) &&
+    typeof record.from_email === "string" &&
+    record.from_email
+  ) {
+    record.from = {
+      name: typeof record.from_name === "string" ? record.from_name : "",
+      email: record.from_email,
+    };
+  }
+
+  if ("from" in record) {
+    record.from = normalize_envelope_from(record.from) ?? {
+      name: typeof record.from === "string" ? record.from : "",
+      email: "",
+    };
+  }
+  if ("to" in record) record.to = normalize_envelope_recipients(record.to);
+  if ("cc" in record) record.cc = normalize_envelope_recipients(record.cc);
+  if ("bcc" in record) record.bcc = normalize_envelope_recipients(record.bcc);
+
+  return parsed;
+}
+
+export const PBKDF2_ITERATIONS = 310000;
+export const SALT_LENGTH = 16;
+export const NONCE_LENGTH = 12;
+
+async function envelope_key_cache_id(
+  passphrase_bytes: Uint8Array,
+  salt: Uint8Array,
+): Promise<string> {
+  const material = new Uint8Array(passphrase_bytes.length + salt.length);
+
+  material.set(passphrase_bytes, 0);
+  material.set(salt, passphrase_bytes.length);
+
+  const digest = await crypto.subtle.digest(HASH_ALG, material);
+
+  zero_uint8_array(material);
+
+  return array_to_base64(new Uint8Array(digest));
+}
+
+export async function derive_envelope_key_from_bytes(
+  passphrase_bytes: Uint8Array,
+  salt: Uint8Array,
+): Promise<CryptoKey> {
+  const cache_id = await envelope_key_cache_id(passphrase_bytes, salt);
+
+  return with_cached_envelope_key(cache_id, () =>
+    derive_envelope_key_uncached(passphrase_bytes, salt),
+  );
+}
+
+async function derive_envelope_key_uncached(
+  passphrase_bytes: Uint8Array,
+  salt: Uint8Array,
+): Promise<CryptoKey> {
+  const key_material = await crypto.subtle.importKey(
+    "raw",
+    passphrase_bytes,
+    "PBKDF2",
+    false,
+    ["deriveBits", "deriveKey"],
+  );
+
+  return crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: salt,
+      iterations: PBKDF2_ITERATIONS,
+      hash: HASH_ALG,
+    },
+    key_material,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+}
+
+export async function derive_envelope_key(
+  passphrase: string,
+  salt: Uint8Array,
+): Promise<CryptoKey> {
+  const encoder = new TextEncoder();
+  const passphrase_bytes = encoder.encode(passphrase);
+  const key = await derive_envelope_key_from_bytes(passphrase_bytes, salt);
+
+  zero_uint8_array(passphrase_bytes);
+
+  return key;
+}
+
+export async function encrypt_envelope_with_bytes(
+  data: object,
+  passphrase_bytes: Uint8Array,
+): Promise<{
+  encrypted: string;
+  nonce: string;
+}> {
+  const encoder = new TextEncoder();
+  const data_bytes = encoder.encode(JSON.stringify(data));
+
+  const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
+  const nonce = crypto.getRandomValues(new Uint8Array(NONCE_LENGTH));
+
+  const crypto_key = await derive_envelope_key_from_bytes(
+    passphrase_bytes,
+    salt,
+  );
+
+  const encrypted = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: nonce },
+    crypto_key,
+    data_bytes,
+  );
+
+  const combined = new Uint8Array(
+    salt.length + nonce.length + encrypted.byteLength,
+  );
+
+  combined.set(salt, 0);
+  combined.set(nonce, salt.length);
+  combined.set(new Uint8Array(encrypted), salt.length + nonce.length);
+
+  return {
+    encrypted: array_to_base64(combined),
+    nonce: array_to_base64(new Uint8Array([1])),
+  };
+}
+
+export async function encrypt_envelope(
+  data: object,
+  passphrase: string,
+): Promise<{
+  encrypted: string;
+  nonce: string;
+}> {
+  const encoder = new TextEncoder();
+  const passphrase_bytes = encoder.encode(passphrase);
+  const result = await encrypt_envelope_with_bytes(data, passphrase_bytes);
+
+  zero_uint8_array(passphrase_bytes);
+
+  return result;
+}
+
+export async function decrypt_envelope_plaintext_with_bytes(
+  encrypted_data: string,
+  passphrase_bytes: Uint8Array,
+): Promise<string | null> {
+  try {
+    const combined = base64_to_array(encrypted_data);
+
+    if (combined.length <= SALT_LENGTH + NONCE_LENGTH) return null;
+
+    const salt = combined.slice(0, SALT_LENGTH);
+    const nonce = combined.slice(SALT_LENGTH, SALT_LENGTH + NONCE_LENGTH);
+    const ciphertext = combined.slice(SALT_LENGTH + NONCE_LENGTH);
+
+    const crypto_key = await derive_envelope_key_from_bytes(
+      passphrase_bytes,
+      salt,
+    );
+
+    const decrypted = await decrypt_aes_gcm_with_fallback(
+      crypto_key,
+      ciphertext,
+      nonce,
+    );
+
+    return new TextDecoder("utf-8", { fatal: true }).decode(decrypted);
+  } catch {
+    return null;
+  }
+}
+
+export async function decrypt_envelope_with_bytes<T>(
+  encrypted_data: string,
+  passphrase_bytes: Uint8Array,
+): Promise<T | null> {
+  try {
+    const combined = base64_to_array(encrypted_data);
+
+    const salt = combined.slice(0, SALT_LENGTH);
+    const nonce = combined.slice(SALT_LENGTH, SALT_LENGTH + NONCE_LENGTH);
+    const ciphertext = combined.slice(SALT_LENGTH + NONCE_LENGTH);
+
+    const crypto_key = await derive_envelope_key_from_bytes(
+      passphrase_bytes,
+      salt,
+    );
+
+    const decrypted = await decrypt_aes_gcm_with_fallback(
+      crypto_key,
+      ciphertext,
+      nonce,
+    );
+
+    const decoder = new TextDecoder();
+    const json = decoder.decode(decrypted);
+
+    return normalize_parsed_envelope(JSON.parse(json) as T);
+  } catch {
+    return null;
+  }
+}
+
+export async function decrypt_envelope<T>(
+  encrypted_data: string,
+  passphrase: string,
+): Promise<T | null> {
+  const encoder = new TextEncoder();
+  const passphrase_bytes = encoder.encode(passphrase);
+  const result = await decrypt_envelope_with_bytes<T>(
+    encrypted_data,
+    passphrase_bytes,
+  );
+
+  zero_uint8_array(passphrase_bytes);
+
+  return result;
+}
+
+const ENVELOPE_KEY_VERSIONS = ["astermail-envelope-v1", "astermail-import-v1"];
+
+async function import_identity_envelope_key(
+  identity_key: string,
+  version: string,
+): Promise<CryptoKey> {
+  const key_hash = await crypto.subtle.digest(
+    HASH_ALG,
+    new TextEncoder().encode(identity_key + version),
+  );
+
+  return crypto.subtle.importKey(
+    "raw",
+    key_hash,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["decrypt"],
+  );
+}
+
+export async function decrypt_envelope_with_identity_key<T>(
+  identity_key: string,
+  encrypted_bytes: Uint8Array,
+  nonce_bytes: Uint8Array,
+  finalize: (plaintext: ArrayBuffer) => T,
+): Promise<T | null> {
+  for (const version of ENVELOPE_KEY_VERSIONS) {
+    let decrypted: ArrayBuffer;
+
+    try {
+      const crypto_key = await with_cached_envelope_key(
+        `identity:${version}:${identity_key}`,
+        () => import_identity_envelope_key(identity_key, version),
+      );
+
+      decrypted = await decrypt_aes_gcm_with_fallback(
+        crypto_key,
+        encrypted_bytes,
+        nonce_bytes,
+      );
+    } catch {
+      continue;
+    }
+
+    try {
+      return finalize(decrypted);
+    } catch (caught) {
+      ignore_error(
+        "services/crypto/envelope:identity_envelope_unreadable_after_decrypt",
+        caught,
+      );
+
+      return null;
+    }
+  }
+
+  return null;
+}
+
+export async function encrypt_envelope_with_identity_key(
+  data: object,
+  identity_key: string,
+): Promise<{
+  encrypted: string;
+  nonce: string;
+}> {
+  const version = ENVELOPE_KEY_VERSIONS[1];
+  const key_hash = await crypto.subtle.digest(
+    HASH_ALG,
+    new TextEncoder().encode(identity_key + version),
+  );
+  const crypto_key = await crypto.subtle.importKey(
+    "raw",
+    key_hash,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt"],
+  );
+
+  const nonce = crypto.getRandomValues(new Uint8Array(NONCE_LENGTH));
+  const encoder = new TextEncoder();
+  const data_bytes = encoder.encode(JSON.stringify(data));
+
+  const encrypted = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: nonce },
+    crypto_key,
+    data_bytes,
+  );
+
+  return {
+    encrypted: array_to_base64(new Uint8Array(encrypted)),
+    nonce: array_to_base64(nonce),
+  };
+}
+
+export interface EncryptedBlob {
+  encrypted_data: string;
+  nonce: string;
+  version: number;
+}
+
+const METADATA_CURRENT_VERSION = 1;
+const METADATA_INFO_PREFIX = "aster-metadata-encryption-v1:";
+
+const METADATA_SALT = "aster-metadata-salt-v1";
+
+const legacy_metadata_keys = new WeakMap<CryptoKey, Map<string, CryptoKey>>();
+
+function derive_metadata_key_from_material(
+  key_material: CryptoKey,
+  context: string,
+): Promise<CryptoKey> {
+  const encoder = new TextEncoder();
+
+  return crypto.subtle.deriveKey(
+    {
+      name: "HKDF",
+      hash: HASH_ALG,
+      salt: encoder.encode(METADATA_SALT),
+      info: encoder.encode(METADATA_INFO_PREFIX + context),
+    },
+    key_material,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+}
+
+async function derive_legacy_metadata_key(
+  base: CryptoKey,
+  context: string,
+): Promise<CryptoKey> {
+  let by_context = legacy_metadata_keys.get(base);
+
+  if (!by_context) {
+    by_context = new Map();
+    legacy_metadata_keys.set(base, by_context);
+  }
+
+  const cached = by_context.get(context);
+
+  if (cached) return cached;
+
+  const derived = await derive_metadata_key_from_material(base, context);
+
+  by_context.set(context, derived);
+
+  return derived;
+}
+
+export async function derive_metadata_key(
+  master_key: Uint8Array,
+  context: string,
+): Promise<CryptoKey> {
+  const key_material = await crypto.subtle.importKey(
+    "raw",
+    master_key,
+    "HKDF",
+    false,
+    ["deriveKey"],
+  );
+
+  return derive_metadata_key_from_material(key_material, context);
+}
+
+async function decrypt_metadata_bytes(
+  crypto_key: CryptoKey,
+  ciphertext: Uint8Array,
+  nonce: Uint8Array,
+  context: string,
+): Promise<ArrayBuffer> {
+  try {
+    return await decrypt_aes_gcm_with_fallback(crypto_key, ciphertext, nonce);
+  } catch (primary_error) {
+    const recovered = await decrypt_with_legacy_derived_keys(
+      (base) => derive_legacy_metadata_key(base, context),
+      ciphertext,
+      nonce,
+    );
+
+    if (recovered) return recovered;
+
+    throw primary_error;
+  }
+}
+
+export async function encrypt_metadata<T>(
+  data: T,
+  master_key: Uint8Array,
+  context: string = "default",
+): Promise<EncryptedBlob | null> {
+  try {
+    const crypto_key = await derive_metadata_key(master_key, context);
+    const encoder = new TextEncoder();
+    const plaintext = encoder.encode(JSON.stringify(data));
+    const nonce = crypto.getRandomValues(new Uint8Array(NONCE_LENGTH));
+
+    const ciphertext = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv: nonce },
+      crypto_key,
+      plaintext,
+    );
+
+    return {
+      encrypted_data: array_to_base64(new Uint8Array(ciphertext)),
+      nonce: array_to_base64(nonce),
+      version: METADATA_CURRENT_VERSION,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function decrypt_metadata<T>(
+  blob: EncryptedBlob,
+  master_key: Uint8Array,
+  context: string = "default",
+): Promise<T | null> {
+  try {
+    const crypto_key = await derive_metadata_key(master_key, context);
+    const nonce = base64_to_array(blob.nonce);
+    const ciphertext = base64_to_array(blob.encrypted_data);
+
+    const plaintext = await decrypt_metadata_bytes(
+      crypto_key,
+      ciphertext,
+      nonce,
+      context,
+    );
+
+    const decoder = new TextDecoder();
+
+    return JSON.parse(decoder.decode(plaintext)) as T;
+  } catch {
+    return null;
+  }
+}
+
+export function is_encrypted_blob(value: unknown): value is EncryptedBlob {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+
+  return (
+    typeof obj.encrypted_data === "string" &&
+    typeof obj.nonce === "string" &&
+    typeof obj.version === "number"
+  );
+}

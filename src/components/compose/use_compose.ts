@@ -1,0 +1,1258 @@
+//
+// Aster Communications Inc.
+//
+// Copyright (c) 2026 Aster Communications Inc.
+//
+// This file is part of this project.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the AGPLv3 as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// AGPLv3 for more details.
+//
+// You should have received a copy of the AGPLv3
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+import type { DecryptedContact } from "@/types/contacts";
+import type { DecryptedRecentRecipient } from "@/types/recent_recipients";
+import type { SenderOption } from "@/hooks/use_sender_aliases";
+import type { Badge } from "@/services/api/user";
+import type { UseEditorReturn } from "@/hooks/use_editor";
+
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useReducer,
+  useMemo,
+} from "react";
+
+import { use_suggestion_contacts } from "@/hooks/use_suggestion_contacts";
+import {
+  list_recent_recipients,
+  decrypt_recent_recipients,
+} from "@/services/api/recent_recipients";
+import {
+  use_sender_aliases,
+  is_signature_bindable_sender_type,
+} from "@/hooks/use_sender_aliases";
+import {
+  get_preferred_sender_id,
+  set_preferred_sender_id,
+  subscribe_preferred_sender,
+} from "@/lib/preferred_sender";
+import { use_preferred_sender_ready } from "@/hooks/use_preferred_sender_ready";
+import { resolve_from_sender } from "@/components/compose/resolve_from_sender";
+import {
+  use_ghost_mode,
+  type UseGhostModeReturn,
+} from "@/hooks/use_ghost_mode";
+import { use_ghost_sender_binding } from "@/hooks/use_ghost_sender_binding";
+import { type UndoSendEvent } from "@/hooks/use_undo_send";
+import { use_i18n } from "@/lib/i18n/context";
+import { fetch_my_badges } from "@/services/api/user";
+import { use_preferences } from "@/contexts/preferences_context";
+import { use_signatures } from "@/contexts/signatures_context";
+import { use_my_badge_prefs } from "@/stores/my_badge_prefs_store";
+import {
+  begin_recipient_classification_session,
+  is_internal_recipient,
+  use_recipient_classification,
+} from "@/services/recipient_classification";
+import { draft_manager } from "@/services/crypto/encrypted_drafts";
+import { sanitize_html } from "@/lib/html_sanitizer";
+import {
+  get_compose_sanitize_options,
+  restore_compose_image_sources,
+} from "@/lib/compose_image_sources";
+import { escape_html, escaped_html_to_plain_text } from "@/hooks/editor_utils";
+import { get_max_total_attachments_size } from "@/services/attachment_limits";
+import { build_compose_default_block } from "@/lib/compose_defaults";
+import {
+  COMPOSE_CARET_BLOCK,
+  SIGNATURE_GAP_BLOCK,
+  insert_signature_node,
+} from "@/lib/signature_html";
+import {
+  extract_cid_references,
+  resolve_cid_references,
+} from "@/lib/cid_resolver";
+import { load_forward_attachments } from "@/services/forward_attachments";
+import { show_toast } from "@/components/toast/simple_toast";
+import {
+  type Attachment,
+  type RecipientsState,
+  type InputsState,
+  type VisibilityState,
+  type DraftStatus,
+  type EditDraftData,
+  recipients_reducer,
+  is_valid_email,
+  INITIAL_RECIPIENTS,
+  INITIAL_INPUTS,
+  INITIAL_VISIBILITY,
+  get_aster_footer,
+  INITIAL_CONTENT_DELAY_MS,
+} from "@/components/compose/compose_shared";
+import {
+  draft_data_to_attachments,
+  build_badge_html,
+} from "@/components/compose/compose_draft_helpers";
+import { use_compose_attachments } from "@/components/compose/use_compose_attachments";
+import { use_compose_send } from "@/components/compose/use_compose_send";
+import { use_compose_drafts } from "@/components/compose/use_compose_drafts";
+import { use_compose_editor } from "@/components/compose/use_compose_editor";
+import { take_pending_send_stash } from "@/components/compose/pending_send_stash";
+import { ignore_error } from "@/lib/ignore_error";
+import { use_plan_limits } from "@/hooks/use_plan_limits";
+import {
+  EXPIRATION_FEATURE,
+  PASSWORD_FEATURE,
+  restorable_expiry,
+} from "@/components/compose/expiry_plan_gate";
+
+export interface UseComposeOptions {
+  on_close: () => void;
+  edit_draft?: EditDraftData | null;
+  on_draft_cleared?: () => void;
+  initial_to?: string;
+  initial_attachments?: File[];
+  session_storage_key: string;
+  init_trigger?: unknown;
+  load_contacts_trigger?: unknown;
+  enable_offline_queue?: boolean;
+  enable_ctrl_enter_send?: boolean;
+}
+
+export interface UseComposeReturn {
+  recipients: RecipientsState;
+  inputs: InputsState;
+  visibility: VisibilityState;
+  subject: string;
+  set_subject: (val: string) => void;
+  message: string;
+  attachments: Attachment[];
+  is_loading_attachments: boolean;
+  show_delete_confirm: boolean;
+  draft_status: DraftStatus;
+  last_saved_time: Date | null;
+  attachment_error: string | null;
+  set_attachment_error: (val: string | null) => void;
+  is_loading_forward_attachments: boolean;
+  scheduled_time: Date | null;
+  set_scheduled_time: (val: Date | null) => void;
+  is_scheduling: boolean;
+  contacts: DecryptedContact[];
+  recent_recipients: DecryptedRecentRecipient[];
+  sender_options: SenderOption[];
+  aliases_loading: boolean;
+  selected_sender: SenderOption | null;
+  set_selected_sender: (val: SenderOption | null) => void;
+  preferred_sender_id: string | null;
+  set_preferred_sender: (id: string | null) => void;
+  ghost_mode: UseGhostModeReturn;
+  editor: UseEditorReturn;
+  active_formats: Set<string>;
+  is_mac: boolean;
+  is_plain_text_mode: boolean;
+  toggle_plain_text_mode: () => void;
+  show_plain_text_confirm: boolean;
+  confirm_plain_text_mode: () => void;
+  cancel_plain_text_confirm: () => void;
+  has_external_recipients: boolean;
+  has_sendable_recipients: boolean;
+  expires_at: Date | null;
+  set_expires_at: (val: Date | null) => void;
+  expiry_password: string | null;
+  set_expiry_password: (val: string | null) => void;
+
+  attachments_scroll_ref: React.RefObject<HTMLDivElement>;
+  file_input_ref: React.RefObject<HTMLInputElement>;
+  message_textarea_ref: React.RefObject<HTMLDivElement>;
+
+  update_input: (field: keyof InputsState, value: string) => void;
+  add_recipient: (field: keyof RecipientsState, email: string) => void;
+  remove_recipient: (field: keyof RecipientsState, email: string) => void;
+  remove_last_recipient: (field: keyof RecipientsState) => void;
+  show_cc_field: () => void;
+  show_bcc_field: () => void;
+  hide_cc_field: () => void;
+  hide_bcc_field: () => void;
+  reset_form: () => void;
+  clear_all_errors: () => void;
+  remove_attachment: (id: string) => void;
+  handle_file_select: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  handle_files_drop: (files: File[]) => Promise<void>;
+  trigger_file_select: () => void;
+  handle_editor_input: () => void;
+  handle_editor_paste: (e: React.ClipboardEvent) => void;
+  handle_template_select: (content: string) => void;
+  exec_format_command: (command: string) => void;
+  handle_send: () => Promise<void>;
+  is_sending: boolean;
+  handle_scheduled_send: () => Promise<void>;
+  handle_delete_draft: () => Promise<void>;
+  handle_show_delete_confirm: () => void;
+  handle_hide_delete_confirm: () => void;
+  handle_close: () => void;
+  show_discard_confirm: boolean;
+  confirm_discard_close: () => void;
+  cancel_discard_close: () => void;
+  pgp_enabled: boolean;
+  toggle_pgp: () => void;
+
+  schedule_picker_element: React.ReactNode;
+  expiration_picker_element: React.ReactNode;
+  template_picker_element: React.ReactNode;
+}
+
+function inject_html_with_inline_images(
+  html: string,
+  source_mail_id: string | undefined,
+  is_active: () => boolean,
+  apply: (resolved_html: string) => void,
+): void {
+  if (!source_mail_id || extract_cid_references(html).length === 0) {
+    apply(html);
+
+    return;
+  }
+
+  resolve_cid_references(html, source_mail_id, "data")
+    .then((result) => {
+      if (is_active()) apply(result.html);
+    })
+    .catch(() => {
+      if (is_active()) apply(html);
+    });
+}
+
+export function use_compose({
+  on_close,
+  edit_draft,
+  on_draft_cleared,
+  initial_to,
+  initial_attachments,
+  session_storage_key,
+  init_trigger,
+  load_contacts_trigger,
+  enable_offline_queue = false,
+  enable_ctrl_enter_send = false,
+}: UseComposeOptions): UseComposeReturn {
+  const { t } = use_i18n();
+  const { preferences } = use_preferences();
+  const { default_signature, get_formatted_signature, resolve_signature } =
+    use_signatures();
+
+  const [recipients, dispatch_recipients] = useReducer(
+    recipients_reducer,
+    INITIAL_RECIPIENTS,
+  );
+
+  useState(() => {
+    begin_recipient_classification_session();
+
+    return null;
+  });
+
+  const [inputs, set_inputs] = useState<InputsState>(INITIAL_INPUTS);
+  const [visibility, set_visibility] =
+    useState<VisibilityState>(INITIAL_VISIBILITY);
+
+  const [subject, set_subject] = useState("");
+  const [message, set_message] = useState("");
+
+  const [show_delete_confirm, set_show_delete_confirm] = useState(false);
+  const [is_loading_forward_attachments, set_is_loading_forward_attachments] =
+    useState(false);
+  const [badges, set_badges] = useState<Badge[]>([]);
+  const [badges_loaded, set_badges_loaded] = useState(false);
+  const my_badge_prefs = use_my_badge_prefs();
+  const include_badge_signature =
+    preferences.show_badges_in_signature &&
+    !!my_badge_prefs?.show_badge_signature &&
+    !!my_badge_prefs?.active_badge_slug;
+  const active_badge =
+    include_badge_signature && my_badge_prefs?.active_badge_slug
+      ? (badges.find((b) => b.slug === my_badge_prefs.active_badge_slug) ??
+        null)
+      : null;
+
+  useEffect(() => {
+    fetch_my_badges()
+      .then((r) => {
+        if (r.data) set_badges(r.data);
+      })
+      .catch((caught) =>
+        ignore_error("components/compose/use_compose:fetch_my_badges", caught),
+      )
+      .finally(() => set_badges_loaded(true));
+  }, []);
+
+  const is_sending_ref = useRef(false);
+  const save_timer_ref = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const message_textarea_ref = useRef<HTMLDivElement>(null);
+  const draft_context_id_ref = useRef<string | null>(null);
+  const initialized_ref = useRef(false);
+  const content_initialized_ref = useRef(false);
+  const inject_token_ref = useRef(0);
+  const [scheduled_time, set_scheduled_time] = useState<Date | null>(null);
+  const [is_scheduling, set_is_scheduling] = useState(false);
+  const [expires_at, set_expires_at] = useState<Date | null>(null);
+  const [expiry_password, set_expiry_password] = useState<string | null>(null);
+  const { limits: plan_limits, is_feature_locked } = use_plan_limits();
+  const expiry_restore_pending_ref = useRef(false);
+  const plan_gate_ref = useRef({ plan_limits, is_feature_locked });
+
+  plan_gate_ref.current = { plan_limits, is_feature_locked };
+  const contacts = use_suggestion_contacts(
+    load_contacts_trigger !== false,
+    load_contacts_trigger,
+  );
+  const [recent_recipients_list, set_recent_recipients_list] = useState<
+    DecryptedRecentRecipient[]
+  >([]);
+
+  const { sender_options, loading: aliases_loading } = use_sender_aliases([
+    edit_draft?.from_email,
+  ]);
+  const [selected_sender, set_selected_sender_state] =
+    useState<SenderOption | null>(null);
+  const sender_manually_selected_ref = useRef(false);
+  const preferred_sender_ready = use_preferred_sender_ready();
+
+  const set_selected_sender = useCallback((value: SenderOption | null) => {
+    sender_manually_selected_ref.current = value !== null;
+    set_selected_sender_state(value);
+  }, []);
+  const [preferred_sender_id, set_preferred_sender_id_state] = useState<
+    string | null
+  >(() => get_preferred_sender_id());
+
+  const set_preferred_sender = useCallback((id: string | null) => {
+    set_preferred_sender_id_state(id);
+    set_preferred_sender_id(id);
+  }, []);
+
+  useEffect(() => {
+    return subscribe_preferred_sender((id) => {
+      set_preferred_sender_id_state(id);
+    });
+  }, []);
+  const ghost_mode = use_ghost_mode();
+
+  const attachment_hook = use_compose_attachments();
+
+  const files_drop_ref = useRef<((files: File[]) => void) | null>(null);
+
+  const recipients_ref = useRef(recipients);
+
+  recipients_ref.current = recipients;
+
+  const get_recipient_name = useCallback(() => {
+    const primary = recipients_ref.current.to[0];
+
+    if (!primary) return "";
+
+    const local_part = primary.split("@")[0];
+
+    return local_part ?? "";
+  }, []);
+
+  const editor_hook = use_compose_editor({
+    message_textarea_ref,
+    set_message,
+    on_files_drop: (files: File[]) => files_drop_ref.current?.(files),
+    get_recipient_name,
+    get_inline_image_budget: () =>
+      get_max_total_attachments_size() -
+      attachment_hook.get_total_attachments_size(),
+  });
+
+  const is_plain_text_ref = useRef(editor_hook.is_plain_text_mode);
+
+  is_plain_text_ref.current = editor_hook.is_plain_text_mode;
+
+  const reset_form = useCallback(() => {
+    dispatch_recipients({ type: "RESET" });
+    set_inputs(INITIAL_INPUTS);
+    set_visibility(INITIAL_VISIBILITY);
+    set_subject("");
+    set_message("");
+    attachment_hook.set_attachments([]);
+    set_scheduled_time(null);
+    set_is_scheduling(false);
+    set_expires_at(null);
+    set_expiry_password(null);
+    if (message_textarea_ref.current) {
+      message_textarea_ref.current.innerHTML = "";
+    }
+  }, [attachment_hook.set_attachments]);
+
+  const clear_all_errors = useCallback(() => {
+    attachment_hook.set_attachment_error(null);
+  }, [attachment_hook.set_attachment_error]);
+
+  const outgoing_message = editor_hook.is_plain_text_mode
+    ? escape_html(message).replace(/\n/g, "<br>")
+    : message;
+
+  const draft_hook = use_compose_drafts({
+    recipients,
+    subject,
+    message: outgoing_message,
+    is_plain_text: editor_hook.is_plain_text_mode,
+    from_email: selected_sender?.email,
+    attachments: attachment_hook.attachments,
+    attachments_ref: attachment_hook.attachments_ref,
+    edit_draft,
+    on_close,
+    on_draft_cleared,
+    reset_form,
+    is_sending_ref,
+    save_timer_ref,
+    draft_context_id_ref,
+  });
+
+  const classified_recipients = useMemo(
+    () => [...recipients.to, ...recipients.cc, ...recipients.bcc],
+    [recipients],
+  );
+
+  use_recipient_classification(classified_recipients);
+
+  const has_external_recipients = classified_recipients.some(
+    (r) => !is_internal_recipient(r),
+  );
+
+  const attachment_count = attachment_hook.attachments.length;
+
+  useEffect(() => {
+    if (attachment_count === 0 || !scheduled_time) return;
+
+    set_scheduled_time(null);
+    show_toast(t("common.scheduled_no_attachments"), "warning");
+  }, [attachment_count, scheduled_time, t]);
+
+  const send_hook = use_compose_send({
+    recipients,
+    subject,
+    message: outgoing_message,
+    is_plain_text: editor_hook.is_plain_text_mode,
+    attachments: attachment_hook.attachments,
+    has_pending_attachment_reads: attachment_hook.has_pending_attachment_reads,
+    is_loading_forward_attachments,
+    contacts,
+    selected_sender,
+    has_external_recipients,
+    expires_at,
+    expiry_password,
+    scheduled_time,
+    edit_draft,
+    session_storage_key,
+    enable_offline_queue,
+    on_close,
+    on_draft_cleared,
+    reset_form,
+    clear_all_errors,
+    set_is_scheduling,
+    is_sending_ref,
+    save_timer_ref,
+    draft_context_id_ref,
+  });
+
+  useEffect(() => {
+    if (sender_options.length === 0) return;
+    if (sender_manually_selected_ref.current) return;
+    if (ghost_mode.is_ghost_enabled) return;
+    if (!preferred_sender_ready && !preferred_sender_id) return;
+
+    const resolved = resolve_from_sender({
+      options: sender_options,
+      draft_from: edit_draft?.from_email,
+      preferred_sender_id,
+    });
+
+    if (!resolved) return;
+    if (resolved.option.id === selected_sender?.id) return;
+
+    set_selected_sender_state(resolved.option);
+  }, [
+    sender_options,
+    selected_sender,
+    preferred_sender_id,
+    preferred_sender_ready,
+    edit_draft,
+    ghost_mode.is_ghost_enabled,
+  ]);
+
+  const select_sender = use_ghost_sender_binding(
+    ghost_mode,
+    selected_sender,
+    set_selected_sender,
+  );
+
+  const update_input = useCallback(
+    (field: keyof InputsState, value: string) => {
+      set_inputs((prev) => ({ ...prev, [field]: value }));
+    },
+    [],
+  );
+
+  const add_recipient = useCallback(
+    (field: keyof RecipientsState, email: string) => {
+      dispatch_recipients({ type: "ADD", field, email });
+      set_inputs((prev) => ({ ...prev, [field]: "" }));
+    },
+    [],
+  );
+
+  const pending_recipient_inputs = useMemo(() => {
+    const fields: (keyof RecipientsState)[] = ["to", "cc", "bcc"];
+
+    return fields
+      .map((field) => ({ field, email: inputs[field].trim() }))
+      .filter((entry) => is_valid_email(entry.email));
+  }, [inputs]);
+
+  const has_sendable_recipients =
+    recipients.to.length + recipients.cc.length + recipients.bcc.length > 0 ||
+    pending_recipient_inputs.length > 0;
+
+  useEffect(() => {
+    if (pending_recipient_inputs.length === 0) return;
+
+    const data = draft_hook.draft_data_ref.current;
+    const merged: RecipientsState = {
+      to: [...data.recipients.to],
+      cc: [...data.recipients.cc],
+      bcc: [...data.recipients.bcc],
+    };
+
+    pending_recipient_inputs.forEach((entry) => {
+      if (merged[entry.field].includes(entry.email)) return;
+      merged[entry.field].push(entry.email);
+    });
+
+    draft_hook.draft_data_ref.current = { ...data, recipients: merged };
+  });
+
+  useEffect(() => {
+    const commit_pending_recipients = () => {
+      if (document.visibilityState !== "hidden") return;
+      if (is_sending_ref.current) return;
+
+      pending_recipient_inputs.forEach((entry) =>
+        add_recipient(entry.field, entry.email),
+      );
+    };
+
+    document.addEventListener("visibilitychange", commit_pending_recipients);
+
+    return () =>
+      document.removeEventListener(
+        "visibilitychange",
+        commit_pending_recipients,
+      );
+  }, [pending_recipient_inputs, add_recipient]);
+
+  const [pending_send_mode, set_pending_send_mode] = useState<
+    "send" | "schedule" | null
+  >(null);
+
+  const invalid_recipient_inputs = useMemo(() => {
+    const fields: (keyof RecipientsState)[] = ["to", "cc", "bcc"];
+
+    return fields
+      .map((field) => inputs[field].trim())
+      .filter((value) => value.length > 0 && !is_valid_email(value));
+  }, [inputs]);
+
+  const flush_pending_recipients = useCallback(
+    (mode: "send" | "schedule") => {
+      if (invalid_recipient_inputs.length > 0) {
+        show_toast(t("common.please_enter_valid_email"), "error");
+
+        return true;
+      }
+
+      if (pending_recipient_inputs.length === 0) return false;
+
+      pending_recipient_inputs.forEach((entry) =>
+        add_recipient(entry.field, entry.email),
+      );
+      set_pending_send_mode(mode);
+
+      return true;
+    },
+    [invalid_recipient_inputs, pending_recipient_inputs, add_recipient, t],
+  );
+
+  const handle_send = useCallback(async () => {
+    if (flush_pending_recipients("send")) return;
+
+    await send_hook.handle_send();
+  }, [flush_pending_recipients, send_hook.handle_send]);
+
+  const handle_scheduled_send = useCallback(async () => {
+    if (flush_pending_recipients("schedule")) return;
+
+    await send_hook.handle_scheduled_send();
+  }, [flush_pending_recipients, send_hook.handle_scheduled_send]);
+
+  useEffect(() => {
+    if (!pending_send_mode) return;
+
+    const mode = pending_send_mode;
+
+    set_pending_send_mode(null);
+    if (mode === "schedule") {
+      void send_hook.handle_scheduled_send();
+
+      return;
+    }
+    void send_hook.handle_send();
+  }, [
+    pending_send_mode,
+    send_hook.handle_send,
+    send_hook.handle_scheduled_send,
+  ]);
+
+  const remove_recipient = useCallback(
+    (field: keyof RecipientsState, email: string) => {
+      dispatch_recipients({ type: "REMOVE", field, email });
+    },
+    [],
+  );
+
+  const remove_last_recipient = useCallback((field: keyof RecipientsState) => {
+    dispatch_recipients({ type: "REMOVE_LAST", field });
+  }, []);
+
+  const show_cc_field = useCallback(
+    () => set_visibility((prev) => ({ ...prev, cc: true })),
+    [],
+  );
+  const show_bcc_field = useCallback(
+    () => set_visibility((prev) => ({ ...prev, bcc: true })),
+    [],
+  );
+  const hide_cc_field = useCallback(() => {
+    dispatch_recipients({ type: "SET", field: "cc", emails: [] });
+    set_inputs((prev) => ({ ...prev, cc: "" }));
+    set_visibility((prev) => ({ ...prev, cc: false }));
+  }, []);
+  const hide_bcc_field = useCallback(() => {
+    dispatch_recipients({ type: "SET", field: "bcc", emails: [] });
+    set_inputs((prev) => ({ ...prev, bcc: "" }));
+    set_visibility((prev) => ({ ...prev, bcc: false }));
+  }, []);
+
+  useEffect(() => {
+    const load_recent_recipients_fn = async () => {
+      if (!preferences.auto_save_recent_recipients) {
+        set_recent_recipients_list([]);
+
+        return;
+      }
+
+      try {
+        const response = await list_recent_recipients(50);
+
+        if (response.data?.items) {
+          const decrypted = await decrypt_recent_recipients(
+            response.data.items,
+          );
+
+          set_recent_recipients_list(decrypted);
+        }
+      } catch {
+        set_recent_recipients_list([]);
+      }
+    };
+
+    load_recent_recipients_fn();
+  }, [load_contacts_trigger, preferences.auto_save_recent_recipients]);
+
+  useEffect(() => {
+    if (init_trigger === undefined) {
+      if (initialized_ref.current) return;
+      initialized_ref.current = true;
+    }
+
+    inject_token_ref.current += 1;
+
+    is_sending_ref.current = false;
+    draft_hook.user_modified_ref.current = false;
+    reset_form();
+    draft_hook.set_draft_status("idle");
+    set_inputs(INITIAL_INPUTS);
+    set_show_delete_confirm(false);
+    clear_all_errors();
+
+    if (draft_context_id_ref.current) {
+      draft_manager.clear_context(draft_context_id_ref.current);
+      draft_context_id_ref.current = null;
+    }
+
+    if (edit_draft) {
+      draft_context_id_ref.current = draft_manager.load_context(
+        edit_draft.id,
+        edit_draft.version,
+        edit_draft.draft_type || "new",
+        edit_draft.reply_to_id,
+        edit_draft.forward_from_id,
+      );
+      draft_hook.just_loaded_draft_ref.current = true;
+      dispatch_recipients({
+        type: "SET",
+        field: "to",
+        emails: edit_draft.to_recipients,
+      });
+      dispatch_recipients({
+        type: "SET",
+        field: "cc",
+        emails: edit_draft.cc_recipients,
+      });
+      dispatch_recipients({
+        type: "SET",
+        field: "bcc",
+        emails: edit_draft.bcc_recipients,
+      });
+      set_subject(edit_draft.subject);
+      const plain_draft_text = edit_draft.is_plain_text
+        ? escaped_html_to_plain_text(edit_draft.message)
+        : null;
+
+      if (plain_draft_text !== null) {
+        editor_hook.set_plain_text_mode(true);
+      }
+      set_message(plain_draft_text ?? edit_draft.message);
+      const parsed_expiry = edit_draft.expires_at
+        ? new Date(edit_draft.expires_at)
+        : null;
+      const restored = restorable_expiry({
+        expires_at:
+          parsed_expiry && !Number.isNaN(parsed_expiry.getTime())
+            ? parsed_expiry
+            : null,
+        expiry_password: edit_draft.expiry_password || null,
+        limits_loaded: plan_gate_ref.current.plan_limits !== null,
+        is_feature_locked: plan_gate_ref.current.is_feature_locked,
+      });
+
+      if (restored.expires_at) set_expires_at(restored.expires_at);
+      if (restored.expiry_password) {
+        set_expiry_password(restored.expiry_password);
+      }
+      expiry_restore_pending_ref.current =
+        plan_gate_ref.current.plan_limits === null &&
+        (!!restored.expires_at || !!restored.expiry_password);
+      if (edit_draft.attachments && edit_draft.attachments.length > 0) {
+        attachment_hook.set_attachments(
+          draft_data_to_attachments(edit_draft.attachments),
+        );
+      }
+      set_visibility({
+        cc: edit_draft.cc_recipients.length > 0,
+        bcc: edit_draft.bcc_recipients.length > 0,
+      });
+      draft_hook.set_draft_status("saved");
+      draft_hook.set_last_saved_time(new Date(edit_draft.updated_at));
+
+      const has_saved_attachments =
+        !!edit_draft.attachments && edit_draft.attachments.length > 0;
+      const forward_source_id =
+        edit_draft.draft_type === "forward" &&
+        !edit_draft.is_restored_send &&
+        (edit_draft.id === "" || !has_saved_attachments)
+          ? edit_draft.forward_from_id
+          : undefined;
+
+      if (forward_source_id) {
+        const attachments_token = inject_token_ref.current;
+
+        set_is_loading_forward_attachments(true);
+        load_forward_attachments(forward_source_id, {
+          body_html: edit_draft.message,
+          is_cancelled: () => inject_token_ref.current !== attachments_token,
+          on_dropped: (_count, reason) => {
+            if (inject_token_ref.current !== attachments_token) return;
+
+            attachment_hook.set_attachment_error(
+              reason === "unavailable"
+                ? t("common.forward_attachments_unavailable")
+                : t("common.forward_attachments_locked"),
+            );
+          },
+        })
+          .then((carried) => {
+            if (inject_token_ref.current !== attachments_token) return;
+            if (carried.length === 0) return;
+
+            attachment_hook.set_attachments((prev) => {
+              const seen = new Set(
+                prev.map((a) => `${a.name}:${a.size_bytes}`),
+              );
+
+              return [
+                ...prev,
+                ...carried.filter(
+                  (a) => !seen.has(`${a.name}:${a.size_bytes}`),
+                ),
+              ];
+            });
+          })
+          .catch((caught) =>
+            ignore_error(
+              "components/compose/use_compose:load_recent_recipients_fn",
+              caught,
+            ),
+          )
+          .finally(() => {
+            if (inject_token_ref.current === attachments_token) {
+              set_is_loading_forward_attachments(false);
+            }
+          });
+      } else {
+        set_is_loading_forward_attachments(false);
+      }
+
+      const plain_load_token = inject_token_ref.current;
+
+      setTimeout(() => {
+        if (plain_draft_text !== null) {
+          if (
+            message_textarea_ref.current &&
+            inject_token_ref.current === plain_load_token
+          ) {
+            message_textarea_ref.current.innerText = plain_draft_text;
+          }
+
+          return;
+        }
+        if (message_textarea_ref.current && edit_draft.message) {
+          draft_hook.just_loaded_draft_ref.current = true;
+          const sanitized_result = sanitize_html(
+            edit_draft.message,
+            get_compose_sanitize_options(),
+          );
+          const token = inject_token_ref.current;
+
+          inject_html_with_inline_images(
+            sanitized_result.html,
+            edit_draft.reply_to_id ?? edit_draft.forward_from_id,
+            () => inject_token_ref.current === token,
+            (resolved_html) => {
+              if (!message_textarea_ref.current) return;
+
+              message_textarea_ref.current.innerHTML = resolved_html;
+              set_message(
+                is_plain_text_ref.current
+                  ? message_textarea_ref.current.innerText
+                  : restore_compose_image_sources(
+                      message_textarea_ref.current.innerHTML,
+                    ),
+              );
+            },
+          );
+        }
+      }, INITIAL_CONTENT_DELAY_MS);
+    } else {
+      draft_context_id_ref.current = draft_manager.create_context("new");
+      content_initialized_ref.current = false;
+      set_is_loading_forward_attachments(false);
+
+      if (initial_to) {
+        const emails = initial_to
+          .split(",")
+          .map((e) => e.trim())
+          .filter((e) => is_valid_email(e));
+
+        if (emails.length > 0) {
+          dispatch_recipients({ type: "SET", field: "to", emails });
+        }
+      }
+
+      if (initial_attachments && initial_attachments.length > 0) {
+        files_drop_ref.current?.(initial_attachments);
+      }
+    }
+
+    return () => {
+      inject_token_ref.current += 1;
+      if (save_timer_ref.current) {
+        clearTimeout(save_timer_ref.current);
+        save_timer_ref.current = null;
+      }
+    };
+  }, [init_trigger]);
+
+  useEffect(() => {
+    if (!expiry_restore_pending_ref.current || plan_limits === null) return;
+    expiry_restore_pending_ref.current = false;
+
+    if (is_feature_locked(EXPIRATION_FEATURE)) set_expires_at(null);
+    if (is_feature_locked(PASSWORD_FEATURE)) set_expiry_password(null);
+  }, [plan_limits, is_feature_locked]);
+
+  useEffect(() => {
+    if (content_initialized_ref.current) return;
+
+    const is_fresh_reply_forward =
+      !!edit_draft &&
+      edit_draft.id === "" &&
+      edit_draft.draft_type !== "new" &&
+      !edit_draft.is_restored_send;
+
+    if (edit_draft && !is_fresh_reply_forward) return;
+
+    if (include_badge_signature && !badges_loaded) return;
+
+    content_initialized_ref.current = true;
+
+    setTimeout(() => {
+      if (!message_textarea_ref.current) return;
+
+      draft_hook.just_loaded_draft_ref.current = true;
+
+      let content = "";
+
+      const badge_html = active_badge ? build_badge_html([active_badge]) : "";
+
+      const initial_sender_alias_id =
+        selected_sender &&
+        is_signature_bindable_sender_type(selected_sender.type)
+          ? selected_sender.id
+          : null;
+      const initial_signature =
+        resolve_signature(initial_sender_alias_id) ?? default_signature;
+      const signature_block =
+        preferences.signature_mode === "auto" && initial_signature
+          ? SIGNATURE_GAP_BLOCK +
+            get_formatted_signature(initial_signature) +
+            badge_html
+          : badge_html;
+
+      const default_block = build_compose_default_block(
+        preferences.compose_font_size,
+        preferences.compose_font_color,
+      );
+      const footer_html = is_fresh_reply_forward
+        ? ""
+        : get_aster_footer(t, preferences.show_aster_branding);
+      const caret_block =
+        default_block ||
+        (signature_block || footer_html ? COMPOSE_CARET_BLOCK : "");
+
+      if (is_fresh_reply_forward && edit_draft) {
+        content = caret_block + signature_block + edit_draft.message;
+      } else {
+        content = caret_block + signature_block + footer_html;
+      }
+
+      const sanitized_result = sanitize_html(
+        content,
+        get_compose_sanitize_options(),
+      );
+
+      const token = inject_token_ref.current;
+
+      inject_html_with_inline_images(
+        sanitized_result.html,
+        is_fresh_reply_forward
+          ? (edit_draft?.reply_to_id ?? edit_draft?.forward_from_id)
+          : undefined,
+        () => inject_token_ref.current === token,
+        (resolved_html) => {
+          if (!message_textarea_ref.current) return;
+
+          message_textarea_ref.current.innerHTML = resolved_html;
+          if (is_plain_text_ref.current) {
+            const text = message_textarea_ref.current.innerText;
+
+            message_textarea_ref.current.innerText = text;
+            set_message(text);
+          } else {
+            set_message(
+              restore_compose_image_sources(
+                message_textarea_ref.current.innerHTML,
+              ),
+            );
+          }
+        },
+      );
+    }, INITIAL_CONTENT_DELAY_MS);
+  }, [
+    init_trigger,
+    badges_loaded,
+    badges,
+    edit_draft,
+    include_badge_signature,
+    active_badge,
+    preferences.show_aster_branding,
+    preferences.signature_mode,
+    preferences.compose_font_size,
+    preferences.compose_font_color,
+    default_signature,
+    get_formatted_signature,
+    resolve_signature,
+    selected_sender,
+    t,
+  ]);
+
+  const last_signature_id_ref = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!content_initialized_ref.current) return;
+    if (preferences.signature_mode !== "auto") return;
+    const editor = message_textarea_ref.current;
+
+    if (!editor) return;
+
+    const alias_id =
+      selected_sender && is_signature_bindable_sender_type(selected_sender.type)
+        ? selected_sender.id
+        : null;
+    const target = resolve_signature(alias_id) ?? default_signature;
+
+    if (!target) return;
+    if (last_signature_id_ref.current === target.id) return;
+
+    const existing = editor.querySelector<HTMLElement>(
+      "[data-aster-signature='1']",
+    );
+    const raw_html = get_formatted_signature(target);
+    const sanitized = sanitize_html(raw_html, get_compose_sanitize_options());
+    const wrapper = document.createElement("div");
+
+    wrapper.innerHTML = sanitized.html;
+    const new_node = wrapper.firstElementChild;
+
+    if (!new_node) {
+      last_signature_id_ref.current = target.id;
+
+      return;
+    }
+    if (existing) {
+      existing.replaceWith(new_node);
+    } else {
+      insert_signature_node(editor, new_node);
+    }
+    set_message(
+      is_plain_text_ref.current
+        ? editor.innerText
+        : restore_compose_image_sources(editor.innerHTML),
+    );
+    last_signature_id_ref.current = target.id;
+  }, [
+    selected_sender,
+    preferences.signature_mode,
+    resolve_signature,
+    default_signature,
+    get_formatted_signature,
+  ]);
+
+  files_drop_ref.current = attachment_hook.handle_files_drop;
+
+  useEffect(() => {
+    if (!enable_ctrl_enter_send) return;
+
+    const editor_el = message_textarea_ref.current;
+
+    if (!editor_el) return;
+
+    const handle_keydown = (e: KeyboardEvent) => {
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        e.key.toLowerCase() === "enter" &&
+        !e.shiftKey
+      ) {
+        e.preventDefault();
+
+        if (!has_sendable_recipients) return;
+
+        if (scheduled_time) {
+          void handle_scheduled_send();
+
+          return;
+        }
+
+        void handle_send();
+      }
+    };
+
+    editor_el.addEventListener("keydown", handle_keydown);
+
+    return () => editor_el.removeEventListener("keydown", handle_keydown);
+  }, [
+    enable_ctrl_enter_send,
+    has_sendable_recipients,
+    scheduled_time,
+    handle_send,
+    handle_scheduled_send,
+  ]);
+
+  useEffect(() => {
+    const handle_undo_event = (event: CustomEvent<UndoSendEvent>) => {
+      const { id } = event.detail;
+
+      if (id !== send_hook.queued_email_id) return;
+
+      const data = take_pending_send_stash(session_storage_key);
+
+      if (data) {
+        try {
+          dispatch_recipients({
+            type: "SET",
+            field: "to",
+            emails: data.to_recipients || [],
+          });
+          dispatch_recipients({
+            type: "SET",
+            field: "cc",
+            emails: data.cc_recipients || [],
+          });
+          dispatch_recipients({
+            type: "SET",
+            field: "bcc",
+            emails: data.bcc_recipients || [],
+          });
+          set_subject(data.subject || "");
+          const plain_text = data.is_plain_text
+            ? escaped_html_to_plain_text(data.message || "")
+            : null;
+
+          if (plain_text !== null) {
+            editor_hook.set_plain_text_mode(true);
+            if (message_textarea_ref.current) {
+              message_textarea_ref.current.innerText = plain_text;
+            }
+          }
+          set_message(plain_text ?? (data.message || ""));
+          set_visibility({
+            cc: (data.cc_recipients || []).length > 0,
+            bcc: (data.bcc_recipients || []).length > 0,
+          });
+        } catch (error) {
+          if (import.meta.env.DEV) console.error(error);
+          show_toast(t("common.failed_to_restore_draft"), "error");
+        }
+      }
+
+      send_hook.set_queued_email_id(null);
+    };
+
+    window.addEventListener(
+      "astermail:undo-send",
+      handle_undo_event as EventListener,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "astermail:undo-send",
+        handle_undo_event as EventListener,
+      );
+    };
+  }, [send_hook.queued_email_id, session_storage_key, t]);
+
+  const handle_show_delete_confirm = useCallback(
+    () => set_show_delete_confirm(true),
+    [],
+  );
+  const handle_hide_delete_confirm = useCallback(
+    () => set_show_delete_confirm(false),
+    [],
+  );
+
+  return {
+    recipients,
+    inputs,
+    visibility,
+    subject,
+    set_subject,
+    message,
+    attachments: attachment_hook.attachments,
+    is_loading_attachments: attachment_hook.is_loading_attachments,
+    show_delete_confirm,
+    draft_status: draft_hook.draft_status,
+    last_saved_time: draft_hook.last_saved_time,
+    attachment_error: attachment_hook.attachment_error,
+    set_attachment_error: attachment_hook.set_attachment_error,
+    is_loading_forward_attachments,
+    scheduled_time,
+    set_scheduled_time,
+    is_scheduling,
+    contacts,
+    recent_recipients: recent_recipients_list,
+    sender_options,
+    aliases_loading,
+    selected_sender,
+    set_selected_sender: select_sender,
+    preferred_sender_id,
+    set_preferred_sender,
+    ghost_mode,
+    editor: editor_hook.editor,
+    active_formats: editor_hook.editor.format_state.active_formats,
+    is_mac: editor_hook.editor.is_mac,
+    is_plain_text_mode: editor_hook.is_plain_text_mode,
+    toggle_plain_text_mode: editor_hook.toggle_plain_text_mode,
+    show_plain_text_confirm: editor_hook.show_plain_text_confirm,
+    confirm_plain_text_mode: editor_hook.confirm_plain_text_mode,
+    cancel_plain_text_confirm: editor_hook.cancel_plain_text_confirm,
+    has_external_recipients,
+    has_sendable_recipients,
+    expires_at,
+    set_expires_at,
+    expiry_password,
+    set_expiry_password,
+
+    attachments_scroll_ref:
+      attachment_hook.attachments_scroll_ref as React.RefObject<HTMLDivElement>,
+    file_input_ref:
+      attachment_hook.file_input_ref as React.RefObject<HTMLInputElement>,
+    message_textarea_ref:
+      message_textarea_ref as React.RefObject<HTMLDivElement>,
+
+    update_input,
+    add_recipient,
+    remove_recipient,
+    remove_last_recipient,
+    show_cc_field,
+    show_bcc_field,
+    hide_cc_field,
+    hide_bcc_field,
+    reset_form,
+    clear_all_errors,
+    remove_attachment: attachment_hook.remove_attachment,
+    handle_file_select: attachment_hook.handle_file_select,
+    handle_files_drop: attachment_hook.handle_files_drop,
+    trigger_file_select: attachment_hook.trigger_file_select,
+    handle_editor_input: editor_hook.handle_editor_input,
+    handle_editor_paste: editor_hook.handle_editor_paste,
+    handle_template_select: editor_hook.handle_template_select,
+    exec_format_command: editor_hook.exec_format_command,
+    handle_send,
+    is_sending: send_hook.is_sending,
+    handle_scheduled_send,
+    handle_delete_draft: draft_hook.handle_delete_draft,
+    handle_show_delete_confirm,
+    pgp_enabled: send_hook.pgp_enabled,
+    toggle_pgp: send_hook.toggle_pgp,
+    handle_hide_delete_confirm,
+    handle_close: draft_hook.handle_close,
+    show_discard_confirm: draft_hook.show_discard_confirm,
+    confirm_discard_close: draft_hook.confirm_discard_close,
+    cancel_discard_close: draft_hook.cancel_discard_close,
+
+    schedule_picker_element: null,
+    expiration_picker_element: null,
+    template_picker_element: null,
+  };
+}
