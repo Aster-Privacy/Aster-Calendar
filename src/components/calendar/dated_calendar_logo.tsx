@@ -18,32 +18,50 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import { use_dated_calendar_icon } from "@/lib/dated_calendar_icon";
+import { DatedCalendarImage } from "@/components/icons/dated_calendar_image";
 
 interface DatedCalendarLogoProps {
   alt: string;
   className: string;
+  align?: "start" | "center";
 }
 
-export function DatedCalendarLogo({ alt, className }: DatedCalendarLogoProps) {
-  const light_src = use_dated_calendar_icon("logo_light");
-  const dark_src = use_dated_calendar_icon("logo_dark");
-
+export function DatedCalendarLogo({
+  alt,
+  className,
+  align = "start",
+}: DatedCalendarLogoProps) {
   return (
     <>
-      <img
+      <DatedCalendarImage
+        align={align}
         alt={alt}
         className={`${className} dark:hidden`}
-        decoding="async"
-        draggable={false}
-        src={light_src}
+        fallback={
+          <img
+            alt={alt}
+            className={`${className} dark:hidden`}
+            decoding="async"
+            draggable={false}
+            src="/aster_calendar_logo_31_light.png"
+          />
+        }
+        kind="logo_light"
       />
-      <img
+      <DatedCalendarImage
+        align={align}
         alt={alt}
         className={`${className} hidden dark:block`}
-        decoding="async"
-        draggable={false}
-        src={dark_src}
+        fallback={
+          <img
+            alt={alt}
+            className={`${className} hidden dark:block`}
+            decoding="async"
+            draggable={false}
+            src="/aster_calendar_logo_31_dark.png"
+          />
+        }
+        kind="logo_dark"
       />
     </>
   );

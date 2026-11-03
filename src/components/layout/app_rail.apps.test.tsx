@@ -45,11 +45,6 @@ vi.mock("@/lib/i18n/context", () => ({
 
 vi.mock("@/utils/open_link", () => ({ open_external }));
 
-vi.mock("@/lib/dated_calendar_icon", () => ({
-  use_dated_calendar_icon: (kind: string) =>
-    `data:image/png;base64,calendar_${kind}`,
-}));
-
 vi.mock("@/components/layout/quick_contacts_panel", () => ({
   QuickContactsPanel: () => null,
 }));
@@ -144,11 +139,17 @@ describe("app rail apps", () => {
         ?.querySelector("img")
         ?.getAttribute("src"),
     ).toMatch(/^data:image\/png/);
+
+    const calendar_icon = rail_item("common.app_name_calendar")?.querySelector(
+      'svg[data-dated-calendar-icon="app"]',
+    );
+
+    expect(calendar_icon?.querySelector("image")?.getAttribute("href")).toMatch(
+      /^data:image\/png/,
+    );
     expect(
-      rail_item("common.app_name_calendar")
-        ?.querySelector("img")
-        ?.getAttribute("src"),
-    ).toBe("data:image/png;base64,calendar_app");
+      rail_item("common.app_name_calendar")?.querySelector("img"),
+    ).toBeNull();
   });
 
   it("never marks the app shortcuts as open panels", async () => {

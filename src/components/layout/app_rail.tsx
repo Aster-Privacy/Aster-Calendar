@@ -29,7 +29,7 @@ import { QuickSecurityPanel } from "@/components/layout/quick_security_panel";
 import { use_panel_transition } from "@/components/layout/use_panel_transition";
 import { use_i18n } from "@/lib/i18n/context";
 import { use_preferences } from "@/contexts/preferences_context";
-import { use_dated_calendar_icon } from "@/lib/dated_calendar_icon";
+import { DatedCalendarImage } from "@/components/icons/dated_calendar_image";
 import { open_mail_app } from "@/lib/mail_app";
 import mail_icon from "@/assets/app_icons/mail.png?inline";
 import {
@@ -71,7 +71,6 @@ function AppRailComponent({
   const { preferences } = use_preferences();
   const location = useLocation();
   const navigate = useNavigate();
-  const calendar_icon = use_dated_calendar_icon("app");
   const is_settings_view = location.pathname.startsWith("/settings");
   const [is_hidden, set_is_hidden] = useState(read_hidden);
   const [is_swapping, set_is_swapping] = useState(false);
@@ -188,8 +187,13 @@ function AppRailComponent({
           key: "calendar",
           label: t("common.app_name_calendar"),
           selected: false,
-          icon_src: calendar_icon,
-          fallback_icon: <AppRailIcon name="calendar" />,
+          fallback_icon: (
+            <DatedCalendarImage
+              className="h-6 w-6 shrink-0"
+              fallback={<AppRailIcon name="calendar" />}
+              kind="app"
+            />
+          ),
           on_click: go_calendar_home,
         },
         {

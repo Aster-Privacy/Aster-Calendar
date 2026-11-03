@@ -55,7 +55,7 @@ import { show_upgrade_plans } from "@/stores/upgrade_store";
 import { show_special_offer } from "@/stores/special_offer_store";
 import { use_special_offer_status } from "@/stores/special_offer_status";
 import { is_special_offer_available } from "@/lib/special_offer";
-import { use_dated_calendar_icon } from "@/lib/dated_calendar_icon";
+import { DatedCalendarLogo } from "@/components/calendar/dated_calendar_logo";
 
 const HELP_CENTER_URL = "https://astermail.org/help";
 const SUPPORT_ADDRESS = "hello@astermail.org";
@@ -219,10 +219,6 @@ function top_bar_base({
     (primary_identity.email || account_email).split("@")[0];
 
   const brand_label = t("calendar.aster_calendar_brand");
-  const dated_logo_light_src = use_dated_calendar_icon("logo_light");
-  const dated_logo_dark_src = use_dated_calendar_icon("logo_dark");
-  const logo_light_src = dated_logo_light_src;
-  const logo_dark_src = dated_logo_dark_src;
 
   const sidebar_expanded_width = Math.min(
     360,
@@ -279,19 +275,10 @@ function top_bar_base({
             type="button"
             onClick={go_home}
           >
-            <img
+            <DatedCalendarLogo
+              align="start"
               alt={brand_label}
-              className="h-6 w-auto max-w-full object-contain object-left dark:hidden"
-              decoding="async"
-              draggable={false}
-              src={logo_light_src}
-            />
-            <img
-              alt={brand_label}
-              className="h-6 w-auto max-w-full object-contain object-left hidden dark:block"
-              decoding="async"
-              draggable={false}
-              src={logo_dark_src}
+              className="h-6 w-auto max-w-full"
             />
           </button>
         </Tooltip>
