@@ -756,7 +756,7 @@ export function CalendarInsightsPanel({
   return (
     <motion.div
       animate={{ opacity: 1, x: 0 }}
-      className="hidden xl:flex flex-shrink-0 justify-end overflow-hidden"
+      className="pointer-events-none absolute inset-y-0 end-0 z-20 flex flex-shrink-0 justify-end overflow-hidden xl:pointer-events-auto xl:static xl:z-auto"
       data-testid="calendar-insights-panel"
       exit={reduce_motion ? undefined : { opacity: 0, x: 8 }}
       initial={reduce_motion ? false : { opacity: 0, x: 8 }}
@@ -766,7 +766,7 @@ export function CalendarInsightsPanel({
       <aside
         ref={aside_ref}
         aria-label={t("calendar.insights")}
-        className="flex h-full flex-shrink-0 flex-col overflow-hidden rounded-[var(--aster-island-radius)] bg-surf-primary"
+        className="pointer-events-auto flex h-full flex-shrink-0 flex-col overflow-hidden rounded-[var(--aster-island-radius)] bg-surf-primary shadow-[0_8px_32px_rgba(0,0,0,0.18)] xl:shadow-none"
         style={{ width: PANEL_WIDTH }}
       >
         <div className="flex h-12 flex-shrink-0 items-center gap-1 ps-4 pe-2">
