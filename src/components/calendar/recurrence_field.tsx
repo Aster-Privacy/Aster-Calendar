@@ -21,6 +21,7 @@
 import type { TranslationKey } from "@/lib/i18n";
 import type { RecurrenceFrequency, RecurrenceRule } from "@/types/calendar";
 
+import { useState } from "react";
 import { SegmentedToggle } from "@aster/ui";
 
 import { DateField } from "@/components/calendar/date_field";
@@ -292,7 +293,12 @@ export function RecurrenceField({
   week_start_day,
   on_change,
 }: RecurrenceFieldProps) {
-  const preset = recurrence_preset(value, start);
+  const [custom_rule, set_custom_rule] = useState<RecurrenceRule | null>(
+    null,
+  );
+  const derived_preset = recurrence_preset(value, start);
+  const preset: RecurrencePreset =
+    value !== null && value === custom_rule ? "custom" : derived_preset;
   const weekday_name = new Intl.DateTimeFormat(language, {
     weekday: "long",
   }).format(start);
@@ -329,12 +335,29 @@ export function RecurrenceField({
     return t("calendar.repeat_custom");
   };
 
+  const emit = (next: RecurrenceRule | null, stay_custom: boolean) => {
+    set_custom_rule(stay_custom ? next : null);
+    on_change(next);
+  };
+
+  const select_preset = (next: RecurrencePreset) => {
+    if (next === "custom") {
+      const base = preset_to_rule("custom", start, value);
+
+      emit(base ? { ...base, by_weekday: [...base.by_weekday] } : null, true);
+
+      return;
+    }
+
+    emit(preset_to_rule(next, start, value), false);
+  };
+
   const update = (patch: Partial<RecurrenceRule>) => {
     if (!value) {
       return;
     }
 
-    on_change({ ...value, ...patch });
+    emit({ ...value, ...patch }, preset === "custom");
   };
 
   const end_mode = !value
@@ -345,16 +368,23 @@ export function RecurrenceField({
         ? "after"
         : "never";
 
+  const selected_weekdays =
+    value && value.by_weekday.length > 0 ? value.by_weekday : [start.getDay()];
+
   const toggle_weekday = (day: number) => {
     if (!value) {
       return;
     }
 
-    const next = value.by_weekday.includes(day)
-      ? value.by_weekday.filter((entry) => entry !== day)
-      : [...value.by_weekday, day].sort((left, right) => left - right);
+    const next = selected_weekdays.includes(day)
+      ? selected_weekdays.filter((entry) => entry !== day)
+      : [...selected_weekdays, day].sort((left, right) => left - right);
 
-    update({ by_weekday: next.length === 0 ? [start.getDay()] : next });
+    if (next.length === 0) {
+      return;
+    }
+
+    update({ by_weekday: next });
   };
 
   const end_options = [
@@ -408,9 +438,7 @@ export function RecurrenceField({
           ] as RecurrencePreset[]
         ).map((option) => ({ value: option, label: preset_label(option) }))}
         value={preset}
-        on_change={(next) =>
-          on_change(preset_to_rule(next as RecurrencePreset, start, value))
-        }
+        on_change={(next) => select_preset(next as RecurrencePreset)}
       />
 
       {preset === "custom" && value && (
@@ -468,7 +496,7 @@ export function RecurrenceField({
             >
               {WEEKDAY_SHORT_KEYS.map((_key, offset) => {
                 const day = (offset + week_start_day) % 7;
-                const is_selected = value.by_weekday.includes(day);
+                const is_selected = selected_weekdays.includes(day);
 
                 return (
                   <button
