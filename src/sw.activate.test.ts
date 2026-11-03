@@ -113,6 +113,22 @@ describe("service worker activate", () => {
     });
   });
 
+  it("opens only calendar routes from a notification", async () => {
+    await dispatch("push", {
+      json: () => ({ type: "test", url: "/settings/notifications" }),
+      text: () => "",
+    });
+    await dispatch("push", {
+      json: () => ({ type: "test", url: "/inbox" }),
+      text: () => "",
+    });
+
+    expect(shown.mock.calls[0][1]).toMatchObject({
+      data: { url: "/settings/notifications" },
+    });
+    expect(shown.mock.calls[1][1]).toMatchObject({ data: { url: "/" } });
+  });
+
   it("removes every cache but the push strings on logout purge", async () => {
     await dispatch("message", { type: "LOGOUT_PURGE" });
 
@@ -145,7 +161,7 @@ describe("background calendar reminders", () => {
     expect(shown.mock.calls[0][0]).toBe("Standup");
     expect(shown.mock.calls[0][1]).toMatchObject({
       body: "10:00",
-      data: { url: "/calendar" },
+      data: { url: "/" },
       tag: "aster-calendar-evt-1:2026-03-04T10:00:00.000Z:30",
     });
     expect(hidden.postMessage).toHaveBeenCalledWith({

@@ -90,7 +90,7 @@ async function show_background_reminder(
       icon: "/pwa-192x192.png",
       badge: "/favicon-32x32.png",
       tag: `${CALENDAR_NOTIFICATION_TAG_PREFIX}${reminder.key}`,
-      data: { url: "/calendar" },
+      data: { url: "/" },
     });
 
     for (const client of clients) {
@@ -154,24 +154,7 @@ self.addEventListener("message", (event: ExtendableMessageEvent) => {
   }
 });
 
-const ALLOWED_NOTIFICATION_PATH_PREFIXES = [
-  "/inbox",
-  "/calendar",
-  "/email/",
-  "/search",
-  "/settings",
-  "/contacts",
-  "/subscriptions",
-  "/all",
-  "/starred",
-  "/sent",
-  "/drafts",
-  "/archive",
-  "/spam",
-  "/trash",
-  "/folder/",
-  "/tag/",
-];
+const ALLOWED_NOTIFICATION_PATH_PREFIXES = ["/settings/"];
 
 function sanitize_notification_path(input: unknown): string {
   if (typeof input !== "string") return "/";
