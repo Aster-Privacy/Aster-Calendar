@@ -10748,6 +10748,8 @@ export const zh_CN = {
       "Aster couldn't reach {{ name }}. Check the URL and try again.",
     ie_sub_remove: "Unsubscribe",
     ie_sub_remove_named: "Unsubscribe from {{ name }}",
+    ie_sub_color: "Change color",
+    ie_sub_color_named: "Change color for {{ name }}",
     ie_sub_removed: "Unsubscribed from {{ name }}",
     event_save_failed: "此日程未能保存。再试一次应该就好。",
     day_of_span: "第 {{current}} 天，共 {{total}} 天",

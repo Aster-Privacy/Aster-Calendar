@@ -67,6 +67,46 @@ function unique_event_id(base: string, used: Set<string>): string {
   return candidate;
 }
 
+export function subscription_color(subscription: { color: string }): string {
+  return SUBSCRIPTION_COLOR_PATTERN.test(subscription.color)
+    ? subscription.color
+    : SUBSCRIPTION_FALLBACK_COLOR;
+}
+
+export function subscription_calendar_id(subscription_id: string): string {
+  return `${SUBSCRIPTION_CALENDAR_PREFIX}${subscription_id}__`;
+}
+
+export function with_subscription_colors(
+  events: DecryptedCalendarEvent[],
+  subscriptions: IcsSubscription[],
+): DecryptedCalendarEvent[] {
+  if (events.length === 0 || subscriptions.length === 0) {
+    return events;
+  }
+
+  const colors = new Map(
+    subscriptions.map((subscription) => [
+      subscription_calendar_id(subscription.id),
+      subscription_color(subscription),
+    ]),
+  );
+  let changed = false;
+  const recolored = events.map((event) => {
+    const color = colors.get(event.calendar_id);
+
+    if (!color || color === event.color) {
+      return event;
+    }
+
+    changed = true;
+
+    return { ...event, color };
+  });
+
+  return changed ? recolored : events;
+}
+
 export function is_subscription_event(event: { id: string }): boolean {
   return event.id.startsWith(SUBSCRIPTION_EVENT_PREFIX);
 }
@@ -100,10 +140,8 @@ export async function fetch_subscription_events(
   return entries.map(({ entry, index }) => ({
     attendees: [],
     availability: "free",
-    calendar_id: `${SUBSCRIPTION_CALENDAR_PREFIX}${subscription.id}__`,
-    color: SUBSCRIPTION_COLOR_PATTERN.test(subscription.color)
-      ? subscription.color
-      : SUBSCRIPTION_FALLBACK_COLOR,
+    calendar_id: subscription_calendar_id(subscription.id),
+    color: subscription_color(subscription),
     conference_url: "",
     created_at: entry.starts_at,
     description: entry.description,

@@ -32,9 +32,9 @@ const {
   fetch_subscription_events,
   is_subscription_event,
   MAX_SUBSCRIPTION_RECURRING_EVENTS,
-} = await import(
-  "@/services/calendar/subscriptions"
-);
+  subscription_color,
+  with_subscription_colors,
+} = await import("@/services/calendar/subscriptions");
 
 const SUBSCRIPTION = {
   id: "sub-1",
@@ -172,5 +172,80 @@ describe("subscription events", () => {
       MAX_SUBSCRIPTION_RECURRING_EVENTS,
     );
     expect(events.some((event) => event.title === "Once")).toBe(true);
+  });
+});
+
+describe("subscription colors", () => {
+  beforeEach(() => {
+    post.mockReset();
+  });
+
+  it("falls back to the default color for a malformed value", () => {
+    expect(subscription_color({ color: "#2e7d43" })).toBe("#2e7d43");
+    expect(subscription_color({ color: "red; background:url(x)" })).toBe(
+      "#6366f1",
+    );
+    expect(subscription_color({ color: "" })).toBe("#6366f1");
+  });
+
+  it("uses a sanitized color for fetched events", async () => {
+    post.mockResolvedValue({ data: { ics: FEED } });
+
+    const events = await fetch_subscription_events({
+      ...SUBSCRIPTION,
+      color: "url(javascript:alert(1))",
+    });
+
+    expect(events.length).toBeGreaterThan(0);
+    expect(events.every((event) => event.color === "#6366f1")).toBe(true);
+  });
+
+  it("recolors loaded events when the subscription color changes", async () => {
+    post.mockResolvedValue({ data: { ics: FEED } });
+
+    const events = await fetch_subscription_events(SUBSCRIPTION);
+    const recolored = with_subscription_colors(events, [
+      { ...SUBSCRIPTION, color: "#c4392f" },
+    ]);
+
+    expect(recolored).not.toBe(events);
+    expect(recolored.every((event) => event.color === "#c4392f")).toBe(true);
+    expect(recolored.map((event) => event.id)).toEqual(
+      events.map((event) => event.id),
+    );
+    expect(events.every((event) => event.color === "#123456")).toBe(true);
+  });
+
+  it("keeps the same array when no color changed", async () => {
+    post.mockResolvedValue({ data: { ics: FEED } });
+
+    const events = await fetch_subscription_events(SUBSCRIPTION);
+
+    expect(with_subscription_colors(events, [SUBSCRIPTION])).toBe(events);
+    expect(with_subscription_colors(events, [])).toBe(events);
+  });
+
+  it("only recolors the events of the changed subscription", async () => {
+    post.mockResolvedValueOnce({ data: { ics: FEED } });
+    const first = await fetch_subscription_events(SUBSCRIPTION);
+    const other = { ...SUBSCRIPTION, id: "sub-2", color: "#5249c4" };
+
+    post.mockResolvedValueOnce({ data: { ics: FEED } });
+    const second = await fetch_subscription_events(other);
+    const recolored = with_subscription_colors(
+      [...first, ...second],
+      [{ ...SUBSCRIPTION, color: "#14737c" }, other],
+    );
+
+    expect(
+      recolored
+        .filter((event) => event.calendar_id === "__subscription_sub-1__")
+        .every((event) => event.color === "#14737c"),
+    ).toBe(true);
+    expect(
+      recolored
+        .filter((event) => event.calendar_id === "__subscription_sub-2__")
+        .every((event) => event.color === "#5249c4"),
+    ).toBe(true);
   });
 });

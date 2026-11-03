@@ -12170,6 +12170,8 @@ export const it = {
       "Aster couldn't reach {{ name }}. Check the URL and try again.",
     ie_sub_remove: "Unsubscribe",
     ie_sub_remove_named: "Unsubscribe from {{ name }}",
+    ie_sub_color: "Change color",
+    ie_sub_color_named: "Change color for {{ name }}",
     ie_sub_removed: "Unsubscribed from {{ name }}",
     event_save_failed:
       "Questo evento non è stato salvato. Un altro tentativo dovrebbe bastare.",

@@ -1208,6 +1208,8 @@ export interface CalendarTranslations {
   ie_sub_refresh_failed: string;
   ie_sub_remove: string;
   ie_sub_remove_named: string;
+  ie_sub_color: string;
+  ie_sub_color_named: string;
   ie_sub_removed: string;
   event_save_failed: string;
   recurrence_position_first: string;

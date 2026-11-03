@@ -116,6 +116,7 @@ import {
   fetch_subscription_events,
   is_subscription_event,
   SUBSCRIPTION_EXPANSION_BUDGET,
+  with_subscription_colors,
 } from "@/services/calendar/subscriptions";
 import {
   BOOKING_CALENDAR_ID,
@@ -862,8 +863,19 @@ export function use_calendar_state() {
     };
   }, [subscriptions_key]);
 
+  const subscription_colors_key = JSON.stringify(
+    ics_subscriptions.map((subscription) => [
+      subscription.id,
+      subscription.color,
+    ]),
+  );
+  const colored_subscription_events = useMemo(
+    () => with_subscription_colors(subscription_events, ics_subscriptions),
+    [subscription_events, subscription_colors_key],
+  );
+
   const visible_subscription_events = useMemo(() => {
-    if (subscription_events.length === 0) {
+    if (colored_subscription_events.length === 0) {
       return [] as DecryptedCalendarEvent[];
     }
 
@@ -873,7 +885,7 @@ export function use_calendar_state() {
     const to = real_end.getTime();
 
     return shift_events_to_view(
-      expand_events(subscription_events, real_start, real_end, {
+      expand_events(colored_subscription_events, real_start, real_end, {
         candidate_budget: SUBSCRIPTION_EXPANSION_BUDGET,
       }).filter(
         (event) => {
@@ -885,7 +897,7 @@ export function use_calendar_state() {
       ),
       view_zone,
     );
-  }, [subscription_events, range_start, range_end, view_zone]);
+  }, [colored_subscription_events, range_start, range_end, view_zone]);
 
   const [booking_events, set_booking_events] = useState<
     DecryptedCalendarEvent[]

@@ -31,6 +31,7 @@ import {
   ArrowPathIcon,
   ArrowUpTrayIcon,
   CheckCircleIcon,
+  CheckIcon,
   ChevronRightIcon,
   DocumentArrowUpIcon,
   DocumentTextIcon,
@@ -43,6 +44,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { show_toast } from "@/components/toast/simple_toast";
 import { CalendarSelect } from "@/components/calendar/calendar_select";
+import {
+  EVENT_COLOR_OPTIONS,
+  nearest_event_color,
+} from "@/components/calendar/calendar_utils";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { export_file_name } from "@/components/calendar/calendar_export_dialog";
 import { use_preferences } from "@/contexts/preferences_context";
 import { use_i18n } from "@/lib/i18n/context";
@@ -57,7 +67,10 @@ import {
   read_import_preview,
   undo_import,
 } from "@/services/calendar/ics_import";
-import { check_subscription } from "@/services/calendar/subscriptions";
+import {
+  check_subscription,
+  subscription_color,
+} from "@/services/calendar/subscriptions";
 
 type ImportPhase = "idle" | "reading" | "preview" | "importing" | "done";
 
@@ -777,7 +790,90 @@ function CalendarExportCard({ calendars }: { calendars: DecryptedCalendar[] }) {
   );
 }
 
-function CalendarSubscriptionsCard() {
+function SubscriptionColorButton({
+  subscription,
+  on_change,
+}: {
+  subscription: IcsSubscription;
+  on_change: (color: string) => void;
+}) {
+  const { t } = use_i18n();
+  const [open, set_open] = useState(false);
+  const current = nearest_event_color(subscription_color(subscription));
+
+  return (
+    <Popover open={open} onOpenChange={set_open}>
+      <PopoverTrigger asChild>
+        <button
+          aria-label={t("calendar.ie_sub_color_named", {
+            name: subscription.name,
+          })}
+          className="flex h-8 w-8 items-center justify-center rounded-full transition-colors duration-150 hover:bg-[var(--aster-island-hover,rgba(127,127,127,0.12))] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] motion-reduce:transition-none"
+          data-subscription-color={current.name}
+          title={t("calendar.ie_sub_color")}
+          type="button"
+        >
+          <span
+            className="block h-3 w-3 rounded-full"
+            style={{ backgroundColor: current.token }}
+          />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-auto rounded-[var(--aster-radius-floating)] p-3"
+        sideOffset={6}
+      >
+        <div
+          aria-label={t("calendar.ie_sub_color_named", {
+            name: subscription.name,
+          })}
+          className="grid grid-cols-6 gap-2"
+          role="radiogroup"
+        >
+          {EVENT_COLOR_OPTIONS.map((option) => {
+            const is_selected = current.name === option.name;
+
+            return (
+              <button
+                key={option.hex}
+                aria-checked={is_selected}
+                aria-label={t(option.name_key)}
+                className="flex h-7 w-7 items-center justify-center rounded-full transition-[box-shadow] duration-150 motion-reduce:transition-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] focus-visible:ring-offset-2"
+                data-subscription-color-option={option.name}
+                role="radio"
+                style={{
+                  backgroundColor: option.token,
+                  boxShadow: is_selected
+                    ? `0 0 0 2px var(--aster-island-fill), 0 0 0 4px ${option.token}`
+                    : "none",
+                }}
+                title={t(option.name_key)}
+                type="button"
+                onClick={() => {
+                  if (!is_selected) {
+                    on_change(option.hex);
+                  }
+                  set_open(false);
+                }}
+              >
+                {is_selected && (
+                  <CheckIcon
+                    className="h-4 w-4"
+                    strokeWidth={2.5}
+                    style={{ color: "var(--calendar_event_text, #ffffff)" }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+export function CalendarSubscriptionsCard() {
   const { t } = use_i18n();
   const { preferences, update_preference } = use_preferences();
   const [name, set_name] = useState("");
@@ -846,6 +942,15 @@ function CalendarSubscriptionsCard() {
     show_toast(
       t("calendar.ie_sub_removed", { name: subscription.name }),
       "success",
+    );
+  };
+
+  const handle_color = (subscription: IcsSubscription, color: string) => {
+    update_preference(
+      "calendar_ics_subscriptions",
+      subscriptions.map((entry) =>
+        entry.id === subscription.id ? { ...entry, color } : entry,
+      ),
     );
   };
 
@@ -962,9 +1067,9 @@ function CalendarSubscriptionsCard() {
                 </span>
               }
               icon={
-                <span
-                  className="block h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: subscription.color }}
+                <SubscriptionColorButton
+                  on_change={(color) => handle_color(subscription, color)}
+                  subscription={subscription}
                 />
               }
               label={subscription.name}
