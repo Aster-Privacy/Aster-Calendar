@@ -21,20 +21,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 const hoisted = vi.hoisted(() => ({
-  sync_recent: vi.fn(async (_notify?: boolean) => {}),
   check_and_replenish_prekeys: vi.fn(),
 }));
 
 vi.mock("@/services/low_network_state", () => ({
   is_low_network: () => false,
-}));
-
-vi.mock("@/hooks/email_list_cache", () => ({
-  mark_view_stale: vi.fn(),
-}));
-
-vi.mock("@/services/category_index", () => ({
-  sync_recent: (...a: unknown[]) => hoisted.sync_recent(...(a as [boolean])),
 }));
 
 vi.mock("./api/client", () => ({
@@ -67,8 +58,6 @@ vi.mock("@/services/lockdown_store", () => ({
 }));
 
 import { sync_client } from "./sync_client";
-
-import { MAIL_EVENTS } from "@/hooks/mail_events";
 
 class FakeSocket {
   static instances: FakeSocket[] = [];
@@ -113,25 +102,16 @@ function client_internals() {
   };
 }
 
-describe("calendar sync_client leaves mail and keys to the mail client", () => {
-  let soft_refreshes = 0;
-  const on_soft_refresh = () => {
-    soft_refreshes += 1;
-  };
-
+describe("calendar sync_client leaves keys to the mail client", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     FakeSocket.instances = [];
-    soft_refreshes = 0;
-    hoisted.sync_recent.mockClear();
     hoisted.check_and_replenish_prekeys.mockClear();
     vi.stubGlobal("WebSocket", FakeSocket);
-    window.addEventListener(MAIL_EVENTS.MAIL_SOFT_REFRESH, on_soft_refresh);
   });
 
   afterEach(() => {
     sync_client.disconnect();
-    window.removeEventListener(MAIL_EVENTS.MAIL_SOFT_REFRESH, on_soft_refresh);
     vi.unstubAllGlobals();
     vi.useRealTimers();
   });
@@ -148,15 +128,13 @@ describe("calendar sync_client leaves mail and keys to the mail client", () => {
     return socket;
   }
 
-  it("does not touch prekeys or the inbox on the first connection", async () => {
+  it("does not touch prekeys on the first connection", async () => {
     await connect_first_time();
 
-    expect(hoisted.sync_recent).not.toHaveBeenCalled();
     expect(hoisted.check_and_replenish_prekeys).not.toHaveBeenCalled();
-    expect(soft_refreshes).toBe(0);
   });
 
-  it("reconnects after wake without fetching the inbox", async () => {
+  it("reconnects after wake without touching prekeys", async () => {
     const first = await connect_first_time();
 
     first.close();
@@ -172,9 +150,7 @@ describe("calendar sync_client leaves mail and keys to the mail client", () => {
     expect(second).not.toBe(first);
     second.open_and_authenticate();
 
-    expect(hoisted.sync_recent).not.toHaveBeenCalled();
     expect(hoisted.check_and_replenish_prekeys).not.toHaveBeenCalled();
-    expect(soft_refreshes).toBe(0);
   });
 
   it("waits before reconnecting again when the tab regains focus", async () => {
@@ -187,30 +163,11 @@ describe("calendar sync_client leaves mail and keys to the mail client", () => {
     expect(FakeSocket.instances.at(-1)).toBe(first);
   });
 
-  it("does not poll the inbox while the socket is down", async () => {
-    const socket = await connect_first_time();
-
-    socket.close();
-    client_internals().last_catch_up_at = Date.now() - 120_000;
-
-    vi.advanceTimersByTime(60_000);
-
-    expect(hoisted.sync_recent).not.toHaveBeenCalled();
-  });
-
   it("ignores a low prekey notice", async () => {
     const socket = await connect_first_time();
 
     socket.onmessage?.({ data: JSON.stringify({ type: "prekey_low" }) });
 
     expect(hoisted.check_and_replenish_prekeys).not.toHaveBeenCalled();
-  });
-
-  it("does not fetch the inbox on a manual catch-up", async () => {
-    await connect_first_time();
-
-    sync_client.catch_up_now();
-
-    expect(hoisted.sync_recent).not.toHaveBeenCalled();
   });
 });

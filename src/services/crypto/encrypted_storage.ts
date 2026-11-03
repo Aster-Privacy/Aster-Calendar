@@ -511,25 +511,3 @@ export async function delete_database(): Promise<void> {
     };
   });
 }
-
-export async function secure_overwrite_and_delete(key: string): Promise<void> {
-  const db = await open_database();
-
-  const random_data: EncryptedEntry = {
-    iv: crypto.getRandomValues(new Uint8Array(12)),
-    ciphertext: crypto.getRandomValues(new Uint8Array(256)),
-    version: 0,
-    timestamp: 0,
-  };
-
-  await new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readwrite");
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.put(random_data, key);
-
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(new Error("Failed to overwrite data"));
-  });
-
-  await encrypted_delete(key);
-}

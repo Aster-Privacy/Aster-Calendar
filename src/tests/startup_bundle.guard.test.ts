@@ -144,37 +144,9 @@ function eagerly_loaded(entry: string): Set<string> {
   );
 }
 
-const RENDERER_AND_UI_MODULES = [
-  "lib/email_body_styles.ts",
-  "components/email/hooks/preload_cache.ts",
-  "components/email/sandboxed_email_renderer/renderer.tsx",
-  "components/compose/compose_shared.tsx",
-  "components/compose/compose_recipients.tsx",
-  "components/compose/emoji_picker.tsx",
+const UPGRADE_MODULES = [
   "components/upgrade/upgrade_modal.tsx",
-  "components/upgrade/alias_cap_upsell_modal.tsx",
   "components/upgrade/special_offer_modal.tsx",
-];
-
-const HEAVY_MODULES = [
-  ...RENDERER_AND_UI_MODULES,
-  "services/thread_service.ts",
-];
-
-const MOBILE_SHELL_MODULES = [
-  "components/mobile/mobile_drawer.tsx",
-  "components/mobile/mobile_email_list.tsx",
-  "components/mobile/mobile_email_row.tsx",
-  "components/mobile/mobile_fab.tsx",
-  "components/mobile/swipe_actions.tsx",
-];
-
-const INBOX_ON_DEMAND_MODULES = [
-  "components/compose/compose_window.tsx",
-  "components/compose/emoji_picker.tsx",
-  "utils/print_email.ts",
-  "services/translation/translate_document.ts",
-  "services/translation/engine_bergamot.ts",
 ];
 
 function reached(entry: string, modules: string[]): string[] {
@@ -206,51 +178,23 @@ function duplicated_packages(scope: string): string[] {
     .map(([name, seen]) => `${name}@${[...seen].sort().join("|")}`);
 }
 
-function inlining_fonts(entry: string): string[] {
-  return [...eagerly_loaded(entry)].filter((module) =>
-    /data:font\/[\w-]+;base64,[\w+/]{64}/.test(
-      readFileSync(join(src, module), "utf8"),
-    ),
-  );
-}
-
 describe("startup bundle", () => {
   it("finds the modules it guards", () => {
-    for (const module of [
-      ...HEAVY_MODULES,
-      ...MOBILE_SHELL_MODULES,
-      ...INBOX_ON_DEMAND_MODULES,
-    ]) {
+    for (const module of UPGRADE_MODULES) {
       expect(existsSync(join(src, module))).toBe(true);
     }
   });
 
-  it("keeps the mail renderer, compose UI and upgrade modals out of the entry", () => {
-    expect(reached("main.tsx", HEAVY_MODULES)).toEqual([]);
+  it("keeps the upgrade modals out of the entry", () => {
+    expect(reached("main.tsx", UPGRADE_MODULES)).toEqual([]);
   });
 
   it.each([
     "contexts/preferences_context/use_preferences_core.ts",
     "contexts/auth/auth_helpers.ts",
-    "hooks/use_email_list.ts",
     "services/send_queue.ts",
-    "services/forward_attachments.ts",
-  ])("%s does not load the mail renderer or compose UI", (entry) => {
-    expect(reached(entry, RENDERER_AND_UI_MODULES)).toEqual([]);
-  });
-
-  it.each(["App.tsx", "pages/calendar_page.tsx"])(
-    "%s does not load the mobile shell",
-    (entry) => {
-      expect(reached(entry, MOBILE_SHELL_MODULES)).toEqual([]);
-    },
-  );
-
-  it.each([
-    "components/email/sandboxed_email_renderer/renderer.tsx",
-    "components/email/hooks/preload_cache.ts",
-  ])("%s does not inline font files", (entry) => {
-    expect(inlining_fonts(entry)).toEqual([]);
+  ])("%s does not load the upgrade modals", (entry) => {
+    expect(reached(entry, UPGRADE_MODULES)).toEqual([]);
   });
 
   it("installs a single copy of each Radix package", () => {
@@ -269,12 +213,6 @@ describe("crypto libraries", () => {
       expect(eager_packages(entry).has("openpgp")).toBe(false);
     },
   );
-});
-
-describe("calendar route bundle", () => {
-  it("loads compose, reply, forward, emoji, print and translation on demand", () => {
-    expect(reached("pages/calendar_page.tsx", INBOX_ON_DEMAND_MODULES)).toEqual([]);
-  });
 });
 
 function vendor_chunks(): Map<string, string> {

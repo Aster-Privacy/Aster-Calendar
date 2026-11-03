@@ -308,7 +308,6 @@ export function CalendarApp({ on_open_settings }: CalendarAppProps) {
   return (
     <>
       <TopBar
-        brand="calendar"
         on_mobile_menu_toggle={toggle_mobile_sidebar}
         on_settings_click={toggle_quick_settings}
         on_shortcuts_click={open_shortcuts}
@@ -451,7 +450,6 @@ export function CalendarApp({ on_open_settings }: CalendarAppProps) {
 
             {!is_mobile && (
               <AppRail
-                account_only={true}
                 is_contacts_open={is_rail_contacts_open}
                 is_security_open={is_rail_security_open}
                 on_compose={open_mail_compose}

@@ -38,7 +38,7 @@ import { Progress } from "@/components/ui/progress";
 import { LoadFailedNotice } from "@/components/settings/load_failed_notice";
 import { Spinner } from "@/components/ui/spinner";
 import { use_auth } from "@/contexts/auth_context";
-import { calendar_booking_available, is_calendar_app } from "@/lib/app_kind";
+import { calendar_booking_available } from "@/lib/app_kind";
 import { calendar_plan_limits } from "@/lib/calendar_plan_limits";
 import { use_i18n } from "@/lib/i18n/context";
 import { use_plan_limits } from "@/hooks/use_plan_limits";
@@ -128,55 +128,6 @@ const HIGHLIGHT_INFO_KEY: Record<HighlightKind, string> = {
 type PlanAudience = "individual" | "family";
 
 const PLAN_HIGHLIGHTS: Record<string, PlanHighlight[]> = {
-  star: [
-    { kind: "storage", label_key: "settings.plan_feat_storage_50" },
-    { kind: "aliases", label_key: "settings.plan_feat_aliases_15" },
-    { kind: "domains", label_key: "settings.plan_feat_domains_5" },
-    {
-      kind: "extra",
-      label_key: "settings.plan_feat_imap_smtp",
-      info_key: "settings.plan_desc_apps",
-    },
-  ],
-  nova: [
-    { kind: "storage", label_key: "settings.plan_feat_storage_500" },
-    { kind: "aliases", label_key: "settings.plan_feat_aliases_unlimited" },
-    { kind: "domains", label_key: "settings.plan_feat_domains_30" },
-    {
-      kind: "extra",
-      label_key: "settings.plan_f_multi_accounts",
-      params: { value: "5" },
-      info_key: "settings.plan_desc_multi_accounts",
-    },
-    {
-      kind: "extra",
-      label_key: "settings.plan_feat_smart_folders",
-      info_key: "settings.plan_tip_smart_folders",
-    },
-  ],
-  supernova: [
-    { kind: "storage", label_key: "settings.plan_feat_storage_5tb" },
-    { kind: "domains", label_key: "settings.plan_feat_domains_unlimited" },
-    {
-      kind: "extra",
-      label_key: "settings.plan_f_multi_accounts",
-      params: { value: "20" },
-      info_key: "settings.plan_desc_multi_accounts",
-    },
-    {
-      kind: "extra",
-      label_key: "settings.plan_f_support_dedicated",
-      info_key: "settings.plan_desc_support_dedicated",
-    },
-    {
-      kind: "extra",
-      label_key: "settings.plan_f_early_access",
-      info_key: "settings.plan_desc_early_access",
-    },
-  ],
-};
-
-const CALENDAR_PLAN_HIGHLIGHTS: Record<string, PlanHighlight[]> = {
   star: [
     {
       kind: "calendars",
@@ -526,9 +477,7 @@ export function UpgradeModal() {
       }));
     }
 
-    const highlights = is_calendar_app()
-      ? CALENDAR_PLAN_HIGHLIGHTS
-      : PLAN_HIGHLIGHTS;
+    const highlights = PLAN_HIGHLIGHTS;
     const tier_highlights = (highlights[tier.id] ?? []).filter(
       (highlight) =>
         calendar_booking_available() ||
@@ -563,9 +512,7 @@ export function UpgradeModal() {
 
   const description = is_storage
     ? t(
-        is_calendar_app()
-          ? "settings.cal_storage_locked_description"
-          : "settings.storage_locked_description",
+        "settings.cal_storage_locked_description",
       )
     : is_resume
       ? t("settings.upgrade_resume_description")
@@ -1173,20 +1120,13 @@ export function UpgradeModal() {
 
           {!is_first_load && !limits_failed && tiers.length === 0 && (
             <ul className="space-y-2.5 text-[13px] text-txt-secondary">
-              {(is_calendar_app()
-                ? [
+              {([
                     t("settings.cal_upgrade_perk_storage"),
                     t("settings.cal_upgrade_perk_calendars"),
                     ...(calendar_booking_available()
                       ? [t("settings.cal_upgrade_perk_booking")]
                       : []),
                     t("settings.cal_upgrade_perk_support"),
-                  ]
-                : [
-                    t("settings.upgrade_perk_storage"),
-                    t("settings.upgrade_perk_aliases"),
-                    t("settings.upgrade_perk_domains"),
-                    t("settings.upgrade_perk_features"),
                   ]
               ).map((perk) => (
                 <li key={perk} className="flex items-start gap-2.5">
@@ -1203,9 +1143,7 @@ export function UpgradeModal() {
           <div className="flex flex-col items-center gap-2 pt-1 text-center">
             <p className="text-xs text-txt-secondary">
               {t(
-                is_calendar_app()
-                  ? "settings.cal_plan_every_plan_includes"
-                  : "settings.plan_every_plan_includes",
+                "settings.cal_plan_every_plan_includes",
               )}
             </p>
             <ul className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5">

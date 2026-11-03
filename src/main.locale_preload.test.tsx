@@ -49,11 +49,6 @@ vi.mock("@/lib/i18n/translations", async (import_original) => {
 });
 
 vi.mock("@/App", () => ({ default: () => null }));
-vi.mock("@/mobile_app", () => {
-  events.push("chunk:mobile_app");
-
-  return { default: () => null };
-});
 vi.mock("@/pages/sign_in", () => {
   events.push("chunk:sign_in");
 
@@ -71,15 +66,10 @@ vi.mock("@/lib/favicon_cache_db", () => ({
   evict_stale_favicons: () => Promise.resolve(),
 }));
 vi.mock("@/native/capacitor_bridge", () => ({
-  initialize_capacitor: () => Promise.resolve(),
-  hide_splash: () => Promise.resolve(),
   is_native_platform: () => false,
 }));
 vi.mock("@/services/send_queue", () => ({
   recover_fallback_sends: () => Promise.resolve(),
-}));
-vi.mock("@/native/offline_queue", () => ({
-  initialize_offline_queue: () => Promise.resolve(),
 }));
 vi.mock("@/lib/version_check", () => ({
   start_version_check: () => {},

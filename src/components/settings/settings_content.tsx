@@ -53,22 +53,21 @@ import {
 import { use_settings_content } from "./use_settings_content";
 
 import { SearchRegistryProvider } from "@/components/settings/search_context";
-import {
-  StorageMeter,
-  scroll_to_storage_addons,
-} from "@/components/layout/storage_meter";
 import { AccountSection } from "@/components/settings/account_section";
-import { AppearanceGroupSection } from "@/components/settings/appearance_group_section";
-import { SecurityGroupSection } from "@/components/settings/security_group_section";
-import { BillingGroupSection } from "@/components/settings/billing_group_section";
+import {
+  AppearanceGroupSection,
+} from "@/components/settings/appearance_group_section";
+import {
+  SecurityGroupSection,
+} from "@/components/settings/security_group_section";
+import {
+  BillingGroupSection,
+} from "@/components/settings/billing_group_section";
 import { prefetch_billing_data } from "@/components/settings/billing_section";
-import { prefetch_family_data } from "@/components/settings/billing/family_section/family_cache";
+import {
+  prefetch_family_data,
+} from "@/components/settings/billing/family_section/family_cache";
 import { use_auth } from "@/contexts/auth_context";
-import { NotificationsSection } from "@/components/settings/notifications_section";
-import { ReadingGroupSection } from "@/components/settings/reading_group_section";
-import { ComposeGroupSection } from "@/components/settings/compose_group_section";
-import { RulesGroupSection } from "@/components/settings/rules_group_section";
-import { ImportGroupSection } from "@/components/settings/import_group_section";
 import { HelpGroupSection } from "@/components/settings/help_group_section";
 import {
   CalendarEventsSection,
@@ -77,15 +76,13 @@ import {
   CalendarNotificationsSection,
   CalendarViewsSection,
 } from "@/components/settings/calendar_settings_section";
-import { AliasesSection } from "@/components/settings/aliases_section";
-import { DomainsSection } from "@/components/settings/domains_section";
 import { ReferralTab } from "@/components/settings/referral_tab";
-import { BridgeSection } from "@/components/settings/bridge_section";
 import { SettingsSkeleton } from "@/components/settings/settings_skeleton";
-import { SettingsSaveIndicator } from "@/components/settings/settings_save_indicator";
+import {
+  SettingsSaveIndicator,
+} from "@/components/settings/settings_save_indicator";
 import { SettingsCacheProvider } from "@/contexts/settings_cache_context";
 import { is_onion_host } from "@/lib/onion_host";
-import { is_calendar_app } from "@/lib/app_kind";
 import {
   request_open_calendar_event,
   UpNextCard,
@@ -118,9 +115,6 @@ function SettingsContentInner(props: SettingsContentProps) {
   const {
     is_popup,
     t,
-    mail_stats,
-    mail_stats_ready,
-    storage_percentage,
     sidebar_width,
     section,
     set_section,
@@ -141,7 +135,6 @@ function SettingsContentInner(props: SettingsContentProps) {
     nav_item_refs,
     handle_account_deleted,
     has_devices,
-    dev_mode_enabled,
     nav_items,
     is_searching,
     search_results,
@@ -157,17 +150,12 @@ function SettingsContentInner(props: SettingsContentProps) {
       case "security":
         return (
           <SecurityGroupSection
-            account_only={props.show_mail_sections === false}
             has_devices={has_devices}
             on_account_deleted={handle_account_deleted}
             set_show_inline_totp_setup={set_show_inline_totp_setup}
             show_inline_totp_setup={show_inline_totp_setup}
           />
         );
-      case "aliases":
-        return <AliasesSection />;
-      case "domains":
-        return <DomainsSection />;
       case "storage":
         return (
           <Suspense fallback={<SettingsSkeleton />}>
@@ -182,26 +170,9 @@ function SettingsContentInner(props: SettingsContentProps) {
         }
 
         return <ReferralTab />;
-      case "notifications":
-        return <NotificationsSection />;
-      case "behavior":
-        return <ReadingGroupSection />;
-      case "compose":
-        return <ComposeGroupSection />;
-      case "mail_rules":
-        return <RulesGroupSection />;
-      case "import":
-        if (is_onion_host()) {
-          return null;
-        }
-
-        return <ImportGroupSection />;
-      case "bridge":
-        return <BridgeSection />;
       case "feedback":
         return (
           <HelpGroupSection
-            show_developer={dev_mode_enabled && props.show_mail_sections !== false}
             show_updates={is_desktop_runtime()}
           />
         );
@@ -224,7 +195,6 @@ function SettingsContentInner(props: SettingsContentProps) {
     show_inline_totp_setup,
     is_family_plan,
     has_devices,
-    dev_mode_enabled,
   ]);
 
   const handle_desktop_nav_click = useCallback(
@@ -526,9 +496,7 @@ function SettingsContentInner(props: SettingsContentProps) {
             >
               <ArrowLeftIcon className="w-[15px] h-[15px] flex-shrink-0 rtl:-scale-x-100" />
               <span className="truncate">
-                {props.show_calendar_sections
-                  ? t("calendar.back_to_calendar")
-                  : t("common.back_to_inbox")}
+                {t("calendar.back_to_calendar")}
               </span>
             </Button>
           </div>
@@ -560,26 +528,7 @@ function SettingsContentInner(props: SettingsContentProps) {
           </div>
         </nav>
         <div className="flex-shrink-0 px-3 pt-2 pb-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          {is_calendar_app() ? (
-            <UpNextCard on_open={open_up_next_event} />
-          ) : (
-            <StorageMeter
-              on_buy_more={
-                is_onion_host()
-                  ? undefined
-                  : () => {
-                      on_section_change("storage");
-                      scroll_to_storage_addons();
-                    }
-              }
-              on_open={() => on_section_change("storage")}
-              storage_percentage={storage_percentage}
-              storage_total_bytes={
-                mail_stats_ready ? mail_stats.storage_total_bytes : 0
-              }
-              storage_used_bytes={mail_stats.storage_used_bytes}
-            />
-          )}
+          <UpNextCard on_open={open_up_next_event} />
         </div>
       </aside>
 

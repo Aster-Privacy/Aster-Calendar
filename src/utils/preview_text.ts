@@ -307,33 +307,7 @@ export function build_body_preview(
   );
 }
 
-const PREVIEW_MEMO_LIMIT = 4000;
-
 const preview_memo = new Map<string, string>();
-
-export function build_body_preview_cached(
-  cache_key: string,
-  body_text: string,
-  body_html: string,
-): string {
-  if (!cache_key) return build_body_preview(body_text, body_html);
-
-  const cached = preview_memo.get(cache_key);
-
-  if (cached !== undefined) return cached;
-
-  const preview = build_body_preview(body_text, body_html);
-
-  if (preview_memo.size >= PREVIEW_MEMO_LIMIT) {
-    const oldest = preview_memo.keys().next();
-
-    if (!oldest.done) preview_memo.delete(oldest.value);
-  }
-
-  preview_memo.set(cache_key, preview);
-
-  return preview;
-}
 
 export function clear_preview_memo(): void {
   preview_memo.clear();

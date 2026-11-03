@@ -33,7 +33,6 @@ import {
 import { use_should_reduce_motion } from "@/provider";
 import { use_i18n } from "@/lib/i18n/context";
 import { ButtonSpinner } from "@/components/ui/spinner";
-import { play_iconic_sound, type IconicSound } from "@/services/iconic_sounds";
 import {
   use_toast_position,
   type ToastPosition,
@@ -64,19 +63,7 @@ export interface ActionToastState {
   progress?: { completed: number; total: number };
   on_cancel?: () => void;
   on_view_message?: () => void;
-  sound?: IconicSound | "none";
 }
-
-const DONE_SOUND_ACTIONS: ReadonlySet<ActionToastState["action_type"]> =
-  new Set([
-    "archive",
-    "trash",
-    "spam",
-    "not_spam",
-    "folder",
-    "restore",
-    "snooze",
-  ]);
 
 const toast_listeners = new Set<(toast: ActionToastState | null) => void>();
 let current_toast: ActionToastState | null = null;
@@ -85,14 +72,6 @@ let progress_stall_timeout: NodeJS.Timeout | null = null;
 let exit_instantly = false;
 
 const PROGRESS_STALL_MS = 90000;
-
-export function on_action_toast_show(listener: () => void): () => void {
-  window.addEventListener("aster-action-toast-show", listener);
-
-  return () => {
-    window.removeEventListener("aster-action-toast-show", listener);
-  };
-}
 
 export function get_current_action_toast(): ActionToastState | null {
   return current_toast;
@@ -153,12 +132,6 @@ export function show_action_toast(toast: ActionToastConfig) {
 
   window.dispatchEvent(new Event("aster-action-toast-show"));
   toast_listeners.forEach((listener) => listener(current_toast));
-
-  const sound =
-    toast.sound ??
-    (DONE_SOUND_ACTIONS.has(toast.action_type) ? "done" : "none");
-
-  if (sound !== "none") play_iconic_sound(sound);
 
   if (toast.progress) {
     arm_progress_stall_timeout();
@@ -246,11 +219,6 @@ function get_icon_for_action(action_type: ActionToastState["action_type"]) {
 
 let island_visible = false;
 const island_listeners = new Set<() => void>();
-
-export function set_island_visible(visible: boolean) {
-  island_visible = visible;
-  island_listeners.forEach((fn) => fn());
-}
 
 interface ActionToastProps {
   position?: ToastPosition;

@@ -145,12 +145,12 @@ describe("security center settings links", () => {
 
     window.addEventListener("navigate-settings", listener);
     open_settings_target(SECURITY_CENTER_TARGETS.sessions);
-    open_settings_target(SECURITY_CENTER_TARGETS.encryption);
+    open_settings_target(SECURITY_CENTER_TARGETS.overview);
     window.removeEventListener("navigate-settings", listener);
 
     expect(details).toEqual([
       { section: "security", anchor: "sec-sessions" },
-      "encryption",
+      "security",
     ]);
   });
 });

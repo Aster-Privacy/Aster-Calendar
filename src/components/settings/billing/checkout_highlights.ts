@@ -20,7 +20,7 @@
 //
 import type { TranslationKey } from "@/lib/i18n";
 
-import { calendar_booking_available, is_calendar_app } from "@/lib/app_kind";
+import { calendar_booking_available } from "@/lib/app_kind";
 import { calendar_plan_limits } from "@/lib/calendar_plan_limits";
 
 type translate = (
@@ -30,29 +30,17 @@ type translate = (
 
 interface tier_highlights {
   storage: string;
-  aliases: string | null;
-  domains: string | null;
-  attachments: string;
 }
 
 const TIER_HIGHLIGHTS: Record<string, tier_highlights> = {
   star: {
     storage: "50 GB",
-    aliases: "15",
-    domains: "5",
-    attachments: "50 MB",
   },
   nova: {
     storage: "500 GB",
-    aliases: null,
-    domains: "30",
-    attachments: "100 MB",
   },
   supernova: {
     storage: "5 TB",
-    aliases: null,
-    domains: null,
-    attachments: "250 MB",
   },
 };
 
@@ -61,37 +49,22 @@ export function checkout_highlights(plan_code: string, t: translate): string[] {
 
   if (!tier) return [];
 
-  const unlimited = t("settings.unlimited");
-
-  if (is_calendar_app()) {
-    const limits = calendar_plan_limits(plan_code);
-
-    return [
-      t("settings.cal_plan_feat_calendars", { value: limits.calendars }),
-      ...(calendar_booking_available()
-        ? [
-            t("settings.cal_plan_feat_booking", {
-              value: limits.booking_pages,
-            }),
-            t("settings.cal_plan_feat_no_branding"),
-          ]
-        : []),
-      `${tier.storage} ${t("settings.encrypted_storage_suffix")}`,
-      t("settings.plan_f_calendar_invites"),
-      t("settings.f_e2ee"),
-      t("settings.f_zero_knowledge"),
-      t("settings.plan_f_support_priority"),
-    ];
-  }
+  const limits = calendar_plan_limits(plan_code);
 
   return [
+    t("settings.cal_plan_feat_calendars", { value: limits.calendars }),
+    ...(calendar_booking_available()
+      ? [
+          t("settings.cal_plan_feat_booking", {
+            value: limits.booking_pages,
+          }),
+          t("settings.cal_plan_feat_no_branding"),
+        ]
+      : []),
     `${tier.storage} ${t("settings.encrypted_storage_suffix")}`,
-    `${tier.aliases ?? unlimited} ${t("settings.email_aliases_suffix")}`,
-    `${tier.domains ?? unlimited} ${t("settings.custom_domains_suffix")}`,
-    `${tier.attachments} ${t("settings.attachments_suffix")}`,
+    t("settings.plan_f_calendar_invites"),
     t("settings.f_e2ee"),
     t("settings.f_zero_knowledge"),
-    t("settings.plan_f_imap_smtp_bridge"),
     t("settings.plan_f_support_priority"),
   ];
 }

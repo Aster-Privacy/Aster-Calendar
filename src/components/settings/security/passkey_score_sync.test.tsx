@@ -74,7 +74,7 @@ vi.mock("@/components/toast/simple_toast", () => ({ show_toast: vi.fn() }));
 vi.mock("@/components/settings/step_up_modal", () => ({
   StepUpModal: () => null,
 }));
-vi.mock("@/components/email/inbox/inbox_confirmation_dialog", () => ({
+vi.mock("@/components/ui/confirm_modal", () => ({
   ConfirmModal: ({
     show,
     on_confirm,
@@ -94,13 +94,10 @@ function ScoreFromCache() {
     <div data-testid="score">
       <AccountProtectionScore
         security_loaded
-        block_remote_images={false}
-        block_tracking_pixels={false}
         login_alerts_enabled={false}
         passkey_registered={(entry?.data?.data?.keys.length ?? 0) > 0}
         recovery_codes_saved={false}
         recovery_email_verified={false}
-        strip_exif_on_compose={false}
         totp_enabled={false}
       />
     </div>
@@ -177,7 +174,7 @@ describe("passkey mutations update the protection score", () => {
 
       await click(label);
 
-      expect_score(13);
+      expect_score(20);
       expect(container.textContent).toContain(key.name_encrypted);
     },
   );
@@ -188,7 +185,7 @@ describe("passkey mutations update the protection score", () => {
       data: { success: true },
     });
     await render();
-    expect_score(13);
+    expect_score(20);
 
     await click("common.delete");
     await click("confirm-delete");
@@ -206,7 +203,7 @@ describe("passkey mutations update the protection score", () => {
     await click("common.delete");
     await click("confirm-delete");
 
-    expect_score(13);
+    expect_score(20);
     expect(container.textContent).toContain(key.name_encrypted);
   });
 });

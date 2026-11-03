@@ -33,11 +33,8 @@ import { Spinner } from "@/components/ui/spinner";
 import {
   format_date,
   format_price,
-  type PlanLimitsResponse,
   type SubscriptionResponse,
 } from "@/services/api/billing";
-import { fetch_priority_attr } from "@/lib/fetch_priority";
-import { is_calendar_app } from "@/lib/app_kind";
 import { use_i18n } from "@/lib/i18n/context";
 import {
   convert_cents,
@@ -45,15 +42,11 @@ import {
   PLAN_TIERS,
   type PlanTier,
 } from "@/components/settings/billing/billing_constants";
-import {
-  BillingMeter,
-  BillingUsageMeter,
-} from "@/components/settings/billing/billing_meter";
+import { BillingMeter } from "@/components/settings/billing/billing_meter";
 import { DatedCalendarLogo } from "@/components/calendar/dated_calendar_logo";
 
 interface BillingHeroCardProps {
   subscription: SubscriptionResponse | null;
-  plan_limits: PlanLimitsResponse | null;
   storage_used_bytes: number;
   storage_limit_bytes: number;
   storage_percentage: number;
@@ -64,7 +57,6 @@ interface BillingHeroCardProps {
   preferred_currency: string;
   plans_open: boolean;
   on_toggle_plans: () => void;
-  on_show_plans: () => void;
   on_manage_payment: () => void;
   on_switch_billing: () => void;
   on_renew_with_crypto: () => void;
@@ -79,26 +71,8 @@ function row_icon(Icon: ComponentType<SVGProps<SVGSVGElement>>) {
   return <Icon className="h-[22px] w-[22px]" />;
 }
 
-interface usage_entry {
-  current: number;
-  limit: number | null;
-  loaded: boolean;
-}
-
-function usage_of(
-  plan_limits: PlanLimitsResponse | null,
-  key: string,
-): usage_entry {
-  const entry = plan_limits?.limits[key];
-
-  if (!entry) return { current: 0, limit: null, loaded: false };
-
-  return { current: entry.current, limit: entry.limit, loaded: true };
-}
-
 export function BillingHeroCard({
   subscription,
-  plan_limits,
   storage_used_bytes,
   storage_limit_bytes,
   storage_percentage,
@@ -109,7 +83,6 @@ export function BillingHeroCard({
   preferred_currency,
   plans_open,
   on_toggle_plans,
-  on_show_plans,
   on_manage_payment,
   on_switch_billing,
   on_renew_with_crypto,
@@ -120,7 +93,6 @@ export function BillingHeroCard({
   on_upgrade_next,
 }: BillingHeroCardProps) {
   const { t } = use_i18n();
-  const calendar_app = is_calendar_app();
   const is_paid_plan = !!subscription && subscription.plan.code !== "free";
   const is_lifetime = is_paid_plan && !!subscription.is_lifetime;
   const is_crypto =
@@ -130,8 +102,6 @@ export function BillingHeroCard({
   const period_start = subscription?.current_period_start ?? null;
   const paid_until = subscription?.paid_until || period_end;
   const tier = PLAN_TIERS.find((entry) => entry.id === subscription?.plan.code);
-  const aliases = usage_of(plan_limits, "max_email_aliases");
-  const domains = usage_of(plan_limits, "max_custom_domains");
 
   const interval_suffix =
     current_billing_interval === "biennial"
@@ -224,20 +194,8 @@ export function BillingHeroCard({
   return (
     <Island padding="none">
       <div className="mx-2 mt-2 flex h-[88px] items-center justify-between gap-4 rounded-[var(--aster-radius-field)] bg-[color-mix(in_srgb,var(--text-primary)_6%,transparent)] px-5">
-        {calendar_app ? (
+        {(
           <DatedCalendarLogo alt={t("calendar.aster_calendar_brand")} className="h-7 w-auto select-none object-contain" />
-        ) : (
-          <img
-            alt={t("common.aster_mail")}
-            className="h-8 w-auto select-none"
-            decoding="sync"
-            draggable={false}
-            {...fetch_priority_attr("high")}
-            height={199}
-            loading="eager"
-            src="/text_logo.png"
-            width={800}
-          />
         )}
         <span className="aster_badge aster_badge_blue">
           {t("settings.current_plan")}
@@ -310,24 +268,6 @@ export function BillingHeroCard({
             }
             used_bytes={storage_used_bytes}
           />
-          {!calendar_app && (
-            <>
-              <BillingUsageMeter
-                current={aliases.current}
-                label={t("settings.usage_aliases")}
-                limit={aliases.limit}
-                loaded={aliases.loaded}
-                on_upgrade={on_show_plans}
-              />
-              <BillingUsageMeter
-                current={domains.current}
-                label={t("settings.usage_domains")}
-                limit={domains.limit}
-                loaded={domains.loaded}
-                on_upgrade={on_show_plans}
-              />
-            </>
-          )}
         </div>
 
         {!is_lifetime && next_tier && next_tier_from_label && (
@@ -454,9 +394,7 @@ export function BillingHeroCard({
           <IslandRow
             destructive
             description={t(
-              calendar_app
-                ? "settings.cal_cancel_plan_warning"
-                : "settings.cancel_plan_warning",
+              "settings.cal_cancel_plan_warning",
             )}
             disabled={is_action_loading}
             icon={row_icon(XCircleIcon)}

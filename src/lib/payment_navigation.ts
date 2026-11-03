@@ -34,15 +34,6 @@ export function mark_payment_navigation(): void {
   }, RELEASE_DELAY_MS);
 }
 
-export function clear_payment_navigation(): void {
-  leaving_for_payment = false;
-
-  if (release_timer) {
-    clearTimeout(release_timer);
-    release_timer = null;
-  }
-}
-
 export function is_payment_navigation(): boolean {
   return leaving_for_payment;
 }

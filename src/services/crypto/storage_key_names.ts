@@ -518,10 +518,4 @@ export function schedule_storage_name_migration(): void {
   sweep_in_flight = run;
 }
 
-export function reset_storage_name_state(): void {
-  name_keys.clear();
-  swept_accounts.clear();
-  unreadable_entries.clear();
-}
-
 arm_hooks();

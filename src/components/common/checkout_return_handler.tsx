@@ -23,7 +23,7 @@ import type { TranslationKey } from "@/lib/i18n/types";
 import { useEffect, useRef } from "react";
 
 import { request_cache } from "@/services/api/request_cache";
-import { invalidate_mail_stats } from "@/hooks/use_mail_stats";
+import { invalidate_storage_usage } from "@/hooks/use_storage_usage";
 import {
   show_toast,
   TOAST_DURATION_BILLING_MS,
@@ -129,7 +129,7 @@ export function CheckoutReturnHandler() {
 
     request_cache.invalidate("/payments/v1");
     request_cache.invalidate("/sync/v1");
-    invalidate_mail_stats();
+    invalidate_storage_usage();
     window.dispatchEvent(new CustomEvent("aster:plan-changed"));
     show_toast(t(flow.success_key), "success");
   }, [is_authenticated, t]);

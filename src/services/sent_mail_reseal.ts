@@ -19,7 +19,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 import { list_attachments, update_attachment_meta } from "./api/attachments";
-import { list_encrypted_mail_items, update_mail_item } from "./api/mail";
+import { list_encrypted_mail_items, update_mail_item } from "./api/mail_items";
 import {
   array_to_base64,
   base64_to_array,

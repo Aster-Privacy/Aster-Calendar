@@ -25,7 +25,6 @@ import {
   find_ics_blocks,
   remove_html_elements,
 } from "@/services/calendar/ics_blocks";
-import { parse_invite_from_ics } from "@/services/calendar/ics_parser";
 import { parse_ics_events } from "@/services/calendar/ics_file";
 
 describe("ics block scanning", () => {
@@ -43,7 +42,6 @@ describe("ics block scanning", () => {
     const started = Date.now();
 
     expect(find_ics_block(hostile, "VCALENDAR")).toBeNull();
-    expect(parse_invite_from_ics(hostile)).toBeNull();
     expect(parse_ics_events("BEGIN:VEVENT ".repeat(150000))).toEqual([]);
     expect(Date.now() - started).toBeLessThan(2000);
   });

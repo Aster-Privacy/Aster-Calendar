@@ -107,11 +107,9 @@ function hero(subscription: SubscriptionResponse) {
       on_cancel_plan={() => {}}
       on_manage_payment={() => {}}
       on_renew_with_crypto={() => {}}
-      on_show_plans={() => {}}
       on_switch_billing={() => {}}
       on_toggle_plans={() => {}}
       on_upgrade_next={() => {}}
-      plan_limits={null}
       plans_open={false}
       preferred_currency="usd"
       storage_limit_bytes={1_000_000_000}

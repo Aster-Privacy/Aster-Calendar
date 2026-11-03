@@ -29,14 +29,6 @@ export function notify_billing_updated(): void {
 
 let is_pending = false;
 
-export function request_payment_method_update(): void {
-  is_pending = true;
-
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent(OPEN_PAYMENT_METHODS_EVENT));
-  }
-}
-
 export function consume_payment_method_request(): boolean {
   const was_pending = is_pending;
 

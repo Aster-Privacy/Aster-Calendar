@@ -98,7 +98,6 @@ import {
   is_tauri,
   read_device_passphrase,
 } from "@/native/desktop_device_auth";
-import { process_offline_queue } from "@/native/offline_queue";
 import {
   account_index_routing_enabled,
   app_pathname,
@@ -111,7 +110,6 @@ import {
   clear_app_lock_config,
   clear_session_unlock,
 } from "@/services/app_lock_store";
-import { delete_category_index_for_account } from "@/services/category_index";
 import { ignore_error } from "@/lib/ignore_error";
 
 async function resume_surviving_account(
@@ -468,7 +466,6 @@ export function use_auth_provider_state() {
         stop_session_timeout();
         clear_vault_from_memory();
         await with_timeout(clear_signed_out_account_caches(current_id), 3000);
-        await with_timeout(delete_category_index_for_account(current_id), 2000);
         clear_stored_encrypted_vault(current_id);
         await with_timeout(clear_session_passphrase(current_id), 2000);
         clear_session_timeout_data(current_id);
@@ -639,7 +636,6 @@ export function use_auth_provider_state() {
       await with_timeout(clear_signed_out_account_caches(current_id), 3000);
 
       if (current_id) {
-        await with_timeout(delete_category_index_for_account(current_id), 2000);
         clear_session_timeout_data(current_id);
         clear_session_unlock(current_id);
         await clear_session_passphrase(current_id).catch((caught) =>
@@ -793,12 +789,6 @@ export function use_auth_provider_state() {
 
     return () => window.removeEventListener("focus", handle_focus);
   }, [clear_local_auth_data, state.is_authenticated]);
-
-  useEffect(() => {
-    if (!state.is_authenticated) return;
-
-    process_offline_queue().catch(safe_log_error);
-  }, [state.is_authenticated, state.current_account_id]);
 
   useEffect(() => {
     if (state.has_keys) preload_openpgp();

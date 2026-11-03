@@ -70,7 +70,7 @@ import { use_should_reduce_motion } from "@/provider";
 import {
   read_secure_array,
   write_secure_array,
-} from "@/hooks/use_search/storage";
+} from "@/lib/secure_array";
 
 const MAX_RESULTS = 25;
 const HISTORY_LIMIT = 20;

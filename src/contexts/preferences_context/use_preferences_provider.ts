@@ -68,7 +68,6 @@ import {
   request_notification_permission,
 } from "@/services/notification_service";
 import { set_low_network_mode } from "@/services/low_network_state";
-import { set_iconic_sounds_enabled } from "@/services/iconic_sounds";
 import {
   set_reply_include_quoted,
   set_reply_prefix_subject,
@@ -115,8 +114,6 @@ export function use_preferences_provider() {
     beacon_payload_ref,
     server_blob_unusable_ref,
     do_save,
-    push_muted_folders,
-    synced_muted_folders_ref,
     flush_save,
     schedule_save,
     update_preference,
@@ -197,7 +194,6 @@ export function use_preferences_provider() {
 
         has_loaded_ref.current = true;
         server_base_ref.current = merged;
-        push_muted_folders(merged);
 
         const applied = apply_pending_preferences(
           merged,
@@ -235,7 +231,7 @@ export function use_preferences_provider() {
 
       set_has_loaded_from_server(response.loaded_from_server);
     },
-    [apply_visual_preferences, push_muted_folders],
+    [apply_visual_preferences],
   );
 
   const save_now = useCallback(async () => {
@@ -288,7 +284,6 @@ export function use_preferences_provider() {
     has_loaded_ref.current = false;
     fallback_base_ref.current = null;
     server_base_ref.current = null;
-    synced_muted_folders_ref.current = null;
     server_blob_unusable_ref.current = false;
     beacon_payload_ref.current = null;
 
@@ -367,7 +362,6 @@ export function use_preferences_provider() {
           const merged = reconcile_low_network_mode(normalized);
 
           server_base_ref.current = merged;
-          push_muted_folders(merged);
 
           const queued = take_onboarding_preferences();
 
@@ -451,10 +445,6 @@ export function use_preferences_provider() {
   useEffect(() => {
     set_badge_count_enabled(preferences.badge_count !== false);
   }, [preferences.badge_count]);
-
-  useEffect(() => {
-    set_iconic_sounds_enabled(false);
-  }, []);
 
   useEffect(() => {
     set_reply_include_quoted(preferences.reply_include_quoted);

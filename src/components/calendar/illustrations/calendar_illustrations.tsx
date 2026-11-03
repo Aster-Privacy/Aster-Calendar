@@ -20,14 +20,7 @@
 //
 import type { ComponentProps } from "react";
 
-import {
-  ArrowDownTrayIcon,
-  CalendarDaysIcon,
-  CalendarIcon,
-  ExclamationTriangleIcon,
-  MagnifyingGlassIcon,
-  TrashIcon,
-} from "@heroicons/react/24/outline";
+import { ArrowDownTrayIcon, CalendarDaysIcon, CalendarIcon, MagnifyingGlassIcon, TrashIcon } from "@heroicons/react/24/outline";
 
 type IllustrationProps = ComponentProps<typeof CalendarIcon>;
 
@@ -65,8 +58,4 @@ export function NoCalendarsIllustration(props: IllustrationProps) {
 
 export function ImportNothingIllustration(props: IllustrationProps) {
   return <ArrowDownTrayIcon {...icon_props(props)} />;
-}
-
-export function DecryptFailureIllustration(props: IllustrationProps) {
-  return <ExclamationTriangleIcon {...icon_props(props)} />;
 }

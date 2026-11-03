@@ -21,7 +21,7 @@
 import { api_client, type ApiResponse } from "./client";
 
 import { user_facing_error } from "@/utils/user_facing_error";
-import { decrypt_aes_gcm_with_fallback } from "@/services/crypto/legacy_keks";
+
 import { get_or_create_derived_encryption_crypto_key } from "@/services/crypto/memory_key_store";
 import { get_active_translations } from "@/lib/i18n/translations";
 
@@ -49,18 +49,6 @@ export interface Signature {
   updated_at: string;
 }
 
-export interface DecryptedSignature {
-  id: string;
-  name: string;
-  content: string;
-  is_default: boolean;
-  is_html: boolean;
-  alias_id: string | null;
-  placement: SignaturePlacement | null;
-  created_at: string;
-  updated_at: string;
-}
-
 function placement_to_int(
   p: SignaturePlacement | null | undefined,
 ): number | null {
@@ -68,33 +56,6 @@ function placement_to_int(
   if (p === "below") return 0;
 
   return null;
-}
-
-function placement_from_int(
-  p: number | null | undefined,
-): SignaturePlacement | null {
-  if (p === 1) return "above";
-  if (p === 0) return "below";
-
-  return null;
-}
-
-export function get_signature_for_alias(
-  alias_id: string | null,
-  signatures: DecryptedSignature[],
-): DecryptedSignature | null {
-  if (alias_id) {
-    const bound = signatures.find((s) => s.alias_id === alias_id);
-
-    if (bound) return bound;
-  }
-
-  return signatures.find((s) => s.alias_id === null && s.is_default) || null;
-}
-
-export interface ListSignaturesResponse {
-  signatures: Signature[];
-  total: number;
 }
 
 export interface CreateSignatureRequest {
@@ -129,14 +90,6 @@ export interface UpdateSignatureResponse {
   updated_at: string;
 }
 
-export interface DeleteSignatureResponse {
-  success: boolean;
-}
-
-export interface SetDefaultResponse {
-  success: boolean;
-}
-
 function array_to_base64(array: Uint8Array): string {
   let binary = "";
 
@@ -145,17 +98,6 @@ function array_to_base64(array: Uint8Array): string {
   }
 
   return btoa(binary);
-}
-
-function base64_to_array(base64: string): Uint8Array {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-
-  return bytes;
 }
 
 async function get_encryption_key(): Promise<CryptoKey> {
@@ -187,136 +129,6 @@ async function encrypt_string(
     encrypted: array_to_base64(new Uint8Array(ciphertext)),
     nonce: array_to_base64(nonce),
   };
-}
-
-async function decrypt_string(
-  encrypted: string,
-  nonce: string,
-): Promise<string> {
-  const key = await get_encryption_key();
-  const ciphertext = base64_to_array(encrypted);
-  const iv = base64_to_array(nonce);
-  const decrypted = await decrypt_aes_gcm_with_fallback(key, ciphertext, iv);
-  const decoder = new TextDecoder();
-
-  return decoder.decode(decrypted);
-}
-
-export async function decrypt_signature(
-  signature: Signature,
-): Promise<DecryptedSignature> {
-  const [name, content] = await Promise.all([
-    decrypt_string(signature.encrypted_name, signature.name_nonce),
-    decrypt_string(signature.encrypted_content, signature.content_nonce),
-  ]);
-
-  return {
-    id: signature.id,
-    name,
-    content,
-    is_default: signature.is_default,
-    is_html: signature.is_html,
-    alias_id: signature.alias_id ?? null,
-    placement: placement_from_int(signature.placement),
-    created_at: signature.created_at,
-    updated_at: signature.updated_at,
-  };
-}
-
-export async function decrypt_signatures(
-  signatures: Signature[],
-): Promise<DecryptedSignature[]> {
-  const results = await Promise.allSettled(signatures.map(decrypt_signature));
-
-  return results
-    .filter(
-      (r): r is PromiseFulfilledResult<DecryptedSignature> =>
-        r.status === "fulfilled",
-    )
-    .map((r) => r.value);
-}
-
-export async function list_signatures(): Promise<
-  ApiResponse<{ signatures: DecryptedSignature[]; total: number }>
-> {
-  const response = await api_client.get<ListSignaturesResponse>(
-    "/mail/v1/signatures",
-  );
-
-  if (response.error || !response.data) {
-    return {
-      error: response.error || get_active_translations().errors.load_failed,
-    };
-  }
-
-  try {
-    const decrypted = await decrypt_signatures(response.data.signatures);
-
-    return { data: { signatures: decrypted, total: response.data.total } };
-  } catch (err) {
-    return {
-      error: user_facing_error(
-        err,
-        get_active_translations().errors.load_failed,
-      ),
-    };
-  }
-}
-
-export async function get_signature(
-  signature_id: string,
-): Promise<ApiResponse<DecryptedSignature>> {
-  const response = await api_client.get<Signature>(
-    `/mail/v1/signatures/${signature_id}`,
-  );
-
-  if (response.error || !response.data) {
-    return {
-      error: response.error || get_active_translations().errors.load_failed,
-    };
-  }
-
-  try {
-    const decrypted = await decrypt_signature(response.data);
-
-    return { data: decrypted };
-  } catch (err) {
-    return {
-      error: user_facing_error(
-        err,
-        get_active_translations().errors.load_failed,
-      ),
-    };
-  }
-}
-
-export async function get_default_signature(): Promise<
-  ApiResponse<DecryptedSignature | null>
-> {
-  const response = await api_client.get<Signature | null>(
-    "/mail/v1/signatures/default",
-  );
-
-  if (response.error) {
-    return { error: response.error };
-  }
-
-  if (!response.data) {
-    return { data: null };
-  }
-
-  try {
-    const decrypted = await decrypt_signature(response.data);
-
-    return { data: decrypted };
-  } catch (err) {
-    return {
-      error: user_facing_error(
-        err,
-        get_active_translations().errors.load_failed,
-      ),
-    };
-  }
 }
 
 export async function create_signature(
@@ -399,27 +211,4 @@ export async function update_signature(
       ),
     };
   }
-}
-
-export async function delete_signature(
-  signature_id: string,
-): Promise<ApiResponse<DeleteSignatureResponse>> {
-  return api_client.delete<DeleteSignatureResponse>(
-    `/mail/v1/signatures/${signature_id}`,
-  );
-}
-
-export async function set_default_signature(
-  signature_id: string,
-): Promise<ApiResponse<SetDefaultResponse>> {
-  return api_client.patch<SetDefaultResponse>(
-    `/mail/v1/signatures/${signature_id}/default`,
-    {},
-  );
-}
-
-export async function get_signatures_count(): Promise<
-  ApiResponse<{ count: number }>
-> {
-  return api_client.get<{ count: number }>("/mail/v1/signatures/count");
 }

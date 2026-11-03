@@ -18,7 +18,6 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import { useEffect, useSyncExternalStore } from "react";
 
 import { get_recipient_public_key, is_internal_email } from "./api/keys";
 
@@ -222,27 +221,4 @@ export function subscribe_recipient_classification(
 
 export function get_recipient_classification_version(): number {
   return version;
-}
-
-export function use_recipient_classification(
-  recipients: readonly string[],
-): number {
-  const current_version = useSyncExternalStore(
-    subscribe_recipient_classification,
-    get_recipient_classification_version,
-    get_recipient_classification_version,
-  );
-  const recipients_key = recipients
-    .map((email) => normalize_recipient_address(email))
-    .filter((email) => email.length > 0 && !is_internal_email(email))
-    .sort()
-    .join(",");
-
-  useEffect(() => {
-    if (!recipients_key) return;
-
-    classify_recipients(recipients_key.split(",")).catch(() => undefined);
-  }, [recipients_key]);
-
-  return current_version;
 }

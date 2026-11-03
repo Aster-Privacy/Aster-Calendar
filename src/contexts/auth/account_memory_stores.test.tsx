@@ -18,9 +18,7 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import type { EditDraftData } from "@/components/compose/compose_manager";
 import type { TotpSetupInitiateResponse } from "@/services/api/totp";
-import type { Rule } from "@/services/api/mail_rules";
 import type { ReferralInfo } from "@/services/api/billing";
 import type { User } from "@/services/account_manager";
 
@@ -35,7 +33,6 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const hoisted = vi.hoisted(() => ({
   calls: [] as string[],
-  list_rules: vi.fn(),
   get_referral_info: vi.fn(),
 }));
 
@@ -50,14 +47,6 @@ vi.mock("@/hooks/use_contact_groups", () => ({
     hoisted.calls.push("clear_contact_groups_cache");
     throw new Error("store unavailable");
   },
-}));
-
-vi.mock("@/hooks/use_sidebar_aliases", () => ({
-  clear_sidebar_aliases_cache: record("clear_sidebar_aliases_cache"),
-}));
-
-vi.mock("@/hooks/pending_thread_replies", () => ({
-  reset_pending_thread_replies: record("reset_pending_thread_replies"),
 }));
 
 vi.mock("@/components/settings/billing/cancel_password", () => ({
@@ -111,41 +100,13 @@ vi.mock("@/services/api/billing", () => ({
   get_referral_info: () => hoisted.get_referral_info(),
 }));
 
-vi.mock("@/services/api/mail_rules", () => ({
-  list_rules: () => hoisted.list_rules(),
-  create_rule: vi.fn(),
-  update_rule: vi.fn(),
-  delete_rule: vi.fn(),
-  reorder_rules: vi.fn(),
-  run_on_existing: vi.fn(),
-  get_rule_run: vi.fn(),
-  cancel_rule_run: vi.fn(),
-  list_rule_runs: vi.fn(),
-}));
 
 import { clear_account_memory_stores } from "./account_memory_stores";
 
 import {
-  has_pending_send_stash,
-  set_pending_send_stash,
-} from "@/components/compose/pending_send_stash";
-import {
-  register_compose_host,
-  register_toast_navigator,
-  reset_toast_action_router,
-  restore_undone_send_draft,
-} from "@/components/toast/toast_action_router";
-import {
   read_cached_totp_setup,
   store_totp_setup,
 } from "@/components/settings/security/totp_setup_cache";
-import {
-  get_last_save_error,
-  load_rules,
-  queue_rule_seed,
-  take_rule_seed,
-  use_mail_rules_store,
-} from "@/stores/mail_rules_store";
 import { use_referral_summary } from "@/hooks/use_referral_summary";
 import {
   peek_current_user,
@@ -172,17 +133,12 @@ let container: HTMLDivElement;
 let root: Root;
 
 const seen = {
-  rule_ids: [] as string[],
-  rules_loaded: false,
   referral: null as ReferralInfo | null,
 };
 
 function Probe() {
-  const rules = use_mail_rules_store();
   const { referral_info } = use_referral_summary();
 
-  seen.rule_ids = rules.rules.map((rule) => rule.id);
-  seen.rules_loaded = rules.loaded;
   seen.referral = referral_info;
 
   return null;
@@ -199,11 +155,9 @@ async function settle(): Promise<void> {
 describe("clearing account state held in memory", () => {
   beforeEach(() => {
     hoisted.calls.length = 0;
-    hoisted.list_rules.mockReset();
     hoisted.get_referral_info.mockReset();
     hoisted.get_referral_info.mockResolvedValue({ data: null });
     sessionStorage.clear();
-    reset_toast_action_router();
     clear_account_memory_stores();
     hoisted.calls.length = 0;
     container = document.createElement("div");
@@ -221,46 +175,12 @@ describe("clearing account state held in memory", () => {
 
     expect(hoisted.calls).toEqual([
       "clear_contact_groups_cache",
-      "clear_sidebar_aliases_cache",
-      "reset_pending_thread_replies",
       "clear_cancel_password_cache",
       "clear_ratchet_verification_status",
       "clear_sender_identity_authentication_cache",
       "clear_recipient_classification_cache",
       "reset_account_key_capabilities_cache",
     ]);
-  });
-
-  it("drops stashed messages that were waiting to send", () => {
-    set_pending_send_stash("compose-1", {
-      to_recipients: ["someone@example.com"],
-      cc_recipients: [],
-      bcc_recipients: [],
-      subject: "Quarterly numbers",
-      message: "Draft body",
-    });
-
-    clear_account_memory_stores();
-
-    expect(has_pending_send_stash("compose-1")).toBe(false);
-  });
-
-  it("drops a draft that was waiting for a compose host", () => {
-    const navigate = vi.fn();
-    const open_draft = vi.fn();
-
-    register_toast_navigator({
-      navigate,
-      is_mobile_app: false,
-      prefers_full_page: false,
-    });
-    restore_undone_send_draft({ id: "draft-1" } as unknown as EditDraftData);
-
-    clear_account_memory_stores();
-    register_compose_host({ restores_undone_sends: false, open_draft });
-
-    expect(navigate).toHaveBeenCalledTimes(1);
-    expect(open_draft).not.toHaveBeenCalled();
   });
 
   it("drops a two-factor setup that was in progress", () => {
@@ -300,50 +220,6 @@ describe("clearing account state held in memory", () => {
     clear_account_memory_stores();
 
     expect(peek_current_user()).toBeNull();
-  });
-
-  it("empties loaded mail rules and the queued rule seed", async () => {
-    hoisted.list_rules.mockResolvedValue({
-      data: { rules: [{ id: "rule-1", sort_order: 0 } as Rule] },
-    });
-    act(() => root.render(<Probe />));
-    await act(async () => {
-      await load_rules();
-    });
-    queue_rule_seed({} as Parameters<typeof queue_rule_seed>[0]);
-
-    expect(seen.rule_ids).toEqual(["rule-1"]);
-
-    act(() => clear_account_memory_stores());
-
-    expect(seen.rule_ids).toEqual([]);
-    expect(seen.rules_loaded).toBe(false);
-    expect(take_rule_seed()).toBeNull();
-    expect(get_last_save_error()).toBeNull();
-  });
-
-  it("ignores mail rules that finish loading after the clear", async () => {
-    const pending = deferred<{ data: { rules: Rule[] } }>();
-
-    hoisted.list_rules.mockReturnValue(pending.promise);
-    act(() => root.render(<Probe />));
-
-    let loading: Promise<void> = Promise.resolve();
-
-    act(() => {
-      loading = load_rules();
-    });
-    act(() => clear_account_memory_stores());
-
-    await act(async () => {
-      pending.resolve({
-        data: { rules: [{ id: "rule-late", sort_order: 0 } as Rule] },
-      });
-      await loading;
-    });
-
-    expect(seen.rule_ids).toEqual([]);
-    expect(seen.rules_loaded).toBe(false);
   });
 
   it("clears the referral summary and ignores a late response", async () => {

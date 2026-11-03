@@ -22,7 +22,6 @@ import type { ContactFormData } from "@/types/contacts";
 import type { SenderProfileAvatarRenderer } from "@aster/ui";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import { SenderProfileCardView, is_aster_email_address } from "@aster/ui";
 
 import { copy_text_or_throw } from "@/utils/copy_text";
@@ -50,8 +49,8 @@ import {
   remove_allowed_sender,
   check_allowed_senders,
 } from "@/services/api/allowed_senders";
-import { emit_mail_changed, emit_contacts_changed } from "@/hooks/mail_events";
-import { build_sender_mail_query } from "@/utils/contact_mail_search";
+import { emit_contacts_changed } from "@/hooks/app_events";
+import { open_mail_app } from "@/lib/mail_app";
 
 export interface SenderProfileTriggerProps {
   email: string;
@@ -69,7 +68,6 @@ export function SenderProfileTrigger({
   className,
 }: SenderProfileTriggerProps) {
   const { t } = use_i18n();
-  const navigate = useNavigate();
   const { has_keys } = use_auth();
   const [is_open, set_is_open] = useState(false);
   const [show_notes, set_show_notes] = useState(false);
@@ -232,7 +230,6 @@ export function SenderProfileTrigger({
         if (result.data) {
           show_toast(t("common.unblocked_email", { email }), "success");
           set_is_blocked(false);
-          emit_mail_changed();
         } else {
           show_toast(
             result.error || t("common.something_went_wrong_try_again"),
@@ -245,7 +242,6 @@ export function SenderProfileTrigger({
         if (result.data) {
           show_toast(t("common.blocked_email", { email }), "success");
           set_is_blocked(true);
-          emit_mail_changed();
         } else {
           show_toast(
             result.error || t("common.something_went_wrong_try_again"),
@@ -261,12 +257,9 @@ export function SenderProfileTrigger({
   }, [email, name, is_blocking, is_blocked, t]);
 
   const handle_messages_from = useCallback(() => {
-    const search_query = build_sender_mail_query(email);
-
     set_is_open(false);
-    if (!search_query) return;
-    navigate("/all", { state: { search_query } });
-  }, [navigate, email]);
+    open_mail_app();
+  }, []);
 
   const handle_compose = useCallback(() => {
     on_compose?.(email);

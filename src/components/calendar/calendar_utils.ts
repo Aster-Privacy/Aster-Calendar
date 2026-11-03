@@ -655,20 +655,6 @@ export function merge_by_id<T extends { id: string }>(
   return unchanged ? previous : merged;
 }
 
-export function hex_with_alpha(hex: string, alpha: number): string {
-  const normalized = hex.replace("#", "");
-
-  if (normalized.length !== 6) {
-    return hex;
-  }
-
-  const red = parseInt(normalized.slice(0, 2), 16);
-  const green = parseInt(normalized.slice(2, 4), 16);
-  const blue = parseInt(normalized.slice(4, 6), 16);
-
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
-}
-
 export const READABLE_INK_LIGHT = "#ffffff";
 
 export const READABLE_INK_DARK = "#111827";
@@ -1039,31 +1025,6 @@ export function build_month_chip_style(
     outline: is_active ? "2px solid var(--accent-color)" : undefined,
     outlineOffset: is_active ? "-2px" : undefined,
   };
-}
-
-export type EventTintOptions = EventBlockOptions;
-
-export type EventSolidStyle = EventBlockStyle;
-
-export function build_event_solid_style(
-  color: string,
-  options: EventTintOptions = {},
-): EventSolidStyle {
-  return build_event_block_style(color, options);
-}
-
-export function event_tint_background(
-  color: string,
-  is_active = false,
-): string {
-  return `color-mix(in srgb, ${event_color_token(color)} ${is_active ? 32 : 18}%, var(--bg-primary))`;
-}
-
-export function build_event_tint_style(
-  color: string,
-  options: EventTintOptions = {},
-): EventBlockStyle {
-  return build_event_block_style(color, options);
 }
 
 const EVENT_KIND_COLORS: Record<string, string> = {

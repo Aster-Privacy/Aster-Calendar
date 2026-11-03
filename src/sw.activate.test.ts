@@ -20,15 +20,12 @@
 //
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MODEL_CACHE_NAME } from "@/services/translation/model_source";
-
 type Listener = (event: unknown) => void;
 
 const PUSH_STRINGS_CACHE = "aster_push_strings";
 const STALE_APP_CACHES = [
-  "workbox-precache-v2-https://app.astermail.org/",
+  "workbox-precache-v2-https://calendar.astermail.org/",
   "aster-runtime-assets",
-  "aster-translation-models-v0",
 ];
 
 let listeners: Map<string, Listener>;
@@ -52,11 +49,7 @@ async function dispatch(type: string, data?: unknown): Promise<void> {
 
 beforeEach(async () => {
   listeners = new Map();
-  cache_names = new Set([
-    PUSH_STRINGS_CACHE,
-    MODEL_CACHE_NAME,
-    ...STALE_APP_CACHES,
-  ]);
+  cache_names = new Set([PUSH_STRINGS_CACHE, ...STALE_APP_CACHES]);
   deleted = [];
   window_clients = [];
   shown = vi.fn(async () => undefined);
@@ -79,7 +72,7 @@ beforeEach(async () => {
       matchAll: vi.fn(async () => window_clients),
     },
     registration: { showNotification: shown },
-    location: { origin: "https://app.astermail.org" },
+    location: { origin: "https://calendar.astermail.org" },
     navigator: { language: "en-US" },
   });
 
@@ -92,12 +85,11 @@ afterEach(() => {
 });
 
 describe("service worker activate", () => {
-  it("keeps downloaded translation models across app updates", async () => {
+  it("keeps the push strings cache across app updates", async () => {
     await dispatch("activate");
 
-    expect(cache_names.has(MODEL_CACHE_NAME)).toBe(true);
     expect(cache_names.has(PUSH_STRINGS_CACHE)).toBe(true);
-    expect(deleted).not.toContain(MODEL_CACHE_NAME);
+    expect(deleted).not.toContain(PUSH_STRINGS_CACHE);
   });
 
   it("still deletes every stale app cache", async () => {
@@ -121,10 +113,9 @@ describe("service worker activate", () => {
     });
   });
 
-  it("still removes translation models on logout purge", async () => {
+  it("removes every cache but the push strings on logout purge", async () => {
     await dispatch("message", { type: "LOGOUT_PURGE" });
 
-    expect(deleted).toContain(MODEL_CACHE_NAME);
     expect([...cache_names]).toEqual([PUSH_STRINGS_CACHE]);
   });
 });

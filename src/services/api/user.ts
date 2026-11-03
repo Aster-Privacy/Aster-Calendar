@@ -46,12 +46,6 @@ export interface UpdateBadgePreferencesInput {
   show_badge_ring?: boolean;
 }
 
-export interface ClaimLogoTapResponse {
-  awarded: boolean;
-  already_claimed: boolean;
-  badge: Badge | null;
-}
-
 interface UpdateDisplayNameResponse {
   user: {
     user_id: string;
@@ -111,15 +105,6 @@ export async function update_profile_color(
 
 export async function fetch_my_badges(): Promise<ApiResponse<Badge[]>> {
   return api_client.get<Badge[]>("/core/v1/badges");
-}
-
-export async function claim_logo_tap_badge(): Promise<
-  ApiResponse<ClaimLogoTapResponse>
-> {
-  return api_client.post<ClaimLogoTapResponse>(
-    "/core/v1/badges/claim-logo-tap",
-    {},
-  );
 }
 
 export async function fetch_badge_preferences(): Promise<

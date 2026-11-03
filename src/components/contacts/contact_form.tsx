@@ -49,7 +49,7 @@ import { PROFILE_PICTURE_ACCEPT } from "@/hooks/use_profile_picture_upload";
 import { compress_contact_avatar_file } from "@/utils/contact_avatar_image";
 import { show_toast } from "@/components/toast/simple_toast";
 import { use_dialog_shell } from "@/lib/use_dialog_shell";
-import { ConfirmModal } from "@/components/email/inbox/inbox_confirmation_dialog";
+import { ConfirmModal } from "@/components/ui/confirm_modal";
 
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 

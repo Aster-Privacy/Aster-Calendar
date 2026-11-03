@@ -20,22 +20,9 @@
 //
 import type { UserPreferences } from "@/services/api/preferences";
 
-import {
-  safe_session_get,
-  safe_session_remove,
-  safe_session_set,
-} from "@/lib/safe_storage";
+import { safe_session_get, safe_session_remove } from "@/lib/safe_storage";
 
 const ONBOARDING_PREFERENCES_KEY = "aster_onboarding_preferences";
-
-export function queue_onboarding_preference<K extends keyof UserPreferences>(
-  key: K,
-  value: UserPreferences[K],
-): void {
-  const queued = read_queued();
-  queued[key] = value;
-  safe_session_set(ONBOARDING_PREFERENCES_KEY, JSON.stringify(queued));
-}
 
 export function take_onboarding_preferences(): Partial<UserPreferences> {
   const queued = read_queued();

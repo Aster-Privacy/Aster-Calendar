@@ -18,7 +18,6 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import { is_calendar_app } from "@/lib/app_kind";
 
 const PUSH_FALLBACK_STRINGS: Record<string, string> = {
   en: "You have a new message",
@@ -45,9 +44,7 @@ const PUSH_FALLBACK_TITLES = {
 } as const;
 
 export function push_fallback_title(): string {
-  return is_calendar_app()
-    ? PUSH_FALLBACK_TITLES.calendar
-    : PUSH_FALLBACK_TITLES.mail;
+  return PUSH_FALLBACK_TITLES.calendar;
 }
 
 export function push_fallback_languages(): string[] {

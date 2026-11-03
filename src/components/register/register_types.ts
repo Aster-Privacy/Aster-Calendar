@@ -27,13 +27,8 @@ export type RegistrationStep =
   | "recovery_email"
   | "recovery_email_verification"
   | "recovery_email_gate"
-  | "academic_offer"
   | "plan_selection"
-  | "download_apps"
   | "notifications"
-  | "addresses"
-  | "custom_domain"
-  | "import_mail"
   | "bring_calendar";
 
 export const page_variants = {
@@ -51,8 +46,3 @@ export interface AlertProps {
   message: string;
   is_dark: boolean;
 }
-
-export const TRUSTED_REDIRECT_DOMAINS = [
-  "checkout.stripe.com",
-  "billing.stripe.com",
-];

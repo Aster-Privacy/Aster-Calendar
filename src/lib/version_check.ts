@@ -19,7 +19,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import { kept_across_updates } from "@/lib/app_update_caches";
 import { ignore_error } from "@/lib/ignore_error";
 
 declare const __BUILD_HASH__: string;
@@ -173,9 +172,7 @@ export async function hard_flush_and_reload(): Promise<void> {
       const keys = await caches.keys();
 
       await Promise.all(
-        keys
-          .filter((k) => !kept_across_updates(k))
-          .map((k) => caches.delete(k).catch(() => false)),
+        keys.map((k) => caches.delete(k).catch(() => false)),
       );
     }
   } catch (caught) {

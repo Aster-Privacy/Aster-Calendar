@@ -126,10 +126,6 @@ const vault_cleared_listeners: Set<(event: VaultClearedEvent) => void> =
 let vault_account_epoch = 0;
 let last_vault_owner_id: string | null = null;
 
-export function get_vault_account_epoch(): number {
-  return vault_account_epoch;
-}
-
 export function get_last_vault_owner_id(): string | null {
   return last_vault_owner_id;
 }
@@ -702,10 +698,6 @@ export function has_passphrase_in_memory(): boolean {
   return secure_passphrase !== null && !secure_passphrase.is_cleared();
 }
 
-export function are_keys_ready(): boolean {
-  return derived_encryption_key !== null && has_passphrase_in_memory();
-}
-
 export function on_keys_ready(callback: () => void): () => void {
   if (derived_encryption_key !== null && has_passphrase_in_memory()) {
     callback();
@@ -811,54 +803,6 @@ export function verify_passphrase_for_export(entered: string): boolean {
   return validate_passphrase(entered) === null;
 }
 
-const EXPORT_TOKEN_TTL_MS = 5 * 60 * 1000;
-let active_export_token: { token: string; expires_at: number } | null = null;
-
-export function issue_export_token(): string | null {
-  if (!has_vault_in_memory() || !has_passphrase_in_memory()) return null;
-  const rand = new Uint8Array(32);
-
-  crypto.getRandomValues(rand);
-  let token = "";
-
-  for (let i = 0; i < rand.length; i++) {
-    token += rand[i].toString(16).padStart(2, "0");
-  }
-  active_export_token = {
-    token,
-    expires_at: Date.now() + EXPORT_TOKEN_TTL_MS,
-  };
-
-  return token;
-}
-
-export function consume_export_token(token: string): boolean {
-  if (!active_export_token) return false;
-  if (active_export_token.expires_at < Date.now()) {
-    active_export_token = null;
-
-    return false;
-  }
-
-  const encoder = new TextEncoder();
-  const expected = sha256(encoder.encode(active_export_token.token));
-  const provided = sha256(encoder.encode(token));
-
-  let mismatch = 0;
-
-  for (let i = 0; i < expected.length; i++) {
-    mismatch |= expected[i] ^ provided[i];
-  }
-
-  zero_uint8_array(expected);
-  zero_uint8_array(provided);
-
-  if (mismatch !== 0) return false;
-
-  active_export_token = null;
-
-  return true;
-}
 
 export function store_ke_crypto_key(id: string, key: CryptoKey): void {
   refresh_session();

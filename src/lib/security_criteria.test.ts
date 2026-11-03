@@ -34,9 +34,6 @@ const none: SecurityCriterionSource = {
   recovery_codes_saved: false,
   recovery_email_verified: false,
   login_alerts_enabled: false,
-  block_tracking_pixels: false,
-  block_remote_images: false,
-  strip_exif_on_compose: false,
 };
 
 const all: SecurityCriterionSource = {
@@ -45,9 +42,6 @@ const all: SecurityCriterionSource = {
   recovery_codes_saved: true,
   recovery_email_verified: true,
   login_alerts_enabled: true,
-  block_tracking_pixels: true,
-  block_remote_images: true,
-  strip_exif_on_compose: true,
 };
 
 describe("security criteria", () => {
@@ -62,7 +56,7 @@ describe("security criteria", () => {
   it("rounds a partial score", () => {
     const criteria = build_security_criteria({ ...none, totp_enabled: true });
 
-    expect(security_percent(criteria)).toBe(13);
+    expect(security_percent(criteria)).toBe(20);
   });
 
   it("routes the recovery email criterion to its account row", () => {
@@ -90,7 +84,7 @@ describe("security criteria", () => {
 
     expect(
       criteria.filter((item) => item.target.section === "security"),
-    ).toHaveLength(7);
+    ).toHaveLength(4);
     expect(criteria.every((item) => Boolean(item.target.anchor))).toBe(true);
   });
 
@@ -104,11 +98,11 @@ describe("security criteria", () => {
     const criteria = build_security_criteria({
       ...none,
       passkey_registered: true,
-      block_remote_images: true,
+      login_alerts_enabled: true,
     });
     const met = criteria.filter((item) => item.met).map((item) => item.id);
 
-    expect(met).toEqual(["passkey", "remote_images"]);
+    expect(met).toEqual(["passkey", "login_alerts"]);
   });
 
   it("returns zero for an empty criteria list", () => {

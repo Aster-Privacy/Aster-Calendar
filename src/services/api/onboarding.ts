@@ -147,48 +147,6 @@ export async function get_onboarding_state(
   }
 }
 
-export interface ChecklistTasksState {
-  install_app: boolean;
-  import_mail: boolean;
-  recovery_method: boolean;
-  first_email: boolean;
-}
-
-export interface ChecklistState {
-  dismissed_at: string | null;
-  tasks: ChecklistTasksState;
-}
-
-export const DEFAULT_CHECKLIST_TASKS: ChecklistTasksState = {
-  install_app: false,
-  import_mail: false,
-  recovery_method: false,
-  first_email: false,
-};
-
-export type ChecklistFetchResult =
-  | { kind: "ok"; state: ChecklistState }
-  | { kind: "not_available" }
-  | { kind: "transient" };
-
-export async function fetch_onboarding_checklist(): Promise<ChecklistFetchResult> {
-  try {
-    const response = await api_client.get<ChecklistState>(
-      "/core/v1/onboarding/checklist",
-    );
-
-    if (response.data && !response.error) {
-      return { kind: "ok", state: response.data };
-    }
-
-    if (response.code === "NOT_FOUND") return { kind: "not_available" };
-
-    return { kind: "transient" };
-  } catch {
-    return { kind: "transient" };
-  }
-}
-
 export async function dismiss_onboarding_checklist(): Promise<boolean> {
   try {
     const response = await api_client.post<void>(

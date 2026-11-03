@@ -23,7 +23,7 @@ import { UpgradeBtn } from "@aster/ui";
 
 import { use_i18n } from "@/lib/i18n/context";
 import { show_plan_limit_upgrade } from "@/stores/upgrade_store";
-import { show_alias_cap_upsell } from "@/stores/alias_cap_upsell_store";
+
 import { min_plan_for_feature } from "@/components/settings/billing/billing_constants";
 
 export function prompt_upgrade(
@@ -35,26 +35,6 @@ export function prompt_upgrade(
     message: msg,
     resource: resource ?? null,
     feature: feature ?? null,
-  });
-}
-
-export function is_alias_limit_error(response: {
-  error?: string | null;
-  server_code?: string | null;
-}): boolean {
-  return (
-    response.server_code === "PLAN_LIMIT_EXCEEDED" ||
-    /alias limit/i.test(response.error ?? "")
-  );
-}
-
-export function prompt_alias_limit_upgrade(opts?: {
-  used?: number | null;
-  limit?: number | null;
-}) {
-  show_alias_cap_upsell({
-    used: opts?.used ?? null,
-    limit: opts?.limit ?? null,
   });
 }
 
@@ -80,29 +60,6 @@ export function RequiredPlanPill({
       <LockClosedIcon aria-hidden="true" className="h-3.5 w-3.5" />
       {t("settings.requires_plan", { plan: tier.name })}
     </span>
-  );
-}
-
-export function FeatureLockOverlay({
-  message,
-  feature,
-}: {
-  message: string;
-  feature?: string;
-}) {
-  const { t } = use_i18n();
-
-  return (
-    <div className="flex flex-col items-start gap-2.5 py-3">
-      <RequiredPlanPill feature={feature} />
-      <p className="text-[13px] leading-5 text-txt-secondary">{message}</p>
-      <UpgradeBtn
-        size="sm"
-        onClick={() => prompt_upgrade(message, undefined, feature)}
-      >
-        {t("settings.alias_feature_locked_upgrade_cta")}
-      </UpgradeBtn>
-    </div>
   );
 }
 

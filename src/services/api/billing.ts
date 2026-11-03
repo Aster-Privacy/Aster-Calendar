@@ -139,10 +139,6 @@ export interface CheckoutSessionResponse {
   url: string;
 }
 
-export interface PortalSessionResponse {
-  url: string;
-}
-
 export interface BillingHistoryItem {
   id: string;
   amount_cents: number;
@@ -369,23 +365,6 @@ export async function start_hosted_checkout(
   }
 
   remember_checkout_target(plan_code, billing_interval, special_offer);
-  await open_payment_url(url);
-
-  return { ok: true };
-}
-
-export async function open_billing_portal(): Promise<{
-  ok: boolean;
-  error?: string;
-}> {
-  const response = await create_portal_session();
-
-  const url = response.data?.url;
-
-  if (!url) {
-    return { ok: false, error: response.error || "no_portal_url" };
-  }
-
   await open_payment_url(url);
 
   return { ok: true };
@@ -795,13 +774,6 @@ export async function list_pending_crypto_invoices() {
   return api_client.get<CryptoNativePendingResponse>(
     "/payments/v1/crypto-native/invoices/pending",
     { cache_ttl: 0 },
-  );
-}
-
-export async function create_portal_session() {
-  return api_client.post<PortalSessionResponse>(
-    "/payments/v1/portal-session",
-    {},
   );
 }
 
@@ -1223,33 +1195,6 @@ export async function purchase_credits_crypto(package_id: string) {
     {
       package_id,
     },
-  );
-}
-
-export interface CreditPaymentIntentResponse {
-  client_secret: string;
-  payment_intent_id: string;
-  amount_cents: number;
-  currency: string;
-}
-
-export async function create_credit_payment_intent(
-  package_id: string,
-  currency: string,
-) {
-  return api_client.post<CreditPaymentIntentResponse>(
-    "/payments/v1/credits/payment-intent",
-    {
-      package_id,
-      currency,
-    },
-  );
-}
-
-export async function confirm_credit_purchase(payment_intent_id: string) {
-  return api_client.post<{ credited: boolean; balance_cents: number }>(
-    "/payments/v1/credits/confirm",
-    { payment_intent_id },
   );
 }
 

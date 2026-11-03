@@ -18,7 +18,7 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import type { Attachment } from "@/components/compose/compose_shared_core";
+import type { Attachment } from "@/types/attachment";
 import type { TranslationKey } from "@/lib/i18n/types";
 import { queue_email } from "@/services/send_queue";
 import type {

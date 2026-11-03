@@ -29,11 +29,7 @@ import {
   use_preferences,
 } from "@/contexts/preferences_context";
 import { ExternalLinkProvider } from "@/contexts/external_link_context";
-import { SignaturesProvider } from "@/contexts/signatures_context";
-import { TemplatesProvider } from "@/contexts/templates_context";
 import { TitleTipLayer } from "@/components/ui/title_tip_layer";
-import { LinkMenuLayer } from "@/components/email/link_menu_layer";
-import { ImageSizePromptLayer } from "@/components/compose/image_size_prompt_layer";
 import { I18nProvider, use_i18n } from "@/lib/i18n/context";
 
 const ReducedMotionContext = createContext(false);
@@ -87,7 +83,7 @@ function MotionWrapper({ children }: { children: React.ReactNode }) {
   );
 }
 
-function MailUiStrings({ children }: { children: React.ReactNode }) {
+function AppUiStrings({ children }: { children: React.ReactNode }) {
   const { t } = use_i18n();
   const strings = useMemo<Partial<AsterUiStrings>>(
     () => ({
@@ -116,24 +112,18 @@ export function Provider({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
       <I18nProvider>
-        <MailUiStrings>
+        <AppUiStrings>
           <AuthProvider>
             <PreferencesProvider>
               <ExternalLinkProvider>
                 <MotionWrapper>
-                  <SignaturesProvider>
-                    <TemplatesProvider>
-                      {children}
-                      <TitleTipLayer />
-                      <LinkMenuLayer />
-                      <ImageSizePromptLayer />
-                    </TemplatesProvider>
-                  </SignaturesProvider>
+                  {children}
+                  <TitleTipLayer />
                 </MotionWrapper>
               </ExternalLinkProvider>
             </PreferencesProvider>
           </AuthProvider>
-        </MailUiStrings>
+        </AppUiStrings>
       </I18nProvider>
     </ThemeProvider>
   );

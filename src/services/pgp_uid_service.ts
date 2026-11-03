@@ -294,13 +294,6 @@ export async function ensure_published_key_has_account_addresses(
   );
 }
 
-export async function ensure_identity_key_addresses(
-  addresses: IdentityAddress[],
-  force_republish = false,
-): Promise<IdentityAddressResult> {
-  return shared_identity_republish(addresses, "last", force_republish);
-}
-
 async function shared_identity_republish(
   addresses: IdentityAddress[],
   placement: "first" | "last",

@@ -125,10 +125,7 @@ describe("upgrade prompt events", () => {
     expect(get_upgrade_snapshot().is_open).toBe(false);
   });
 
-  it.each([
-    ["App.tsx", "App"],
-    ["mobile_app.tsx", "MobileApp"],
-  ])("%s listens for upgrade prompts", (file, component) => {
-    expect(calls_hook_in(file, component)).toBe(true);
+  it("App.tsx listens for upgrade prompts", () => {
+    expect(calls_hook_in("App.tsx", "App")).toBe(true);
   });
 });

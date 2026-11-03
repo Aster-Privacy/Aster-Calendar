@@ -28,7 +28,7 @@ import {
   notify_crypto_invoice_changed,
 } from "./billing_constants";
 
-import { ConfirmModal } from "@/components/email/inbox/inbox_confirmation_dialog";
+import { ConfirmModal } from "@/components/ui/confirm_modal";
 import { CoinIcon } from "@/components/ui/coin_icon";
 import { use_i18n } from "@/lib/i18n/context";
 import { prefetch_crypto_invoice_page } from "@/pages/crypto_invoice/prefetch";

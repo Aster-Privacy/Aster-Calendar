@@ -21,7 +21,6 @@
 import { Tooltip } from "@aster/ui";
 
 import { use_i18n } from "@/lib/i18n/context";
-import { is_calendar_app } from "@/lib/app_kind";
 import mail_icon from "@/assets/app_icons/mail.png?inline";
 import { use_dated_calendar_icon } from "@/lib/dated_calendar_icon";
 
@@ -38,7 +37,7 @@ interface SignInAppEntry {
 export function SignInAppsRow() {
   const { t } = use_i18n();
   const calendar_icon = use_dated_calendar_icon("app");
-  const current: SignInAppEntry["id"] = is_calendar_app() ? "calendar" : "mail";
+  const current: SignInAppEntry["id"] = "calendar";
 
   const apps: SignInAppEntry[] = [
     {

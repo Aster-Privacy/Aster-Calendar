@@ -18,7 +18,7 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import type { Attachment } from "@/components/compose/compose_shared";
+import type { Attachment } from "@/types/attachment";
 
 import {
   encrypt_envelope_with_bytes,
@@ -39,7 +39,6 @@ import {
 import { zero_uint8_array } from "./secure_memory";
 import { seal_sent_envelope } from "./sent_copy_seal";
 
-import { sanitize_download_filename } from "@/lib/attachment_utils";
 import {
   attachment_keys_version,
   get_attachment_key,
@@ -779,22 +778,4 @@ function read_unencrypted_attachment(data_b64: string): ArrayBuffer {
     bytes.byteOffset,
     bytes.byteOffset + bytes.byteLength,
   ) as ArrayBuffer;
-}
-
-export function download_decrypted_attachment(
-  data: ArrayBuffer,
-  filename: string,
-  content_type: string,
-): void {
-  const blob = new Blob([data], { type: content_type });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = url;
-  link.download = sanitize_download_filename(filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

@@ -25,7 +25,6 @@ import {
   SkipLink,
   StepShell,
 } from "@/components/register/register_shared";
-import { is_calendar_app } from "@/lib/app_kind";
 
 interface RegisterStepNotificationsProps {
   reg: UseRegistrationReturn;
@@ -34,20 +33,14 @@ interface RegisterStepNotificationsProps {
 export const RegisterStepNotifications = ({
   reg,
 }: RegisterStepNotificationsProps) => {
-  const is_calendar = is_calendar_app();
-
   return (
     <StepShell
       step_key="notifications"
       subtitle={reg.t(
-        is_calendar
-          ? "auth.calendar_notifications_step_desc"
-          : "auth.notifications_step_desc",
+        "auth.calendar_notifications_step_desc",
       )}
       title={reg.t(
-        is_calendar
-          ? "auth.calendar_notifications_step_title"
-          : "auth.notifications_step_title",
+        "auth.calendar_notifications_step_title",
       )}
     >
       <div
@@ -65,21 +58,17 @@ export const RegisterStepNotifications = ({
               alt=""
               className="mt-0.5 h-6 w-6 rounded-md"
               draggable={false}
-              src={is_calendar ? "/calendar_logo.png" : "/mail_logo.png"}
+              src="/calendar_logo.png"
             />
             <div className="min-w-0">
               <div className="truncate text-xs font-semibold">
                 {reg.t(
-                  is_calendar
-                    ? "auth.calendar_notification_preview_title"
-                    : "auth.notification_preview_title",
+                  "auth.calendar_notification_preview_title",
                 )}
               </div>
               <div className="line-clamp-2 text-xs leading-snug opacity-80">
                 {reg.t(
-                  is_calendar
-                    ? "auth.calendar_notification_preview_body"
-                    : "auth.notification_preview_body",
+                  "auth.calendar_notification_preview_body",
                 )}
               </div>
             </div>

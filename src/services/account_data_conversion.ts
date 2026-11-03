@@ -21,7 +21,7 @@
 import type { AccountDataConversionStatus } from "./api/account_key";
 
 import { list_attachments } from "./api/attachments";
-import { list_encrypted_mail_items } from "./api/mail";
+import { list_encrypted_mail_items } from "./api/mail_items";
 import {
   convert_attachment_meta,
   convert_sent_envelope,

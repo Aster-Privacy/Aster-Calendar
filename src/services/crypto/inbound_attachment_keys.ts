@@ -92,16 +92,6 @@ const listeners = new Set<() => void>();
 export const attachment_keys_version = (mail_item_id?: string): number =>
   mail_item_id ? (item_versions.get(mail_item_id) ?? 0) : version;
 
-export const subscribe_attachment_keys = (
-  listener: () => void,
-): (() => void) => {
-  listeners.add(listener);
-
-  return () => {
-    listeners.delete(listener);
-  };
-};
-
 let notify_scheduled = false;
 
 const notify_listeners_soon = (): void => {

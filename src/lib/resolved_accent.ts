@@ -18,7 +18,6 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import { useSyncExternalStore } from "react";
 
 import { css_color_to_hex } from "@/lib/avatar_color";
 import { contrast_ratio, LARGE_TEXT_CONTRAST } from "@/lib/email_ink";
@@ -69,23 +68,7 @@ export interface ResolvedAppearance {
 
 let appearance: ResolvedAppearance = { is_dark: current.is_dark };
 
-let initialized = false;
-let root_observer: MutationObserver | null = null;
-
 const listeners = new Set<() => void>();
-
-function observe_root_appearance(): void {
-  if (root_observer || typeof document === "undefined") return;
-  if (typeof MutationObserver === "undefined") return;
-
-  root_observer = new MutationObserver(() => {
-    refresh_resolved_accent();
-  });
-  root_observer.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ["class", "style"],
-  });
-}
 
 function read_color_var(
   styles: CSSStyleDeclaration,
@@ -100,8 +83,6 @@ function read_color_var(
 
 export function refresh_resolved_accent(): ResolvedAccent {
   if (typeof document === "undefined") return current;
-
-  initialized = true;
 
   const styles = getComputedStyle(document.documentElement);
   const accent =
@@ -139,43 +120,4 @@ export function refresh_resolved_accent(): ResolvedAccent {
   for (const listener of listeners) listener();
 
   return current;
-}
-
-export function get_resolved_accent(): ResolvedAccent {
-  observe_root_appearance();
-  if (!initialized) refresh_resolved_accent();
-
-  return current;
-}
-
-function subscribe_resolved_accent(listener: () => void): () => void {
-  observe_root_appearance();
-  listeners.add(listener);
-  refresh_resolved_accent();
-
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
-export function use_resolved_accent(): ResolvedAccent {
-  return useSyncExternalStore(
-    subscribe_resolved_accent,
-    get_resolved_accent,
-    get_resolved_accent,
-  );
-}
-
-export function get_resolved_appearance(): ResolvedAppearance {
-  get_resolved_accent();
-
-  return appearance;
-}
-
-export function use_resolved_appearance(): ResolvedAppearance {
-  return useSyncExternalStore(
-    subscribe_resolved_accent,
-    get_resolved_appearance,
-    get_resolved_appearance,
-  );
 }

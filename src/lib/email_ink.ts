@@ -21,11 +21,6 @@
 export const BODY_TEXT_CONTRAST = 4.5;
 export const LARGE_TEXT_CONTRAST = 3;
 
-const ACHROMATIC_SATURATION = 0.08;
-const NEUTRAL_LINK_HUE = 220;
-const NEUTRAL_LINK_SATURATION = 0.32;
-const INK_SATURATION_FLOOR = 0.45;
-const INK_SATURATION_CEILING = 0.85;
 const HOVER_LIGHTNESS_STEP = 0.14;
 
 const HEX_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
@@ -158,29 +153,6 @@ export function adjust_lightness_for_contrast(
   return best;
 }
 
-function seed_ink_hsl(accent: string): Hsl {
-  const hsl = hex_to_hsl(accent);
-
-  if (hsl.s < ACHROMATIC_SATURATION) {
-    return { h: NEUTRAL_LINK_HUE, s: NEUTRAL_LINK_SATURATION, l: hsl.l };
-  }
-
-  return {
-    ...hsl,
-    s: Math.min(INK_SATURATION_CEILING, Math.max(INK_SATURATION_FLOOR, hsl.s)),
-  };
-}
-
-export function derive_link_ink(
-  accent: string,
-  background: string,
-  target = BODY_TEXT_CONTRAST,
-): string {
-  const seed = hsl_to_hex(seed_ink_hsl(accent));
-
-  return adjust_lightness_for_contrast(seed, background, target);
-}
-
 export function derive_link_hover_ink(
   ink: string,
   background: string,
@@ -215,12 +187,4 @@ export function derive_visited_ink(
   });
 
   return adjust_lightness_for_contrast(muted, background, target);
-}
-
-export function derive_rail_color(
-  accent: string,
-  background: string,
-  target = LARGE_TEXT_CONTRAST,
-): string {
-  return derive_link_ink(accent, background, target);
 }

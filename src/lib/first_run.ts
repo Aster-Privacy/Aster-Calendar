@@ -24,7 +24,7 @@ export const FIRST_RUN_TOUR_KEY = "aster_first_run_tour";
 export const FIRST_RUN_PLAN_KEY = "aster_first_run_plan";
 export const FIRST_RUN_AT_KEY = "aster_first_run_at";
 export const FIRST_RUN_PLAN_DUE_KEY = "aster_first_run_plan_due";
-export const RECOVERY_SNOOZE_KEY = "aster_recovery_snooze_until";
+
 export const FIRST_RUN_TOUR_DONE_EVENT = "aster:first-run-tour-done";
 
 function read(key: string): string | null {
@@ -53,30 +53,8 @@ export function first_run_age_ms(): number | null {
   return Date.now() - started;
 }
 
-function recovery_snooze_key(scope?: string): string {
-  return scope ? `${RECOVERY_SNOOZE_KEY}_${scope}` : RECOVERY_SNOOZE_KEY;
-}
-
-export function is_recovery_snoozed(scope?: string): boolean {
-  const raw = read(recovery_snooze_key(scope));
-
-  if (!raw) return false;
-
-  const until = Number(raw);
-
-  return Number.isFinite(until) && Date.now() < until;
-}
-
-export function snooze_recovery(duration_ms: number, scope?: string): void {
-  safe_local_set(recovery_snooze_key(scope), String(Date.now() + duration_ms));
-}
-
 export function is_first_run_tour_pending(): boolean {
   return read(FIRST_RUN_TOUR_KEY) === "pending";
-}
-
-export function is_first_run_plan_pending(): boolean {
-  return read(FIRST_RUN_PLAN_KEY) === "pending";
 }
 
 export function clear_first_run_tour(): void {
@@ -95,17 +73,4 @@ export function clear_first_run_plan(): void {
 export function restore_first_run_plan(): void {
   safe_local_set(FIRST_RUN_PLAN_KEY, "pending");
   safe_local_remove(FIRST_RUN_PLAN_DUE_KEY);
-}
-
-export function schedule_first_run_plan(delay_ms: number): number {
-  const existing = read(FIRST_RUN_PLAN_DUE_KEY);
-  const due = Number(existing);
-
-  if (existing && Number.isFinite(due)) {
-    return Math.max(0, due - Date.now());
-  }
-
-  safe_local_set(FIRST_RUN_PLAN_DUE_KEY, String(Date.now() + delay_ms));
-
-  return delay_ms;
 }

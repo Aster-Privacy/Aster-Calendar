@@ -31,7 +31,7 @@ vi.mock("./api/attachments", () => ({
     update_attachment_meta(id, body),
 }));
 
-vi.mock("./api/mail", () => ({
+vi.mock("./api/mail_items", () => ({
   list_encrypted_mail_items: (query: unknown) =>
     list_encrypted_mail_items(query),
   update_mail_item: (id: string, body: unknown) => update_mail_item(id, body),

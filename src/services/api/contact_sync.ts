@@ -157,73 +157,6 @@ export async function list_sync_sources(): Promise<
   return { data: items, details: { failed_count: failed.length } };
 }
 
-export async function add_carddav_sync_source(
-  config: CardDAVConfig,
-): Promise<ApiResponse<DecryptedSyncSource>> {
-  const key = await get_contacts_encryption_key();
-  const config_json = JSON.stringify(config);
-  const nonce = crypto.getRandomValues(new Uint8Array(12));
-  const encrypted_config = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: nonce },
-    key,
-    new TextEncoder().encode(config_json),
-  );
-
-  const response = await api_client.post<SyncSource>(
-    "/contacts/v1/sync/sources",
-    {
-      source_type: "carddav",
-      encrypted_config: array_to_base64(new Uint8Array(encrypted_config)),
-      config_nonce: array_to_base64(nonce),
-    },
-  );
-
-  if (response.error || !response.data) {
-    return {
-      error: response.error || get_active_translations().common.save_failed,
-    };
-  }
-
-  return {
-    data: {
-      id: response.data.id,
-      source_type: response.data.source_type,
-      config,
-      last_sync_at: response.data.last_sync_at,
-      last_sync_status: response.data.last_sync_status,
-      contacts_synced: response.data.contacts_synced,
-      is_enabled: response.data.is_enabled,
-      created_at: response.data.created_at,
-    },
-  };
-}
-
-export async function delete_sync_source(
-  source_id: string,
-): Promise<ApiResponse<{ success: boolean }>> {
-  return api_client.delete<{ success: boolean }>(
-    `/contacts/v1/sync/sources/${source_id}`,
-  );
-}
-
-export async function toggle_sync_source(
-  source_id: string,
-): Promise<ApiResponse<SyncSource>> {
-  return api_client.post<SyncSource>(
-    `/contacts/v1/sync/sources/${source_id}/toggle`,
-    {},
-  );
-}
-
-export async function trigger_sync(
-  source_id: string,
-): Promise<ApiResponse<{ success: boolean }>> {
-  return api_client.post<{ success: boolean }>(
-    `/contacts/v1/sync/sources/${source_id}/sync`,
-    {},
-  );
-}
-
 async function generate_search_token(value: string): Promise<string> {
   await get_contacts_encryption_key();
   const raw_key = get_derived_encryption_key();
@@ -296,19 +229,6 @@ export async function import_csv(
     { contacts },
     { timeout: IMPORT_TIMEOUT_MS },
   );
-}
-
-interface ExportResponse {
-  vcard_data: string;
-  contact_count: number;
-}
-
-export async function export_vcard(): Promise<ApiResponse<ExportResponse>> {
-  return api_client.get<ExportResponse>("/contacts/v1/export/vcard");
-}
-
-export async function export_csv(): Promise<ApiResponse<ExportResponse>> {
-  return api_client.get<ExportResponse>("/contacts/v1/export/csv");
 }
 
 const VCARD_PHONE_TYPES: Record<string, PhoneEntryType> = {

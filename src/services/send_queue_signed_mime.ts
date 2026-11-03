@@ -18,7 +18,7 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import type { Attachment } from "@/components/compose/compose_shared";
+import type { Attachment } from "@/types/attachment";
 
 import { array_to_base64 } from "./crypto/base64";
 import { is_internal_recipient } from "./recipient_classification";

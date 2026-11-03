@@ -71,7 +71,7 @@ import { base64_to_array } from "./envelope";
 
 import { reset_account_key_capabilities_cache } from "@/services/api/account_key";
 
-import type { Attachment } from "@/components/compose/compose_shared";
+import type { Attachment } from "@/types/attachment";
 
 const PASSPHRASE = "attachment passphrase";
 

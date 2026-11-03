@@ -20,16 +20,18 @@
 //
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MODEL_CACHE_NAME } from "@/services/translation/model_source";
-
-const STALE_APP_CACHES = ["aster_push_strings", "aster-runtime-assets"];
+const STALE_APP_CACHES = [
+  "aster_push_strings",
+  "aster-runtime-assets",
+  "workbox-precache-v2-https://calendar.astermail.org/",
+];
 
 let cache_names: Set<string>;
 let deleted: string[];
 let reloads: number;
 
 beforeEach(() => {
-  cache_names = new Set([MODEL_CACHE_NAME, ...STALE_APP_CACHES]);
+  cache_names = new Set(STALE_APP_CACHES);
   deleted = [];
   reloads = 0;
 
@@ -52,14 +54,14 @@ afterEach(() => {
 });
 
 describe("hard_flush_and_reload", () => {
-  it("keeps downloaded translation models when a new build is loaded", async () => {
+  it("clears every app cache when a new build is loaded", async () => {
     vi.resetModules();
     const { hard_flush_and_reload } = await import("./version_check");
 
     await hard_flush_and_reload();
 
     expect(reloads).toBe(1);
-    expect(cache_names.has(MODEL_CACHE_NAME)).toBe(true);
+    expect(cache_names.size).toBe(0);
     expect([...deleted].sort()).toEqual([...STALE_APP_CACHES].sort());
   });
 });

@@ -38,7 +38,7 @@ import {
 import { checkout_error_text } from "./checkout_error_text";
 
 import { safe_local_set } from "@/lib/safe_storage";
-import { calendar_booking_available, is_calendar_app } from "@/lib/app_kind";
+import { calendar_booking_available } from "@/lib/app_kind";
 import { calendar_plan_limits } from "@/lib/calendar_plan_limits";
 import { use_i18n } from "@/lib/i18n/context";
 import { LoadFailedNotice } from "@/components/settings/load_failed_notice";
@@ -152,87 +152,7 @@ export function calendar_feature_list_for_tier(
 }
 
 function feature_list_for_tier(tier_id: string, t: TFunc): FeatureRow[] {
-  if (is_calendar_app()) return calendar_feature_list_for_tier(tier_id, t);
-
-  const unlimited = t("settings.unlimited");
-
-  if (tier_id === "star") {
-    return [
-      {
-        on: true,
-        text: with_bold("50 GB", t("settings.encrypted_storage_suffix")),
-      },
-      { on: true, text: with_bold("15", t("settings.email_aliases_suffix")) },
-      { on: true, text: with_bold("5", t("settings.custom_domains_suffix")) },
-      { on: true, text: with_bold("50 MB", t("settings.attachments_suffix")) },
-      { on: true, text: with_bold(unlimited, t("settings.mail_rules_suffix")) },
-      { on: true, text: t("settings.f_e2ee") },
-      { on: true, text: t("settings.f_zero_knowledge") },
-      { on: true, text: t("settings.f_tracker_protection_long") },
-      { on: true, text: t("settings.plan_f_alias_avatars") },
-      { on: true, text: t("settings.plan_f_catch_all") },
-      { on: true, text: t("settings.f_auto_forward") },
-      { on: true, text: t("settings.plan_f_support_priority") },
-      { on: true, text: t("settings.plan_f_imap_smtp_bridge") },
-      { on: false, text: t("settings.f_folder_lock") },
-      { on: false, text: t("settings.plan_f_smart_folders") },
-      { on: false, text: t("settings.lockdown_title") },
-    ];
-  }
-  if (tier_id === "nova") {
-    return [
-      {
-        on: true,
-        text: with_bold("500 GB", t("settings.encrypted_storage_suffix")),
-      },
-      {
-        on: true,
-        text: with_bold(unlimited, t("settings.email_aliases_suffix")),
-      },
-      { on: true, text: with_bold("30", t("settings.custom_domains_suffix")) },
-      { on: true, text: with_bold("100 MB", t("settings.attachments_suffix")) },
-      { on: true, text: with_bold(unlimited, t("settings.mail_rules_suffix")) },
-      { on: true, text: t("settings.f_e2ee") },
-      { on: true, text: t("settings.f_zero_knowledge") },
-      { on: true, text: t("settings.f_tracker_protection_long") },
-      { on: true, text: t("settings.plan_f_alias_avatars") },
-      { on: true, text: t("settings.plan_f_catch_all") },
-      { on: true, text: t("settings.f_auto_forward") },
-      { on: true, text: t("settings.plan_f_support_priority") },
-      { on: true, text: t("settings.plan_f_imap_smtp_bridge") },
-      { on: true, text: t("settings.f_folder_lock") },
-      { on: true, text: t("settings.plan_f_smart_folders") },
-      { on: true, text: t("settings.lockdown_title") },
-    ];
-  }
-
-  return [
-    {
-      on: true,
-      text: with_bold("5 TB", t("settings.encrypted_storage_suffix")),
-    },
-    {
-      on: true,
-      text: with_bold(unlimited, t("settings.email_aliases_suffix")),
-    },
-    {
-      on: true,
-      text: with_bold(unlimited, t("settings.custom_domains_suffix")),
-    },
-    { on: true, text: with_bold("250 MB", t("settings.attachments_suffix")) },
-    { on: true, text: with_bold(unlimited, t("settings.mail_rules_suffix")) },
-    { on: true, text: t("settings.f_e2ee") },
-    { on: true, text: t("settings.f_zero_knowledge") },
-    { on: true, text: t("settings.f_tracker_protection_long") },
-    { on: true, text: t("settings.plan_f_alias_avatars") },
-    { on: true, text: t("settings.plan_f_catch_all") },
-    { on: true, text: t("settings.f_auto_forward") },
-    { on: true, text: t("settings.plan_f_support_priority") },
-    { on: true, text: t("settings.plan_f_imap_smtp_bridge") },
-    { on: true, text: t("settings.f_folder_lock") },
-    { on: true, text: t("settings.plan_f_smart_folders") },
-    { on: true, text: t("settings.lockdown_title") },
-  ];
+  return calendar_feature_list_for_tier(tier_id, t);
 }
 
 const CHECK_SVG = (
@@ -509,18 +429,10 @@ export function PlanUpgradeSelection({
   return (
     <div className="fixed inset-0 overflow-y-auto bg-surf-primary">
       <div className="min-h-full flex flex-col items-center px-4 py-10">
-        {is_calendar_app() ? (
+        {(
           <DatedCalendarLogo
             alt={t("calendar.aster_calendar_brand")}
             className="mb-6 h-9 w-auto object-contain"
-          />
-        ) : (
-          <img
-            alt="Aster"
-            className="h-10 mb-6"
-            decoding="async"
-            draggable={false}
-            src="/text_logo.png"
           />
         )}
 

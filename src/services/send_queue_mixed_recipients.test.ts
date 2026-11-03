@@ -79,19 +79,11 @@ vi.mock("@/services/api/send", () => ({
   send_external_email: vi.fn(async () => ({ data: { success: true } })),
 }));
 
-vi.mock("@/services/api/mail", () => ({
-  mark_thread_read: vi.fn(async () => ({ data: {} })),
-  list_encrypted_mail_items: vi.fn(async () => ({
-    data: { items: [], next_cursor: null },
-  })),
-  update_mail_item: vi.fn(async () => ({ data: {} })),
-}));
-
 vi.mock("@/services/api/attachments", () => ({
   create_attachment: vi.fn(async () => ({ data: {} })),
 }));
 
-vi.mock("@/services/crypto/mail_metadata", () => ({
+vi.mock("@/services/crypto/mail_metadata_core", () => ({
   encrypt_mail_metadata: vi.fn(async () => ({
     encrypted_metadata: "meta-ct",
     metadata_nonce: "meta-nonce",

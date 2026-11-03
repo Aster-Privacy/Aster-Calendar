@@ -46,7 +46,7 @@ import {
   type SubscriptionResponse,
 } from "@/services/api/billing";
 import { request_cache } from "@/services/api/request_cache";
-import { use_mail_stats, invalidate_mail_stats } from "@/hooks/use_mail_stats";
+import { use_storage_usage, invalidate_storage_usage } from "@/hooks/use_storage_usage";
 import { show_toast } from "@/components/toast/simple_toast";
 import { safe_local_set } from "@/lib/safe_storage";
 import { use_i18n } from "@/lib/i18n/context";
@@ -60,7 +60,7 @@ function crypto_term_prices_for(plan_code: string) {
 
 export function OnionBillingSection() {
   const { t } = use_i18n();
-  const { stats } = use_mail_stats();
+  const { stats } = use_storage_usage();
   const plan_features = use_plan_features();
 
   const [subscription, set_subscription] =
@@ -128,7 +128,7 @@ export function OnionBillingSection() {
       if (response.data) {
         show_toast(t("settings.subscription_reactivated"), "success");
         request_cache.invalidate("/payments/v1");
-        invalidate_mail_stats();
+        invalidate_storage_usage();
         await load_data();
       } else {
         show_toast(

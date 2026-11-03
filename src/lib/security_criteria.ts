@@ -30,10 +30,7 @@ export type SecurityCriterionId =
   | "passkey"
   | "recovery_codes"
   | "recovery_email"
-  | "login_alerts"
-  | "tracking_pixels"
-  | "remote_images"
-  | "strip_exif";
+  | "login_alerts";
 
 export interface SecurityCriterionSource {
   totp_enabled: boolean;
@@ -41,9 +38,6 @@ export interface SecurityCriterionSource {
   recovery_codes_saved: boolean;
   recovery_email_verified: boolean;
   login_alerts_enabled: boolean;
-  block_tracking_pixels: boolean;
-  block_remote_images: boolean;
-  strip_exif_on_compose: boolean;
 }
 
 export interface SecurityCriterion {
@@ -59,16 +53,7 @@ export const SECURITY_CRITERION_IDS: readonly SecurityCriterionId[] = [
   "recovery_codes",
   "recovery_email",
   "login_alerts",
-  "tracking_pixels",
-  "remote_images",
-  "strip_exif",
 ];
-
-const MAIL_ONLY_CRITERION_IDS: ReadonlySet<SecurityCriterionId> = new Set([
-  "tracking_pixels",
-  "remote_images",
-  "strip_exif",
-]);
 
 export const SECURITY_CRITERION_TARGETS: Record<
   SecurityCriterionId,
@@ -85,9 +70,6 @@ export const SECURITY_CRITERION_TARGETS: Record<
     anchor: SETTINGS_ANCHORS.recovery_email,
   },
   login_alerts: { section: "security", anchor: SETTINGS_ANCHORS.login_alerts },
-  tracking_pixels: { section: "security", anchor: SETTINGS_ANCHORS.tracking },
-  remote_images: { section: "security", anchor: SETTINGS_ANCHORS.images },
-  strip_exif: { section: "security", anchor: SETTINGS_ANCHORS.images },
 };
 
 const CRITERION_LABELS: Record<SecurityCriterionId, TranslationKey> = {
@@ -96,14 +78,10 @@ const CRITERION_LABELS: Record<SecurityCriterionId, TranslationKey> = {
   recovery_codes: "settings.criterion_recovery_codes",
   recovery_email: "settings.criterion_recovery_email",
   login_alerts: "settings.criterion_login_alerts",
-  tracking_pixels: "settings.block_spy_pixels",
-  remote_images: "settings.block_remote_images_label",
-  strip_exif: "settings.strip_exif_on_compose_label",
 };
 
 export function build_security_criteria(
   source: SecurityCriterionSource,
-  account_only = false,
 ): SecurityCriterion[] {
   const met: Record<SecurityCriterionId, boolean> = {
     two_factor: source.totp_enabled,
@@ -111,16 +89,9 @@ export function build_security_criteria(
     recovery_codes: source.recovery_codes_saved,
     recovery_email: source.recovery_email_verified,
     login_alerts: source.login_alerts_enabled,
-    tracking_pixels: source.block_tracking_pixels,
-    remote_images: source.block_remote_images,
-    strip_exif: source.strip_exif_on_compose,
   };
 
-  const ids = account_only
-    ? SECURITY_CRITERION_IDS.filter((id) => !MAIL_ONLY_CRITERION_IDS.has(id))
-    : SECURITY_CRITERION_IDS;
-
-  return ids.map((id) => ({
+  return SECURITY_CRITERION_IDS.map((id) => ({
     id,
     label_key: CRITERION_LABELS[id],
     met: met[id],

@@ -177,9 +177,3 @@ export function use_is_mobile(): boolean {
 
   return is_phone || (is_tablet && is_native);
 }
-
-export function use_show_mobile_ui(): boolean {
-  const { is_phone, is_native, viewport_width } = use_platform();
-
-  return is_phone || (is_native && viewport_width < TABLET_MIN_WIDTH);
-}

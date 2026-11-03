@@ -29,7 +29,7 @@ const DEV_SUPPORT_ORIGINS = [
   "http://localhost:4323",
   "http://localhost:4324",
 ];
-const DEV_LINK_ORIGINS = ["http://localhost:5175", "http://localhost:5176"];
+
 const PROD_SUPPORT_ORIGINS = ["https://support.astermail.org"];
 const RETURN_PARAM = "return_to";
 const STORAGE_KEY = "aster_support_return";
@@ -56,16 +56,6 @@ export function support_site_origins(): string[] {
   if (list.length > 0) return list;
 
   return import.meta.env.DEV ? DEV_SUPPORT_ORIGINS : PROD_SUPPORT_ORIGINS;
-}
-
-export function account_link_origins(): string[] {
-  const list = parse_origins(
-    import.meta.env.VITE_ACCOUNT_LINK_ORIGINS as string | undefined,
-  );
-
-  if (list.length > 0) return list;
-
-  return import.meta.env.DEV ? DEV_LINK_ORIGINS : [];
 }
 
 export function safe_support_return(raw: string | null): string | null {

@@ -28,15 +28,6 @@ import {
 } from "react";
 
 export type SettingsPanelName =
-  | "auto_forward"
-  | "blocked"
-  | "allowlist"
-  | "signature"
-  | "templates"
-  | "import"
-  | "external_accounts"
-  | "vacation_reply"
-  | "ghost_aliases"
   | "sessions"
   | "recovery_email"
   | "preferences"

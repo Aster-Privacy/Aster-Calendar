@@ -263,10 +263,6 @@ function schedule_deferred_publish(): void {
   armed = true;
 }
 
-export function has_deferred_prekey_publish(): boolean {
-  return deferred_publish_unsubscribe !== null;
-}
-
 export async function upload_prekey_bundle_result(
   vault: EncryptedVault,
 ): Promise<UploadPrekeyBundleResult> {

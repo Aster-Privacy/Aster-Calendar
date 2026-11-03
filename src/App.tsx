@@ -33,11 +33,13 @@ import {
   is_activated_plan,
   wait_for_slow_activation,
 } from "@/lib/billing_activation_poll";
-import { CheckoutReturnHandler } from "@/components/common/checkout_return_handler";
+import {
+  CheckoutReturnHandler,
+} from "@/components/common/checkout_return_handler";
 import { request_cache } from "@/services/api/request_cache";
 import { is_tauri_env } from "@/services/api/client/helpers";
 import { open_external } from "@/utils/open_link";
-import { invalidate_mail_stats } from "@/hooks/use_mail_stats";
+import { invalidate_storage_usage } from "@/hooks/use_storage_usage";
 import {
   show_toast,
   TOAST_DURATION_BILLING_MS,
@@ -45,31 +47,32 @@ import {
 import { use_i18n } from "@/lib/i18n/context";
 import { use_auth } from "@/contexts/auth_context";
 import { ProtectedRoute } from "@/components/common/protected_route";
-import { SuspendedAccountGate } from "@/components/common/suspended_account_gate";
+import {
+  SuspendedAccountGate,
+} from "@/components/common/suspended_account_gate";
 import { Family2faDialog } from "@/components/common/family_2fa_dialog";
-import { PendingDeletionDialog } from "@/components/common/pending_deletion_dialog";
+import {
+  PendingDeletionDialog,
+} from "@/components/common/pending_deletion_dialog";
 import { DesktopPairGate } from "@/components/common/desktop_pair_gate";
 import { UpdateBanner } from "@/components/updates/update_banner";
 import { ActionToast } from "@/components/toast/action_toast";
 import { SimpleToast } from "@/components/toast/simple_toast";
-import { KeyTrustChangePrompt } from "@/components/compose/key_trust_change_prompt";
-import { PostQuantumSendPrompt } from "@/components/compose/post_quantum_send_prompt";
-import { UnsubscribeConfirmationModal } from "@/components/modals/unsubscribe_confirmation_modal";
 import {
   show_checkout_cancelled_upgrade,
   use_upgrade_prompt_events,
   type UpgradeInterval,
 } from "@/stores/upgrade_store";
-import { is_resumable_checkout_plan } from "@/components/settings/billing/billing_constants";
-import { ProfilePictureDialog } from "@/components/profile/profile_picture_dialog";
+import {
+  is_resumable_checkout_plan,
+} from "@/components/settings/billing/billing_constants";
+import {
+  ProfilePictureDialog,
+} from "@/components/profile/profile_picture_dialog";
 import { request_special_offer_checkout } from "@/stores/special_offer_store";
-import { UndoSendContainer } from "@/components/toast/undo_send_container";
-import { UndoSendPreviewModal } from "@/components/toast/undo_send_preview_modal";
-import { FolderUnlockPrompt } from "@/components/folders/folder_unlock_prompt";
 import { OfflineIndicator } from "@/components/common/offline_indicator";
 import { FullPageLoader } from "@/components/common/full_page_loader";
 import { ErrorBoundary } from "@/components/ui/error_boundary";
-import { AppLock } from "@/components/mobile/app_lock";
 import { install_global_autoscroll } from "@/lib/global_autoscroll";
 import { ignore_error } from "@/lib/ignore_error";
 import { safe_local_get } from "@/lib/safe_storage";
@@ -95,7 +98,6 @@ const ResetPasswordPage = lazy_with_retry(
 const VerifyRecoveryEmailPage = lazy_with_retry(
   () => import("@/pages/verify_recovery_email"),
 );
-const SecureViewPage = lazy_with_retry(() => import("@/pages/secure_view"));
 const NotFoundPage = lazy_with_retry(() => import("@/pages/not_found"));
 const LinkDevicePage = lazy_with_retry(() => import("@/pages/link_device"));
 const JoinFamilyPage = lazy_with_retry(() => import("@/pages/join_family"));
@@ -106,11 +108,6 @@ const CryptoInvoicePage = lazy_with_retry(
 const UpgradeModal = lazy_with_retry(() =>
   import("@/components/upgrade/upgrade_modal").then((m) => ({
     default: m.UpgradeModal,
-  })),
-);
-const AliasCapUpsellModal = lazy_with_retry(() =>
-  import("@/components/upgrade/alias_cap_upsell_modal").then((m) => ({
-    default: m.AliasCapUpsellModal,
   })),
 );
 const SpecialOfferModal = lazy_with_retry(() =>
@@ -172,8 +169,8 @@ function has_seen_family_welcome(account_id: string): boolean {
 function mark_family_welcome_seen(account_id: string): void {
   try {
     localStorage.setItem(`${FAMILY_WELCOME_SEEN_KEY_PREFIX}${account_id}`, "1");
-  } catch {
-    // best-effort persistence; a full disk or blocked storage should not crash the app
+  } catch (caught) {
+    ignore_error("App:mark_family_welcome_seen", caught);
   }
 }
 
@@ -305,19 +302,17 @@ function BillingSuccessHandler() {
 
     (async () => {
       request_cache.invalidate("/payments/v1");
-      invalidate_mail_stats();
-      try {
-        await activate_subscription();
-      } catch {
-        // best-effort; webhook is source of truth
-      }
+      invalidate_storage_usage();
+      await activate_subscription().catch((caught) =>
+        ignore_error("App:activate_subscription", caught),
+      );
       const checkout_target = read_checkout_target();
       const target = checkout_target?.plan_code ?? null;
 
       clear_checkout_target();
 
       const welcome = (data: SubscriptionResponse) => {
-        invalidate_mail_stats();
+        invalidate_storage_usage();
         window.dispatchEvent(new CustomEvent("aster:plan-changed"));
         const code = data.plan.code;
 
@@ -361,7 +356,7 @@ function BillingSuccessHandler() {
         }
       }
       request_cache.invalidate("/payments/v1");
-      invalidate_mail_stats();
+      invalidate_storage_usage();
       window.dispatchEvent(new CustomEvent("aster:plan-changed"));
       show_toast(
         t("settings.payment_processing_delayed"),
@@ -450,7 +445,7 @@ function App() {
   }, []);
 
   return (
-    <AppLock>
+    <>
       <ErrorBoundary fallback={null}>
         <BillingSuccessHandler />
       </ErrorBoundary>
@@ -470,27 +465,6 @@ function App() {
                   </ProtectedRoute>
                 }
                 path="/"
-              />
-              <Route element={<Navigate replace to="/" />} path="/all" />
-              <Route element={<Navigate replace to="/" />} path="/starred" />
-              <Route element={<Navigate replace to="/" />} path="/sent" />
-              <Route element={<Navigate replace to="/" />} path="/drafts" />
-              <Route element={<Navigate replace to="/" />} path="/scheduled" />
-              <Route element={<Navigate replace to="/" />} path="/snoozed" />
-              <Route element={<Navigate replace to="/" />} path="/archive" />
-              <Route element={<Navigate replace to="/" />} path="/spam" />
-              <Route element={<Navigate replace to="/" />} path="/trash" />
-              <Route
-                element={<Navigate replace to="/" />}
-                path="/folder/:folder_token"
-              />
-              <Route
-                element={<Navigate replace to="/" />}
-                path="/tag/:tag_token"
-              />
-              <Route
-                element={<Navigate replace to="/" />}
-                path="/alias/:alias_address"
               />
               <Route element={<SignInPage />} path="/sign-in" />
               <Route element={<RegisterPage />} path="/register" />
@@ -513,16 +487,6 @@ function App() {
                 path="/privacy"
               />
               <Route
-                element={<Navigate replace to="/" />}
-                path="/email/:email_id"
-              />
-              <Route element={<Navigate replace to="/" />} path="/contacts" />
-              <Route
-                element={<Navigate replace to="/" />}
-                path="/subscriptions"
-              />
-              <Route element={<Navigate replace to="/" />} path="/compose" />
-              <Route
                 element={
                   <ProtectedRoute>
                     <CalendarPage />
@@ -537,7 +501,6 @@ function App() {
                 path="/family/claim/:token"
               />
               <Route element={<BookingPage />} path="/book/:slug" />
-              <Route element={<SecureViewPage />} path="/view/:token" />
               <Route
                 element={
                   <ProtectedRoute>
@@ -553,13 +516,9 @@ function App() {
       </ErrorBoundary>
       <ActionToast />
       <SimpleToast />
-      <UnsubscribeConfirmationModal />
-      <KeyTrustChangePrompt />
-      <PostQuantumSendPrompt />
       <ErrorBoundary fallback={null}>
         <Suspense fallback={null}>
           <UpgradeModal />
-          <AliasCapUpsellModal />
         </Suspense>
       </ErrorBoundary>
       <ProfilePictureDialog />
@@ -568,11 +527,8 @@ function App() {
           <SpecialOfferModal />
         </Suspense>
       </ErrorBoundary>
-      <UndoSendContainer max_visible={3} position="bottom-center" />
-      <UndoSendPreviewModal />
-      <FolderUnlockPrompt />
       <GlobalOfflineIndicator />
-    </AppLock>
+    </>
   );
 }
 

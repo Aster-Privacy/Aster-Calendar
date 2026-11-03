@@ -56,18 +56,6 @@ const options: SenderOption[] = [
     type: "domain",
     is_enabled: true,
   },
-  {
-    id: "ghost-1",
-    email: "ghost@astermail.org",
-    type: "ghost",
-    is_enabled: true,
-  },
-  {
-    id: "external-1",
-    email: "me@example.com",
-    type: "external",
-    is_enabled: true,
-  },
 ];
 
 describe("mail_default_invite_email", () => {
@@ -93,11 +81,6 @@ describe("mail_default_invite_email", () => {
 
   it("ignores a disabled alias", () => {
     expect(mail_default_invite_email(options, "alias-2")).toBeNull();
-  });
-
-  it("ignores addresses that cannot send invitations", () => {
-    expect(mail_default_invite_email(options, "ghost-1")).toBeNull();
-    expect(mail_default_invite_email(options, "external-1")).toBeNull();
   });
 
   it("ignores an unknown id", () => {

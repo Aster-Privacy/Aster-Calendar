@@ -24,28 +24,15 @@ import { createRoot, type Root } from "react-dom/client";
 
 import { QuickSecurityPanel } from "./quick_security_panel";
 
-import { format_key_fingerprint } from "@/hooks/use_security_overview";
-
 const totp_status = vi.fn();
 const hardware_keys = vi.fn();
 const login_alerts = vi.fn();
 const recovery_email = vi.fn();
 const recovery_methods = vi.fn();
 const codes_status = vi.fn();
-const identity_key_status = vi.fn();
-
-let preferences = {
-  block_tracking_pixels: false,
-  block_remote_images: false,
-  strip_exif_on_compose: false,
-};
 
 vi.mock("@/lib/i18n/context", () => ({
   use_i18n: () => ({ t: (key: string) => key }),
-}));
-
-vi.mock("@/contexts/preferences_context", () => ({
-  use_preferences: () => ({ preferences }),
 }));
 
 vi.mock("@/lib/overlay_layer_stack", () => ({
@@ -89,25 +76,6 @@ vi.mock("@/services/api/lockdown", () => ({
   get_lockdown_status: () => Promise.resolve({ data: { enabled: false } }),
 }));
 
-vi.mock("@/services/api/key_rotation", () => ({
-  get_identity_key_status: () => identity_key_status(),
-}));
-
-vi.mock("@/services/api/aliases", () => ({
-  get_alias_counts: () => Promise.resolve({ data: { count: 3, max: 10 } }),
-}));
-
-let alias_cache: {
-  id: string;
-  full_address: string;
-  is_enabled: boolean;
-}[] = [];
-
-vi.mock("@/hooks/use_sidebar_aliases", () => ({
-  subscribe_aliases: () => () => {},
-  get_cached_aliases: () => alias_cache,
-}));
-
 vi.mock("@/services/crypto/memory_key_store", () => ({
   get_vault_from_memory: () => ({ id: "vault" }),
 }));
@@ -121,11 +89,10 @@ describe("quick security panel", () => {
   let container: HTMLDivElement;
   let root: Root;
 
-  const render_panel = async (is_open = true, account_only = false) => {
+  const render_panel = async (is_open = true) => {
     await act(async () => {
       root.render(
         <QuickSecurityPanel
-          account_only={account_only}
           is_open={is_open}
           is_swapping={false}
           on_close={() => {}}
@@ -135,11 +102,6 @@ describe("quick security panel", () => {
   };
 
   beforeEach(() => {
-    preferences = {
-      block_tracking_pixels: false,
-      block_remote_images: false,
-      strip_exif_on_compose: false,
-    };
     totp_status.mockResolvedValue({ data: { enabled: false } });
     hardware_keys.mockResolvedValue({ data: { keys: [] } });
     login_alerts.mockResolvedValue({ data: { enabled: false } });
@@ -155,10 +117,6 @@ describe("quick security panel", () => {
       },
     });
     codes_status.mockResolvedValue({ data: null });
-    identity_key_status.mockResolvedValue({
-      data: { key_fingerprint: "ab:cd:ef:12:34:56:78:9a" },
-    });
-    alias_cache = [];
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -187,7 +145,7 @@ describe("quick security panel", () => {
       "ul:first-of-type > li > button",
     );
 
-    expect(pending).toHaveLength(8);
+    expect(pending).toHaveLength(5);
     expect(container.textContent).toContain(
       "settings.security_center_recommended",
     );
@@ -198,52 +156,13 @@ describe("quick security panel", () => {
 
   it("moves a met criterion into the protected list", async () => {
     totp_status.mockResolvedValue({ data: { enabled: true } });
-    preferences = {
-      block_tracking_pixels: true,
-      block_remote_images: true,
-      strip_exif_on_compose: true,
-    };
     await render_panel();
 
     const lists = container.querySelectorAll("ul");
 
     expect(lists).toHaveLength(2);
     expect(lists[0].querySelectorAll("li")).toHaveLength(4);
-    expect(lists[1].querySelectorAll("li")).toHaveLength(4);
-  });
-
-  it("previews enabled aliases first and counts the remainder", async () => {
-    alias_cache = [
-      { id: "1", full_address: "archive@aster.cx", is_enabled: false },
-      { id: "2", full_address: "shop@aster.cx", is_enabled: true },
-      { id: "3", full_address: "news@aster.cx", is_enabled: true },
-      { id: "4", full_address: "games@aster.cx", is_enabled: true },
-      { id: "5", full_address: "travel@aster.cx", is_enabled: true },
-      { id: "6", full_address: "work@aster.cx", is_enabled: true },
-    ];
-    await render_panel();
-
-    const rows = Array.from(container.querySelectorAll("ul")).find((list) =>
-      list.textContent?.includes("@aster.cx"),
-    );
-
-    expect(rows).toBeTruthy();
-    expect(
-      Array.from(rows!.querySelectorAll("li")).map((li) => li.textContent),
-    ).toEqual([
-      "games@aster.cx",
-      "news@aster.cx",
-      "shop@aster.cx",
-      "travel@aster.cx",
-    ]);
-    expect(container.textContent).toContain("common.n_more");
-  });
-
-  it("hides the alias preview when there are no aliases", async () => {
-    await render_panel();
-
-    expect(container.textContent).not.toContain("@aster.cx");
-    expect(container.textContent).not.toContain("common.n_more");
+    expect(lists[1].querySelectorAll("li")).toHaveLength(1);
   });
 
   it("reports a fully protected account with no recommendations", async () => {
@@ -269,11 +188,6 @@ describe("quick security panel", () => {
         used: [],
       },
     });
-    preferences = {
-      block_tracking_pixels: true,
-      block_remote_images: true,
-      strip_exif_on_compose: true,
-    };
     await render_panel();
 
     expect(container.textContent).toContain(
@@ -335,42 +249,6 @@ describe("quick security panel", () => {
     expect(container.textContent).toContain("settings.lockdown_title");
     expect(container.textContent).toContain("settings_search.active_sessions");
     expect(container.textContent).toContain("settings.trusted_devices");
-    expect(container.textContent).toContain("3/10");
-    expect(container.textContent).toContain(
-      "settings.security_center_encryption_title",
-    );
-    expect(container.textContent).toContain("3456 789A");
-  });
-
-  it("hides the encryption section without an identity key fingerprint", async () => {
-    identity_key_status.mockResolvedValue({ data: { key_fingerprint: null } });
-    await render_panel();
-
-    expect(container.textContent).toContain("settings.vanguard_title");
-    expect(container.textContent).not.toContain(
-      "settings.security_center_encryption_title",
-    );
-    expect(container.textContent).not.toContain(
-      "settings.security_center_identity_key",
-    );
-  });
-
-  it("leaves mail criteria, aliases, and encryption out in account-only mode", async () => {
-    alias_cache = [
-      { id: "1", full_address: "shop@aster.cx", is_enabled: true },
-    ];
-    await render_panel(true, true);
-
-    const pending = container.querySelectorAll(
-      "ul:first-of-type > li > button",
-    );
-
-    expect(pending).toHaveLength(5);
-    expect(container.textContent).not.toContain("@aster.cx");
-    expect(container.textContent).not.toContain(
-      "settings.security_center_encryption_title",
-    );
-    expect(container.textContent).toContain("settings.vanguard_title");
   });
 
   it("carries no refresh control in the header", async () => {
@@ -424,19 +302,5 @@ describe("quick security panel", () => {
     expect(container.textContent).not.toContain(
       "settings.failed_load_security_status",
     );
-  });
-});
-
-describe("format_key_fingerprint", () => {
-  it("returns nothing without a fingerprint", () => {
-    expect(format_key_fingerprint(null)).toBe("");
-  });
-
-  it("groups the last eight characters of a fingerprint", () => {
-    expect(format_key_fingerprint("ab:cd:ef:12:34:56:78:9a")).toBe("3456 789A");
-  });
-
-  it("returns a short fingerprint unchanged", () => {
-    expect(format_key_fingerprint("ab-cd")).toBe("ABCD");
   });
 });

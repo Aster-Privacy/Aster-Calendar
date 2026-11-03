@@ -29,13 +29,6 @@ import { Provider } from "@/provider";
 import { FullPageLoader } from "@/components/common/full_page_loader";
 import { ErrorBoundary } from "@/components/ui/error_boundary";
 import {
-  initialize_capacitor,
-  hide_splash,
-  is_native_platform,
-} from "@/native/capacitor_bridge";
-import { recover_fallback_sends } from "@/services/send_queue";
-import { initialize_offline_queue } from "@/native/offline_queue";
-import {
   start_version_check,
   version_check_blocking,
 } from "@/lib/version_check";
@@ -49,14 +42,11 @@ import { start_input_modality_tracking } from "@/lib/input_modality";
 import { probe_webauthn_related_origins } from "@/lib/app_kind";
 import { install_global_error_reporting } from "@/services/error_reporter";
 import { connection_store } from "@/services/routing/connection_store";
-import { apply_desktop_content_protection } from "@/native/desktop_content_protection";
-import { start_desktop_link_bridge } from "@/native/desktop_link_bridge";
-import { start_desktop_oauth_bridge } from "@/native/desktop_oauth_bridge";
-import { is_any_lockdown_active } from "@/services/lockdown_store";
 import {
-  compute_is_mobile_experience,
-  use_mobile_experience,
-} from "@/hooks/use_mobile_experience";
+  apply_desktop_content_protection,
+} from "@/native/desktop_content_protection";
+import { start_desktop_link_bridge } from "@/native/desktop_link_bridge";
+import { is_any_lockdown_active } from "@/services/lockdown_store";
 import { preload_initial_language } from "@/lib/i18n/context";
 import {
   app_pathname,
@@ -72,23 +62,18 @@ import { safe_local_get } from "@/lib/safe_storage";
 import { capture_support_return } from "@/lib/support_return";
 import { lazy_with_retry } from "@/utils/lazy_with_retry";
 
-const DesktopApp = lazy_with_retry(() => import("@/App"));
-const MobileApp = lazy_with_retry(() => import("@/mobile_app"));
+const App = lazy_with_retry(() => import("@/App"));
 
 function warm_shell_chunk(): void {
-  const load = compute_is_mobile_experience()
-    ? () => import("@/mobile_app")
-    : () => import("@/App");
-
-  load().catch((caught) => ignore_error("main:warm_shell_chunk", caught));
+  import("@/App").catch((caught) =>
+    ignore_error("main:warm_shell_chunk", caught),
+  );
 }
 
 function warm_startup_route_chunk(): void {
   const warm = (load: () => Promise<unknown>) => {
     load().catch((caught) => ignore_error("main:warm_startup_route", caught));
   };
-
-  if (compute_is_mobile_experience()) return;
 
   const path = app_pathname();
   const is_at = (route: string) =>
@@ -117,19 +102,6 @@ install_global_error_reporting();
 start_date_favicon();
 capture_support_return();
 
-initialize_capacitor().catch((e) => {
-  if (import.meta.env.DEV) console.error(e);
-});
-
-if (!is_native_platform()) {
-  recover_fallback_sends()
-    .catch((caught) => ignore_error("main", caught))
-    .finally(() => {
-      initialize_offline_queue().catch((caught) =>
-        ignore_error("main", caught),
-      );
-    });
-}
 
 const cached_prefs_raw = safe_local_get("aster_preferences_cache");
 let low_network_on_startup = false;
@@ -165,18 +137,10 @@ if (is_tauri_runtime) {
   void import("@tauri-apps/api/core")
     .then(({ invoke }) => {
       void invoke("frontend_ready");
-      const cached = Number(safe_local_get("aster_last_unread_badge") || "0");
-
-      if (Number.isFinite(cached) && cached > 0) {
-        void invoke("set_unread_badge", { count: Math.floor(cached) }).catch(
-          (caught) => ignore_error("main", caught),
-        );
-      }
     })
     .catch((caught) => ignore_error("main", caught));
   void apply_desktop_content_protection(is_any_lockdown_active());
   void start_desktop_link_bridge();
-  void start_desktop_oauth_bridge();
   void import("@/native/tauri_tray")
     .then(({ sync_close_to_tray }) => sync_close_to_tray())
     .catch((caught) => ignore_error("main", caught));
@@ -204,8 +168,8 @@ if (is_tauri_runtime && "serviceWorker" in navigator) {
         sessionStorage.setItem("aster:sw-flushed", "1");
         window.location.reload();
       }
-    } catch {
-      // ignore
+    } catch (caught) {
+      ignore_error("main:flush_tauri_service_worker", caught);
     }
   })();
 }
@@ -386,21 +350,11 @@ const Router = is_tauri_runtime ? HashRouter : BrowserRouter;
 const router_basename = resolve_account_basename();
 
 function RootShell(): JSX.Element {
-  const use_mobile = use_mobile_experience();
-
   if (!browser_supported) return <UnsupportedBrowserPage />;
-
-  if (use_mobile) {
-    return (
-      <Suspense fallback={<FullPageLoader />}>
-        <MobileApp />
-      </Suspense>
-    );
-  }
 
   return (
     <Suspense fallback={<FullPageLoader />}>
-      <DesktopApp />
+      <App />
     </Suspense>
   );
 }
@@ -455,9 +409,6 @@ setTimeout(() => {
 }, 3000);
 
 function dismiss_initial_loader() {
-  hide_splash().catch((caught) =>
-    ignore_error("main:dismiss_initial_loader", caught),
-  );
   const loader = document.getElementById("initial-loader");
 
   if (!loader) return;

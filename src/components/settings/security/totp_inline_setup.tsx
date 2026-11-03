@@ -38,7 +38,7 @@ import {
 } from "@/services/api/totp";
 import { use_i18n } from "@/lib/i18n/context";
 import { Spinner } from "@/components/ui/spinner";
-import mail_logo_url from "@/assets/mail_logo.webp";
+import calendar_logo_url from "@/assets/app_icons/calendar.png";
 import { copy_text } from "@/utils/copy_text";
 import {
   clear_totp_setup_cache,
@@ -177,7 +177,7 @@ export function TotpInlineSetup({ on_success }: TotpInlineSetupProps) {
               className="flex-shrink-0 flex justify-center"
             >
               <RoundedQrCode
-                logo_src={mail_logo_url}
+                logo_src={calendar_logo_url}
                 size={210}
                 value={setup_data.otpauth_uri}
               />

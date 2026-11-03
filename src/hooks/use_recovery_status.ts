@@ -59,17 +59,6 @@ const EMPTY: RecoveryStatusValues = {
   inactive_key_sets: 0,
 };
 
-export type RecoveryNudge = "phrase" | "codes" | "codes_low" | "email" | null;
-
-export function recovery_nudge(values: RecoveryStatusValues): RecoveryNudge {
-  if (values.needs_phrase_migration) return "phrase";
-  if (!values.has_codes) return "codes";
-  if (values.codes_low) return "codes_low";
-  if (!values.recovery_email_set) return "email";
-
-  return null;
-}
-
 export async function load_recovery_status(): Promise<RecoveryStatusValues | null> {
   const [methods, status] = await Promise.all([
     get_recovery_methods(),

@@ -68,7 +68,7 @@ import {
   get_dev_mode,
   save_dev_mode,
 } from "@/services/api/preferences";
-import { reencrypt_all_sent_mail } from "@/services/send_queue_encryption";
+import { reencrypt_all_sent_mail } from "@/services/sent_mail_reseal";
 import {
   convert_before_password_change,
   sent_mail_needs_password_reseal,

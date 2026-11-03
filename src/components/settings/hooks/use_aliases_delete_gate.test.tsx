@@ -47,8 +47,8 @@ vi.mock("@/hooks/use_plan_limits", () => ({
 }));
 
 vi.mock("@/components/toast/simple_toast", () => ({ show_toast: vi.fn() }));
-vi.mock("@/hooks/mail_events", async (import_original) => {
-  const actual = await import_original<typeof import("@/hooks/mail_events")>();
+vi.mock("@/hooks/app_events", async (import_original) => {
+  const actual = await import_original<typeof import("@/hooks/app_events")>();
 
   return { ...actual, emit_aliases_changed: vi.fn() };
 });

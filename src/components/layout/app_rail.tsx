@@ -30,7 +30,7 @@ import { use_panel_transition } from "@/components/layout/use_panel_transition";
 import { use_i18n } from "@/lib/i18n/context";
 import { use_preferences } from "@/contexts/preferences_context";
 import { use_dated_calendar_icon } from "@/lib/dated_calendar_icon";
-import { open_external } from "@/utils/open_link";
+import { open_mail_app } from "@/lib/mail_app";
 import mail_icon from "@/assets/app_icons/mail.png?inline";
 import {
   read_rail_contacts_open,
@@ -42,12 +42,7 @@ import {
 } from "@/lib/rail_security_open";
 
 const RAIL_HIDDEN_KEY = "aster_app_rail_hidden";
-const MAIL_APP_URL = "https://app.astermail.org";
 const CALENDAR_HOME_EVENT = "aster-calendar-home";
-
-function open_mail_app() {
-  open_external(MAIL_APP_URL);
-}
 
 function read_hidden() {
   try {
@@ -63,7 +58,6 @@ interface AppRailProps {
   on_contacts_open_change: (is_open: boolean) => void;
   on_security_open_change: (is_open: boolean) => void;
   on_compose: (address: string) => void;
-  account_only?: boolean;
 }
 
 function AppRailComponent({
@@ -72,7 +66,6 @@ function AppRailComponent({
   on_contacts_open_change,
   on_security_open_change,
   on_compose,
-  account_only = false,
 }: AppRailProps) {
   const { t } = use_i18n();
   const { preferences } = use_preferences();
@@ -227,7 +220,6 @@ function AppRailComponent({
             on_compose={on_compose}
           />
           <QuickSecurityPanel
-            account_only={account_only}
             is_open={is_security_open}
             is_swapping={is_swapping}
             on_close={close_security}

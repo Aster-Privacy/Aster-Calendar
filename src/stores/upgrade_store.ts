@@ -214,27 +214,6 @@ export function show_checkout_cancelled_upgrade(opts: {
   return true;
 }
 
-export function show_offer_upgrade(opts: {
-  plan_code?: string | null;
-  interval?: UpgradeInterval | null;
-}) {
-  if (is_on_auth_route()) return;
-  current = {
-    is_open: true,
-    reason: "offer",
-    limit_key: "generic",
-    feature_key: null,
-    resource_label: null,
-    server_message: null,
-    preselect_plan_code: opts.plan_code ?? null,
-    preselect_interval: opts.interval ?? "year",
-    offer_percent_off: null,
-    offer_promo_code: null,
-    open_seq: next_open_seq(),
-  };
-  notify();
-}
-
 export function show_upgrade_plans(opts?: {
   plan_code?: string | null;
   interval?: UpgradeInterval | null;

@@ -25,7 +25,6 @@ mod badges_data;
 mod boot_guard;
 mod device;
 mod http_client;
-mod translation_assets;
 
 use std::sync::Mutex;
 #[cfg(windows)]
@@ -471,7 +470,6 @@ fn main() {
                 let _ = window.set_focus();
             }
         }))
-        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
@@ -498,7 +496,6 @@ fn main() {
             set_tray_labels,
             set_content_protection,
             open_external_url,
-            translation_assets::fetch_translation_asset,
             device::crypto::device_get_pubkeys,
             device::crypto::device_set_id,
             device::crypto::device_sign_challenge,
@@ -518,15 +515,6 @@ fn main() {
             device::crypto::crypto_hmac_sign,
         ])
         .setup(|app| {
-            #[cfg(any(windows, target_os = "linux"))]
-            {
-                use tauri_plugin_deep_link::DeepLinkExt;
-
-                if let Err(error) = app.deep_link().register_all() {
-                    tracing::warn!(%error, "deep link scheme registration failed");
-                }
-            }
-
             let window_config = app
                 .config()
                 .app

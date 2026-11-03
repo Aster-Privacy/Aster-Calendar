@@ -557,30 +557,6 @@ export async function list_contacts(
   return api_client.get<ContactsListResponse>(endpoint);
 }
 
-const MAX_CONTACT_LIST_PAGES = 100;
-
-export async function list_all_contacts(
-  page_limit = 100,
-): Promise<ApiResponse<Contact[]>> {
-  const items: Contact[] = [];
-  let cursor: string | undefined;
-
-  for (let page = 0; page < MAX_CONTACT_LIST_PAGES; page += 1) {
-    const response = await list_contacts({ limit: page_limit, cursor });
-
-    if (response.error || !response.data) {
-      return {
-        error: response.error || get_active_translations().errors.load_failed,
-      };
-    }
-    items.push(...response.data.items);
-    if (!response.data.has_more || !response.data.next_cursor) break;
-    cursor = response.data.next_cursor;
-  }
-
-  return { data: items };
-}
-
 export async function get_contact(
   contact_id: string,
 ): Promise<ApiResponse<Contact>> {
@@ -874,15 +850,6 @@ export async function add_contact_to_group(
   );
 }
 
-export async function remove_contact_from_group(
-  contact_id: string,
-  group_id: string,
-): Promise<ApiResponse<{ success: boolean }>> {
-  return api_client.delete<{ success: boolean }>(
-    `/contacts/v1/${contact_id}/groups/${group_id}`,
-  );
-}
-
 export async function add_contacts_to_group(
   group_id: string,
   contact_ids: string[],
@@ -893,93 +860,10 @@ export async function add_contacts_to_group(
   );
 }
 
-export async function remove_contacts_from_group(
-  group_id: string,
-  contact_ids: string[],
-): Promise<ApiResponse<GroupMembershipChange>> {
-  return api_client.delete<GroupMembershipChange>(
-    `/contacts/v1/groups/${group_id}/members`,
-    { data: { contact_ids } },
-  );
-}
-
 export async function list_group_memberships(): Promise<
   ApiResponse<{ memberships: GroupMembership[] }>
 > {
   return api_client.get<{ memberships: GroupMembership[] }>(
     "/contacts/v1/groups/memberships",
   );
-}
-
-export async function list_groups_for_contact(
-  contact_id: string,
-): Promise<ApiResponse<{ groups: ContactGroup[] }>> {
-  const response = await api_client.get<{ groups: ContactGroupEncrypted[] }>(
-    `/contacts/v1/${contact_id}/groups`,
-  );
-
-  if (response.error || !response.data) {
-    return {
-      error: response.error || get_active_translations().errors.load_failed,
-    };
-  }
-
-  try {
-    return {
-      data: { groups: await decrypt_contact_groups(response.data.groups) },
-    };
-  } catch (err) {
-    return {
-      error: user_facing_error(
-        err,
-        get_active_translations().errors.load_failed,
-      ),
-    };
-  }
-}
-
-export async function reencrypt_all_contacts(): Promise<void> {
-  let cursor: string | undefined;
-
-  for (;;) {
-    const response = await list_contacts({ limit: 100, cursor });
-
-    if (!response.data?.items) return;
-
-    for (const contact of response.data.items) {
-      try {
-        const decrypted = await decrypt_contact_data(
-          contact.encrypted_data,
-          contact.data_nonce,
-        );
-        const { encrypted_data, data_nonce, integrity_hash } =
-          await encrypt_contact_data(decrypted);
-        const search_tokens = await generate_search_tokens(decrypted);
-
-        await update_contact(contact.id, {
-          encrypted_data,
-          data_nonce,
-          integrity_hash,
-          data_version: CONTACT_DATA_VERSION,
-          name_search_token: search_tokens.name_token,
-          email_search_token: search_tokens.email_token,
-          company_search_token: search_tokens.company_token,
-        });
-      } catch {
-        continue;
-      }
-    }
-
-    if (!response.data.has_more || !response.data.next_cursor) break;
-    cursor = response.data.next_cursor;
-  }
-}
-
-export async function get_contacts_count(
-  fresh = false,
-): Promise<ApiResponse<{ count: number }>> {
-  return api_client.get<{ count: number }>("/contacts/v1/count", {
-    cache_ttl: 60_000,
-    skip_cache: fresh,
-  });
 }

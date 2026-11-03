@@ -18,18 +18,12 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import type {
-  RecentRecipient,
-  DecryptedRecentRecipient,
-  RecentRecipientsListResponse,
-  SaveRecentRecipientsResponse,
-  DeleteAllRecentRecipientsResponse,
-} from "@/types/recent_recipients";
+import type { RecentRecipientsListResponse, SaveRecentRecipientsResponse, DeleteAllRecentRecipientsResponse } from "@/types/recent_recipients";
 
 import { api_client, type ApiResponse } from "./client";
 
 import { HASH_ALG } from "@/services/crypto/constants";
-import { decrypt_aes_gcm_with_fallback } from "@/services/crypto/legacy_keks";
+
 import {
   get_or_create_derived_encryption_crypto_key,
   get_derived_encryption_key,
@@ -45,17 +39,6 @@ function array_to_base64(array: Uint8Array): string {
   }
 
   return btoa(binary);
-}
-
-function base64_to_array(base64: string): Uint8Array {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-
-  return bytes;
 }
 
 async function get_hmac_key(): Promise<CryptoKey> {
@@ -129,18 +112,6 @@ async function encrypt_email(email: string): Promise<{
   };
 }
 
-async function decrypt_email(
-  encrypted_email: string,
-  email_nonce: string,
-): Promise<string> {
-  const key = await get_encryption_key();
-  const ciphertext = base64_to_array(encrypted_email);
-  const nonce = base64_to_array(email_nonce);
-  const plaintext = await decrypt_aes_gcm_with_fallback(key, ciphertext, nonce);
-
-  return new TextDecoder().decode(plaintext);
-}
-
 export async function list_recent_recipients(
   limit?: number,
 ): Promise<ApiResponse<RecentRecipientsListResponse>> {
@@ -182,30 +153,4 @@ export async function delete_all_recent_recipients(): Promise<
   return api_client.delete<DeleteAllRecentRecipientsResponse>(
     "/contacts/v1/recent_recipients",
   );
-}
-
-export async function decrypt_recent_recipients(
-  recipients: RecentRecipient[],
-): Promise<DecryptedRecentRecipient[]> {
-  const results: DecryptedRecentRecipient[] = [];
-
-  for (const recipient of recipients) {
-    try {
-      const email = await decrypt_email(
-        recipient.encrypted_email,
-        recipient.email_nonce,
-      );
-
-      results.push({
-        id: recipient.id,
-        email,
-        send_count: recipient.send_count,
-        last_sent_at: recipient.last_sent_at,
-      });
-    } catch {
-      continue;
-    }
-  }
-
-  return results;
 }

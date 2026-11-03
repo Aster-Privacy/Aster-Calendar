@@ -51,7 +51,6 @@ import {
   ModalDescription,
   ModalFooter,
 } from "@/components/ui/modal";
-import { is_calendar_app } from "@/lib/app_kind";
 import { use_i18n } from "@/lib/i18n/context";
 import { InfoHint } from "@/components/settings/aliases/info_hint";
 import {
@@ -71,53 +70,27 @@ import {
   type MyAffiliateStatus,
   type MyAffiliatePayoutRequestItem,
 } from "@/services/api/billing";
-import { list_contacts, decrypt_contacts } from "@/services/api/contacts";
 import { show_toast } from "@/components/toast/simple_toast";
 import { open_external } from "@/utils/open_link";
 import { copy_text } from "@/utils/copy_text";
 import { ignore_error } from "@/lib/ignore_error";
-import { use_auth } from "@/contexts/auth/use_auth_hook";
 import { LoadFailedNotice } from "@/components/settings/load_failed_notice";
 import { RoundedQrCode } from "@/components/ui/rounded_qr_code";
 import { format_bytes } from "@/lib/utils";
 import { has_storage_bonus } from "@/lib/referral_bonus";
 import { share_invite, copy_invite_link } from "@/lib/referral_share";
 import { invalidate_referral_summary } from "@/hooks/use_referral_summary";
-import { is_contact_trashed } from "@/lib/contact_trash";
 
 const AFFILIATE_MIN_PAYOUT_CENTS = 500;
 
-async function get_all_contact_emails(): Promise<string[]> {
-  const all_emails: string[] = [];
-  let cursor: string | undefined;
-  let has_more = true;
+function open_mail_draft(to: string, subject: string, body: string): void {
+  const query = `subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
-  while (has_more) {
-    const res = await list_contacts({ limit: 100, cursor });
-
-    if (!res.data) throw new Error("list_contacts failed");
-
-    if (!res.data.items?.length) break;
-
-    const decrypted = await decrypt_contacts(res.data.items);
-
-    for (const contact of decrypted) {
-      if (is_contact_trashed(contact)) continue;
-      if (contact.emails) {
-        all_emails.push(...contact.emails);
-      }
-    }
-
-    has_more = res.data.has_more;
-    cursor = res.data.next_cursor || undefined;
-  }
-
-  return all_emails;
+  open_external(`mailto:${to}?${query}`);
 }
 
 export function ReferralTab() {
   const { t } = use_i18n();
-  const { user } = use_auth();
   const [info_load_failed, set_info_load_failed] = useState(false);
   const [history_load_failed, set_history_load_failed] = useState(false);
   const [referral_info, set_referral_info] = useState<ReferralInfo | null>(
@@ -131,9 +104,6 @@ export function ReferralTab() {
   const [my_affiliate_status, set_my_affiliate_status] =
     useState<MyAffiliateStatus | null>(null);
   const [is_loading, set_is_loading] = useState(true);
-  const [is_sending_referral, set_is_sending_referral] = useState(false);
-  const [is_sending_affiliate_link, set_is_sending_affiliate_link] =
-    useState(false);
   const [is_requesting_payout, set_is_requesting_payout] = useState(false);
   const [payout_history, set_payout_history] = useState<
     MyAffiliatePayoutRequestItem[]
@@ -202,19 +172,10 @@ export function ReferralTab() {
         outstanding: format_price(res.data.amount_cents),
       });
 
-      const body_html = body_text
-        .split("\n")
-        .map((line: string) => (line.trim() === "" ? "<br>" : `<p>${line}</p>`))
-        .join("");
-
-      window.dispatchEvent(
-        new CustomEvent("aster:open-compose-prefilled", {
-          detail: {
-            to: ["hello@astermail.org"],
-            subject: t("settings.affiliate_payout_email_subject"),
-            body: body_html,
-          },
-        }),
+      open_mail_draft(
+        "hello@astermail.org",
+        t("settings.affiliate_payout_email_subject"),
+        body_text,
       );
 
       show_toast(t("settings.affiliate_template_copied"), "success");
@@ -236,109 +197,21 @@ export function ReferralTab() {
     }
   }, [my_affiliate_status, payout_amount_input, t]);
 
-  const handle_send_referral = useCallback(async () => {
+  const handle_send_affiliate_link = useCallback(() => {
     if (!referral_info) return;
 
-    set_is_sending_referral(true);
+    const referral_link = build_referral_invite_url(
+      referral_info.referral_code,
+    );
+    const body_text = has_storage_bonus(referral_info.bonus_bytes_per_referral)
+      ? t("settings.referral_email_body", {
+          referral_link,
+          amount: format_bytes(referral_info.bonus_bytes_per_referral),
+        })
+      : t("settings.referral_email_body_plain", { referral_link });
 
-    try {
-      const all_emails = await get_all_contact_emails();
-
-      if (all_emails.length === 0) {
-        show_toast(t("settings.referral_no_contacts"), "error");
-
-        return;
-      }
-
-      const referral_link = build_referral_invite_url(
-        referral_info.referral_code,
-      );
-      const body_text = has_storage_bonus(
-        referral_info.bonus_bytes_per_referral,
-      )
-        ? t("settings.referral_email_body", {
-            referral_link,
-            amount: format_bytes(referral_info.bonus_bytes_per_referral),
-          })
-        : t("settings.referral_email_body_plain", { referral_link });
-
-      const body_html = body_text
-        .split("\n")
-        .map((line: string) => (line.trim() === "" ? "<br>" : `<p>${line}</p>`))
-        .join("");
-
-      window.dispatchEvent(
-        new CustomEvent("aster:open-compose-prefilled", {
-          detail: {
-            to: user?.email ? [user.email] : [],
-            bcc: all_emails,
-            subject: t("settings.referral_email_subject"),
-            body: body_html,
-          },
-        }),
-      );
-    } catch (caught) {
-      ignore_error(
-        "components/settings/referral_tab:handle_send_referral",
-        caught,
-      );
-      show_toast(t("common.something_went_wrong_try_again"), "error");
-    } finally {
-      set_is_sending_referral(false);
-    }
-  }, [referral_info, t, user]);
-
-  const handle_send_affiliate_link = useCallback(async () => {
-    if (!referral_info) return;
-
-    set_is_sending_affiliate_link(true);
-
-    try {
-      const all_emails = await get_all_contact_emails();
-
-      if (all_emails.length === 0) {
-        show_toast(t("settings.referral_no_contacts"), "error");
-
-        return;
-      }
-
-      const referral_link = build_referral_invite_url(
-        referral_info.referral_code,
-      );
-      const body_text = has_storage_bonus(
-        referral_info.bonus_bytes_per_referral,
-      )
-        ? t("settings.referral_email_body", {
-            referral_link,
-            amount: format_bytes(referral_info.bonus_bytes_per_referral),
-          })
-        : t("settings.referral_email_body_plain", { referral_link });
-
-      const body_html = body_text
-        .split("\n")
-        .map((line: string) => (line.trim() === "" ? "<br>" : `<p>${line}</p>`))
-        .join("");
-
-      window.dispatchEvent(
-        new CustomEvent("aster:open-compose-prefilled", {
-          detail: {
-            to: user?.email ? [user.email] : [],
-            bcc: all_emails,
-            subject: t("settings.referral_email_subject"),
-            body: body_html,
-          },
-        }),
-      );
-    } catch (caught) {
-      ignore_error(
-        "components/settings/referral_tab:handle_send_affiliate_link",
-        caught,
-      );
-      show_toast(t("common.something_went_wrong_try_again"), "error");
-    } finally {
-      set_is_sending_affiliate_link(false);
-    }
-  }, [referral_info, t, user]);
+    open_mail_draft("", t("settings.referral_email_subject"), body_text);
+  }, [referral_info, t]);
 
   const handle_claim = useCallback(async () => {
     const code = claim_input.trim();
@@ -586,14 +459,7 @@ export function ReferralTab() {
                   {t("settings.copy_link")}
                 </PillButton>
                 <PillButton
-                  disabled={is_sending_affiliate_link}
-                  leading={
-                    is_sending_affiliate_link ? (
-                      <Spinner size="sm" />
-                    ) : (
-                      <EnvelopeIcon className="h-4 w-4" />
-                    )
-                  }
+                  leading={<EnvelopeIcon className="h-4 w-4" />}
                   size="md"
                   type="button"
                   variant="neutral"
@@ -1105,25 +971,6 @@ export function ReferralTab() {
             )}
           </div>
 
-          {!is_calendar_app() && (
-            <>
-              <IslandDivider />
-
-              <div className="py-1">
-                <IslandRow
-                  chevron={!is_sending_referral}
-                  description={t("settings.referral_email_all_contacts_hint")}
-                  disabled={is_sending_referral}
-                  icon={<EnvelopeIcon className="h-[22px] w-[22px]" />}
-                  label={t("settings.send_referral_to_contacts")}
-                  on_press={handle_send_referral}
-                  trailing={
-                    is_sending_referral ? <Spinner size="sm" /> : undefined
-                  }
-                />
-              </div>
-            </>
-          )}
         </IslandSection>
       )}
 

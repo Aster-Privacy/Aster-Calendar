@@ -21,7 +21,6 @@
 import { api_client, type ApiResponse } from "./client";
 
 import { get_cached_plan_code } from "@/hooks/use_plan_limits";
-import { is_calendar_app } from "@/lib/app_kind";
 import { safe_local_set } from "@/lib/safe_storage";
 
 export interface FamilyMemberInfo {
@@ -90,8 +89,6 @@ export interface JoinFamilyResponse {
 const FAMILY_CAPABLE_PLANS = new Set(["duo", "family"]);
 
 export function prefetch_family_group(): void {
-  if (is_calendar_app()) return;
-
   const plan_code = get_cached_plan_code();
 
   if (plan_code && !FAMILY_CAPABLE_PLANS.has(plan_code)) return;
@@ -119,19 +116,8 @@ export async function resolve_is_family_plan(): Promise<boolean | null> {
 export function refresh_family_plan_flag(
   on_resolved: (is_family_plan: boolean) => void,
 ): void {
-  if (is_calendar_app()) {
-    safe_local_set("aster_is_family_plan", "0");
-    on_resolved(false);
-
-    return;
-  }
-
-  void resolve_is_family_plan().then((is_family_plan) => {
-    if (is_family_plan === null) return;
-
-    safe_local_set("aster_is_family_plan", is_family_plan ? "1" : "0");
-    on_resolved(is_family_plan);
-  });
+  safe_local_set("aster_is_family_plan", "0");
+  on_resolved(false);
 }
 
 export function create_family_group(

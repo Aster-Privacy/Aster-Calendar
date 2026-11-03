@@ -23,7 +23,7 @@ import type { DecryptedCalendarEvent } from "@/types/calendar";
 import { useEffect, useId } from "react";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 
-import { SenderSelector } from "@/components/compose/sender_selector";
+import { SenderSelector } from "@/components/calendar/sender_selector";
 import { use_invite_senders } from "@/components/calendar/use_invite_senders";
 import { use_auth } from "@/contexts/auth/use_auth_hook";
 import { use_preferences } from "@/contexts/preferences_context";

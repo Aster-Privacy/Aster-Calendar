@@ -22,21 +22,9 @@ let badge_count_enabled = true;
 
 const listeners = new Set<() => void>();
 
-export function is_badge_count_enabled(): boolean {
-  return badge_count_enabled;
-}
-
 export function set_badge_count_enabled(value: boolean): void {
   if (badge_count_enabled === value) return;
 
   badge_count_enabled = value;
   listeners.forEach((listener) => listener());
-}
-
-export function on_badge_count_change(listener: () => void): () => void {
-  listeners.add(listener);
-
-  return () => {
-    listeners.delete(listener);
-  };
 }

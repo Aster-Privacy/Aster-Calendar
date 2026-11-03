@@ -28,16 +28,6 @@ type TranslateFn = (
   params?: Record<string, string | number>,
 ) => string;
 
-const CALENDAR_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-export function parse_calendar_date(value: string): Date {
-  const parts = CALENDAR_DATE_PATTERN.exec(value);
-
-  if (!parts) return new Date(value);
-
-  return new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]));
-}
-
 export interface ContactDateParts {
   year?: number;
   month: number;

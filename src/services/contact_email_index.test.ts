@@ -243,7 +243,7 @@ describe("ensure_contact_email_index", () => {
 describe("invalidation", () => {
   it("keeps stale entries readable until a contact change is rebuilt", async () => {
     const mod = await load();
-    const { emit_contacts_changed } = await import("@/hooks/mail_events");
+    const { emit_contacts_changed } = await import("@/hooks/app_events");
     const listener = vi.fn();
 
     list_contacts.mockResolvedValue(page([contact("c1", ["a@example.com"])]));
@@ -266,7 +266,7 @@ describe("invalidation", () => {
 
   it("coalesces a burst of contact changes into one rebuild", async () => {
     const mod = await load();
-    const { emit_contacts_changed } = await import("@/hooks/mail_events");
+    const { emit_contacts_changed } = await import("@/hooks/app_events");
     const listener = vi.fn();
 
     list_contacts.mockResolvedValue(page([contact("c1", ["a@example.com"])]));
@@ -294,7 +294,7 @@ describe("invalidation", () => {
 
   it("rebuilds at once when asked for the index during the debounce", async () => {
     const mod = await load();
-    const { emit_contacts_changed } = await import("@/hooks/mail_events");
+    const { emit_contacts_changed } = await import("@/hooks/app_events");
 
     list_contacts.mockResolvedValueOnce(page([]));
     await mod.ensure_contact_email_index();

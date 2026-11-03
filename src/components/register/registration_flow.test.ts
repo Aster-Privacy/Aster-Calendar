@@ -20,67 +20,21 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  first_onboarding_step,
-  onboarding_resume_step,
-  onboarding_steps,
-  step_after_notifications,
-  step_after_plan,
+  FIRST_ONBOARDING_STEP,
+  ONBOARDING_STEPS,
+  STEP_AFTER_NOTIFICATIONS,
+  STEP_AFTER_PLAN,
 } from "./registration_flow";
 
 describe("registration_flow", () => {
-  it("keeps the mail onboarding order unchanged", () => {
-    expect(onboarding_steps("mail")).toEqual([
-      "download_apps",
+  it("runs the calendar onboarding order", () => {
+    expect(ONBOARDING_STEPS).toEqual([
       "notifications",
-      "addresses",
-      "custom_domain",
-      "import_mail",
       "plan_selection",
-    ]);
-    expect(first_onboarding_step("mail")).toBe("download_apps");
-    expect(step_after_notifications("mail")).toBe("addresses");
-    expect(step_after_plan("mail")).toBeNull();
-  });
-
-  it("skips mail-only steps in the calendar order", () => {
-    const steps = onboarding_steps("calendar");
-
-    expect(steps).toEqual(["notifications", "plan_selection", "bring_calendar"]);
-    for (const mail_only of [
-      "download_apps",
-      "addresses",
-      "custom_domain",
-      "import_mail",
-    ] as const) {
-      expect(steps).not.toContain(mail_only);
-    }
-    expect(first_onboarding_step("calendar")).toBe("notifications");
-    expect(step_after_notifications("calendar")).toBe("plan_selection");
-    expect(step_after_plan("calendar")).toBe("bring_calendar");
-  });
-
-  it("maps resumed steps onto each app's flow", () => {
-    expect(onboarding_resume_step("mail", "import_mail")).toBe("import_mail");
-    expect(onboarding_resume_step("mail", "academic_offer")).toBe(
-      "download_apps",
-    );
-    expect(onboarding_resume_step("mail", "bring_calendar")).toBe(
-      "plan_selection",
-    );
-    expect(onboarding_resume_step("calendar", "academic_offer")).toBe(
-      "notifications",
-    );
-    expect(onboarding_resume_step("calendar", "download_apps")).toBe(
-      "notifications",
-    );
-    expect(onboarding_resume_step("calendar", "custom_domain")).toBe(
-      "plan_selection",
-    );
-    expect(onboarding_resume_step("calendar", "bring_calendar")).toBe(
       "bring_calendar",
-    );
-    expect(onboarding_resume_step("calendar", "recovery_key")).toBe(
-      "recovery_key",
-    );
+    ]);
+    expect(FIRST_ONBOARDING_STEP).toBe("notifications");
+    expect(STEP_AFTER_NOTIFICATIONS).toBe("plan_selection");
+    expect(STEP_AFTER_PLAN).toBe("bring_calendar");
   });
 });

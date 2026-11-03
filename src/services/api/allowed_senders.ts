@@ -20,15 +20,11 @@
 //
 import { api_client, type ApiResponse } from "./client";
 import { BULK_REQUEST_LIMIT, send_in_chunks } from "./chunked_request";
-import {
-  array_to_base64,
-  base64_to_array,
-  normalize_email,
-} from "./sender_utils";
+import { array_to_base64, normalize_email } from "./sender_utils";
 
 import { user_facing_error } from "@/utils/user_facing_error";
 import { HASH_ALG } from "@/services/crypto/constants";
-import { decrypt_aes_gcm_with_fallback } from "@/services/crypto/legacy_keks";
+
 import {
   get_or_create_derived_encryption_crypto_key,
   get_derived_encryption_key,
@@ -120,20 +116,6 @@ async function generate_integrity_hash(
   return array_to_base64(new Uint8Array(hash));
 }
 
-async function verify_integrity_hash(
-  encrypted_data: string,
-  nonce: string,
-  hash: string,
-): Promise<boolean> {
-  const hmac_key = await get_hmac_key();
-  const encoder = new TextEncoder();
-  const combined = `${encrypted_data}:${nonce}:allowed-senders-v1`;
-  const data = encoder.encode(combined);
-  const expected_hash = base64_to_array(hash);
-
-  return crypto.subtle.verify("HMAC", hmac_key, expected_hash, data);
-}
-
 export interface AllowedSenderData {
   email: string;
   name?: string;
@@ -170,40 +152,6 @@ export async function encrypt_allow_data(data: AllowedSenderData): Promise<{
   return { encrypted_sender_data, sender_data_nonce, integrity_hash };
 }
 
-export async function decrypt_allow_data(
-  encrypted_sender_data: string,
-  sender_data_nonce: string,
-  integrity_hash: string,
-): Promise<AllowedSenderData> {
-  if (!integrity_hash) {
-    throw new Error(get_active_translations().errors.data_integrity_failed);
-  }
-
-  const is_valid = await verify_integrity_hash(
-    encrypted_sender_data,
-    sender_data_nonce,
-    integrity_hash,
-  );
-
-  if (!is_valid) {
-    throw new Error(get_active_translations().errors.data_integrity_failed);
-  }
-
-  const key = await get_allowed_senders_encryption_key();
-  const ciphertext = base64_to_array(encrypted_sender_data);
-  const nonce = base64_to_array(sender_data_nonce);
-  const decrypted = await decrypt_aes_gcm_with_fallback(key, ciphertext, nonce);
-  const decoder = new TextDecoder();
-  const parsed = JSON.parse(decoder.decode(decrypted));
-
-  return {
-    email: parsed.email,
-    name: parsed.name,
-    allowed_at: parsed.allowed_at,
-    is_domain: parsed.is_domain ?? false,
-  };
-}
-
 export interface AllowedSenderResponse {
   id: string;
   sender_token: string;
@@ -223,80 +171,6 @@ export interface DecryptedAllowedSender {
   allowed_at: string;
   is_domain: boolean;
   created_at: string;
-}
-
-export async function list_allowed_senders(
-  limit: number = 500,
-  offset: number = 0,
-): Promise<ApiResponse<DecryptedAllowedSender[]>> {
-  try {
-    const response = await api_client.get<{
-      allowed_senders: AllowedSenderResponse[];
-      total: number;
-    }>(`/contacts/v1/allowed_senders?limit=${limit}&offset=${offset}`);
-
-    if (response.error) {
-      return { error: response.error };
-    }
-
-    if (!response.data) {
-      return { data: [] };
-    }
-
-    const wire_items = response.data.allowed_senders;
-    const results = await Promise.allSettled(
-      wire_items.map(async (item) => {
-        const data = await decrypt_allow_data(
-          item.encrypted_sender_data,
-          item.sender_data_nonce,
-          item.integrity_hash,
-        );
-
-        return {
-          id: item.id,
-          sender_token: item.sender_token,
-          email: data.email,
-          name: data.name,
-          allowed_at: data.allowed_at,
-          is_domain: item.is_domain,
-          created_at: item.created_at,
-        };
-      }),
-    );
-
-    const decrypted: DecryptedAllowedSender[] = [];
-
-    results.forEach((result, index) => {
-      if (result.status === "fulfilled") {
-        decrypted.push(result.value);
-
-        return;
-      }
-
-      const item = wire_items[index];
-
-      if (!item) return;
-
-      decrypted.push({
-        id: item.id,
-        sender_token: item.sender_token,
-        is_unreadable: true,
-        email: "",
-        allowed_at: item.created_at,
-        is_domain: item.is_domain,
-        created_at: item.created_at,
-      });
-    });
-
-    return { data: decrypted };
-  } catch (err) {
-    return {
-      error: user_facing_error(
-        err,
-        get_active_translations().errors.load_failed,
-      ),
-    };
-  }
 }
 
 export async function allow_sender(
@@ -379,22 +253,6 @@ export async function remove_allowed_sender(
   }
 }
 
-export async function remove_allowed_sender_by_token(
-  sender_token: string,
-): Promise<ApiResponse<{ success: boolean }>> {
-  try {
-    const response = await api_client.delete<{ success: boolean }>(
-      `/contacts/v1/allowed_senders?sender_token=${encodeURIComponent(sender_token)}`,
-    );
-
-    return response;
-  } catch (err) {
-    return {
-      error: user_facing_error(err, get_active_translations().errors.generic),
-    };
-  }
-}
-
 export async function bulk_remove_allowed_senders_by_tokens(
   sender_tokens: string[],
 ): Promise<ApiResponse<{ success: boolean; removed_count: number }>> {
@@ -462,10 +320,4 @@ export async function check_allowed_senders(
   } catch {
     return new Set();
   }
-}
-
-export async function is_sender_allowed(email: string): Promise<boolean> {
-  const allowed = await check_allowed_senders([email]);
-
-  return allowed.has(normalize_email(email));
 }

@@ -28,16 +28,6 @@ export function trim_map_to_size<K, V>(map: Map<K, V>, max_size: number): void {
   }
 }
 
-export function trim_set_to_size<T>(set: Set<T>, max_size: number): void {
-  while (set.size > max_size) {
-    const oldest = set.values().next();
-
-    if (oldest.done) return;
-
-    set.delete(oldest.value);
-  }
-}
-
 export function drop_expired_entries<K>(
   map: Map<K, { timestamp: number }>,
   ttl_ms: number,

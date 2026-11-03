@@ -18,16 +18,6 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-export type AppKind = "mail" | "calendar";
-
-export function app_kind(): AppKind {
-  return import.meta.env.VITE_APP_KIND === "mail" ? "mail" : "calendar";
-}
-
-export function is_calendar_app(): boolean {
-  return app_kind() === "calendar";
-}
-
 type ClientCapabilities = Record<string, boolean | undefined>;
 
 let related_origins_supported = false;
@@ -38,10 +28,6 @@ function related_origins_configured(): boolean {
 }
 
 export function probe_webauthn_related_origins(): Promise<boolean> {
-  if (!is_calendar_app()) {
-    return Promise.resolve(true);
-  }
-
   if (related_origins_probe) {
     return related_origins_probe;
   }
@@ -76,10 +62,6 @@ export function reset_webauthn_related_origins_probe(): void {
 }
 
 export function webauthn_available_here(): boolean {
-  if (!is_calendar_app()) {
-    return true;
-  }
-
   return related_origins_configured() && related_origins_supported;
 }
 

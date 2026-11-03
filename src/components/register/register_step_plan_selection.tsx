@@ -87,7 +87,7 @@ import { checkout_error_text } from "@/components/settings/billing/checkout_erro
 import { promo_code_error_text } from "@/components/settings/billing/plan_change_discount_text";
 import { calendar_feature_list_for_tier } from "@/components/settings/billing/plan_upgrade_selection";
 import { DatedCalendarLogo } from "@/components/calendar/dated_calendar_logo";
-import { calendar_booking_available, is_calendar_app } from "@/lib/app_kind";
+import { calendar_booking_available } from "@/lib/app_kind";
 import { calendar_plan_limits } from "@/lib/calendar_plan_limits";
 
 interface RegisterStepPlanSelectionProps {
@@ -153,103 +153,11 @@ interface FeatureRow {
   text: React.ReactNode;
 }
 
-function bold(text: string): React.ReactNode {
-  return <strong className="font-bold">{text}</strong>;
-}
-
-function with_bold(prefix: string, rest: string): React.ReactNode {
-  return (
-    <>
-      {bold(prefix)} {rest}
-    </>
-  );
-}
-
 function feature_list_for_tier(
   tier_id: string,
   t: UseRegistrationReturn["t"],
 ): FeatureRow[] {
-  if (is_calendar_app()) return calendar_feature_list_for_tier(tier_id, t);
-
-  const unlimited = t("settings.unlimited");
-
-  if (tier_id === "star") {
-    return [
-      {
-        on: true,
-        text: with_bold("50 GB", t("settings.encrypted_storage_suffix")),
-      },
-      { on: true, text: with_bold("15", t("settings.email_aliases_suffix")) },
-      { on: true, text: with_bold("5", t("settings.custom_domains_suffix")) },
-      { on: true, text: with_bold("50 MB", t("settings.attachments_suffix")) },
-      { on: true, text: with_bold(unlimited, t("settings.mail_rules_suffix")) },
-      { on: true, text: t("settings.f_e2ee") },
-      { on: true, text: t("settings.f_zero_knowledge") },
-      { on: true, text: t("settings.f_tracker_protection_long") },
-      { on: true, text: t("settings.plan_f_alias_avatars") },
-      { on: true, text: t("settings.plan_f_catch_all") },
-      { on: true, text: t("settings.f_auto_forward") },
-      { on: true, text: t("settings.plan_f_support_priority") },
-      { on: true, text: t("settings.plan_f_imap_smtp_bridge") },
-      { on: false, text: t("settings.f_folder_lock") },
-      { on: false, text: t("settings.plan_f_smart_folders") },
-      { on: false, text: t("settings.lockdown_title") },
-    ];
-  }
-  if (tier_id === "nova") {
-    return [
-      {
-        on: true,
-        text: with_bold("500 GB", t("settings.encrypted_storage_suffix")),
-      },
-      {
-        on: true,
-        text: with_bold(unlimited, t("settings.email_aliases_suffix")),
-      },
-      { on: true, text: with_bold("30", t("settings.custom_domains_suffix")) },
-      { on: true, text: with_bold("100 MB", t("settings.attachments_suffix")) },
-      { on: true, text: with_bold(unlimited, t("settings.mail_rules_suffix")) },
-      { on: true, text: t("settings.f_e2ee") },
-      { on: true, text: t("settings.f_zero_knowledge") },
-      { on: true, text: t("settings.f_tracker_protection_long") },
-      { on: true, text: t("settings.plan_f_alias_avatars") },
-      { on: true, text: t("settings.plan_f_catch_all") },
-      { on: true, text: t("settings.f_auto_forward") },
-      { on: true, text: t("settings.plan_f_support_priority") },
-      { on: true, text: t("settings.plan_f_imap_smtp_bridge") },
-      { on: true, text: t("settings.f_folder_lock") },
-      { on: true, text: t("settings.plan_f_smart_folders") },
-      { on: true, text: t("settings.lockdown_title") },
-    ];
-  }
-
-  return [
-    {
-      on: true,
-      text: with_bold("5 TB", t("settings.encrypted_storage_suffix")),
-    },
-    {
-      on: true,
-      text: with_bold(unlimited, t("settings.email_aliases_suffix")),
-    },
-    {
-      on: true,
-      text: with_bold(unlimited, t("settings.custom_domains_suffix")),
-    },
-    { on: true, text: with_bold("250 MB", t("settings.attachments_suffix")) },
-    { on: true, text: with_bold(unlimited, t("settings.mail_rules_suffix")) },
-    { on: true, text: t("settings.f_e2ee") },
-    { on: true, text: t("settings.f_zero_knowledge") },
-    { on: true, text: t("settings.f_tracker_protection_long") },
-    { on: true, text: t("settings.plan_f_alias_avatars") },
-    { on: true, text: t("settings.plan_f_catch_all") },
-    { on: true, text: t("settings.f_auto_forward") },
-    { on: true, text: t("settings.plan_f_support_priority") },
-    { on: true, text: t("settings.plan_f_imap_smtp_bridge") },
-    { on: true, text: t("settings.f_folder_lock") },
-    { on: true, text: t("settings.plan_f_smart_folders") },
-    { on: true, text: t("settings.lockdown_title") },
-  ];
+  return calendar_feature_list_for_tier(tier_id, t);
 }
 
 const CHECK_SVG = (
@@ -285,12 +193,6 @@ const CROSS_SVG = (
     />
   </svg>
 );
-
-const TIER_DESCRIPTION_KEYS: Record<string, string> = {
-  star: "auth.plan_star_description",
-  nova: "auth.plan_nova_description",
-  supernova: "auth.plan_supernova_description",
-};
 
 export const RegisterStepPlanSelection = ({
   reg,
@@ -759,18 +661,10 @@ export const RegisterStepPlanSelection = ({
       transition={page_transition}
       variants={page_variants}
     >
-      {is_calendar_app() ? (
+      {(
         <DatedCalendarLogo
           alt={t("calendar.aster_calendar_brand")}
           className="h-7 w-auto object-contain"
-        />
-      ) : (
-        <img
-          alt="Aster"
-          className="h-7"
-          decoding="async"
-          draggable={false}
-          src="/text_logo.png"
         />
       )}
 
@@ -1028,16 +922,14 @@ export const RegisterStepPlanSelection = ({
             );
             const saves = billing_period === "yearly" ? tier.savings_cents : 0;
             const features = feature_list_for_tier(tier.id, t);
-            const description = is_calendar_app()
-              ? calendar_booking_available()
+            const description = calendar_booking_available()
                 ? t("auth.calendar_plan_tier_description", {
                     calendars: calendar_plan_limits(tier.id).calendars,
                     booking_pages: calendar_plan_limits(tier.id).booking_pages,
                   })
                 : t("auth.calendar_plan_tier_description_no_booking", {
                     calendars: calendar_plan_limits(tier.id).calendars,
-                  })
-              : (t(TIER_DESCRIPTION_KEYS[tier.id] as never) as string);
+                  });
 
             return (
               <div
@@ -1217,8 +1109,7 @@ export const RegisterStepPlanSelection = ({
       )}
 
       <div className="mt-8 flex w-full max-w-md flex-col items-center gap-4">
-        {is_calendar_app() && (
-          <p className="text-center text-sm text-txt-tertiary">
+        <p className="text-center text-sm text-txt-tertiary">
             {calendar_booking_available()
               ? t("auth.calendar_plan_free_limits", {
                   calendars: calendar_plan_limits("free").calendars,
@@ -1228,7 +1119,6 @@ export const RegisterStepPlanSelection = ({
                   calendars: calendar_plan_limits("free").calendars,
                 })}
           </p>
-        )}
         <div className="flex w-full flex-col gap-2 sm:flex-row">
           <OnboardingButton
             className="w-full sm:flex-1"

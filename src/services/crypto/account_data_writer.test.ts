@@ -26,7 +26,6 @@ const h = vi.hoisted(() => ({
   capabilities: { data: { format_writes: true } } as unknown,
   capability_fetches: 0,
   posted: [] as Array<Record<string, unknown>>,
-  stored_draft: null as Record<string, unknown> | null,
   on_wait: null as null | (() => Promise<void>),
   waits: 0,
 }));
@@ -40,9 +39,6 @@ vi.mock("@/services/api/client", () => ({
 
         return h.capabilities;
       }
-      if (url.startsWith("/mail/v1/drafts/") && h.stored_draft) {
-        return { data: h.stored_draft };
-      }
 
       return { error: "not found", code: "NOT_FOUND" };
     }),
@@ -54,15 +50,6 @@ vi.mock("@/services/api/client", () => ({
     put: vi.fn(),
     delete: vi.fn(),
   },
-}));
-
-vi.mock("@/hooks/use_mail_stats", () => ({
-  invalidate_mail_stats: vi.fn(),
-}));
-
-vi.mock("@/hooks/mail_events", () => ({
-  emit_drafts_changed: vi.fn(),
-  emit_thread_draft_changed: vi.fn(),
 }));
 
 vi.mock("@/services/crypto/memory_key_store", async (import_original) => ({
@@ -96,39 +83,16 @@ import {
   prepare_preferences_payload,
   DEFAULT_PREFERENCES,
 } from "@/services/api/preferences";
-import { create_draft, get_draft } from "@/services/api/multi_drafts";
 
 const ACCOUNT_KEY = Uint8Array.from({ length: 32 }, (_, i) => i + 1);
 const OTHER_ACCOUNT_KEY = Uint8Array.from({ length: 32 }, (_, i) => 200 - i);
 
 const vault = { identity_key: "armored identity key" } as EncryptedVault;
-const relocked_vault = {
-  identity_key: "armored identity key relocked with a new password",
-} as EncryptedVault;
-
-const draft_content = {
-  to_recipients: ["friend@example.com"],
-  cc_recipients: [],
-  bcc_recipients: [],
-  subject: "Quarterly plan",
-  message: "<p>Body text</p>",
-};
-
-interface PostedDraft {
-  encrypted_content: string;
-  content_nonce: string;
-}
 
 async function import_aes(raw: Uint8Array): Promise<CryptoKey> {
   return crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, [
     "decrypt",
   ]);
-}
-
-async function sha256(text: string): Promise<Uint8Array> {
-  return new Uint8Array(
-    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)),
-  );
 }
 
 async function opens_with(
@@ -157,36 +121,12 @@ async function load_current(account_key = ACCOUNT_KEY): Promise<boolean> {
   );
 }
 
-function last_posted(): PostedDraft {
-  return h.posted[h.posted.length - 1] as unknown as PostedDraft;
-}
-
-function store_posted_draft(): void {
-  const posted = last_posted();
-
-  h.stored_draft = {
-    id: "draft-1",
-    draft_type: "new",
-    encrypted_content: posted.encrypted_content,
-    content_nonce: posted.content_nonce,
-    version: 1,
-    content_hash: "",
-    size_bytes: 0,
-    has_attachments: false,
-    attachment_count: 0,
-    created_at: "",
-    updated_at: "",
-    expires_at: "",
-  };
-}
-
 beforeEach(() => {
   reset_account_key_capabilities_cache();
   clear_account_key_derived_keks();
   h.capabilities = { data: { format_writes: true } };
   h.capability_fetches = 0;
   h.posted = [];
-  h.stored_draft = null;
   h.on_wait = null;
   h.waits = 0;
 });
@@ -371,94 +311,6 @@ describe("preferences writes", () => {
         payload!.nonce,
       ),
     ).not.toBeNull();
-  });
-});
-
-describe("draft writes", () => {
-  it("use the account data key when enabled", async () => {
-    await load_current();
-    await create_draft(draft_content, vault);
-    const posted = last_posted();
-
-    expect(
-      await opens_with(
-        await derive_account_data_key_raw(ACCOUNT_KEY, "astermail-draft-v2"),
-        posted.encrypted_content,
-        posted.content_nonce,
-      ),
-    ).toContain("Quarterly plan");
-    expect(
-      await opens_with(
-        await sha256(vault.identity_key + "astermail-draft-v2"),
-        posted.encrypted_content,
-        posted.content_nonce,
-      ),
-    ).toBeNull();
-  });
-
-  it("use the legacy key when the flag is off", async () => {
-    h.capabilities = { data: { format_writes: false } };
-    await load_current();
-    await create_draft(draft_content, vault);
-    const posted = last_posted();
-
-    expect(
-      await opens_with(
-        await sha256(vault.identity_key + "astermail-draft-v2"),
-        posted.encrypted_content,
-        posted.content_nonce,
-      ),
-    ).toContain("Quarterly plan");
-  });
-
-  it("stay readable after the identity key is relocked", async () => {
-    await load_current();
-    await create_draft(draft_content, vault);
-    store_posted_draft();
-
-    const result = await get_draft("draft-1", relocked_vault);
-
-    expect(result.data?.content.subject).toBe("Quarterly plan");
-    expect(h.waits).toBe(0);
-  });
-
-  it("are read after the account key finishes loading", async () => {
-    await load_current();
-    await create_draft(draft_content, vault);
-    store_posted_draft();
-    clear_account_key_derived_keks();
-    h.on_wait = async () => {
-      await load_current();
-    };
-
-    const result = await get_draft("draft-1", vault);
-
-    expect(result.data?.content.subject).toBe("Quarterly plan");
-    expect(h.waits).toBe(1);
-  });
-
-  it("report an error when the account key never loads", async () => {
-    await load_current();
-    await create_draft(draft_content, vault);
-    store_posted_draft();
-    clear_account_key_derived_keks();
-
-    const result = await get_draft("draft-1", vault);
-
-    expect(result.data).toBeNull();
-    expect(result.error).toBeTruthy();
-    expect(h.waits).toBe(1);
-  });
-
-  it("written with the legacy key read without waiting", async () => {
-    h.capabilities = { data: { format_writes: false } };
-    await create_draft(draft_content, vault);
-    store_posted_draft();
-
-    const result = await get_draft("draft-1", vault);
-
-    expect(result.data?.content.subject).toBe("Quarterly plan");
-    expect(h.waits).toBe(0);
   });
 });
 

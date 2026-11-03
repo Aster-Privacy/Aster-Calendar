@@ -90,14 +90,6 @@ import {
 } from "@/components/settings/billing/billing_layout";
 import { ignore_error } from "@/lib/ignore_error";
 
-export const FILTER_FIELD_COLORS: Record<string, string> = {
-  from: "var(--accent-color)",
-  domain: "var(--accent-color)",
-  to: "var(--accent-color)",
-  subject: "var(--color-warning)",
-  ip: "var(--accent-color)",
-};
-
 export function filter_field_labels(t: TFn): Record<string, string> {
   return {
     from: t("settings.fam_org_filter_field_from"),

@@ -26,8 +26,6 @@ import { api_client } from "@/services/api/client";
 import { write_account_index_hint } from "@/lib/account_index_url";
 import { get_active_translations } from "@/lib/i18n/translations";
 import { ignore_error } from "@/lib/ignore_error";
-import { clear_expanded_folders } from "@/services/expanded_folders_store";
-import { clear_expanded_tags } from "@/services/expanded_tags_store";
 import {
   safe_local_get,
   safe_local_keys,
@@ -35,37 +33,15 @@ import {
   safe_local_set,
 } from "@/lib/safe_storage";
 
-async function clear_offline_email_cache(
+async function clear_account_local_data(
   removed_account_id?: string,
 ): Promise<void> {
-  try {
-    const { clear_email_cache } = await import(
-      "@/services/offline_email_cache"
-    );
-
-    await clear_email_cache(
-      removed_account_id ? { account_id: removed_account_id } : "none",
-    );
-  } catch {
-    return;
-  }
-
   try {
     const { clear_calendar_sync_state } = await import(
       "@/services/calendar/sync_engine"
     );
 
     await clear_calendar_sync_state(removed_account_id);
-  } catch {
-    return;
-  }
-
-  try {
-    const { clear_search_snapshots } = await import(
-      "@/services/search_index_store"
-    );
-
-    await clear_search_snapshots();
   } catch {
     return;
   }
@@ -305,20 +281,6 @@ export function accounts_storage_unreadable(): boolean {
   return last_load_failed;
 }
 
-export function accounts_storage_failure(): RosterLoadFailure {
-  return load_failure;
-}
-
-export async function reset_accounts_storage(): Promise<void> {
-  safe_local_remove(ACCOUNTS_KEY);
-
-  cached_data = null;
-  session_roster = null;
-  storage_initialized = true;
-  last_load_failed = false;
-  load_failure = "none";
-}
-
 let account_write_chain: Promise<unknown> = Promise.resolve();
 
 export function serialize_account_write<T>(
@@ -423,12 +385,6 @@ export async function get_current_account_id(): Promise<string | null> {
   return data.current_account_id;
 }
 
-export async function get_account_count(): Promise<number> {
-  const data = await get_accounts_data_async();
-
-  return data.accounts.length;
-}
-
 export async function get_personal_account_count(): Promise<number> {
   const data = await get_accounts_data_async();
 
@@ -456,12 +412,6 @@ export async function can_add_account(max_accounts?: number): Promise<boolean> {
   return count < limit;
 }
 
-export async function account_exists(user_id: string): Promise<boolean> {
-  const data = await get_accounts_data_async();
-
-  return data.accounts.some((a) => a.id === user_id);
-}
-
 function merge_user(base: User, updates: Partial<User>): User {
   const result: User = { ...base };
   const key = <K extends keyof User>(k: K, v: User[K]) => {
@@ -481,16 +431,6 @@ function merge_user(base: User, updates: Partial<User>): User {
     key("is_paid_plan", updates.is_paid_plan);
 
   return result;
-}
-
-export async function persist_plan_flag_for_current_account(
-  is_paid_plan: boolean,
-): Promise<boolean> {
-  const account_id = await get_current_account_id();
-
-  if (!account_id) return false;
-
-  return set_account_plan_flag(account_id, is_paid_plan);
 }
 
 export async function set_account_plan_flag(
@@ -634,9 +574,6 @@ const ACCOUNT_SCOPED_LOCAL_KEYS: readonly string[] = [
   "aster_family_2fa_banner_dismissed",
   "aster_is_family_plan",
   "aster_has_devices",
-  "aster_last_unread_badge",
-  "astermail_inbox_categories_enabled",
-  "astermail_active_category",
   "astermail_date_format",
   "astermail_time_format",
   "astermail_relative_dates",
@@ -683,7 +620,7 @@ export async function switch_account(
 
   data.current_account_id = account_id;
   await save_accounts_data(data);
-  await clear_offline_email_cache();
+  await clear_account_local_data();
   await clear_account_scoped_preferences_cache();
   await clear_account_scoped_contact_index();
 
@@ -728,9 +665,7 @@ export async function remove_account(
   await save_accounts_data(data);
   await clear_account_session_material(account_id);
   await clear_account_key_storage(account_id);
-  clear_expanded_folders(account_id);
-  clear_expanded_tags(account_id);
-  await clear_offline_email_cache(account_id);
+  await clear_account_local_data(account_id);
   await clear_account_scoped_preferences_cache();
   await clear_account_scoped_contact_index();
 
@@ -859,12 +794,6 @@ export async function logout_all(): Promise<void> {
   } catch (caught) {
     ignore_error("services/account_manager:logout_all", caught);
   }
-}
-
-export async function get_other_accounts(): Promise<StoredAccount[]> {
-  const data = await get_accounts_data_async();
-
-  return data.accounts.filter((a) => a.id !== data.current_account_id);
 }
 
 export function clear_cache(): void {

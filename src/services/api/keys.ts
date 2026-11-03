@@ -371,34 +371,6 @@ export function clear_external_key_cache(): void {
   aster_key_cache.clear();
 }
 
-export async function acknowledge_external_key_fingerprint_change(
-  email: string,
-  prior_fingerprint: string,
-  new_fingerprint: string,
-): Promise<ApiResponse<{ acknowledged: boolean }>> {
-  const response = await api_client.post<{ acknowledged: boolean }>(
-    "/crypto/v1/keys/external/fingerprint-change/acknowledge",
-    { email, prior_fingerprint, new_fingerprint },
-  );
-
-  if (response.data?.acknowledged) {
-    forget_external_key_fingerprint_change(email);
-  }
-
-  return response;
-}
-
-export function forget_external_key_fingerprint_change(email: string): void {
-  const cached = external_key_cache.get(email.toLowerCase());
-
-  if (!cached) return;
-
-  external_key_cache.set(email.toLowerCase(), {
-    key: { ...cached.key, fingerprint_change: null },
-    timestamp: cached.timestamp,
-  });
-}
-
 export function extract_username_from_email(email: string): string | null {
   const parts = email.split("@");
 
@@ -419,69 +391,4 @@ export function is_internal_email(email: string): boolean {
   const lower_email = email.toLowerCase();
 
   return INTERNAL_DOMAINS.some((domain) => lower_email.endsWith(`@${domain}`));
-}
-
-interface PublishKeyResponse {
-  success: boolean;
-  url?: string;
-}
-
-export async function publish_key_to_wkd(): Promise<
-  ApiResponse<PublishKeyResponse>
-> {
-  return api_client.post<PublishKeyResponse>("/crypto/v1/keys/publish/wkd", {});
-}
-
-export async function unpublish_key_from_wkd(): Promise<
-  ApiResponse<PublishKeyResponse>
-> {
-  return api_client.delete<PublishKeyResponse>("/crypto/v1/keys/publish/wkd");
-}
-
-export async function publish_key_to_keyserver(
-  addresses?: string[],
-): Promise<ApiResponse<PublishKeyResponse>> {
-  return api_client.post<PublishKeyResponse>(
-    "/crypto/v1/keys/publish/keyserver",
-    addresses && addresses.length > 0 ? { addresses } : {},
-  );
-}
-
-export async function get_wkd_publication_status(): Promise<
-  ApiResponse<{ published: boolean; url?: string }>
-> {
-  return api_client.get<{ published: boolean; url?: string }>(
-    "/crypto/v1/keys/publish/wkd/status",
-  );
-}
-
-export type KeyserverPublicationState =
-  | "not_published"
-  | "not_submitted"
-  | "awaiting_verification"
-  | "failed"
-  | "published";
-
-export interface KeyserverAddressStatus {
-  address: string;
-  state: KeyserverPublicationState;
-}
-
-export interface KeyserverPublicationStatus {
-  published: boolean;
-  addresses?: KeyserverAddressStatus[];
-  fingerprint?: string;
-  state?: KeyserverPublicationState;
-  error?: string;
-  submitted_at?: string;
-  verified_at?: string;
-}
-
-export async function get_keyserver_publication_status(): Promise<
-  ApiResponse<KeyserverPublicationStatus>
-> {
-  return api_client.get<KeyserverPublicationStatus>(
-    "/crypto/v1/keys/publish/keyserver/status",
-    { skip_cache: true },
-  );
 }

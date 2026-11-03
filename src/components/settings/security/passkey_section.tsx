@@ -41,7 +41,7 @@ import {
   ActionRecommendedBadge,
 } from "@/components/settings/security/recommendation_box";
 import { StepUpModal } from "@/components/settings/step_up_modal";
-import { ConfirmModal } from "@/components/email/inbox/inbox_confirmation_dialog";
+import { ConfirmModal } from "@/components/ui/confirm_modal";
 import { InfoPopover } from "@/components/ui/info_popover";
 import { use_i18n } from "@/lib/i18n/context";
 import {

@@ -21,7 +21,7 @@
 import { api_client, type ApiResponse } from "./client";
 
 import { user_facing_error } from "@/utils/user_facing_error";
-import { decrypt_aes_gcm_with_fallback } from "@/services/crypto/legacy_keks";
+
 import { get_or_create_derived_encryption_crypto_key } from "@/services/crypto/memory_key_store";
 import { get_active_translations } from "@/lib/i18n/translations";
 
@@ -43,21 +43,6 @@ export interface Template {
   sort_order: number;
   created_at: string;
   updated_at: string;
-}
-
-export interface DecryptedTemplate {
-  id: string;
-  name: string;
-  category: string;
-  content: string;
-  sort_order: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ListTemplatesResponse {
-  templates: Template[];
-  total: number;
 }
 
 export interface CreateTemplateRequest {
@@ -91,10 +76,6 @@ export interface UpdateTemplateResponse {
   updated_at: string;
 }
 
-export interface DeleteTemplateResponse {
-  success: boolean;
-}
-
 function array_to_base64(array: Uint8Array): string {
   let binary = "";
 
@@ -103,17 +84,6 @@ function array_to_base64(array: Uint8Array): string {
   }
 
   return btoa(binary);
-}
-
-function base64_to_array(base64: string): Uint8Array {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-
-  return bytes;
 }
 
 async function get_encryption_key(): Promise<CryptoKey> {
@@ -145,105 +115,6 @@ async function encrypt_string(
     encrypted: array_to_base64(new Uint8Array(ciphertext)),
     nonce: array_to_base64(nonce),
   };
-}
-
-async function decrypt_string(
-  encrypted: string,
-  nonce: string,
-): Promise<string> {
-  const key = await get_encryption_key();
-  const ciphertext = base64_to_array(encrypted);
-  const iv = base64_to_array(nonce);
-  const decrypted = await decrypt_aes_gcm_with_fallback(key, ciphertext, iv);
-  const decoder = new TextDecoder();
-
-  return decoder.decode(decrypted);
-}
-
-export async function decrypt_template(
-  template: Template,
-): Promise<DecryptedTemplate> {
-  const [name, category, content] = await Promise.all([
-    decrypt_string(template.encrypted_name, template.name_nonce),
-    decrypt_string(template.encrypted_category, template.category_nonce),
-    decrypt_string(template.encrypted_content, template.content_nonce),
-  ]);
-
-  return {
-    id: template.id,
-    name,
-    category,
-    content,
-    sort_order: template.sort_order,
-    created_at: template.created_at,
-    updated_at: template.updated_at,
-  };
-}
-
-export async function decrypt_templates(
-  templates: Template[],
-): Promise<DecryptedTemplate[]> {
-  const results = await Promise.allSettled(templates.map(decrypt_template));
-
-  return results
-    .filter(
-      (r): r is PromiseFulfilledResult<DecryptedTemplate> =>
-        r.status === "fulfilled",
-    )
-    .map((r) => r.value);
-}
-
-export async function list_templates(): Promise<
-  ApiResponse<{ templates: DecryptedTemplate[]; total: number }>
-> {
-  const response =
-    await api_client.get<ListTemplatesResponse>("/mail/v1/templates");
-
-  if (response.error || !response.data) {
-    return {
-      error: response.error || get_active_translations().errors.load_failed,
-    };
-  }
-
-  try {
-    const decrypted = await decrypt_templates(response.data.templates);
-
-    return { data: { templates: decrypted, total: response.data.total } };
-  } catch (err) {
-    return {
-      error: user_facing_error(
-        err,
-        get_active_translations().errors.load_failed,
-      ),
-    };
-  }
-}
-
-export async function get_template(
-  template_id: string,
-): Promise<ApiResponse<DecryptedTemplate>> {
-  const response = await api_client.get<Template>(
-    `/mail/v1/templates/${template_id}`,
-  );
-
-  if (response.error || !response.data) {
-    return {
-      error: response.error || get_active_translations().errors.load_failed,
-    };
-  }
-
-  try {
-    const decrypted = await decrypt_template(response.data);
-
-    return { data: decrypted };
-  } catch (err) {
-    return {
-      error: user_facing_error(
-        err,
-        get_active_translations().errors.load_failed,
-      ),
-    };
-  }
 }
 
 export async function create_template(
@@ -325,18 +196,4 @@ export async function update_template(
       ),
     };
   }
-}
-
-export async function delete_template(
-  template_id: string,
-): Promise<ApiResponse<DeleteTemplateResponse>> {
-  return api_client.delete<DeleteTemplateResponse>(
-    `/mail/v1/templates/${template_id}`,
-  );
-}
-
-export async function get_templates_count(): Promise<
-  ApiResponse<{ count: number }>
-> {
-  return api_client.get<{ count: number }>("/mail/v1/templates/count");
 }

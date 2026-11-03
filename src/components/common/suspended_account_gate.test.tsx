@@ -24,6 +24,7 @@ import { createRoot, type Root } from "react-dom/client";
 
 const get_mock = vi.fn();
 const logout_mock = vi.fn();
+const export_mock = vi.fn();
 
 vi.mock("@/lib/i18n/context", () => ({
   use_i18n: () => ({
@@ -59,9 +60,12 @@ vi.mock("@/components/layout/workspace_switcher", () => ({
   ),
 }));
 
-vi.mock("@/components/settings/export_modal", () => ({
-  ExportModal: ({ is_open }: { is_open: boolean }) =>
-    is_open ? <div data-testid="export_modal" /> : null,
+vi.mock("@/services/calendar/calendar_export", () => ({
+  export_calendar_events: (...args: unknown[]) => export_mock(...args),
+}));
+
+vi.mock("@/components/toast/simple_toast", () => ({
+  show_toast: vi.fn(),
 }));
 
 vi.mock("@/services/api/client", () => ({
@@ -105,6 +109,7 @@ function button_with(text: string): HTMLButtonElement {
 beforeEach(() => {
   get_mock.mockReset();
   logout_mock.mockReset();
+  export_mock.mockReset();
 });
 
 afterEach(() => {
@@ -172,18 +177,19 @@ describe("suspended account gate", () => {
     expect(element.textContent).toContain("common.suspended_title");
   });
 
-  it("opens the client-side export from the download button", async () => {
+  it("downloads every calendar from the download button", async () => {
     get_mock.mockResolvedValue({
       data: { status: "suspended", suspended_at: "2026-09-20T10:00:00Z" },
     });
+    export_mock.mockResolvedValue(3);
 
-    const element = await render();
+    await render();
 
     await act(async () => {
       button_with("common.suspended_download").click();
     });
 
-    expect(element.querySelector("[data-testid=export_modal]")).toBeTruthy();
+    expect(export_mock).toHaveBeenCalledWith(null);
   });
 
   it("signs out and hides itself", async () => {

@@ -26,13 +26,13 @@ import { use_i18n } from "@/lib/i18n/context";
 import { SettingsTabBar } from "@/components/settings/settings_tab_bar";
 import { use_settings_tabs } from "@/components/settings/use_settings_tabs";
 import { SecuritySection } from "@/components/settings/security_section";
-import { EncryptionSection } from "@/components/settings/encryption_section";
-import { TrustedDevicesPanel } from "@/components/settings/trusted_devices_panel";
+import {
+  TrustedDevicesPanel,
+} from "@/components/settings/trusted_devices_panel";
 
-type SecurityTab = "security" | "trusted_devices" | "encryption";
+type SecurityTab = "security" | "trusted_devices";
 
 interface SecurityGroupSectionProps {
-  account_only?: boolean;
   has_devices: boolean;
   show_inline_totp_setup: boolean;
   set_show_inline_totp_setup: Dispatch<SetStateAction<boolean>>;
@@ -40,7 +40,6 @@ interface SecurityGroupSectionProps {
 }
 
 export function SecurityGroupSection({
-  account_only = false,
   has_devices,
   show_inline_totp_setup,
   set_show_inline_totp_setup,
@@ -52,11 +51,10 @@ export function SecurityGroupSection({
       const keys: SecurityTab[] = ["security"];
 
       if (has_devices) keys.push("trusted_devices");
-      if (!account_only) keys.push("encryption");
 
       return keys;
     },
-    [account_only, has_devices],
+    [has_devices],
   );
   const { active_tab, handle_tab_change, render_tab } = use_settings_tabs(
     tab_keys,
@@ -79,28 +77,18 @@ export function SecurityGroupSection({
                 },
               ]
             : []),
-          ...(account_only
-            ? []
-            : [
-                {
-                  key: "encryption" as SecurityTab,
-                  label: t("settings.encryption"),
-                },
-              ]),
         ]}
       />
 
       {render_tab(
         "security",
         <SecuritySection
-          account_only={account_only}
           on_account_deleted={on_account_deleted}
           set_show_inline_totp_setup={set_show_inline_totp_setup}
           show_inline_totp_setup={show_inline_totp_setup}
         />,
       )}
       {has_devices && render_tab("trusted_devices", <TrustedDevicesPanel />)}
-      {!account_only && render_tab("encryption", <EncryptionSection />)}
     </div>
   );
 }

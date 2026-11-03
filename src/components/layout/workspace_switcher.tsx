@@ -28,7 +28,7 @@ import { show_toast } from "@/components/toast/simple_toast";
 import { ProfileAvatar } from "@/components/ui/profile_avatar";
 import { AccountAvatarButton } from "@/components/ui/account_avatar_button";
 import { use_auth } from "@/contexts/auth_context";
-import { use_mail_stats, prefetch_mail_stats } from "@/hooks/use_mail_stats";
+import { use_storage_usage, prefetch_storage_usage } from "@/hooks/use_storage_usage";
 import { use_plan_limits } from "@/hooks/use_plan_limits";
 import { use_resubscribe } from "@/hooks/use_resubscribe";
 import { PlanBadge } from "@/components/common/plan_badge";
@@ -74,7 +74,7 @@ export function WorkspaceSwitcher({
     max_account_limit,
   } = use_auth();
   const { preferences } = use_preferences();
-  const { stats, has_initialized: stats_ready, refresh } = use_mail_stats();
+  const { stats, has_initialized: stats_ready, refresh } = use_storage_usage();
   const { limits } = use_plan_limits();
   const { can_resubscribe, resubscribe } = use_resubscribe(is_open);
   const is_paid_plan = !!limits && limits.plan_code !== "free";
@@ -195,7 +195,7 @@ export function WorkspaceSwitcher({
 
       return;
     }
-    prefetch_mail_stats();
+    prefetch_storage_usage();
   }, [is_open, stats_ready, refresh]);
 
   const storage_used_label = useMemo(() => {

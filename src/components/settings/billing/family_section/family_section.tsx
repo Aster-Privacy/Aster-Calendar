@@ -111,7 +111,6 @@ import {
   type FamilyMemberInfo,
 } from "@/services/api/family";
 import { show_toast } from "@/components/toast/simple_toast";
-import { is_calendar_app } from "@/lib/app_kind";
 import { use_i18n } from "@/lib/i18n/context";
 import { use_preferences } from "@/contexts/preferences_context";
 import { use_auth } from "@/contexts/auth_context";
@@ -880,20 +879,10 @@ export function FamilySection({ is_family_plan }: FamilySectionProps) {
   const hero = (
     <Island padding="none">
       <div className="mx-2 mt-2 flex h-[88px] items-center justify-between gap-4 rounded-[var(--aster-radius-field)] bg-[color-mix(in_srgb,var(--text-primary)_6%,transparent)] px-5">
-        {is_calendar_app() ? (
-          <DatedCalendarLogo alt={t("calendar.aster_calendar_brand")} className="h-7 w-auto select-none object-contain" />
-        ) : (
-          <img
-            alt={t("common.aster_mail")}
-            className="h-8 w-auto select-none"
-            decoding="sync"
-            draggable={false}
-            height={199}
-            loading="eager"
-            src="/text_logo.png"
-            width={800}
-          />
-        )}
+        <DatedCalendarLogo
+          alt={t("calendar.aster_calendar_brand")}
+          className="h-7 w-auto select-none object-contain"
+        />
         <div className="flex items-center">
           {active_members.slice(0, 4).map((m, i) => (
             <span

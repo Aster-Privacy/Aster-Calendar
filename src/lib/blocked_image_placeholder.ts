@@ -166,39 +166,6 @@ const LIGHT_PAINT: PlaceholderPaint = {
   radius: 10,
 };
 
-export function email_placeholder_paint(dark: boolean): PlaceholderPaint {
-  const fallback = dark
-    ? {
-        ...LIGHT_PAINT,
-        background: "#0a0a0a",
-        border: "#333333",
-        text: "#909090",
-      }
-    : LIGHT_PAINT;
-
-  if (
-    typeof document === "undefined" ||
-    document.documentElement.classList.contains("dark") !== dark
-  )
-    return fallback;
-  const styles = getComputedStyle(document.documentElement);
-  const color = (variable: string, value: string) =>
-    css_color_to_hex(styles.getPropertyValue(variable).trim()) || value;
-  const raw_radius = styles.getPropertyValue("--radius").trim();
-  const radius = Number.parseFloat(raw_radius);
-  const root_font = Number.parseFloat(styles.fontSize) || 16;
-
-  return {
-    ...fallback,
-    background: color("--bg-secondary", fallback.background),
-    border: color("--border-primary", fallback.border),
-    text: color("--text-muted", fallback.text),
-    radius: Number.isFinite(radius)
-      ? radius * (raw_radius.endsWith("rem") ? root_font : 1)
-      : fallback.radius,
-  };
-}
-
 const PHOTO_PATH =
   "m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z";
 

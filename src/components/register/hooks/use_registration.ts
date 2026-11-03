@@ -21,7 +21,6 @@
 import type { TurnstileWidgetRef } from "@/components/auth/turnstile_widget";
 import type { RegistrationStep } from "@/components/register/register_types";
 import type { RegisterRequest } from "@/services/api/auth";
-import type { UserPreferences } from "@/services/api/preferences";
 import type { EncryptedVault } from "@/services/crypto/key_manager_core";
 import type { TranslationKey } from "@/lib/i18n/types";
 
@@ -45,10 +44,9 @@ import { useTheme } from "@/contexts/theme_context";
 import { use_auth } from "@/contexts/auth_context";
 import { get_default_profile_color } from "@/constants/profile";
 import { show_toast } from "@/components/toast/simple_toast";
-import { use_preferences } from "@/contexts/preferences_context";
-import { request_notification_permission } from "@/services/notification_service";
-import { subscribe_to_push } from "@/services/push_subscription";
-import { queue_onboarding_preference } from "@/lib/onboarding_preferences";
+import {
+  request_notification_permission,
+} from "@/services/notification_service";
 import {
   hash_email,
   derive_password_hash,
@@ -101,15 +99,12 @@ import {
 import { check_password_breach } from "@/services/breach_check";
 import { EMAIL_REGEX } from "@/lib/utils";
 import { use_i18n } from "@/lib/i18n/context";
-import { open_external } from "@/utils/open_link";
 import { user_facing_error } from "@/utils/user_facing_error";
 import { get_safe_next_path } from "@/pages/sign_in_helpers";
-import { app_kind, is_calendar_app } from "@/lib/app_kind";
 import {
-  first_onboarding_step,
-  onboarding_resume_step,
-  step_after_notifications,
-  step_after_plan,
+  FIRST_ONBOARDING_STEP,
+  STEP_AFTER_NOTIFICATIONS,
+  STEP_AFTER_PLAN,
 } from "@/components/register/registration_flow";
 
 export async function build_registration_ratchet_fields(): Promise<
@@ -181,28 +176,14 @@ const PRE_CREATION_STEPS: ReadonlySet<RegistrationStep> = new Set([
 const RESUMABLE_STEPS: ReadonlySet<RegistrationStep> = new Set([
   "recovery_key",
   "recovery_email",
-  "download_apps",
   "notifications",
-  "addresses",
-  "custom_domain",
-  "import_mail",
   "plan_selection",
   "bring_calendar",
 ]);
 
 const BACK_NAVIGABLE_STEPS: ReadonlySet<RegistrationStep> = new Set([
-  "download_apps",
   "notifications",
-  "addresses",
-  "custom_domain",
-  "import_mail",
   "plan_selection",
-]);
-
-const FINISH_PATHS: ReadonlySet<string> = new Set([
-  "/",
-  "/settings/domains",
-  "/settings/import",
 ]);
 
 interface RegistrationHistoryState {
@@ -219,8 +200,6 @@ interface RegistrationResumeState {
   recovery_email: string;
   recovery_email_required: boolean;
   plan_step_shown: boolean;
-  finish_path: string;
-  open_domain_purchase: boolean;
 }
 
 function read_resume_state(): RegistrationResumeState | null {
@@ -247,12 +226,6 @@ function read_resume_state(): RegistrationResumeState | null {
         typeof parsed.recovery_email === "string" ? parsed.recovery_email : "",
       recovery_email_required: parsed.recovery_email_required === true,
       plan_step_shown: parsed.plan_step_shown === true,
-      finish_path:
-        typeof parsed.finish_path === "string" &&
-        FINISH_PATHS.has(parsed.finish_path)
-          ? parsed.finish_path
-          : "/",
-      open_domain_purchase: parsed.open_domain_purchase === true,
     };
   } catch {
     return null;
@@ -262,9 +235,7 @@ function read_resume_state(): RegistrationResumeState | null {
 function resolve_resume_step(step: RegistrationStep): RegistrationStep {
   if (step === "password" || step === "generating") return "password";
   if (PRE_CREATION_STEPS.has(step)) return "email";
-  if (RESUMABLE_STEPS.has(step) || step === "academic_offer") {
-    return onboarding_resume_step(app_kind(), step);
-  }
+  if (RESUMABLE_STEPS.has(step)) return step;
 
   return "recovery_email";
 }
@@ -373,7 +344,6 @@ export function use_registration(options?: RegistrationClaimOptions) {
     vault,
     set_is_completing_registration,
   } = use_auth();
-  const { update_preference } = use_preferences();
 
   const [notifications_busy, set_notifications_busy] = useState(false);
   const resume_state_ref = useRef<RegistrationResumeState | null>(
@@ -396,7 +366,7 @@ export function use_registration(options?: RegistrationClaimOptions) {
     !location.state?.from;
 
   useEffect(() => {
-    document.title = `${t("auth.sign_up")} | ${t(is_calendar_app() ? "calendar.aster_calendar_brand" : "common.aster_mail")}`;
+    document.title = `${t("auth.sign_up")} | ${t("calendar.aster_calendar_brand")}`;
   }, [t]);
 
   const [step, set_step] = useState<RegistrationStep>(
@@ -404,8 +374,6 @@ export function use_registration(options?: RegistrationClaimOptions) {
   );
   const [is_downloading_key, set_is_downloading_key] = useState(false);
   const [has_copied_key, set_has_copied_key] = useState(false);
-  const [has_opened_download, set_has_opened_download] = useState(false);
-  const [added_addresses, set_added_addresses] = useState<string[]>([]);
   const [is_password_visible, set_is_password_visible] = useState(false);
   const [is_confirm_password_visible, set_is_confirm_password_visible] =
     useState(false);
@@ -474,10 +442,6 @@ export function use_registration(options?: RegistrationClaimOptions) {
   );
   const complete_registration_ref = useRef<() => Promise<void>>();
   const plan_step_shown_ref = useRef(false);
-  const finish_path_ref = useRef(resume_state_ref.current?.finish_path ?? "/");
-  const open_domain_purchase_ref = useRef(
-    resume_state_ref.current?.open_domain_purchase ?? false,
-  );
   const step_ref = useRef(step);
 
   step_ref.current = step;
@@ -516,8 +480,6 @@ export function use_registration(options?: RegistrationClaimOptions) {
       recovery_email,
       recovery_email_required,
       plan_step_shown: plan_step_shown_ref.current,
-      finish_path: finish_path_ref.current,
-      open_domain_purchase: open_domain_purchase_ref.current,
     };
 
     safe_session_set(REGISTRATION_RESUME_KEY, JSON.stringify(state));
@@ -1131,11 +1093,8 @@ export function use_registration(options?: RegistrationClaimOptions) {
   const finalize_registration = async (target_path?: string) => {
     await persist_registration_state();
 
-    const destination = target_path ?? finish_path_ref.current;
+    const destination = target_path ?? "/";
 
-    if (open_domain_purchase_ref.current) {
-      safe_session_set("alias_domains_purchase_open", "1");
-    }
     safe_session_remove(REGISTRATION_RESUME_KEY);
     handoff_ref.current = true;
     set_is_completing_registration(false);
@@ -1143,31 +1102,9 @@ export function use_registration(options?: RegistrationClaimOptions) {
     navigate(destination, { replace: true });
   };
 
-  const go_to_plan_step = async (
-    finish_path: string,
-    open_domain_purchase = false,
-  ) => {
-    finish_path_ref.current = finish_path;
-    open_domain_purchase_ref.current = open_domain_purchase;
-    if (is_claim) {
-      await finalize_registration();
-
-      return;
-    }
-    set_step("plan_selection");
-  };
-
   const finish_plan_selection = async () => {
-    const next_step = step_after_plan(app_kind());
-
-    if (next_step) {
-      finish_path_ref.current = "/";
-      void persist_registration_state();
-      set_step(next_step);
-
-      return;
-    }
-    await finalize_registration();
+    void persist_registration_state();
+    set_step(STEP_AFTER_PLAN);
   };
 
   const complete_registration = async () => {
@@ -1176,20 +1113,11 @@ export function use_registration(options?: RegistrationClaimOptions) {
     if (!is_claim && !plan_step_shown_ref.current) {
       plan_step_shown_ref.current = true;
       void persist_registration_state();
-      set_step(first_onboarding_step(app_kind()));
+      set_step(FIRST_ONBOARDING_STEP);
 
       return;
     }
     await finalize_registration();
-  };
-
-  const handle_open_download = (url: string) => {
-    open_external(url);
-    set_has_opened_download(true);
-  };
-
-  const handle_download_apps_continue = () => {
-    set_step("notifications");
   };
 
   const show_sample_notification = () => {
@@ -1197,9 +1125,7 @@ export function use_registration(options?: RegistrationClaimOptions) {
     try {
       const sample = new Notification(t("auth.notifications_turned_on"), {
         body: t(
-          is_calendar_app()
-            ? "auth.calendar_notifications_sample_body"
-            : "auth.notifications_sample_body",
+          "auth.calendar_notifications_sample_body",
         ),
         icon: "/pwa-192x192.png",
         tag: "aster-onboarding-notification",
@@ -1216,33 +1142,6 @@ export function use_registration(options?: RegistrationClaimOptions) {
     }
   };
 
-  const set_onboarding_preference = <K extends keyof UserPreferences>(
-    key: K,
-    value: UserPreferences[K],
-  ) => {
-    if (is_completing_registration) {
-      queue_onboarding_preference(key, value);
-    } else {
-      update_preference(key, value, true);
-    }
-  };
-
-  const subscribe_push_in_background = () => {
-    const timeout = new Promise<boolean>((resolve) =>
-      window.setTimeout(() => resolve(false), 15000),
-    );
-
-    void Promise.race([subscribe_to_push(), timeout])
-      .then((subscribed) => {
-        if (subscribed) {
-          set_onboarding_preference("push_notifications", true);
-        }
-      })
-      .catch((e) => {
-        if (import.meta.env.DEV) console.error(e);
-      });
-  };
-
   const handle_notifications_turn_on = async () => {
     if (notifications_busy) return;
     set_notifications_busy(true);
@@ -1255,47 +1154,16 @@ export function use_registration(options?: RegistrationClaimOptions) {
     }
     set_notifications_busy(false);
     if (permission === "granted") {
-      const is_calendar = is_calendar_app();
-
-      if (!is_calendar) set_onboarding_preference("desktop_notifications", true);
       show_sample_notification();
       show_toast(t("auth.notifications_turned_on"), "success");
-      if (!is_calendar) subscribe_push_in_background();
     } else if (permission === "denied") {
       show_toast(t("auth.notifications_blocked_hint"), "warning", 7000);
     }
-    set_step(step_after_notifications(app_kind()));
+    set_step(STEP_AFTER_NOTIFICATIONS);
   };
 
   const handle_notifications_skip = () => {
-    set_step(step_after_notifications(app_kind()));
-  };
-
-  const handle_addresses_continue = () => {
-    set_step("custom_domain");
-  };
-
-  const handle_custom_domain_own = async () => {
-    await go_to_plan_step("/settings/domains");
-  };
-
-  const handle_custom_domain_new = async () => {
-    finish_path_ref.current = "/settings/domains";
-    open_domain_purchase_ref.current = true;
-    plan_step_shown_ref.current = true;
-    await finalize_registration();
-  };
-
-  const handle_custom_domain_skip = () => {
-    set_step("import_mail");
-  };
-
-  const handle_import_mail = async () => {
-    await go_to_plan_step("/settings/import");
-  };
-
-  const handle_import_mail_skip = async () => {
-    await go_to_plan_step("/");
+    set_step(STEP_AFTER_NOTIFICATIONS);
   };
 
   complete_registration_ref.current = complete_registration;
@@ -1670,9 +1538,6 @@ export function use_registration(options?: RegistrationClaimOptions) {
     is_text_downloaded,
     is_downloading_key,
     has_copied_key,
-    has_opened_download,
-    added_addresses,
-    set_added_addresses,
     show_skip_confirmation,
     set_show_skip_confirmation,
     is_saving_recovery_email,
@@ -1694,17 +1559,9 @@ export function use_registration(options?: RegistrationClaimOptions) {
     handle_recovery_email_skip,
     handle_recovery_email_gate_submit,
     handle_advance_from_recovery_key,
-    handle_open_download,
-    handle_download_apps_continue,
     notifications_busy,
     handle_notifications_turn_on,
     handle_notifications_skip,
-    handle_addresses_continue,
-    handle_custom_domain_own,
-    handle_custom_domain_new,
-    handle_custom_domain_skip,
-    handle_import_mail,
-    handle_import_mail_skip,
     handle_resend_verification,
     handle_skip_verification,
     handle_change_recovery_email,

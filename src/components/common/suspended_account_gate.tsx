@@ -18,16 +18,8 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-  lazy,
-  Suspense,
-} from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
-import { is_calendar_app } from "@/lib/app_kind";
 import { use_i18n } from "@/lib/i18n/context";
 import { use_auth } from "@/contexts/auth/use_auth_hook";
 import { use_preferences } from "@/contexts/preferences_context";
@@ -38,12 +30,8 @@ import { ProfileAvatar } from "@/components/ui/profile_avatar";
 import { WorkspaceSwitcher } from "@/components/layout/workspace_switcher";
 import { use_primary_identity } from "@/lib/primary_identity";
 import { WarningIcon } from "@/components/auth/auth_styles";
-
-const ExportModal = lazy(() =>
-  import("@/components/settings/export_modal").then((m) => ({
-    default: m.ExportModal,
-  })),
-);
+import { show_toast } from "@/components/toast/simple_toast";
+import { export_calendar_events } from "@/services/calendar/calendar_export";
 
 export const ACCOUNT_SUSPENDED_EVENT = "aster:account-suspended";
 const TERMS_URL = "https://astermail.org/terms";
@@ -116,7 +104,7 @@ export function SuspendedAccountGate() {
   const is_signing_out = useRef(false);
   const [is_visible, set_is_visible] = useState(false);
   const [details, set_details] = useState<SuspensionDetails>(EMPTY_DETAILS);
-  const [is_export_open, set_is_export_open] = useState(false);
+  const [is_exporting, set_is_exporting] = useState(false);
   const [is_switcher_open, set_is_switcher_open] = useState(false);
   const [is_busy, set_is_busy] = useState(false);
 
@@ -145,6 +133,26 @@ export function SuspendedAccountGate() {
     return false;
   }, []);
 
+  const handle_download = useCallback(async () => {
+    set_is_exporting(true);
+
+    try {
+      const count = await export_calendar_events(null);
+
+      if (count === 0) {
+        show_toast(t("calendar.settings_export_empty"), "info");
+
+        return;
+      }
+
+      show_toast(t("calendar.settings_export_done", { count }), "success");
+    } catch {
+      show_toast(t("calendar.settings_export_failed"), "error");
+    } finally {
+      set_is_exporting(false);
+    }
+  }, [t]);
+
   const handle_suspended_signal = useCallback(() => {
     if (is_signing_out.current) return;
     set_is_visible(true);
@@ -168,7 +176,6 @@ export function SuspendedAccountGate() {
     if (!is_authenticated) {
       if (was_authenticated.current) {
         set_is_visible(false);
-        set_is_export_open(false);
         set_details(EMPTY_DETAILS);
       }
       was_authenticated.current = false;
@@ -359,9 +366,9 @@ export function SuspendedAccountGate() {
             <button
               className="account_menu_row flex w-full items-center gap-3.5 rounded-[16px] px-3.5 py-3.5 text-start disabled:opacity-50"
               data-testid="suspended_download"
-              disabled={is_busy}
+              disabled={is_busy || is_exporting}
               type="button"
-              onClick={() => set_is_export_open(true)}
+              onClick={() => void handle_download()}
             >
               <span className="flex min-w-0 flex-1 flex-col gap-1">
                 <span className="text-[13px] font-medium leading-tight text-txt-primary">
@@ -372,9 +379,7 @@ export function SuspendedAccountGate() {
                   style={{ color: "var(--text-muted)" }}
                 >
                   {t(
-                    is_calendar_app()
-                      ? "common.cal_suspended_download_hint"
-                      : "common.suspended_download_hint",
+                    "common.cal_suspended_download_hint",
                   )}
                 </span>
               </span>
@@ -393,15 +398,6 @@ export function SuspendedAccountGate() {
           </button>
         </div>
       </div>
-
-      {is_export_open && (
-        <Suspense fallback={null}>
-          <ExportModal
-            is_open={is_export_open}
-            on_close={() => set_is_export_open(false)}
-          />
-        </Suspense>
-      )}
     </div>
   );
 }

@@ -18,11 +18,11 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import type { TotpVerifyResponse } from "./totp";
+
 import type { HardwareKeyRegistrationCompleteResponse } from "./webauthn";
 
 import { api_client, ApiResponse } from "./client";
-import { clear_csrf_cache } from "./csrf";
+
 import {
   initiate_hardware_key_registration,
   complete_hardware_key_registration,
@@ -37,28 +37,6 @@ async function get_prf_eval(): Promise<ArrayBuffer> {
     "SHA-256",
     new TextEncoder().encode("aster-vault-prf-eval-v1"),
   );
-}
-
-export interface PasskeyInitiateResponse {
-  challenge: string;
-  challenge_token: string;
-  rpId: string;
-  timeout: number;
-  userVerification: string;
-}
-
-export interface PasskeyVerifyRequest {
-  id: string;
-  raw_id: string;
-  response: {
-    authenticator_data: string;
-    client_data_json: string;
-    signature: string;
-    user_handle: string | null;
-  };
-  type: string;
-  challenge_token: string;
-  remember_me?: boolean;
 }
 
 function base64url_to_array_buffer(base64url: string): ArrayBuffer {
@@ -89,120 +67,6 @@ function array_buffer_to_base64url(buffer: ArrayBuffer): string {
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
-}
-
-export async function passkey_login_initiate(): Promise<
-  ApiResponse<PasskeyInitiateResponse>
-> {
-  return api_client.post<PasskeyInitiateResponse>(
-    "/core/v1/auth/passkeys/initiate",
-    {},
-  );
-}
-
-export async function passkey_login_verify(
-  request: PasskeyVerifyRequest,
-): Promise<ApiResponse<TotpVerifyResponse>> {
-  const response = await api_client.post<TotpVerifyResponse>(
-    "/core/v1/auth/passkeys/verify",
-    request,
-  );
-
-  if (response.data) {
-    clear_csrf_cache();
-    if (response.data.access_token) {
-      api_client.set_dev_token(
-        response.data.access_token,
-        (response.data as { refresh_token?: string }).refresh_token,
-      );
-    }
-    api_client.set_authenticated(true);
-  }
-
-  return response;
-}
-
-export async function perform_passkey_login(
-  options: PasskeyInitiateResponse,
-  remember_me?: boolean,
-): Promise<ApiResponse<TotpVerifyResponse>> {
-  const prf_eval = await get_prf_eval();
-  const public_key: PublicKeyCredentialRequestOptions = {
-    challenge: base64url_to_array_buffer(options.challenge),
-    rpId: options.rpId,
-    allowCredentials: [],
-    timeout: options.timeout,
-    userVerification: options.userVerification as UserVerificationRequirement,
-    // WebAuthn L3 hint - ignored by older browsers, prefers platform auth on Chrome/Edge
-    ...({ hints: ["client-device"] } as object),
-    ...({ extensions: { prf: { eval: { first: prf_eval } } } } as object),
-  };
-
-  if (!options.challenge_token) {
-    return {
-      data: undefined,
-      error: get_active_translations().errors.authentication_failed,
-    };
-  }
-
-  let credential: PublicKeyCredential | null;
-
-  try {
-    credential = (await navigator.credentials.get({
-      publicKey: public_key,
-      mediation: "required" as CredentialMediationRequirement,
-    })) as PublicKeyCredential | null;
-  } catch (err) {
-    if (err instanceof DOMException && err.name === "NotAllowedError") {
-      return { data: undefined, error: "passkey_cancelled" };
-    }
-
-    return {
-      data: undefined,
-      error: get_active_translations().errors.authentication_failed,
-    };
-  }
-
-  if (!credential) {
-    return { data: undefined, error: "passkey_cancelled" };
-  }
-
-  const assertion = credential.response as AuthenticatorAssertionResponse;
-
-  const user_handle =
-    assertion.userHandle && assertion.userHandle.byteLength > 0
-      ? btoa(
-          Array.from(new Uint8Array(assertion.userHandle), (b) =>
-            String.fromCharCode(b),
-          ).join(""),
-        )
-      : null;
-
-  const prf_output: ArrayBuffer | null =
-    (credential.getClientExtensionResults() as any)?.prf?.results?.first ??
-    null;
-
-  const result = await passkey_login_verify({
-    id: credential.id,
-    raw_id: array_buffer_to_base64url(credential.rawId),
-    response: {
-      authenticator_data: array_buffer_to_base64url(
-        assertion.authenticatorData,
-      ),
-      client_data_json: array_buffer_to_base64url(assertion.clientDataJSON),
-      signature: array_buffer_to_base64url(assertion.signature),
-      user_handle,
-    },
-    type: credential.type,
-    challenge_token: options.challenge_token,
-    remember_me,
-  });
-
-  if (result.data && prf_output) {
-    (result as any).prf_output = prf_output;
-  }
-
-  return result;
 }
 
 function get_platform_passkey_name(): string {

@@ -24,7 +24,7 @@ import {
   array_to_base64,
   encrypt_envelope_with_bytes,
 } from "./crypto/envelope";
-import { encrypt_mail_metadata } from "./crypto/mail_metadata";
+import { encrypt_mail_metadata } from "./crypto/mail_metadata_core";
 import {
   get_passphrase_bytes,
   get_passphrase_from_memory,

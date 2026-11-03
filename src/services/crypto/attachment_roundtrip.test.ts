@@ -48,7 +48,7 @@ import {
   decrypt_attachment_data,
 } from "./attachment_crypto";
 
-import type { Attachment } from "@/components/compose/compose_shared";
+import type { Attachment } from "@/types/attachment";
 
 function make_attachment(bytes: Uint8Array): Attachment {
   return {

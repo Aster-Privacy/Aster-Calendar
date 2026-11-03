@@ -22,7 +22,6 @@ import type { ReactNode } from "react";
 
 import { button_variants } from "@aster/ui";
 
-import { is_calendar_app } from "@/lib/app_kind";
 import { use_i18n } from "@/lib/i18n/context";
 import {
   format_storage,
@@ -54,7 +53,6 @@ export function CancelImpactStep({
   on_continue,
 }: CancelImpactStepProps) {
   const { t } = use_i18n();
-  const show_mail_impact = !is_calendar_app();
 
   const lines: ImpactLine[] = [];
 
@@ -77,65 +75,12 @@ export function CancelImpactStep({
       });
     }
 
-    if (show_mail_impact && impact.aliases_to_disable > 0) {
-      lines.push({
-        key: "aliases",
-        text: t("settings.cancel_impact_aliases", {
-          count: impact.aliases_to_disable,
-          days: impact.alias_grace_days,
-        }),
-      });
-    }
-
-    if (show_mail_impact && impact.domains_to_suspend > 0) {
-      lines.push({
-        key: "domains",
-        text: t("settings.cancel_impact_domains", {
-          count: impact.domains_to_suspend,
-        }),
-      });
-    }
-
-    if (show_mail_impact && impact.catch_all_to_revoke > 0) {
-      lines.push({
-        key: "catch_all",
-        text: t("settings.cancel_impact_catch_all"),
-      });
-    }
-
-    if (show_mail_impact && impact.templates_to_disable > 0) {
-      lines.push({
-        key: "templates",
-        text: t("settings.cancel_impact_templates", {
-          count: impact.templates_to_disable,
-        }),
-      });
-    }
-
-    if (show_mail_impact && impact.signatures_to_disable > 0) {
-      lines.push({
-        key: "signatures",
-        text: t("settings.cancel_impact_signatures", {
-          count: impact.signatures_to_disable,
-        }),
-      });
-    }
-
     if (impact.family_members_affected > 0) {
       lines.push({
         key: "family",
         text: t("settings.cancel_impact_family", {
           count: impact.family_members_affected,
           days: impact.family_grace_days,
-        }),
-      });
-    }
-
-    if (show_mail_impact && impact.family_addresses_released > 0) {
-      lines.push({
-        key: "family_addresses",
-        text: t("settings.cancel_impact_family_addresses", {
-          count: impact.family_addresses_released,
         }),
       });
     }

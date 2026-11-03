@@ -193,54 +193,6 @@ export function app_locale(): string | undefined {
   return active_locale();
 }
 
-export function format_datetime_hint(
-  date: Date,
-  with_weekday = false,
-  with_year = false,
-): string {
-  return date_formatter(app_locale(), {
-    weekday: with_weekday ? "short" : undefined,
-    year: with_year ? "numeric" : undefined,
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: app_hour12(),
-    timeZone: get_display_time_zone(),
-  }).format(date);
-}
-
-export function format_weekday_time(date: Date): string {
-  return date_formatter(app_locale(), {
-    weekday: "short",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: app_hour12(),
-    timeZone: get_display_time_zone(),
-  }).format(date);
-}
-
-export function format_weekday_date(date: Date): string {
-  return date_formatter(app_locale(), {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    timeZone: get_display_time_zone(),
-  }).format(date);
-}
-
-export function format_hour_choice(
-  hour: number,
-  am: string,
-  pm: string,
-): string {
-  if (app_hour12() === false) {
-    return `${hour.toString().padStart(2, "0")}`;
-  }
-
-  return `${hour % 12 || 12} ${hour >= 12 ? pm : am}`;
-}
-
 export function local_date_key(date: Date): string {
   try {
     return date_formatter("en-CA", {
@@ -346,26 +298,6 @@ export function zoned_add_days(date: Date, days: number): Date {
   const parts = get_zoned_parts(date);
 
   return date_from_zoned_parts({ ...parts, day: parts.day + days });
-}
-
-export function zoned_calendar_day(date: Date): Date {
-  const parts = get_zoned_parts(date);
-
-  return new Date(parts.year, parts.month - 1, parts.day, 0, 0, 0, 0);
-}
-
-export function zoned_instant_from_calendar_day(
-  day: Date,
-  hours: number,
-  minutes: number,
-): Date {
-  return date_from_zoned_parts({
-    year: day.getFullYear(),
-    month: day.getMonth() + 1,
-    day: day.getDate(),
-    hours,
-    minutes,
-  });
 }
 
 export function zoned_weekday(date: Date): number {
@@ -605,12 +537,6 @@ export function format_date_short(
   }
 }
 
-export function format_weekday_short(date: Date): string {
-  return date_formatter(active_locale(), zoned({ weekday: "short" })).format(
-    date,
-  );
-}
-
 function full_date_locale(
   date_format: DateFormatPreference,
 ): string | undefined {
@@ -755,13 +681,6 @@ export function format_email_detail_timestamp(
     : `${date_str} at ${time_str}`;
 }
 
-export function format_email_popup_timestamp(
-  date: Date,
-  options: FormatOptions = default_options(),
-): string {
-  return format_full_datetime(date, options);
-}
-
 export function format_print_timestamp(
   value: Date | string | null | undefined,
   fallback: string,
@@ -772,77 +691,4 @@ export function format_print_timestamp(
   return date.toLocaleString(app_locale(), {
     timeZone: get_display_time_zone(),
   });
-}
-
-export function format_snooze_remaining(
-  snooze_date: Date,
-  t?: TranslateFn,
-): string {
-  const now = new Date();
-  const diff_ms = snooze_date.getTime() - now.getTime();
-
-  if (diff_ms <= 0) return t ? t("common.snooze_expired") : "Snooze expired";
-
-  const diff_minutes = Math.max(1, Math.floor(diff_ms / (1000 * 60)));
-  const diff_hours = Math.floor(diff_ms / (1000 * 60 * 60));
-  const diff_days = Math.floor(diff_ms / (1000 * 60 * 60 * 24));
-
-  if (diff_minutes < 60) {
-    return t
-      ? t("common.minutes_remaining", { count: diff_minutes })
-      : `${diff_minutes} minute${diff_minutes !== 1 ? "s" : ""} remaining`;
-  } else if (diff_hours < 24) {
-    return t
-      ? t("common.hours_remaining", { count: diff_hours })
-      : `${diff_hours} hour${diff_hours !== 1 ? "s" : ""} remaining`;
-  } else if (diff_days < 7) {
-    return t
-      ? t("common.days_remaining", { count: diff_days })
-      : `${diff_days} day${diff_days !== 1 ? "s" : ""} remaining`;
-  } else {
-    const weeks = Math.floor(diff_days / 7);
-
-    return t
-      ? t("common.weeks_remaining", { count: weeks })
-      : `${weeks} week${weeks !== 1 ? "s" : ""} remaining`;
-  }
-}
-
-export function format_snooze_target(
-  snooze_date: Date,
-  t?: TranslateFn,
-): string {
-  const now = new Date();
-
-  const time_str = snooze_date.toLocaleTimeString(
-    app_locale(),
-    zoned({
-      hour: "numeric",
-      hour12: app_hour12(),
-      minute: "2-digit",
-    }),
-  );
-
-  if (day_key(snooze_date) === day_key(now)) {
-    return t
-      ? t("common.today_at_time", { time: time_str })
-      : `Today at ${time_str}`;
-  } else if (day_key(snooze_date) === shifted_day_key(now, 1)) {
-    return t
-      ? t("common.tomorrow_at_time", { time: time_str })
-      : `Tomorrow at ${time_str}`;
-  } else {
-    const date_str = snooze_date.toLocaleDateString(
-      app_locale(),
-      zoned({
-        weekday: "long",
-        month: "short",
-        day: "numeric",
-      }),
-    );
-
-    return t
-      ? t("common.date_at_time", { date: date_str, time: time_str })
-      : `${date_str} at ${time_str}`;
-  }
 }

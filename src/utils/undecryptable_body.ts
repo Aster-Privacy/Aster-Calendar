@@ -22,11 +22,3 @@ export const RATCHET_UNDECRYPTABLE_SENTINEL =
   "\x00ASTER_RATCHET_UNDECRYPTABLE\x00";
 
 export const PGP_UNDECRYPTABLE_SENTINEL = "\x00ASTER_PGP_UNDECRYPTABLE\x00";
-
-export function is_undecryptable_body(body: string | null | undefined) {
-  return (
-    typeof body === "string" &&
-    (body === RATCHET_UNDECRYPTABLE_SENTINEL ||
-      body.includes(PGP_UNDECRYPTABLE_SENTINEL))
-  );
-}

@@ -303,21 +303,7 @@ export interface SearchContactsResponse {
   total: number;
 }
 
-export interface ContactActivity {
-  id: string;
-  type: "email_sent" | "email_received" | "created" | "updated";
-  details?: string;
-  created_at: string;
-}
-
 export const CONTACT_DATA_VERSION = 2;
-
-export const RELATIONSHIP_LABELS: Record<string, string> = {
-  work: "Work",
-  personal: "Personal",
-  family: "Family",
-  other: "Other",
-};
 
 export interface ContactPhoto {
   id: string;
@@ -343,45 +329,6 @@ export interface DecryptedContactPhoto {
   data: Uint8Array;
   meta: ContactPhotoMeta;
   blob_url?: string;
-  created_at: string;
-}
-
-export interface ContactAttachment {
-  id: string;
-  contact_id: string;
-  encrypted_data: string;
-  data_nonce: string;
-  encrypted_meta: string;
-  meta_nonce: string;
-  size_bytes: number;
-  seq_num: number;
-  created_at: string;
-}
-
-export interface ContactAttachmentMeta {
-  filename: string;
-  mime_type: string;
-  description?: string;
-}
-
-export interface DecryptedContactAttachment {
-  id: string;
-  contact_id: string;
-  data: Uint8Array;
-  meta: ContactAttachmentMeta;
-  size_bytes: number;
-  seq_num?: number;
-  created_at: string;
-  blob_url?: string;
-}
-
-export interface ContactAttachmentListItem {
-  id: string;
-  contact_id: string;
-  encrypted_meta: string;
-  meta_nonce: string;
-  size_bytes: number;
-  seq_num: number;
   created_at: string;
 }
 
@@ -426,67 +373,6 @@ export interface DecryptedCustomFieldValue {
   field_name: string;
   field_type: CustomFieldType;
   value: string;
-  created_at: string;
-}
-
-export interface ContactActivityEntry {
-  id: string;
-  contact_id: string;
-  activity_type: ContactActivityType;
-  mail_item_id?: string;
-  direction?: "sent" | "received";
-  encrypted_subject?: string;
-  subject_nonce?: string;
-  created_at: string;
-}
-
-export type ContactActivityType =
-  | "email_sent"
-  | "email_received"
-  | "created"
-  | "updated"
-  | "merged"
-  | "imported";
-
-export interface DecryptedContactActivityEntry {
-  id: string;
-  contact_id: string;
-  activity_type: ContactActivityType;
-  mail_item_id?: string;
-  direction?: "sent" | "received";
-  subject?: string;
-  created_at: string;
-}
-
-export interface ContactEmailStats {
-  total_sent: number;
-  total_received: number;
-  last_sent_at?: string;
-  last_received_at?: string;
-  first_contact_at?: string;
-}
-
-export interface ContactHistoryResponse {
-  items: ContactActivityEntry[];
-  next_cursor: string | null;
-  has_more: boolean;
-}
-
-export interface DuplicateCandidate {
-  id: string;
-  contact_id_1: string;
-  contact_id_2: string;
-  similarity_score: number;
-  match_reason: "email" | "name" | "phone" | "combined";
-  created_at: string;
-}
-
-export interface DuplicateCandidateWithContacts {
-  id: string;
-  contact_1: DecryptedContact;
-  contact_2: DecryptedContact;
-  similarity_score: number;
-  match_reason: "email" | "name" | "phone" | "combined";
   created_at: string;
 }
 

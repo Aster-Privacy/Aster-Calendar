@@ -96,16 +96,6 @@ export function dismiss_peer_identity_event(peer: string): void {
   }
 }
 
-export function subscribe_peer_identity_events(
-  listener: () => void,
-): () => void {
-  peer_identity_listeners.add(listener);
-
-  return () => {
-    peer_identity_listeners.delete(listener);
-  };
-}
-
 function evict_oldest<K, V>(store: Map<K, V>, limit: number): void {
   while (store.size > limit) {
     const oldest = store.keys().next();
@@ -136,16 +126,6 @@ export function record_bundle_verification(
   });
 
   evict_oldest(bundle_records, MAX_TRACKED_PEERS);
-}
-
-export function get_bundle_verification(
-  peer: string,
-): BundleVerificationRecord | null {
-  return bundle_records.get(peer.toLowerCase()) ?? null;
-}
-
-export function list_bundle_verifications(): BundleVerificationRecord[] {
-  return [...bundle_records.values()];
 }
 
 export function record_message_sender_identity(

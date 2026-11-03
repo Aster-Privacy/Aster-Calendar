@@ -47,7 +47,6 @@ const family_group_payload = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubEnv("VITE_APP_KIND", "mail");
   localStorage.clear();
 });
 
@@ -99,44 +98,10 @@ describe("resolve_is_family_plan", () => {
 });
 
 describe("refresh_family_plan_flag", () => {
-  it("persists and reports true on success", async () => {
-    mocked_get.mockResolvedValue({ data: family_group_payload });
-    const on_resolved = vi.fn();
 
-    refresh_family_plan_flag(on_resolved);
-    await vi.waitFor(() => expect(on_resolved).toHaveBeenCalledWith(true));
 
-    expect(localStorage.getItem("aster_is_family_plan")).toBe("1");
-  });
 
-  it("persists and reports false on not-found", async () => {
-    localStorage.setItem("aster_is_family_plan", "1");
-    mocked_get.mockResolvedValue({ error: "not found", code: "NOT_FOUND" });
-    const on_resolved = vi.fn();
-
-    refresh_family_plan_flag(on_resolved);
-    await vi.waitFor(() => expect(on_resolved).toHaveBeenCalledWith(false));
-
-    expect(localStorage.getItem("aster_is_family_plan")).toBe("0");
-  });
-
-  it("keeps the cached flag untouched on transient errors", async () => {
-    localStorage.setItem("aster_is_family_plan", "1");
-    mocked_get.mockResolvedValue({
-      error: "Fingerprint mismatch on sensitive endpoint",
-      code: "UNAUTHORIZED",
-    });
-    const on_resolved = vi.fn();
-
-    refresh_family_plan_flag(on_resolved);
-    await new Promise((resolve) => setTimeout(resolve, 20));
-
-    expect(on_resolved).not.toHaveBeenCalled();
-    expect(localStorage.getItem("aster_is_family_plan")).toBe("1");
-  });
-
-  it("reports false without a request in the calendar app", () => {
-    vi.stubEnv("VITE_APP_KIND", "calendar");
+  it("reports false without a request", () => {
     localStorage.setItem("aster_is_family_plan", "1");
     const on_resolved = vi.fn();
 

@@ -21,7 +21,6 @@
 import { useEffect, useState } from "react";
 import {
   Input,
-  IslandRow,
   IslandSection,
   IslandSections,
   PillButton,
@@ -32,14 +31,10 @@ import {
   EyeIcon,
   DocumentTextIcon,
   Square2StackIcon,
-  CommandLineIcon,
-  WifiIcon,
 } from "@heroicons/react/24/outline";
 
-import { InfoPopover } from "@/components/ui/info_popover";
 import { Slider } from "@/components/ui/slider";
 import { Skeleton } from "@/components/ui/skeleton";
-import { KeyboardShortcutsModal } from "@/components/modals/keyboard_shortcuts_modal";
 import {
   use_preferences,
   FONT_SIZE_MIN,
@@ -50,11 +45,9 @@ import {
 import { get_cached_preferences } from "@/services/api/preferences";
 import { use_i18n } from "@/lib/i18n/context";
 import { is_composing } from "@/utils/ime";
-import { is_calendar_app } from "@/lib/app_kind";
 
 export function AccessibilitySection() {
   const { t } = use_i18n();
-  const calendar_app = is_calendar_app();
   const { preferences, update_preference, is_loading, has_loaded_from_server } =
     use_preferences();
   const [has_cached_preferences] = useState(
@@ -82,7 +75,6 @@ export function AccessibilitySection() {
     update_preference("font_size_scale", v, immediate);
   };
 
-  const [shortcuts_modal_open, set_shortcuts_modal_open] = useState(false);
 
   return (
     <IslandSections>
@@ -227,60 +219,6 @@ export function AccessibilitySection() {
         />
       </IslandSection>
 
-      {!calendar_app && (
-        <IslandSection
-          description={t("settings.keyboard_shortcuts_description")}
-          icon={<CommandLineIcon />}
-          title={t("common.keyboard_shortcuts")}
-        >
-          <IslandRow
-            description={t("settings.enable_shortcuts_description")}
-            label={t("common.enable_shortcuts")}
-            toggle={{
-              checked: preferences.keyboard_shortcuts_enabled,
-              on_change: (v) =>
-                update_preference("keyboard_shortcuts_enabled", v, true),
-              size: "lg",
-              aria_label: t("common.enable_shortcuts"),
-            }}
-            trailing={
-              <button
-                aria-label={t("mail.view_keyboard_shortcuts")}
-                className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded bg-surf-tertiary px-1.5 font-mono text-[11px] font-medium text-txt-muted transition-colors hover:bg-surf-tertiary/80"
-                type="button"
-                onClick={() => set_shortcuts_modal_open(true)}
-              >
-                ?
-              </button>
-            }
-          />
-        </IslandSection>
-      )}
-
-      {!calendar_app && (
-        <IslandSection
-          icon={<WifiIcon />}
-          title={t("settings.low_network_mode_section_title")}
-        >
-          <SettingToggleRow
-            checked={preferences.low_network_mode}
-            description={t("settings.low_network_mode_description")}
-            info={
-              <InfoPopover
-                description={t("settings.info_low_network_mode_description")}
-                title={t("settings.info_low_network_mode_title")}
-              />
-            }
-            label={t("settings.low_network_mode_label")}
-            on_change={(v) => update_preference("low_network_mode", v, true)}
-          />
-        </IslandSection>
-      )}
-
-      <KeyboardShortcutsModal
-        is_open={shortcuts_modal_open}
-        on_close={() => set_shortcuts_modal_open(false)}
-      />
     </IslandSections>
   );
 }

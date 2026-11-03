@@ -51,14 +51,3 @@ export function label_toggle_children(
 ): ReactNode {
   return Children.map(children, (child) => label_toggle_child(child, label_id));
 }
-
-export function label_toggle_children_with_text(
-  children: ReactNode,
-  label: string,
-): ReactNode {
-  return Children.map(children, (child) => {
-    if (!is_toggle_element(child)) return child;
-
-    return cloneElement(child, { "aria-label": label });
-  });
-}

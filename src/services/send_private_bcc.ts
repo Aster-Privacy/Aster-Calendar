@@ -18,7 +18,7 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import type { Attachment } from "@/components/compose/compose_shared";
+import type { Attachment } from "@/types/attachment";
 
 import { encrypt_for_recipients } from "./send_queue_body_encryption";
 import { fetch_internal_public_keys } from "./send_queue_recipients";

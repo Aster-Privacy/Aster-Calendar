@@ -36,7 +36,6 @@ describe("checkout_highlights booking gate", () => {
   });
 
   it("omits booking items while booking is off", () => {
-    vi.stubEnv("VITE_APP_KIND", "calendar");
     vi.stubEnv("VITE_CALENDAR_BOOKING_ENABLED", "");
 
     for (const plan of ["star", "nova", "supernova"]) {
@@ -50,7 +49,6 @@ describe("checkout_highlights booking gate", () => {
   });
 
   it("lists booking items when booking is on", () => {
-    vi.stubEnv("VITE_APP_KIND", "calendar");
     vi.stubEnv("VITE_CALENDAR_BOOKING_ENABLED", "true");
 
     const items = checkout_highlights("nova", echo_key);

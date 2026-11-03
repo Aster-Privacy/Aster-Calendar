@@ -19,7 +19,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 import type { RecipientKeyResult } from "@/utils/email_crypto";
-import type { PendingSend } from "./undo_send_manager";
 
 export type SendErrorType =
   | "vault_unavailable"
@@ -101,7 +100,7 @@ export interface EmailParams {
   expires_at?: string;
   expiry_password?: string;
   secure_external?: boolean;
-  attachments?: import("@/components/compose/compose_shared").Attachment[];
+  attachments?: import("@/types/attachment").Attachment[];
   forward_original_mail_id?: string;
   in_reply_to?: string;
   force_pgp?: boolean;
@@ -160,24 +159,3 @@ export interface EnvelopeData {
 
 export type SendReadinessResult =
   { ready: true } | { ready: false; error: SendError };
-
-export interface ServerQueueEmailParams extends EmailParams {
-  thread_id?: string;
-  server_attachments?: Array<{
-    id: string;
-    filename: string;
-    content_type: string;
-    size: number;
-  }>;
-}
-
-export interface ServerQueueCallbacks {
-  on_sent?: (sent_id?: string) => void;
-  on_cancelled?: () => void;
-  on_error?: (error: string) => void;
-}
-
-export interface ServerQueueResult {
-  queue_id: string;
-  pending_send: PendingSend;
-}

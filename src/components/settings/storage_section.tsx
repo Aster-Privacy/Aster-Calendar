@@ -59,7 +59,6 @@ import { CryptoAddonTermModal } from "@/components/settings/billing/crypto_addon
 import { SettingsSkeleton } from "@/components/settings/settings_skeleton";
 import { LoadFailedNotice } from "@/components/settings/load_failed_notice";
 import { show_toast } from "@/components/toast/simple_toast";
-import { is_calendar_app } from "@/lib/app_kind";
 import { use_i18n } from "@/lib/i18n/context";
 import { format_bytes, format_decimal, format_number } from "@/lib/utils";
 import {
@@ -68,10 +67,8 @@ import {
 } from "@/lib/addon_return_url";
 import { is_onion_host } from "@/lib/onion_host";
 import { request_cache } from "@/services/api/request_cache";
-import { invalidate_mail_stats } from "@/hooks/use_mail_stats";
-import { emit_mail_changed } from "@/hooks/mail_events";
+import { invalidate_storage_usage } from "@/hooks/use_storage_usage";
 import { get_cached_plan_code } from "@/hooks/use_plan_limits";
-import { empty_spam, empty_trash } from "@/services/api/mail";
 import {
   get_storage_overview,
   type StorageCategory,
@@ -91,7 +88,6 @@ import {
   convert_cents,
   detect_currency_from_locale,
 } from "@/components/settings/billing/billing_constants";
-import { use_sticky_value } from "@/hooks/use_sticky_value";
 import { ButtonSpinner } from "@/components/ui/spinner";
 
 export const STORAGE_PROMO_ENABLED = true;
@@ -201,12 +197,8 @@ export function StorageSection() {
   );
   const [show_crypto_addon_modal, set_show_crypto_addon_modal] =
     useState(false);
-  const [cleanup_target, set_cleanup_target] = useState<
-    "trash" | "spam" | null
-  >(null);
   const [active_category, set_active_category] = useState<string | null>(null);
 
-  const cleanup_view = use_sticky_value(cleanup_target);
   const capacity_sources = useMemo(() => {
     const all_sources: {
       key: string;
@@ -305,7 +297,7 @@ export function StorageSection() {
       show_toast(t("settings.addon_purchased"), "success");
       request_cache.invalidate("/payments/v1");
       request_cache.invalidate("/sync/v1");
-      invalidate_mail_stats();
+      invalidate_storage_usage();
       load_data();
     }
 
@@ -342,13 +334,6 @@ export function StorageSection() {
       )
       .sort((a, b) => b.bytes_used - a.bytes_used);
   }, [overview]);
-
-  const trash_category = overview?.categories.find(
-    (entry) => entry.name === "trash",
-  );
-  const spam_category = overview?.categories.find(
-    (entry) => entry.name === "spam",
-  );
 
   const handle_addon_pay_card = async (addon: StorageAddonItem) => {
     if (is_action_loading) return;
@@ -402,7 +387,7 @@ export function StorageSection() {
         show_toast(t("settings.addon_cancelled"), "success");
         request_cache.invalidate("/payments/v1");
         request_cache.invalidate("/sync/v1");
-        invalidate_mail_stats();
+        invalidate_storage_usage();
         await load_data();
       } else {
         show_toast(t("settings.addon_cancel_failed"), "error");
@@ -414,36 +399,6 @@ export function StorageSection() {
       set_show_cancel_addon_dialog(false);
       set_addon_to_cancel(null);
     }
-  };
-
-  const handle_cleanup = async (event: React.MouseEvent) => {
-    if (!cleanup_target) return;
-
-    event.preventDefault();
-    set_is_action_loading(true);
-    try {
-      const response =
-        cleanup_target === "trash" ? await empty_trash() : await empty_spam();
-
-      if (response.data?.success) {
-        show_toast(t("settings.storage_cleanup_done"), "success");
-        set_is_action_loading(false);
-        set_cleanup_target(null);
-        request_cache.invalidate("/sync/v1");
-        invalidate_mail_stats();
-        emit_mail_changed();
-        load_data();
-
-        return;
-      }
-
-      show_toast(t("settings.storage_cleanup_failed"), "error");
-    } catch {
-      show_toast(t("settings.storage_cleanup_failed"), "error");
-    }
-
-    set_is_action_loading(false);
-    set_cleanup_target(null);
   };
 
   if (is_initial_load) {
@@ -576,11 +531,9 @@ export function StorageSection() {
             </span>
           </p>
         </div>
-        {is_calendar_app() && (
-          <p className="mt-2 text-[13px] text-txt-muted">
+        <p className="mt-2 text-[13px] text-txt-muted">
             {t("settings.cal_storage_shared_note")}
           </p>
-        )}
 
         <div
           aria-label={t("common.storage_used")}
@@ -612,9 +565,7 @@ export function StorageSection() {
               </p>
               <p className="mt-0.5 text-sm text-txt-muted">
                 {t(
-                  is_calendar_app()
-                    ? "settings.cal_storage_locked_description"
-                    : "settings.storage_locked_description",
+                  "settings.cal_storage_locked_description",
                 )}
               </p>
             </div>
@@ -703,16 +654,8 @@ export function StorageSection() {
                   entry.bytes_used,
                   total_breakdown_bytes,
                 );
-                const is_cleanable =
-                  entry.name === "trash" || entry.name === "spam";
-                const is_busy =
-                  is_action_loading && cleanup_target === entry.name;
                 const dimmed =
                   active_category !== null && active_category !== entry.name;
-                const cleanup_label =
-                  entry.name === "spam"
-                    ? t("mail.empty_spam")
-                    : t("mail.empty_trash");
 
                 return (
                   <IslandRow
@@ -741,26 +684,6 @@ export function StorageSection() {
                       opacity: dimmed ? 0.4 : 1,
                       transition: "opacity 0.2s",
                     }}
-                    trailing={
-                      is_cleanable && entry.item_count > 0 ? (
-                        <PillButton
-                          aria-busy={is_busy}
-                          aria-label={cleanup_label}
-                          disabled={is_action_loading}
-                          size="sm"
-                          type="button"
-                          variant="neutral"
-                          onClick={() =>
-                            set_cleanup_target(
-                              entry.name === "spam" ? "spam" : "trash",
-                            )
-                          }
-                        >
-                          {cleanup_label}
-                          {is_busy && <ButtonSpinner size="xs" />}
-                        </PillButton>
-                      ) : undefined
-                    }
                     value={
                       <span className="flex flex-col items-end">
                         <span
@@ -974,61 +897,6 @@ export function StorageSection() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog
-        open={cleanup_target !== null}
-        onOpenChange={(open) => {
-          if (!open && !is_action_loading) set_cleanup_target(null);
-        }}
-      >
-        <AlertDialogContent
-          on_overlay_click={() => {
-            if (!is_action_loading) set_cleanup_target(null);
-          }}
-        >
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {cleanup_view === "spam"
-                ? t("mail.empty_spam")
-                : t("mail.empty_trash")}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("settings.storage_cleanup_confirm")
-                .replace(
-                  "{{count}}",
-                  format_number(
-                    (cleanup_view === "spam"
-                      ? spam_category?.item_count
-                      : trash_category?.item_count) ?? 0,
-                  ),
-                )
-                .replace(
-                  "{{size}}",
-                  format_bytes(
-                    (cleanup_view === "spam"
-                      ? spam_category?.bytes_used
-                      : trash_category?.bytes_used) ?? 0,
-                  ),
-                )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="max-sm:flex-row max-sm:gap-3">
-            <AlertDialogCancel
-              className="max-sm:flex-1"
-              disabled={is_action_loading}
-            >
-              {t("common.cancel")}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="aster_btn_destructive max-sm:flex-1"
-              disabled={is_action_loading}
-              onClick={handle_cleanup}
-            >
-              {t("common.confirm")}
-              {is_action_loading && <ButtonSpinner />}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </IslandSections>
   );
 }

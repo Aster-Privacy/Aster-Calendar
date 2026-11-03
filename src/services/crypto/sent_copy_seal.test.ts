@@ -75,7 +75,7 @@ import {
 import { encrypt_message } from "./key_manager_pgp_messages";
 import { array_to_base64, base64_to_array } from "./envelope";
 
-import { decrypt_mail_envelope } from "@/components/email/shared/decrypt_envelope";
+import { decrypt_mail_envelope } from "@/services/crypto/decrypt_envelope";
 import { reset_account_key_capabilities_cache } from "@/services/api/account_key";
 
 const PASSPHRASE = "sent copy passphrase";

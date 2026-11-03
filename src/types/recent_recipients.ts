@@ -29,21 +29,8 @@ export interface RecentRecipient {
   updated_at: string;
 }
 
-export interface DecryptedRecentRecipient {
-  id: string;
-  email: string;
-  send_count: number;
-  last_sent_at: string;
-}
-
 export interface RecentRecipientsListResponse {
   items: RecentRecipient[];
-}
-
-export interface SaveRecentRecipientEntry {
-  email_token: string;
-  encrypted_email: string;
-  email_nonce: string;
 }
 
 export interface SaveRecentRecipientsResponse {

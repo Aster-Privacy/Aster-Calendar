@@ -21,7 +21,7 @@
 export const MIN_INBOX_PAGE_SIZE = 10;
 export const MAX_INBOX_PAGE_SIZE = 100;
 export const DEFAULT_INBOX_PAGE_SIZE = 50;
-export const INBOX_PAGE_SIZE_OPTIONS = [10, 20, 30, 50, 100] as const;
+
 export const LOW_NETWORK_PAGE_SIZE = 15;
 
 export function clamp_inbox_page_size(

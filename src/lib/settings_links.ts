@@ -29,8 +29,6 @@ export const SETTINGS_ANCHORS = {
   trusted_devices: "sec-devices",
   login_alerts: "sec-login-alerts",
   account_recovery: "sec-recovery",
-  tracking: "sec-tracking",
-  images: "sec-images",
   vanguard: "sec-vanguard",
   recovery_email: "acct-recovery-email",
 } as const;
@@ -52,10 +50,8 @@ export type SecurityCenterLinkId =
   | "overview"
   | "sessions"
   | "trusted_devices"
-  | "aliases"
   | "lockdown"
-  | "vanguard"
-  | "encryption";
+  | "vanguard";
 
 export const SECURITY_CENTER_TARGETS: Record<
   SecurityCenterLinkId,
@@ -67,10 +63,8 @@ export const SECURITY_CENTER_TARGETS: Record<
     section: "security",
     anchor: SETTINGS_ANCHORS.trusted_devices,
   },
-  aliases: { section: "aliases" },
   lockdown: { section: "security", anchor: SETTINGS_ANCHORS.vanguard },
   vanguard: { section: "security", anchor: SETTINGS_ANCHORS.vanguard },
-  encryption: { section: "encryption" },
 };
 
 export function read_settings_navigation(detail: unknown): SettingsNavigation {

@@ -54,7 +54,6 @@ import {
 } from "./languages";
 
 import { app_locale } from "@/utils/date_format";
-import { is_calendar_app } from "@/lib/app_kind";
 import { publish_push_strings } from "@/lib/push_strings";
 import { safe_local_get, safe_local_set } from "@/lib/safe_storage";
 import { sync_tray_labels } from "@/native/tauri_tray";
@@ -288,9 +287,7 @@ export function I18nProvider({
     void sync_tray_labels();
     void publish_push_strings(
       translations.common.push_new_message,
-      is_calendar_app()
-        ? translations.calendar.aster_calendar_brand
-        : translations.common.aster_mail,
+      translations.calendar.aster_calendar_brand,
     );
   }, [language, is_rtl, translations]);
 

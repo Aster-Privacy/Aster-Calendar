@@ -103,10 +103,6 @@ export function is_tor_connected(): boolean {
   return tor_connected_cache;
 }
 
-export function is_tor_available(): boolean {
-  return is_tor_connected();
-}
-
 export async function tor_fetch(
   url: string,
   options: RequestInit,

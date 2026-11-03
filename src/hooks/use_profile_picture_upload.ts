@@ -32,25 +32,6 @@ const PICKER_CLEANUP_DELAY_MS = 1500;
 
 export const PROFILE_PICTURE_ACCEPT = ACCEPTED_TYPES.join(",");
 
-let file_picker_open = false;
-
-export function is_file_picker_open(): boolean {
-  return file_picker_open;
-}
-
-function set_file_picker_open(open: boolean) {
-  file_picker_open = open;
-
-  if (open) {
-    const clear = () => {
-      file_picker_open = false;
-      window.removeEventListener("focus", clear);
-    };
-
-    window.addEventListener("focus", clear);
-  }
-}
-
 interface UseProfilePictureUploadOptions {
   on_error?: (message: string | null) => void;
   toast_on_success?: boolean;
@@ -139,7 +120,6 @@ export function use_profile_picture_upload(
 
   const open_picker = useCallback(() => {
     if (uploading || removing) return;
-    set_file_picker_open(true);
 
     const input = document.createElement("input");
 

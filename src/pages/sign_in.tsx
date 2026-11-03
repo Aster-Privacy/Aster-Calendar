@@ -39,7 +39,6 @@ import {
   base64_to_array,
 } from "@/services/crypto/key_manager";
 import { SignInAppsRow } from "@/components/layout/sign_in_apps_row";
-import { is_calendar_app } from "@/lib/app_kind";
 import { login_user, get_user_salt, get_user_info } from "@/services/api/auth";
 import { check_and_replenish_prekeys } from "@/services/crypto/prekey_service";
 import {
@@ -66,7 +65,7 @@ import { webauthn_flow } from "@/pages/sign_in/webauthn_flow";
 import { totp_flow } from "@/pages/sign_in/totp_flow";
 import { password_recovery_flow } from "@/pages/sign_in/password_recovery_flow";
 import { is_webauthn_supported } from "@/services/api/webauthn";
-import { emit_auth_ready } from "@/hooks/mail_events";
+import { emit_auth_ready } from "@/hooks/app_events";
 import { is_tauri, forget_device_account } from "@/native/desktop_device_auth";
 import { declared_native_platform } from "@/services/api/client/helpers";
 import {
@@ -767,16 +766,8 @@ export default function SignInPage() {
                 </button>
               )}
 
-            {is_calendar_app() ? (
+            {(
               <DatedCalendarLogo alt={t("auth.aster_calendar")} className="h-7 w-auto self-start" />
-            ) : (
-              <img
-                alt="Aster"
-                className="h-7"
-                decoding="async"
-                draggable={false}
-                src="/text_logo.png"
-              />
             )}
 
             <h1 className="mt-5 text-base font-semibold text-txt-primary">
@@ -784,9 +775,7 @@ export default function SignInPage() {
             </h1>
             <p className="mt-1.5 text-sm leading-relaxed text-txt-tertiary">
               {t(
-                is_calendar_app()
-                  ? "auth.enter_credentials_calendar"
-                  : "auth.enter_credentials",
+                "auth.enter_credentials_calendar",
               )}
             </p>
 

@@ -24,59 +24,6 @@ declare const __APP_VERSION__: string;
 declare const __BUILD_HASH__: string;
 
 interface ImportMetaEnv {
-  readonly VITE_APP_KIND?: string;
   readonly VITE_CALENDAR_BOOKING_ENABLED?: string;
   readonly VITE_WEBAUTHN_RELATED_ORIGINS?: string;
-}
-
-declare module "@capacitor-community/contacts" {
-  interface ContactName {
-    given?: string;
-    family?: string;
-    display?: string;
-  }
-  interface ContactEmail {
-    address?: string;
-  }
-  interface ContactPhone {
-    number?: string;
-  }
-  interface ContactOrganization {
-    company?: string;
-    jobTitle?: string;
-  }
-  interface ContactPostalAddress {
-    street?: string;
-    city?: string;
-    region?: string;
-    postcode?: string;
-    country?: string;
-  }
-  interface ContactUrl {
-    url?: string;
-  }
-  interface ContactPayload {
-    name?: ContactName;
-    emails?: ContactEmail[];
-    phones?: ContactPhone[];
-    organization?: ContactOrganization;
-    birthday?: { year?: number; month?: number; day?: number };
-    note?: string;
-    postalAddresses?: ContactPostalAddress[];
-    urls?: ContactUrl[];
-  }
-  interface PermissionStatus {
-    contacts: string;
-  }
-  interface GetContactsResult {
-    contacts: ContactPayload[];
-  }
-  interface GetContactsOptions {
-    projection: Record<string, boolean>;
-  }
-  const Contacts: {
-    checkPermissions(): Promise<PermissionStatus>;
-    requestPermissions(): Promise<PermissionStatus>;
-    getContacts(options: GetContactsOptions): Promise<GetContactsResult>;
-  };
 }

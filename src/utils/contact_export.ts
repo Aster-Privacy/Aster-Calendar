@@ -286,8 +286,6 @@ export const export_contacts_vcard = (
   );
 };
 
-export type ContactExportFormat = "csv" | "vcard";
-
 export const CONTACT_CSV_HEADERS = [
   "First name",
   "Last name",
@@ -356,48 +354,10 @@ export const contacts_to_csv = (contacts: DecryptedContact[]): string => {
   ].join("\r\n");
 };
 
-export const contacts_export_filename = (extension: string): string =>
-  `aster-contacts-${new Date().toISOString().split("T")[0]}.${extension}`;
-
-export const export_contacts_csv = (contacts: DecryptedContact[]): void => {
-  download_text_file(
-    contacts_export_filename("csv"),
-    contacts_to_csv(contacts),
-    "text/csv",
-  );
-};
-
-export const export_contacts_file = (
-  contacts: DecryptedContact[],
-  format: ContactExportFormat,
-  group_names: Record<string, string> = {},
-): void => {
-  if (contacts.length === 0) return;
-
-  if (format === "vcard") {
-    export_contacts_vcard(contacts, group_names);
-
-    return;
-  }
-
-  export_contacts_csv(contacts);
-};
-
 export const contact_vcard_filename = (contact: DecryptedContact): string => {
   const base = display_name_of(contact).replace(/[^\p{L}\p{N}]+/gu, "_");
 
   return `${base || "contact"}.vcf`;
-};
-
-export const export_contact_vcard = (
-  contact: DecryptedContact,
-  group_names: Record<string, string> = {},
-): void => {
-  download_text_file(
-    contact_vcard_filename(contact),
-    `${contact_to_vcard(contact, group_names)}\r\n`,
-    "text/vcard",
-  );
 };
 
 export const share_contact_vcard = async (

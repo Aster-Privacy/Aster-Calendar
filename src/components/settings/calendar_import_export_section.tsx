@@ -53,12 +53,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { export_file_name } from "@/components/calendar/calendar_export_dialog";
+import { export_calendar_events } from "@/services/calendar/calendar_export";
 import { use_preferences } from "@/contexts/preferences_context";
 import { use_i18n } from "@/lib/i18n/context";
 import { format_bytes } from "@/lib/utils";
-import { list_calendars, list_event_masters } from "@/services/api/calendar";
-import { build_ics } from "@/services/calendar/ics_file";
+import { list_calendars } from "@/services/api/calendar";
 import {
   import_entries,
   import_span,
@@ -82,7 +81,6 @@ interface ImportResult {
 }
 
 const IMPORT_BATCH_SIZE = 25;
-const EXPORT_YEARS = 3;
 const ALL_CALENDARS = "__all__";
 const MAX_SUBSCRIPTION_NAME_LENGTH = 100;
 const MAX_SUBSCRIPTION_URL_LENGTH = 2048;
@@ -108,19 +106,6 @@ function is_https_url(value: string): boolean {
   } catch {
     return false;
   }
-}
-
-function download_text(file_name: string, text: string) {
-  const blob = new Blob([text], { type: "text/calendar;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-
-  anchor.href = url;
-  anchor.download = file_name;
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  URL.revokeObjectURL(url);
 }
 
 function calendar_option(calendar: DecryptedCalendar) {
@@ -718,30 +703,16 @@ function CalendarExportCard({ calendars }: { calendars: DecryptedCalendar[] }) {
     set_is_busy(true);
 
     try {
-      const now = new Date();
       const selected = calendars.find((calendar) => calendar.id === scope);
-      const result = await list_event_masters(
-        new Date(now.getFullYear() - EXPORT_YEARS, 0, 1),
-        new Date(now.getFullYear() + EXPORT_YEARS, 11, 31),
-      );
-      const events = selected
-        ? result.data.filter((event) => event.calendar_id === selected.id)
-        : result.data;
+      const count = await export_calendar_events(selected ?? null);
 
-      if (events.length === 0) {
+      if (count === 0) {
         show_toast(t("calendar.settings_export_empty"), "info");
 
         return;
       }
 
-      download_text(
-        export_file_name(selected ? selected.name : null, now),
-        build_ics(events, now.toISOString()),
-      );
-      show_toast(
-        t("calendar.settings_export_done", { count: events.length }),
-        "success",
-      );
+      show_toast(t("calendar.settings_export_done", { count }), "success");
     } catch {
       show_toast(t("calendar.settings_export_failed"), "error");
     } finally {

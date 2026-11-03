@@ -23,7 +23,7 @@ import { Button } from "@aster/ui";
 
 import { use_should_reduce_motion } from "@/provider";
 import { use_i18n } from "@/lib/i18n/context";
-import mail_logo_url from "@/assets/mail_logo.webp";
+import calendar_logo_url from "@/assets/app_icons/calendar.png";
 import { use_escape_layer } from "@/lib/overlay_layer_stack";
 
 interface PurchaseSuccessModalProps {
@@ -87,10 +87,10 @@ export function PurchaseSuccessModal({
           >
             <div className="px-6 pt-8 pb-6 flex flex-col items-center text-center">
               <img
-                alt="Aster Mail"
+                alt="Aster Calendar"
                 className="w-14 h-14 rounded-2xl mb-5 select-none"
                 draggable={false}
-                src={mail_logo_url}
+                src={calendar_logo_url}
               />
 
               <h2 className="text-lg font-semibold text-txt-primary mb-2">

@@ -42,10 +42,3 @@ export async function send_in_chunks<T, R>(
 
   return { data: merged };
 }
-
-export function merge_affected<R extends { affected: number }>(
-  total: R,
-  next: R,
-): R {
-  return { ...next, affected: total.affected + next.affected };
-}

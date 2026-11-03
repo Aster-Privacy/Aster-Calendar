@@ -29,7 +29,7 @@ import {
 import { api_client } from "@/services/api/client";
 import { request_cache } from "@/services/api/request_cache";
 import { get_current_account_id } from "@/services/account_manager";
-import { invalidate_mail_stats } from "@/hooks/use_mail_stats";
+import { invalidate_storage_usage } from "@/hooks/use_storage_usage";
 import { show_upgrade_plans } from "@/stores/upgrade_store";
 import { show_special_offer } from "@/stores/special_offer_store";
 import { get_special_offer_status_snapshot } from "@/stores/special_offer_status";
@@ -160,7 +160,7 @@ export function use_resubscribe(is_open: boolean) {
         publish(null, cached_account_id);
         request_cache.invalidate("/payments/v1");
         request_cache.invalidate("/sync/v1");
-        invalidate_mail_stats();
+        invalidate_storage_usage();
         show_toast(t("settings.subscription_reactivated"), "success");
       } else {
         show_toast(

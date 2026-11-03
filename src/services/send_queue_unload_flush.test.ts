@@ -35,16 +35,6 @@ vi.mock("@/components/toast/simple_toast", () => ({
   show_toast: vi.fn(),
 }));
 
-vi.mock("@/hooks/use_mail_stats", async (import_original) => ({
-  ...(await import_original<Record<string, unknown>>()),
-  invalidate_mail_stats: vi.fn(),
-}));
-
-vi.mock("@/hooks/mail_events", async (import_original) => ({
-  ...(await import_original<Record<string, unknown>>()),
-  emit_email_sent: vi.fn(),
-}));
-
 import {
   queue_email,
   pending_send_count,

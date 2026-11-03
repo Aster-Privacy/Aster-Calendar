@@ -31,12 +31,7 @@ import {
 import { get_stored_encrypted_vault } from "@/contexts/auth/session_passphrase";
 import { retain_previous_ratchet_keys } from "@/services/crypto/key_manager_core";
 import { MASTER_KEY_VAULT_FORMAT } from "@/services/crypto/memory_key_store";
-import {
-  parse_ratchet_envelope,
-  decrypt_ratchet_message,
-  generate_ratchet_keys,
-  upload_prekey_bundle,
-} from "@/services/crypto/ratchet_manager";
+import { generate_ratchet_keys, upload_prekey_bundle } from "@/services/crypto/ratchet_manager";
 import { clear_all_ratchet_states } from "@/services/crypto/ratchet_state_store";
 import { collect_vault_key_fingerprints } from "@/services/crypto/vault_key_fingerprints";
 import {
@@ -53,7 +48,7 @@ import {
   prepend_kek_to_list,
   serialize_kek_for_vault,
 } from "@/services/crypto/legacy_keks";
-import { with_aes_kw_fallback } from "@/services/crypto/webcrypto_aes_kw";
+
 import { ignore_error } from "@/lib/ignore_error";
 
 export interface RotationCheckResult {
@@ -430,99 +425,4 @@ export async function perform_key_rotation(
       error: user_facing_error(error, "Unknown rotation error"),
     };
   }
-}
-
-export async function get_decryption_key_for_message(
-  vault: EncryptedVault,
-  encrypted_message: string,
-  passphrase: string,
-): Promise<string | null> {
-  const keys_to_try = [vault.identity_key, ...(vault.previous_keys ?? [])];
-  const openpgp = await load_openpgp();
-
-  for (const private_key_armored of keys_to_try) {
-    try {
-      const decrypted_key = await openpgp.decryptKey({
-        ["privateKey" as const]: await openpgp.readPrivateKey({
-          armoredKey: private_key_armored,
-        }),
-        passphrase,
-      });
-
-      await with_aes_kw_fallback(async () =>
-        openpgp.decrypt({
-          message: await openpgp.readMessage({
-            armoredMessage: encrypted_message,
-          }),
-          decryptionKeys: decrypted_key,
-        }),
-      );
-
-      return private_key_armored;
-    } catch {
-      continue;
-    }
-  }
-
-  return null;
-}
-
-export async function decrypt_with_key_fallback(
-  vault: EncryptedVault,
-  encrypted_message: string,
-  passphrase: string,
-  ratchet_context?: {
-    our_email: string;
-    sender_email: string;
-    message_id?: string;
-  },
-): Promise<{ decrypted: string; used_key_index: number } | null> {
-  if (ratchet_context) {
-    const envelope = parse_ratchet_envelope(encrypted_message);
-
-    if (envelope) {
-      const decrypted = await decrypt_ratchet_message(
-        ratchet_context.our_email,
-        ratchet_context.sender_email,
-        envelope,
-        vault,
-        ratchet_context.message_id,
-      );
-
-      if (decrypted) {
-        return { decrypted, used_key_index: -1 };
-      }
-
-      return null;
-    }
-  }
-
-  const keys_to_try = [vault.identity_key, ...(vault.previous_keys ?? [])];
-  const openpgp = await load_openpgp();
-
-  for (let i = 0; i < keys_to_try.length; i++) {
-    try {
-      const decrypted_key = await openpgp.decryptKey({
-        ["privateKey" as const]: await openpgp.readPrivateKey({
-          armoredKey: keys_to_try[i],
-        }),
-        passphrase,
-      });
-
-      const { data } = await with_aes_kw_fallback(async () =>
-        openpgp.decrypt({
-          message: await openpgp.readMessage({
-            armoredMessage: encrypted_message,
-          }),
-          decryptionKeys: decrypted_key,
-        }),
-      );
-
-      return { decrypted: data.toString(), used_key_index: i };
-    } catch {
-      continue;
-    }
-  }
-
-  return null;
 }

@@ -18,7 +18,6 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-export type RequestPriority = "foreground" | "background";
 
 export const PREEMPT_AFTER_MS = 1500;
 export const MAX_IDLE_WAIT_MS = 90_000;

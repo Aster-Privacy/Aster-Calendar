@@ -27,7 +27,7 @@ import type {} from "@/services/api/allowed_senders";
 import {
   list_encrypted_mail_items,
   update_mail_item,
-} from "@/services/api/mail";
+} from "@/services/api/mail_items";
 import { derive_metadata_key } from "@/services/crypto/envelope";
 import { list_tags, update_tag } from "@/services/api/tags";
 

@@ -18,7 +18,6 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import { useEffect } from "react";
 import {
   SimpleToast as SimpleToastView,
   dismiss_toast as dismiss_ui_toast,
@@ -26,8 +25,6 @@ import {
 } from "@aster/ui";
 
 import { use_should_reduce_motion } from "@/provider";
-import { ignore_error } from "@/lib/ignore_error";
-import { play_iconic_sound } from "@/services/iconic_sounds";
 import { use_translation } from "@/lib/i18n";
 import { hide_action_toast } from "@/components/toast/action_toast";
 import {
@@ -44,8 +41,6 @@ export {
   TOAST_DURATION_BILLING_MS,
 } from "@aster/ui";
 
-const OFFLINE_FAILURE_TOAST_MS = 8000;
-
 const visible_toasts = new Map<string, string>();
 
 function clear_simple_toasts(keep_key?: string) {
@@ -61,8 +56,6 @@ window.addEventListener("aster-action-toast-show", () => clear_simple_toasts());
 export function show_toast(
   ...args: Parameters<typeof show_ui_toast>
 ): ReturnType<typeof show_ui_toast> {
-  if (args[1] === "error") play_iconic_sound("fail");
-
   const key = `${args[1] ?? ""}:${args[0]}`;
 
   hide_action_toast(true);
@@ -88,33 +81,6 @@ interface SimpleToastProps {
 export function SimpleToast({ position }: SimpleToastProps) {
   const reduce_motion = use_should_reduce_motion();
   const { t } = use_translation();
-  useEffect(() => {
-    const on_queue_failure = (event: Event) => {
-      const detail = (event as CustomEvent<{ action?: { type?: string } }>)
-        .detail;
-      const message =
-        detail?.action?.type === "send_email"
-          ? t("common.offline_send_failed")
-          : t("common.offline_change_failed");
-
-      show_toast(message, "error", OFFLINE_FAILURE_TOAST_MS, {
-        label: t("common.retry"),
-        on_click: () => {
-          void import("@/native/offline_queue")
-            .then((queue) => queue.retry_failed_actions())
-            .catch((caught) =>
-              ignore_error("components/toast/simple_toast:retry", caught),
-            );
-        },
-      });
-    };
-
-    window.addEventListener("offline-queue-failure", on_queue_failure);
-
-    return () => {
-      window.removeEventListener("offline-queue-failure", on_queue_failure);
-    };
-  }, [t]);
 
   const { layout, y_offset } = use_toast_position(position);
 

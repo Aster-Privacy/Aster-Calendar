@@ -21,7 +21,6 @@
 import { describe, expect, it } from "vitest";
 
 import { parse_ics_events } from "@/services/calendar/ics_file";
-import { parse_invite_from_ics } from "@/services/calendar/ics_parser";
 import { parse_itip_message } from "@/services/calendar/itip";
 import {
   CALENDAR_TEXT_LIMITS,
@@ -183,24 +182,6 @@ describe("hostile ICS input", () => {
     expect(event.attendees.map((attendee) => attendee.email)).toEqual([
       "ok@example.com",
     ]);
-  });
-
-  it("cleans the invite card fields", () => {
-    const invite = parse_invite_from_ics(
-      vevent([
-        "SUMMARY:Lunch\u202e\u0000 with <script>x</script>",
-        `DESCRIPTION:${"y".repeat(20_000)}`,
-        "LOCATION:Cafe\u0007",
-        "ORGANIZER;CN=\u202eEve:mailto:Eve@Example.com\u0000",
-      ]),
-    );
-
-    expect(invite).not.toBeNull();
-    expect(invite?.summary).toBe("Lunch with <script>x</script>");
-    expect(invite?.description.length).toBe(CALENDAR_TEXT_LIMITS.description);
-    expect(invite?.location).toBe("Cafe");
-    expect(invite?.organizer_email).toBe("eve@example.com");
-    expect(invite?.organizer_name).toBe("Eve");
   });
 
   it("cleans the iTIP organizer", () => {

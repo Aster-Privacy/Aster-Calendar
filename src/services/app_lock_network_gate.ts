@@ -27,10 +27,6 @@ const ALLOWED_WHILE_LOCKED = [
 
 let locked = false;
 
-export function set_app_network_locked(value: boolean): void {
-  locked = value;
-}
-
 export function is_app_network_locked(): boolean {
   return locked;
 }

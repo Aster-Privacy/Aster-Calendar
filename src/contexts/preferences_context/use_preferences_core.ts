@@ -52,14 +52,9 @@ import { sync_haptic_state } from "@/native/haptic_feedback";
 import { load_notification_preferences } from "@/services/notification_service";
 import { use_i18n } from "@/lib/i18n/context";
 import { configure_session_timeout } from "@/services/session_timeout_service";
-import {
-  set_preload_email_font_px,
-  set_preload_email_font_stack,
-} from "@/components/email/hooks/preload_cache_store";
-import { get_font_stack, get_email_font_stack } from "@/lib/font_options";
+import { get_font_stack } from "@/lib/font_options";
 import { get_effective_theme_fields } from "@/lib/theme_sync";
 import { ignore_error } from "@/lib/ignore_error";
-import { sync_muted_folders } from "@/services/api/sync";
 import {
   get_vault_from_memory,
   is_account_key_load_pending,
@@ -119,10 +114,6 @@ export function use_preferences_core() {
     document.documentElement.classList.toggle(
       "compact-mode",
       base.compact_mode === true,
-    );
-    set_preload_email_font_px(Math.round(14 * (scale / FONT_SIZE_DEFAULT)));
-    set_preload_email_font_stack(
-      get_email_font_stack(base.email_font_choice, base.font_choice),
     );
 
     return {
@@ -207,23 +198,6 @@ export function use_preferences_core() {
     identity: string;
   } | null>(null);
 
-  const synced_muted_folders_ref = useRef<string | null>(null);
-
-  const push_muted_folders = useCallback((prefs: UserPreferences) => {
-    const sorted = [...(prefs.muted_folder_tokens ?? [])]
-      .filter((token) => token.length > 0)
-      .sort();
-    const marker = JSON.stringify(sorted);
-
-    if (synced_muted_folders_ref.current === marker) return;
-
-    synced_muted_folders_ref.current = marker;
-
-    void sync_muted_folders(sorted).catch(() => {
-      synced_muted_folders_ref.current = null;
-    });
-  }, []);
-
   const do_save = useCallback(
     async (prefs: UserPreferences): Promise<UserPreferences | null> => {
       if (!has_loaded_ref.current) {
@@ -287,7 +261,6 @@ export function use_preferences_core() {
 
         server_base_ref.current = to_save;
         server_blob_unusable_ref.current = false;
-        push_muted_folders(to_save);
 
         if (!latest_prefs_ref.current || latest_prefs_ref.current === prefs) {
           pending_keys_ref.current.clear();
@@ -305,7 +278,7 @@ export function use_preferences_core() {
         return null;
       }
     },
-    [push_muted_folders],
+    [],
   );
 
   const flush_save = useCallback(async () => {
@@ -707,15 +680,6 @@ export function use_preferences_core() {
         "--font-scale",
         String(email_scale / FONT_SIZE_DEFAULT),
       );
-      set_preload_email_font_px(
-        Math.round(14 * (email_scale / FONT_SIZE_DEFAULT)),
-      );
-      set_preload_email_font_stack(
-        get_email_font_stack(
-          prefs.email_font_choice ?? DEFAULT_PREFERENCES.email_font_choice,
-          prefs.font_choice ?? DEFAULT_PREFERENCES.font_choice,
-        ),
-      );
 
       root.classList.toggle("high-contrast", prefs.high_contrast ?? false);
       root.classList.toggle(
@@ -755,8 +719,6 @@ export function use_preferences_core() {
     beacon_payload_ref,
     server_blob_unusable_ref,
     do_save,
-    push_muted_folders,
-    synced_muted_folders_ref,
     flush_save,
     schedule_save,
     update_preference,

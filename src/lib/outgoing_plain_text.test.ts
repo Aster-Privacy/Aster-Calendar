@@ -22,7 +22,14 @@ import { describe, expect, it } from "vitest";
 
 import { outgoing_html_to_plain_text } from "./outgoing_plain_text";
 
-import { escape_html } from "@/hooks/editor_utils";
+function escape_html(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 function as_plain_mode_body(text: string): string {
   return escape_html(text).replace(/\n/g, "<br>");

@@ -24,7 +24,7 @@ import { use_i18n } from "@/lib/i18n/context";
 import { app_pathname } from "@/lib/account_index_url";
 import { use_plan_limits } from "@/hooks/use_plan_limits";
 import { show_toast } from "@/components/toast/simple_toast";
-import { emit_aliases_changed, MAIL_EVENTS } from "@/hooks/mail_events";
+import { emit_aliases_changed, APP_EVENTS } from "@/hooks/app_events";
 import {
   list_all_aliases,
   update_alias,
@@ -84,10 +84,6 @@ const aliases_cache: AliasesCache = {
 
 let aliases_cache_token = 0;
 
-export function get_aliases_cache_token(): number {
-  return aliases_cache_token;
-}
-
 export function clear_aliases_cache(): void {
   aliases_cache_token += 1;
   aliases_cache.aliases = [];
@@ -102,12 +98,6 @@ export function clear_aliases_cache(): void {
 
 export function get_cached_aliases(): DecryptedEmailAlias[] {
   return aliases_cache.aliases;
-}
-
-export function get_cached_domain_addresses(): (DecryptedDomainAddress & {
-  domain_name: string;
-})[] {
-  return aliases_cache.domain_addresses;
 }
 
 let ensure_loaded_promise: Promise<void> | null = null;
@@ -481,13 +471,13 @@ export function use_aliases() {
     };
 
     window.addEventListener(
-      MAIL_EVENTS.ALIASES_CHANGED,
+      APP_EVENTS.ALIASES_CHANGED,
       handle_aliases_changed,
     );
 
     return () => {
       window.removeEventListener(
-        MAIL_EVENTS.ALIASES_CHANGED,
+        APP_EVENTS.ALIASES_CHANGED,
         handle_aliases_changed,
       );
     };

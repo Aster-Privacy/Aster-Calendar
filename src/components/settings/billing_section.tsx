@@ -77,7 +77,7 @@ import {
   type AcademicDiscountStatusResponse,
 } from "@/services/api/billing";
 import { request_cache } from "@/services/api/request_cache";
-import { use_mail_stats, invalidate_mail_stats } from "@/hooks/use_mail_stats";
+import { use_storage_usage, invalidate_storage_usage } from "@/hooks/use_storage_usage";
 import { use_special_offer_checkout } from "@/hooks/use_special_offer_checkout";
 import { special_offer_promo_code } from "@/lib/special_offer";
 import { refresh_special_offer_status } from "@/stores/special_offer_status";
@@ -162,10 +162,6 @@ interface BillingCache {
 const FREE_ADVANTAGES_PLAN = "star";
 
 let billing_cache: BillingCache | null = null;
-
-export function invalidate_billing_cache() {
-  billing_cache = null;
-}
 
 function request_billing_bundle() {
   return Promise.all([
@@ -256,7 +252,7 @@ export function prefetch_billing_data(user_id: string | null) {
 
 export function BillingSection() {
   const { t } = use_i18n();
-  const { stats } = use_mail_stats();
+  const { stats } = use_storage_usage();
   const { user } = use_auth();
   const user_id = user?.id ?? null;
   const user_id_ref = useRef(user_id);
@@ -306,9 +302,6 @@ export function BillingSection() {
   const [billing_period, set_billing_period] = useState<
     "monthly" | "yearly" | "biennial"
   >("yearly");
-  const [plan_limits, set_plan_limits] = useState<PlanLimitsResponse | null>(
-    () => cached?.plan_limits ?? null,
-  );
   const [show_switch_billing_dialog, set_show_switch_billing_dialog] =
     useState(false);
   const [preferred_currency, set_preferred_currency] = useState(
@@ -559,7 +552,6 @@ export function BillingSection() {
       }
       if (limits_response.data) {
         next.plan_limits = limits_response.data;
-        set_plan_limits(limits_response.data);
       }
       if (addons_response.data) {
         next.available_addons = addons_response.data.available_addons;
@@ -635,7 +627,7 @@ export function BillingSection() {
 
         request_cache.invalidate("/payments/v1");
         request_cache.invalidate("/sync/v1");
-        invalidate_mail_stats();
+        invalidate_storage_usage();
         load_data();
       })();
     };
@@ -654,7 +646,7 @@ export function BillingSection() {
       show_toast(t("settings.crypto_success_toast"), "success");
       request_cache.invalidate("/payments/v1");
       request_cache.invalidate("/sync/v1");
-      invalidate_mail_stats();
+      invalidate_storage_usage();
       load_data();
       const url = new URL(window.location.href);
 
@@ -676,7 +668,7 @@ export function BillingSection() {
       show_toast(t("settings.addon_purchased"), "success");
       request_cache.invalidate("/payments/v1");
       request_cache.invalidate("/sync/v1");
-      invalidate_mail_stats();
+      invalidate_storage_usage();
       load_data();
     }
     if (params.get("addon_purchase")) {
@@ -1005,7 +997,7 @@ export function BillingSection() {
 
       request_cache.invalidate("/payments/v1");
       request_cache.invalidate("/sync/v1");
-      invalidate_mail_stats();
+      invalidate_storage_usage();
       const sub_response = await get_subscription();
 
       if (sub_response.data) set_subscription(sub_response.data);
@@ -1160,7 +1152,7 @@ export function BillingSection() {
         show_toast(t("settings.subscription_reactivated"), "success");
         request_cache.invalidate("/payments/v1");
         request_cache.invalidate("/sync/v1");
-        invalidate_mail_stats();
+        invalidate_storage_usage();
         await load_data();
       } else {
         show_toast(
@@ -1324,7 +1316,6 @@ export function BillingSection() {
         }}
         on_manage_payment={() => set_show_payment_methods(true)}
         on_renew_with_crypto={handle_crypto_renew}
-        on_show_plans={scroll_to_plans}
         on_switch_billing={() => set_show_switch_billing_dialog(true)}
         on_toggle_plans={() => {
           if (show_plans) {
@@ -1333,7 +1324,6 @@ export function BillingSection() {
             scroll_to_plans();
           }
         }}
-        plan_limits={plan_limits}
         plans_open={show_plans}
         preferred_currency={preferred_currency}
         storage_limit_bytes={storage_limit_bytes}

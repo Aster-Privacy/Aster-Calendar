@@ -139,10 +139,6 @@ function folded_pattern(term: string): RegExp {
   return pattern;
 }
 
-export function clear_folded_patterns(): void {
-  patterns.clear();
-}
-
 export function includes_folded(text: string, folded_term: string): boolean {
   if (text.includes(folded_term)) return true;
   if (HAS_MARK.test(folded_term)) return false;

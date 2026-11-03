@@ -322,18 +322,6 @@ export function itip_mime_type(method: ItipMethod): string {
   return `${ITIP_MIME_TYPE}; method=${method}`;
 }
 
-export function find_attendee(
-  attendees: CalendarAttendee[],
-  email: string,
-): CalendarAttendee | null {
-  const key = normalize_email(email);
-
-  return (
-    attendees.find((attendee) => normalize_email(attendee.email) === key) ??
-    null
-  );
-}
-
 export function same_address(a: string, b: string): boolean {
   return normalize_email(a) === normalize_email(b);
 }

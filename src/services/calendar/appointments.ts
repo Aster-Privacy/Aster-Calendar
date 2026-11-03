@@ -21,7 +21,7 @@
 import type { ApiResponse } from "@/services/api/client/helpers";
 
 import { api_client } from "@/services/api/client";
-import { decrypt_mail_envelope } from "@/components/email/shared/decrypt_envelope";
+import { decrypt_mail_envelope } from "@/services/crypto/decrypt_envelope";
 import { zone_offset_ms } from "@/services/calendar/recurrence";
 
 export const BOOKING_EVENT_PREFIX = "booking-";

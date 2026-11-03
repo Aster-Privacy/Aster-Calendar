@@ -56,11 +56,7 @@ interface AccountProtectionScoreProps {
   recovery_codes_saved: boolean;
   recovery_email_verified: boolean;
   login_alerts_enabled: boolean;
-  block_tracking_pixels: boolean;
-  block_remote_images: boolean;
-  strip_exif_on_compose: boolean;
   security_loaded?: boolean;
-  account_only?: boolean;
   on_criterion_click?: Array<(() => void) | undefined>;
 }
 
@@ -71,11 +67,7 @@ export function AccountProtectionScore({
   recovery_codes_saved,
   recovery_email_verified,
   login_alerts_enabled,
-  block_tracking_pixels,
-  block_remote_images,
-  strip_exif_on_compose,
   security_loaded = true,
-  account_only = false,
   on_criterion_click,
 }: AccountProtectionScoreProps) {
   const { t } = use_i18n();
@@ -90,11 +82,7 @@ export function AccountProtectionScore({
       recovery_codes_saved,
       recovery_email_verified,
       login_alerts_enabled,
-      block_tracking_pixels,
-      block_remote_images,
-      strip_exif_on_compose,
-    },
-    account_only,
+                },
   );
 
   const bar_pct = security_percent(criteria);

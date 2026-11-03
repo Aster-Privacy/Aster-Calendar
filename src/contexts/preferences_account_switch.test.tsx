@@ -106,11 +106,6 @@ vi.mock("@/services/low_network_state", () => ({
 
 vi.mock("@/lib/version_check", () => ({ stop_version_check: vi.fn() }));
 
-vi.mock("@/components/email/hooks/preload_cache_store", () => ({
-  set_preload_email_font_px: vi.fn(),
-  set_preload_email_font_stack: vi.fn(),
-}));
-
 let live_vault: { identity_key: string } | null = {
   identity_key: "identity-key",
 };

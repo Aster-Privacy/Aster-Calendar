@@ -30,11 +30,6 @@ const preferences_value: Record<string, unknown> = {
   theme_web: "",
   color_theme_web: "",
   custom_theme_seed_web: "",
-  reading_pane_position: "right",
-  conversation_grouping: true,
-  inbox_categories_enabled: true,
-  show_profile_pictures: true,
-  mail_list_density: "comfortable",
 };
 
 vi.mock("@/lib/i18n/context", () => ({
@@ -92,6 +87,7 @@ function render(): HTMLDivElement {
         is_open={true}
         on_close={() => {}}
         on_open_full_settings={() => {}}
+        rows={null}
       />,
     );
   });

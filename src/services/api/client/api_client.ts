@@ -86,7 +86,6 @@ import {
 } from "./request_priority";
 
 import { get_active_translations } from "@/lib/i18n/translations";
-import { is_calendar_app } from "@/lib/app_kind";
 import { calendar_plan_limit_resource } from "@/lib/calendar_plan_limit_resource";
 import { extend_passphrase_timeout } from "@/services/crypto/memory_key_store";
 import { get_device_id } from "@/services/device_id";
@@ -2262,9 +2261,7 @@ export class ApiClient {
                       get_active_translations().settings.plan_limit_reached,
                     resource:
                       (error_data.details?.resource as string | undefined) ??
-                      (is_calendar_app()
-                        ? calendar_plan_limit_resource(endpoint)
-                        : null),
+                      calendar_plan_limit_resource(endpoint),
                   },
                 }),
               );

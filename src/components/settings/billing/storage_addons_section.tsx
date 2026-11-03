@@ -56,7 +56,6 @@ import {
   BillingMoreRow,
   billing_row_icon,
 } from "@/components/settings/billing/billing_more_section";
-import { is_calendar_app } from "@/lib/app_kind";
 import { use_i18n } from "@/lib/i18n/context";
 import { show_upgrade_plans } from "@/stores/upgrade_store";
 
@@ -184,16 +183,10 @@ export function StorageAddonsSection({
 
   const usage_nudge = usage_high && (
     <p className="text-[13px] leading-5 text-txt-secondary">
-      {is_calendar_app()
-        ? t(
+      {t(
             usage_full
               ? "settings.cal_storage_addon_usage_full"
               : "settings.cal_storage_addon_usage_near",
-          )
-        : t(
-            usage_full
-              ? "settings.storage_addon_usage_full"
-              : "settings.storage_addon_usage_near",
           )}
     </p>
   );

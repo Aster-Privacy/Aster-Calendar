@@ -25,15 +25,7 @@ import {
   BuildingOffice2Icon,
   SwatchIcon,
   ShieldCheckIcon,
-  ArrowDownTrayIcon,
-  BellIcon,
-  PaintBrushIcon,
-  AdjustmentsHorizontalIcon,
-  AtSymbolIcon,
-  GlobeAltIcon,
   CreditCardIcon,
-  ArrowsRightLeftIcon,
-  BoltIcon,
   ChatBubbleBottomCenterTextIcon,
   CircleStackIcon,
   UserGroupIcon,
@@ -55,28 +47,13 @@ export type SettingsSection =
   | "appearance"
   | "accessibility"
   | "security"
-  | "encryption"
   | "trusted_devices"
-  | "aliases"
-  | "domains"
   | "billing"
   | "storage"
   | "family"
   | "referral"
-  | "import"
-  | "notifications"
-  | "compose"
-  | "signature"
-  | "templates"
-  | "behavior"
-  | "categories"
-  | "sender_filters"
-  | "mail_rules"
   | "feedback"
   | "updates"
-  | "developer"
-  | "bridge"
-  | "smtp_tokens"
   | "calendar_views"
   | "calendar_events"
   | "calendar_notifications"
@@ -89,17 +66,9 @@ export const SETTINGS_SECTION_IDS: SettingsSection[] = [
   "appearance",
   "account",
   "security",
-  "aliases",
-  "domains",
   "storage",
   "billing",
   "referral",
-  "notifications",
-  "behavior",
-  "compose",
-  "mail_rules",
-  "import",
-  "bridge",
   "feedback",
   "calendar_views",
   "calendar_events",
@@ -115,14 +84,15 @@ export function is_settings_section(value: string): value is SettingsSection {
 const SECTION_ALIASES: Record<string, SettingsSection> = {
   storage_addons: "storage",
   credits: "billing",
-  ghost_aliases: "aliases",
-  alias_directories: "aliases",
   connection: "security",
-  smtp_tokens: "bridge",
   plans: "billing",
   subscription: "billing",
   about: "feedback",
   help: "feedback",
+  import: "calendar_import_export",
+  export: "calendar_import_export",
+  notifications: "calendar_notifications",
+  calendars: "calendar_calendars",
 };
 
 const SECTION_TAB_ALIASES: Record<
@@ -131,27 +101,11 @@ const SECTION_TAB_ALIASES: Record<
 > = {
   accessibility: { section: "appearance", tab: "accessibility" },
   trusted_devices: { section: "security", tab: "trusted_devices" },
-  encryption: { section: "security", tab: "encryption" },
   family: { section: "billing", tab: "family" },
-  categories: { section: "behavior", tab: "categories" },
-  signature: { section: "compose", tab: "signature" },
-  signatures: { section: "compose", tab: "signature" },
-  templates: { section: "compose", tab: "templates" },
-  filters: { section: "mail_rules", tab: "rules" },
-  rules: { section: "mail_rules", tab: "rules" },
-  sender_filters: { section: "mail_rules", tab: "blocked" },
-  blocked: { section: "mail_rules", tab: "blocked" },
-  allowlist: { section: "mail_rules", tab: "allowlist" },
-  auto_forward: { section: "mail_rules", tab: "auto_forward" },
-  vacation_reply: { section: "mail_rules", tab: "vacation_reply" },
-  external_accounts: { section: "import", tab: "external_accounts" },
-  export: { section: "import", tab: "export" },
   updates: { section: "feedback", tab: "updates" },
-  developer: { section: "feedback", tab: "developer" },
 };
 
 export interface SettingsTabAvailability {
-  show_developer: boolean;
   show_updates: boolean;
   is_family_plan: boolean;
   has_devices: boolean;
@@ -161,7 +115,6 @@ export function is_settings_tab_available(
   tab: string | undefined,
   availability: SettingsTabAvailability,
 ): boolean {
-  if (tab === "developer") return availability.show_developer;
   if (tab === "updates") return availability.show_updates;
   if (tab === "family") return availability.is_family_plan;
   if (tab === "trusted_devices") return availability.has_devices;
@@ -225,47 +178,11 @@ export function resolve_settings_section(
   return SECTION_ALIASES[key];
 }
 
-export const CALENDAR_SETTINGS_SECTION_IDS: SettingsSection[] = [
-  "appearance",
-  "account",
-  "accessibility",
-  "security",
-  "encryption",
-  "trusted_devices",
-  "billing",
-  "storage",
-  "family",
-  "referral",
-  "feedback",
-  "calendar_views",
-  "calendar_events",
-  "calendar_notifications",
-  "calendar_import_export",
-  "calendar_calendars",
-];
-
-export function is_calendar_settings_section(
-  value: string,
-): value is SettingsSection {
-  return (CALENDAR_SETTINGS_SECTION_IDS as string[]).includes(value);
-}
-
-export function resolve_calendar_settings_section(
-  candidate: string | null | undefined,
-): SettingsSection | undefined {
-  const resolved = resolve_settings_section(candidate);
-
-  if (!resolved) return undefined;
-
-  return is_calendar_settings_section(resolved) ? resolved : undefined;
-}
 export interface SettingsContentProps {
   section?: Section;
   on_section_change: (section: Section, replace?: boolean) => void;
   on_close: () => void;
   variant?: "page" | "popup";
-  show_mail_sections?: boolean;
-  show_calendar_sections?: boolean;
 }
 
 let persisted_section: Section | null = null;
@@ -297,14 +214,7 @@ export interface NavItem {
 }
 
 export interface NavGroup {
-  id:
-    | "general"
-    | "security"
-    | "addresses"
-    | "billing"
-    | "calendar"
-    | "mail"
-    | "advanced";
+  id: "general" | "security" | "billing" | "calendar" | "help";
   label: string;
   items: NavItem[];
 }
@@ -318,8 +228,6 @@ export function flatten_nav_items(groups: NavItems): NavItem[] {
 export function get_nav_items(
   t: (key: TranslationKey) => string,
   is_family_plan?: boolean,
-  show_mail_sections = true,
-  show_calendar_sections = false,
 ): NavItems {
   const on_onion = is_onion_host();
 
@@ -387,7 +295,7 @@ export function get_nav_items(
       label: t("settings.security"),
       icon: ShieldCheckIcon,
       description:
-        "Password, two-factor authentication, passkeys, trusted devices, and encryption keys",
+        "Password, two-factor authentication, passkeys, and trusted devices",
       keywords: [
         "password",
         "change password",
@@ -419,27 +327,6 @@ export function get_nav_items(
         "revoke access",
         "sign out device",
         "remove device",
-        "encryption",
-        "e2e",
-        "end to end",
-        "pgp",
-        "encryption key",
-        "export key",
-        "export public key",
-        "export private key",
-        "import key",
-        "key rotation",
-        "rotate key",
-        "quantum",
-        "post quantum",
-        "zero access",
-        "encrypt",
-        "decrypt",
-        "vault",
-        "storage format",
-        "key algorithm",
-        "ecc",
-        "curve25519",
         "connection",
         "connection method",
         "direct connection",
@@ -449,43 +336,6 @@ export function get_nav_items(
         "onion",
         "network",
         "vanguard",
-      ],
-    },
-    {
-      id: "aliases",
-      label: t("settings.alias_tab_aliases"),
-      icon: AtSymbolIcon,
-      description: "Custom email addresses that route mail to your inbox",
-      keywords: [
-        "alias",
-        "email alias",
-        "custom email",
-        "email address",
-        "forwarding address",
-        "create alias",
-        "ghost alias",
-        "directories",
-      ],
-    },
-    {
-      id: "domains",
-      label: t("settings.alias_tab_domains"),
-      icon: GlobeAltIcon,
-      description: "Domains you own or buy for sending and receiving mail",
-      keywords: [
-        "domain",
-        "custom domain",
-        "add domain",
-        "buy domain",
-        "purchase domain",
-        "register domain",
-        "domain search",
-        "domain verification",
-        "dns record",
-        "mx record",
-        "dkim",
-        "spf",
-        "dmarc",
       ],
     },
     ...(!on_onion
@@ -509,9 +359,6 @@ export function get_nav_items(
               "add storage",
               "buy storage",
               "free up space",
-              "empty trash",
-              "empty spam",
-              "attachments size",
             ],
           },
         ]
@@ -575,204 +422,13 @@ export function get_nav_items(
       : []),
   ];
 
-  const mail: NavItem[] = [
-    {
-      id: "notifications",
-      label: t("settings.notifications"),
-      icon: BellIcon,
-      description:
-        "Push alerts, notification sounds, badge counts, and email summaries",
-      keywords: [
-        "notifications",
-        "push notifications",
-        "desktop notifications",
-        "notification sound",
-        "badge count",
-        "unread badge",
-        "email alerts",
-        "new mail notification",
-        "notify me",
-        "alert",
-      ],
-    },
-    {
-      id: "behavior",
-      label: t("settings.reading_and_conversations"),
-      icon: AdjustmentsHorizontalIcon,
-      description:
-        "Reading pane, message threading, swipe actions, and inbox categories",
-      keywords: [
-        "reading pane",
-        "preview pane",
-        "thread view",
-        "conversation view",
-        "group by thread",
-        "undo send",
-        "delay send",
-        "send delay",
-        "auto archive",
-        "mark as read",
-        "swipe action",
-        "keyboard shortcuts",
-        "categories",
-        "inbox categories",
-        "custom category",
-        "category tabs",
-        "primary",
-        "deals",
-        "newsletters",
-        "social",
-        "notifications",
-        "purchases",
-        "discussions",
-        "promotions",
-        "forums",
-        "finance",
-        "travel",
-        "shopping",
-        "classify",
-        "auto sort",
-        "category rule",
-        "domain match",
-        "keyword match",
-      ],
-    },
-    {
-      id: "compose",
-      label: t("settings.compose"),
-      icon: PaintBrushIcon,
-      description:
-        "Default font and color for new messages, signatures, and saved templates",
-      keywords: [
-        "compose",
-        "default font",
-        "font size",
-        "text size",
-        "font color",
-        "text color",
-        "formatting",
-        "new message",
-        "signature",
-        "email signature",
-        "html signature",
-        "plain text signature",
-        "sign off",
-        "closing",
-        "footer text",
-        "add signature",
-        "templates",
-        "email templates",
-        "canned responses",
-        "quick reply",
-        "saved replies",
-        "message template",
-        "reusable email",
-      ],
-    },
-    {
-      id: "mail_rules",
-      label: t("mail_rules.title"),
-      icon: BoltIcon,
-      description:
-        "Automate your inbox, block or allow senders, forward mail, and set an auto-reply",
-      keywords: [
-        "mail rules",
-        "email rules",
-        "filters",
-        "auto label",
-        "auto archive",
-        "auto move",
-        "inbox automation",
-        "rule condition",
-        "rule action",
-        "organize mail",
-        "sorting rules",
-        "block sender",
-        "blocked senders",
-        "blocklist",
-        "allowlist",
-        "whitelist",
-        "safe senders",
-        "spam filter",
-        "junk mail",
-        "ban sender",
-        "unblock",
-        "auto forward",
-        "forward mail",
-        "email forwarding",
-        "vacation reply",
-        "out of office",
-        "auto reply",
-        "away message",
-      ],
-    },
-  ];
-
-  const advanced: NavItem[] = [
-    ...(!on_onion
-      ? [
-          {
-            id: "import" as Section,
-            label: t("common.import"),
-            icon: ArrowDownTrayIcon,
-            description:
-              "Migrate mail from another provider, connect external accounts, and export your mailbox",
-            keywords: [
-              "import email",
-              "migrate email",
-              "gmail import",
-              "google import",
-              "outlook import",
-              "yahoo import",
-              "proton import",
-              "imap import",
-              "pop3 import",
-              "migrate from",
-              "thunderbird",
-              "transfer email",
-              "external account",
-              "connected account",
-              "link account",
-              "export",
-              "download mail",
-              "mbox",
-              "backup",
-            ],
-          },
-        ]
-      : []),
-    {
-      id: "bridge" as Section,
-      label: t("settings.bridge"),
-      icon: ArrowsRightLeftIcon,
-      description:
-        "Use any IMAP, SMTP, POP3, or JMAP mail client with your Aster account",
-      keywords: [
-        "bridge",
-        "aster bridge",
-        "thunderbird",
-        "apple mail",
-        "smtp settings",
-        "imap settings",
-        "smtp port",
-        "imap port",
-        "jmap",
-        "pop3",
-        "mail client",
-        "desktop client",
-        "external client",
-        "third party app",
-        "connect app",
-        "server settings",
-        "app password",
-      ],
-    },
+  const help: NavItem[] = [
     {
       id: "feedback",
       label: t("common.help"),
       icon: ChatBubbleBottomCenterTextIcon,
       description:
-        "Report bugs, request features, check for app updates, and open developer tools",
+        "Report bugs, request features, and check for app updates",
       keywords: [
         "feedback",
         "report bug",
@@ -789,12 +445,6 @@ export function get_nav_items(
         "check for updates",
         "auto update",
         "release notes",
-        "developer",
-        "dev mode",
-        "api token",
-        "access token",
-        "debug",
-        "diagnostics",
       ],
     },
   ];
@@ -883,7 +533,7 @@ export function get_nav_items(
       .map((id) => general.find((item) => item.id === id))
       .filter((item): item is NavItem => Boolean(item));
 
-  const groups: NavItems = [
+  return [
     {
       id: "general",
       label: t("settings.general"),
@@ -895,33 +545,11 @@ export function get_nav_items(
       items: pick(["security"]),
     },
     {
-      id: "addresses",
-      label: t("settings.aliases_and_domains"),
-      items: pick(["aliases", "domains"]),
-    },
-    {
       id: "billing",
       label: t("settings.billing"),
       items: pick(["storage", "billing", "referral"]),
     },
     { id: "calendar", label: t("calendar.settings_group"), items: calendar },
-    { id: "mail", label: t("common.mail"), items: mail },
-    { id: "advanced", label: t("settings.advanced"), items: advanced },
-  ];
-
-  return groups
-    .filter((group) => show_calendar_sections || group.id !== "calendar")
-    .filter(
-      (group) =>
-        show_mail_sections || (group.id !== "addresses" && group.id !== "mail"),
-    )
-    .map((group) =>
-      show_mail_sections || group.id !== "advanced"
-        ? group
-        : {
-            ...group,
-            items: group.items.filter((item) => item.id === "feedback"),
-          },
-    )
-    .filter((group) => group.items.length > 0);
+    { id: "help", label: t("common.help"), items: help },
+  ].filter((group): group is NavGroup => group.items.length > 0);
 }

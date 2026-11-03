@@ -565,10 +565,6 @@ export function check_session_expired(account_id: string): boolean {
   }
 }
 
-export function get_session_timeout_config(): SessionTimeoutConfig {
-  return { ...current_config };
-}
-
 export function clear_session_timeout_data(account_id: string): void {
   try {
     localStorage.removeItem(LAST_ACTIVITY_KEY_PREFIX + account_id);

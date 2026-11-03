@@ -23,7 +23,6 @@ import { Capacitor } from "@capacitor/core";
 import { ignore_error } from "@/lib/ignore_error";
 import { get_api_base_url } from "@/services/api/base_url";
 
-export const NATIVE_API_URL = "https://app.astermail.org/api";
 export const API_BASE_URL =
   Capacitor.isNativePlatform() || is_tauri_env()
     ? get_api_base_url()

@@ -47,7 +47,6 @@ describe("webauthn_available_here", () => {
   }
 
   it("is off in the calendar until related origins are configured", () => {
-    vi.stubEnv("VITE_APP_KIND", "calendar");
     vi.stubEnv("VITE_WEBAUTHN_RELATED_ORIGINS", "");
     vi.stubGlobal("PublicKeyCredential", function public_key_credential() {});
 
@@ -57,7 +56,6 @@ describe("webauthn_available_here", () => {
   });
 
   it("is on in the calendar when configured and the browser supports related origins", async () => {
-    vi.stubEnv("VITE_APP_KIND", "calendar");
     vi.stubEnv("VITE_WEBAUTHN_RELATED_ORIGINS", "true");
     stub_credential_api({ relatedOrigins: true });
 
@@ -68,7 +66,6 @@ describe("webauthn_available_here", () => {
   });
 
   it("stays off in the calendar when the browser lacks related origins", async () => {
-    vi.stubEnv("VITE_APP_KIND", "calendar");
     vi.stubEnv("VITE_WEBAUTHN_RELATED_ORIGINS", "true");
     stub_credential_api({ relatedOrigins: false });
 
@@ -78,7 +75,6 @@ describe("webauthn_available_here", () => {
   });
 
   it("stays off in the calendar when the browser cannot report capabilities", async () => {
-    vi.stubEnv("VITE_APP_KIND", "calendar");
     vi.stubEnv("VITE_WEBAUTHN_RELATED_ORIGINS", "true");
     stub_credential_api(null);
 
@@ -87,17 +83,9 @@ describe("webauthn_available_here", () => {
   });
 
   it("stays off in the calendar until the probe has run", () => {
-    vi.stubEnv("VITE_APP_KIND", "calendar");
     vi.stubEnv("VITE_WEBAUTHN_RELATED_ORIGINS", "true");
     stub_credential_api({ relatedOrigins: true });
 
     expect(webauthn_available_here()).toBe(false);
-  });
-
-  it("is always on in the mail build", () => {
-    vi.stubEnv("VITE_APP_KIND", "mail");
-    vi.stubEnv("VITE_WEBAUTHN_RELATED_ORIGINS", "");
-
-    expect(webauthn_available_here()).toBe(true);
   });
 });

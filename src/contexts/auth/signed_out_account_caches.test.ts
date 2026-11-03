@@ -54,34 +54,10 @@ vi.mock("./auth_helpers", () => ({
   },
 }));
 
-vi.mock("@/hooks/use_protected_folder", () => ({
-  lock_all_folders: () => {
-    hoisted.calls.push("lock_all_folders");
-    throw new Error("storage unavailable");
-  },
-}));
-
 vi.mock("@/services/crypto/message_escrow", () => ({
   clear_escrow_miss_cache: () => {
     hoisted.calls.push("clear_escrow_miss_cache");
-  },
-}));
-
-vi.mock("@/services/translation/translation_cache", () => ({
-  clear_translation_cache: () => {
-    hoisted.calls.push("clear_translation_cache");
-  },
-}));
-
-vi.mock("@/services/translation/language_detect", () => ({
-  clear_detection_cache: () => {
-    hoisted.calls.push("clear_detection_cache");
-  },
-}));
-
-vi.mock("@/services/translation/engine_registry", () => ({
-  release_engines: () => {
-    hoisted.calls.push("release_engines");
+    throw new Error("storage unavailable");
   },
 }));
 
@@ -112,14 +88,10 @@ describe("signing out one account clears its decrypted caches", () => {
     expect([...hoisted.calls].sort()).toEqual([
       "clear_account_scoped_caches",
       "clear_billing_cache",
-      "clear_detection_cache",
       "clear_escrow_miss_cache",
       "clear_family_cache",
       "clear_icon_cache",
-      "clear_translation_cache",
-      "lock_all_folders",
       "purge_favicon_cache",
-      "release_engines",
     ]);
   });
 
@@ -133,7 +105,7 @@ describe("signing out one account clears its decrypted caches", () => {
   it("keeps clearing when one cache throws", async () => {
     await expect(clear_signed_out_account_caches()).resolves.toBeUndefined();
 
-    expect(hoisted.calls[0]).toBe("lock_all_folders");
+    expect(hoisted.calls[0]).toBe("clear_escrow_miss_cache");
     expect(hoisted.calls).toContain("clear_account_scoped_caches");
   });
 

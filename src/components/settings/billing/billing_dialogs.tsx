@@ -49,7 +49,7 @@ import {
   type UserActiveAddon,
 } from "@/services/api/billing";
 import { request_cache } from "@/services/api/request_cache";
-import { invalidate_mail_stats } from "@/hooks/use_mail_stats";
+import { invalidate_storage_usage } from "@/hooks/use_storage_usage";
 import {
   show_toast,
   TOAST_DURATION_BILLING_MS,
@@ -275,7 +275,7 @@ export function BillingDialogs({
         (async () => {
           request_cache.invalidate("/payments/v1");
           request_cache.invalidate("/sync/v1");
-          invalidate_mail_stats();
+          invalidate_storage_usage();
           try {
             await activate_subscription();
           } catch {
@@ -294,7 +294,7 @@ export function BillingDialogs({
               set_subscription(sub_response.data);
               if (sub_response.data.plan.code !== "free") {
                 upgrade_observed = true;
-                invalidate_mail_stats();
+                invalidate_storage_usage();
                 await load_data();
                 break;
               }
@@ -334,7 +334,7 @@ export function BillingDialogs({
             show_toast(t("settings.payment_success"), "success");
             request_cache.invalidate("/payments/v1");
             request_cache.invalidate("/sync/v1");
-            invalidate_mail_stats();
+            invalidate_storage_usage();
             await load_data();
           } else {
             for (let attempt = 0; attempt < 8; attempt++) {
@@ -345,7 +345,7 @@ export function BillingDialogs({
                 show_toast(t("settings.payment_success"), "success");
                 request_cache.invalidate("/payments/v1");
                 request_cache.invalidate("/sync/v1");
-                invalidate_mail_stats();
+                invalidate_storage_usage();
                 await load_data();
 
                 return;
@@ -645,12 +645,12 @@ export function BillingDialogs({
             set_checkout_addon(null);
             request_cache.invalidate("/payments/v1");
             request_cache.invalidate("/sync/v1");
-            invalidate_mail_stats();
+            invalidate_storage_usage();
             await load_data();
             for (let attempt = 0; attempt < 5; attempt++) {
               await new Promise((r) => setTimeout(r, 2000));
               request_cache.invalidate("/sync/v1");
-              invalidate_mail_stats();
+              invalidate_storage_usage();
               await load_data();
             }
           }}
@@ -764,7 +764,7 @@ export function BillingDialogs({
                     show_toast(t("settings.addon_cancelled"), "success");
                     request_cache.invalidate("/payments/v1");
                     request_cache.invalidate("/sync/v1");
-                    invalidate_mail_stats();
+                    invalidate_storage_usage();
                     await load_data();
                   } else {
                     show_toast(

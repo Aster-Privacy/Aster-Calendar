@@ -46,7 +46,7 @@ import {
   decrypt_attachment_data,
 } from "./attachment_crypto";
 
-import type { Attachment } from "@/components/compose/compose_shared";
+import type { Attachment } from "@/types/attachment";
 
 function random_bytes(len: number): Uint8Array {
   const out = new Uint8Array(len);

@@ -21,13 +21,13 @@
 
 import { clear_account_scoped_caches } from "./auth_helpers";
 
-import { lock_all_folders } from "@/hooks/use_protected_folder";
 import { clear_escrow_miss_cache } from "@/services/crypto/message_escrow";
-import { clear_translation_cache } from "@/services/translation/translation_cache";
-import { clear_detection_cache } from "@/services/translation/language_detect";
-import { release_engines } from "@/services/translation/engine_registry";
-import { clear_billing_cache } from "@/components/settings/billing/billing_cache";
-import { clear_family_cache } from "@/components/settings/billing/family_section/family_cache";
+import {
+  clear_billing_cache,
+} from "@/components/settings/billing/billing_cache";
+import {
+  clear_family_cache,
+} from "@/components/settings/billing/family_section/family_cache";
 import { ignore_error } from "@/lib/ignore_error";
 import { clear_icon_cache } from "@/lib/icon_cache";
 import { purge_favicon_cache } from "@/lib/favicon_cache_db";
@@ -44,13 +44,9 @@ function run_clearer(clear: () => void): void {
 export async function clear_signed_out_account_caches(
   account_id?: string | null,
 ): Promise<void> {
-  run_clearer(() => lock_all_folders());
   run_clearer(() => clear_escrow_miss_cache());
   run_clearer(() => clear_billing_cache());
   run_clearer(() => clear_family_cache());
-  run_clearer(() => clear_translation_cache());
-  run_clearer(() => clear_detection_cache());
-  run_clearer(() => release_engines());
   run_clearer(() => clear_icon_cache());
 
   if (account_id) {

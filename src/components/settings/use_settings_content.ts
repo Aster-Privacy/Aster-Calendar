@@ -59,18 +59,13 @@ import {
   set_pending_settings_anchor,
 } from "@/lib/settings_anchor";
 import { read_settings_navigation } from "@/lib/settings_links";
-import { start_scroll_seek } from "@/components/settings/settings_scroll_target";
+import {
+  start_scroll_seek,
+} from "@/components/settings/settings_scroll_target";
 import { SETTINGS_SEARCH_REGISTRY } from "@/components/settings/search_registry";
 import { use_search_registry } from "@/components/settings/search_context";
 import { use_i18n } from "@/lib/i18n/context";
 import { use_preferences } from "@/contexts/preferences_context";
-import { use_mail_stats } from "@/hooks/use_mail_stats";
-import { use_auth } from "@/contexts/auth_context";
-import {
-  read_dev_mode_cache,
-  write_dev_mode_cache,
-} from "@/lib/dev_mode_cache";
-import { get_dev_mode } from "@/services/api/preferences";
 import {
   get_available_plans,
   get_billing_history,
@@ -78,8 +73,9 @@ import {
   get_storage_addons,
   get_credits,
 } from "@/services/api/billing";
-import { get_vault_from_memory } from "@/services/crypto/memory_key_store";
-import { use_settings_prefetch } from "@/components/settings/hooks/use_settings_prefetch";
+import {
+  use_settings_prefetch,
+} from "@/components/settings/hooks/use_settings_prefetch";
 import { list_devices } from "@/services/api/devices";
 import {
   prefetch_family_group,
@@ -90,21 +86,6 @@ import { is_onion_host } from "@/lib/onion_host";
 import { is_desktop_runtime } from "@/services/updates/updater";
 
 export type { SettingsSection } from "./settings_content_helpers";
-
-const MAIL_ONLY_SEARCH_PREFIXES = [
-  "Accessibility > Keyboard Shortcuts",
-  "Accessibility > Performance",
-  "Appearance > Layout",
-  "Encryption >",
-  "Security > Content Protection",
-  "Security > Key Rotation",
-  "Security > Links",
-  "Security > Tracking Protection",
-];
-
-const MAIL_ONLY_SEARCH_LABEL_KEYS = new Set([
-  "settings.email_font_choice_title",
-]);
 
 export function use_settings_content(props: SettingsContentProps) {
   const {
@@ -120,17 +101,6 @@ export function use_settings_content(props: SettingsContentProps) {
   const { t } = use_i18n();
   const navigate = useNavigate();
   const { preferences } = use_preferences();
-  const { current_account_id } = use_auth();
-  const { stats: mail_stats, has_initialized: mail_stats_ready } =
-    use_mail_stats();
-  const storage_percentage = useMemo(() => {
-    const total = mail_stats.storage_total_bytes;
-
-    if (!total || total <= 0) return 0;
-    const used = mail_stats.storage_used_bytes || 0;
-
-    return Math.min(100, Math.max(0, (used / total) * 100));
-  }, [mail_stats.storage_used_bytes, mail_stats.storage_total_bytes]);
   const sidebar_width = Math.min(
     360,
     Math.max(200, preferences.sidebar_width ?? 256),
@@ -141,9 +111,6 @@ export function use_settings_content(props: SettingsContentProps) {
   const [show_mobile_nav, set_show_mobile_nav] = useState(!section_prop);
   const [is_suspended, set_is_suspended] = useState(
     () => sessionStorage.getItem("aster_suspended") === "true",
-  );
-  const [dev_mode_enabled, set_dev_mode_enabled] = useState(
-    () => read_dev_mode_cache(current_account_id) ?? false,
   );
   const [has_devices, set_has_devices] = useState(
     () => localStorage.getItem("aster_has_devices") === "1",
@@ -159,7 +126,6 @@ export function use_settings_content(props: SettingsContentProps) {
   const section_ref = useRef(section);
 
   const on_section_change_ref = useRef(on_section_change);
-  const account_id_ref = useRef(current_account_id);
 
   useEffect(() => {
     on_section_change_ref.current = on_section_change;
@@ -168,10 +134,6 @@ export function use_settings_content(props: SettingsContentProps) {
   useEffect(() => {
     section_ref.current = section;
   }, [section]);
-
-  useEffect(() => {
-    account_id_ref.current = current_account_id;
-  }, [current_account_id]);
 
   useEffect(() => {
     if (section_prop && section_prop !== section) {
@@ -234,7 +196,7 @@ export function use_settings_content(props: SettingsContentProps) {
 
   useEffect(() => {
     const is_unavailable =
-      (section === "import" || section === "storage") && is_onion_host();
+      section === "storage" && is_onion_host();
 
     if (!is_unavailable) return;
 
@@ -245,13 +207,8 @@ export function use_settings_content(props: SettingsContentProps) {
 
   const NAV_ITEMS_BASE = useMemo(
     () =>
-      get_nav_items(
-        t,
-        is_family_plan,
-        props.show_mail_sections !== false,
-        props.show_calendar_sections === true,
-      ),
-    [t, is_family_plan, props.show_mail_sections, props.show_calendar_sections],
+      get_nav_items(t, is_family_plan),
+    [t, is_family_plan],
   );
   const [indicator_style, set_indicator_style] = useState<{
     top: number;
@@ -268,34 +225,20 @@ export function use_settings_content(props: SettingsContentProps) {
     appearance: null,
     accessibility: null,
     security: null,
-    encryption: null,
     trusted_devices: null,
-    aliases: null,
-    domains: null,
     billing: null,
     storage: null,
     family: null,
     referral: null,
-    import: null,
-    notifications: null,
-    compose: null,
-    signature: null,
-    templates: null,
-    behavior: null,
-    categories: null,
-    sender_filters: null,
-    mail_rules: null,
     feedback: null,
-    developer: null,
     updates: null,
-    bridge: null,
-    smtp_tokens: null,
     calendar_views: null,
     calendar_events: null,
     calendar_notifications: null,
     calendar_import_export: null,
     calendar_calendars: null,
   });
+
 
   const handle_account_deleted = useCallback(() => {
     navigate("/sign-in");
@@ -401,37 +344,6 @@ export function use_settings_content(props: SettingsContentProps) {
   }, []);
 
   useEffect(() => {
-    const cached = read_dev_mode_cache(current_account_id);
-
-    if (cached !== null) set_dev_mode_enabled(cached);
-
-    let cancelled = false;
-
-    const load_dev_mode = async () => {
-      const vault = get_vault_from_memory();
-      const result = await get_dev_mode(vault);
-
-      if (cancelled || result.data === null) return;
-
-      set_dev_mode_enabled(result.data);
-      write_dev_mode_cache(current_account_id, result.data);
-    };
-
-    load_dev_mode();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [current_account_id]);
-
-  useEffect(() => {
-    const handle_dev_mode_change = (e: Event) => {
-      const enabled = (e as CustomEvent<boolean>).detail;
-
-      set_dev_mode_enabled(enabled);
-      write_dev_mode_cache(account_id_ref.current, enabled);
-    };
-
     const handle_navigate_section = (e: Event) => {
       const { section: requested, anchor } = read_settings_navigation(
         (e as CustomEvent<unknown>).detail,
@@ -459,12 +371,10 @@ export function use_settings_content(props: SettingsContentProps) {
       refresh_family_plan_flag(set_is_family_plan);
     };
 
-    window.addEventListener("dev-mode-changed", handle_dev_mode_change);
     window.addEventListener("navigate-settings", handle_navigate_section);
     window.addEventListener("aster:plan-changed", handle_plan_changed);
 
     return () => {
-      window.removeEventListener("dev-mode-changed", handle_dev_mode_change);
       window.removeEventListener("navigate-settings", handle_navigate_section);
       window.removeEventListener("aster:plan-changed", handle_plan_changed);
     };
@@ -552,7 +462,6 @@ export function use_settings_content(props: SettingsContentProps) {
     );
     const seen = new Set<string>();
     const tab_availability = {
-      show_developer: dev_mode_enabled,
       show_updates: is_desktop_runtime(),
       is_family_plan,
       has_devices,
@@ -561,15 +470,6 @@ export function use_settings_content(props: SettingsContentProps) {
     return all
       .filter((entry) => {
         if (!visible_sections.has(entry.section)) return false;
-        if (
-          props.show_mail_sections === false &&
-          (MAIL_ONLY_SEARCH_PREFIXES.some((prefix) =>
-            entry.english_breadcrumb.startsWith(prefix),
-          ) ||
-            (entry.label_key !== undefined &&
-              MAIL_ONLY_SEARCH_LABEL_KEYS.has(entry.label_key)))
-        )
-          return false;
         if (!is_settings_tab_available(entry.tab, tab_availability)) {
           return false;
         }
@@ -594,8 +494,6 @@ export function use_settings_content(props: SettingsContentProps) {
     nav_items,
     dynamic_entries,
     t,
-    props.show_mail_sections,
-    dev_mode_enabled,
     is_family_plan,
     has_devices,
   ]);
@@ -667,9 +565,6 @@ export function use_settings_content(props: SettingsContentProps) {
   return {
     is_popup,
     t,
-    mail_stats,
-    mail_stats_ready,
-    storage_percentage,
     sidebar_width,
     section,
     set_section,
@@ -690,7 +585,6 @@ export function use_settings_content(props: SettingsContentProps) {
     nav_item_refs,
     handle_account_deleted,
     has_devices,
-    dev_mode_enabled,
     nav_items,
     is_searching,
     search_results,

@@ -45,7 +45,7 @@ import {
 } from "@/services/account_manager";
 import { use_auth } from "@/contexts/auth_context";
 import { use_i18n } from "@/lib/i18n/context";
-import { emit_auth_ready } from "@/hooks/mail_events";
+import { emit_auth_ready } from "@/hooks/app_events";
 import { use_should_reduce_motion } from "@/provider";
 import { Logo } from "@/components/auth/auth_styles";
 import { Spinner } from "@/components/ui/spinner";

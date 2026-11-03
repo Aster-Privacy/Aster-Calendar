@@ -51,7 +51,7 @@ import {
 } from "./inbound_attachment_keys";
 import sealed_meta_vector from "./__fixtures__/sealed_attachment_meta_vector.json";
 
-import { decrypt_mail_envelope } from "@/components/email/shared/decrypt_envelope";
+import { decrypt_mail_envelope } from "@/services/crypto/decrypt_envelope";
 
 const MAIL_ITEM_ID = "mail-item-sealed";
 

@@ -59,7 +59,7 @@ vi.mock("./envelope", async (importOriginal) => {
 import { encrypt_attachments_for_send } from "./attachment_crypto";
 import { base64_to_array } from "./envelope";
 
-import type { Attachment } from "@/components/compose/compose_shared";
+import type { Attachment } from "@/types/attachment";
 
 function make_attachment(): Attachment {
   return {

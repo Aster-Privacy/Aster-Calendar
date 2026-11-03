@@ -48,7 +48,7 @@ import {
   is_same_day,
   start_of_day,
 } from "@/components/calendar/calendar_utils";
-import { get_first_week_day } from "@/utils/search_operators/dates";
+import { get_first_week_day } from "@/lib/first_week_day";
 import { use_i18n } from "@/lib/i18n/context";
 
 const DAYS_SHOWN = 14;

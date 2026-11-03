@@ -31,16 +31,6 @@ import { user_facing_error } from "@/utils/user_facing_error";
 import { decrypt_aes_gcm_with_fallback } from "@/services/crypto/legacy_keks";
 import { get_active_translations } from "@/lib/i18n/translations";
 
-function array_to_base64(array: Uint8Array): string {
-  let binary = "";
-
-  for (let i = 0; i < array.length; i++) {
-    binary += String.fromCharCode(array[i]);
-  }
-
-  return btoa(binary);
-}
-
 function base64_to_array(base64: string): Uint8Array {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
@@ -50,42 +40,6 @@ function base64_to_array(base64: string): Uint8Array {
   }
 
   return bytes;
-}
-
-export async function upload_contact_photo(
-  contact_id: string,
-  file: File,
-): Promise<ApiResponse<ContactPhoto>> {
-  const key = await get_contacts_encryption_key();
-  const array_buffer = await file.arrayBuffer();
-  const photo_data = new Uint8Array(array_buffer);
-
-  const data_nonce = crypto.getRandomValues(new Uint8Array(12));
-  const encrypted_data = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: data_nonce },
-    key,
-    photo_data,
-  );
-
-  const meta: ContactPhotoMeta = {
-    filename: file.name,
-    mime_type: file.type,
-  };
-
-  const meta_nonce = crypto.getRandomValues(new Uint8Array(12));
-  const encrypted_meta = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: meta_nonce },
-    key,
-    new TextEncoder().encode(JSON.stringify(meta)),
-  );
-
-  return api_client.post<ContactPhoto>(`/contacts/v1/${contact_id}/photo`, {
-    encrypted_data: array_to_base64(new Uint8Array(encrypted_data)),
-    data_nonce: array_to_base64(data_nonce),
-    encrypted_meta: array_to_base64(new Uint8Array(encrypted_meta)),
-    meta_nonce: array_to_base64(meta_nonce),
-    size_bytes: file.size,
-  });
 }
 
 export async function get_contact_photo(
@@ -145,14 +99,6 @@ export async function get_contact_photo(
       ),
     };
   }
-}
-
-export async function delete_contact_photo(
-  contact_id: string,
-): Promise<ApiResponse<{ success: boolean }>> {
-  return api_client.delete<{ success: boolean }>(
-    `/contacts/v1/${contact_id}/photo`,
-  );
 }
 
 export function revoke_photo_blob_url(blob_url: string): void {

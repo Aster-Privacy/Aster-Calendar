@@ -188,8 +188,6 @@ async function install_under_lock(
 
   const { upload_prekey_bundle } =
     await import("@/services/crypto/ratchet_manager");
-  const { ensure_default_labels } =
-    await import("@/services/labels/ensure_defaults");
   const { ignore_error } = await import("@/lib/ignore_error");
 
   await upload_prekey_bundle(new_vault).catch((caught) =>
@@ -197,9 +195,6 @@ async function install_under_lock(
       "services/crypto/install_missing_identity_key:prekeys",
       caught,
     ),
-  );
-  await ensure_default_labels(new_vault).catch((caught) =>
-    ignore_error("services/crypto/install_missing_identity_key:labels", caught),
   );
 
   return !published.error && published.data?.success === true;

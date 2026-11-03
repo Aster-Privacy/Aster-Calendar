@@ -49,7 +49,7 @@ import {
 } from "@/services/api/totp";
 import { is_webauthn_supported } from "@/services/api/webauthn";
 import { get_session_passphrase } from "@/contexts/auth/session_passphrase";
-import { emit_auth_ready } from "@/hooks/mail_events";
+import { emit_auth_ready } from "@/hooks/app_events";
 import { show_toast } from "@/components/toast/simple_toast";
 import { hard_redirect, get_app_query_param } from "@/lib/hard_redirect";
 import { ignore_error } from "@/lib/ignore_error";
@@ -69,7 +69,6 @@ import {
   preload_openpgp,
 } from "@/services/crypto/openpgp_loader";
 import { preload_when_idle } from "@/utils/lazy_with_retry";
-import { is_calendar_app } from "@/lib/app_kind";
 import {
   clear_pending_login_enrollment,
   derive_sign_in_proof,
@@ -363,7 +362,7 @@ export function use_sign_in_page() {
   }, [auth_loading, hub_accounts, handle_hub_account]);
 
   useEffect(() => {
-    document.title = `${t("auth.sign_in")} | ${t(is_calendar_app() ? "calendar.aster_calendar_brand" : "common.aster_mail")}`;
+    document.title = `${t("auth.sign_in")} | ${t("calendar.aster_calendar_brand")}`;
   }, [t]);
 
   const has_typed_credentials = username.length > 0 || password.length > 0;

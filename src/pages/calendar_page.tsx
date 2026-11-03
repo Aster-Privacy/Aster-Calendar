@@ -30,7 +30,7 @@ import {
 import { CalendarShortcutsModal } from "@/components/calendar/calendar_shortcuts_modal";
 import { AppRail } from "@/components/layout/app_rail";
 import { TopBar } from "@/components/layout/top_bar";
-import { resolve_calendar_settings_section } from "@/components/settings/settings_content_helpers";
+import { resolve_settings_section } from "@/components/settings/settings_content_helpers";
 import { Spinner } from "@/components/ui/spinner";
 import { use_preferences } from "@/contexts/preferences_context";
 import { use_i18n } from "@/lib/i18n/context";
@@ -107,7 +107,7 @@ export default function CalendarPage() {
   const shortcuts_enabled = preferences.calendar_keyboard_shortcuts_enabled;
 
   const is_settings_route = location.pathname.startsWith("/settings");
-  const resolved_section = resolve_calendar_settings_section(params.section);
+  const resolved_section = resolve_settings_section(params.section);
   const settings_section: SettingsSection | null = is_settings_route
     ? (resolved_section ?? DEFAULT_CALENDAR_SETTINGS_SECTION)
     : null;
@@ -151,7 +151,7 @@ export default function CalendarPage() {
       if (is_settings_route) return;
 
       const detail = (event as CustomEvent<string>).detail;
-      const section = resolve_calendar_settings_section(
+      const section = resolve_settings_section(
         typeof detail === "string" ? detail.split("#")[0] : null,
       );
 
@@ -219,8 +219,7 @@ export default function CalendarPage() {
         {settings_section ? (
           <>
             <TopBar
-              brand="calendar"
-              is_settings_view={true}
+                    is_settings_view={true}
               on_mobile_menu_toggle={noop}
               on_settings_click={noop}
               on_shortcuts_click={open_settings_shortcuts}
@@ -231,12 +230,9 @@ export default function CalendarPage() {
                   on_close={close_settings}
                   on_section_change={change_settings_section}
                   section={settings_section}
-                  show_calendar_sections={true}
-                  show_mail_sections={false}
                 />
               </Suspense>
               <AppRail
-                account_only={true}
                 is_contacts_open={is_rail_contacts_open}
                 is_security_open={is_rail_security_open}
                 on_compose={open_mail_compose}

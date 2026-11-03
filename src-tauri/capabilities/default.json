@@ -12,7 +12,6 @@
     "notification:default",
     "core:event:default",
     "updater:default",
-    "process:allow-restart",
-    "deep-link:default"
+    "process:allow-restart"
   ]
 }

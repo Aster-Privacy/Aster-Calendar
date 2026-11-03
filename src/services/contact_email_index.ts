@@ -26,7 +26,7 @@ import {
   get_contacts_encryption_key,
 } from "@/services/api/contacts";
 import { is_contact_trashed } from "@/lib/contact_trash";
-import { on_mail_event, MAIL_EVENTS } from "@/hooks/mail_events";
+import { on_app_events, APP_EVENTS } from "@/hooks/app_events";
 import {
   on_keys_ready,
   on_vault_cleared,
@@ -196,7 +196,7 @@ function register_listeners(): void {
   if (listeners_registered) return;
   listeners_registered = true;
 
-  on_mail_event(MAIL_EVENTS.CONTACTS_CHANGED, () => {
+  on_app_events([APP_EVENTS.CONTACTS_CHANGED], () => {
     schedule_stale_mark();
   });
 

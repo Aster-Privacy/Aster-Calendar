@@ -28,17 +28,12 @@ const h = vi.hoisted(() => ({
       signed_mime_micalg: "pgp-sha512",
     }),
   ),
-  queue_email: vi.fn(async () => ({ queue_id: "queue-1" })),
 }));
 
 vi.mock("./send_queue_signed_mime", async (import_original) => ({
   ...(await import_original<typeof import("./send_queue_signed_mime")>()),
   should_attach_signed_mime: () => true,
   build_signed_mime_payload: h.build_signed_mime_payload,
-}));
-
-vi.mock("./undo_send_manager", () => ({
-  undo_send_manager: { queue_email: h.queue_email },
 }));
 
 vi.mock("./current_identity", () => ({
@@ -88,12 +83,7 @@ vi.mock("./api/send", () => ({
   send_simple_email: vi.fn(),
 }));
 
-vi.mock("./api/mail", () => ({
-  mark_thread_read: vi.fn(async () => ({ data: {} })),
-}));
-
 import { execute_external_send } from "./send_queue_execute";
-import { queue_email_to_server } from "./send_queue";
 
 const plain_email = {
   to: ["reader@example.org"],
@@ -104,7 +94,6 @@ const plain_email = {
 
 beforeEach(() => {
   h.build_signed_mime_payload.mockClear();
-  h.queue_email.mockClear();
 });
 
 describe("plain text mode reaches the signed mime builder", () => {
@@ -116,17 +105,6 @@ describe("plain text mode reaches the signed mime builder", () => {
       body: plain_email.body,
       is_plain_text: true,
     });
-  });
-
-  it("on a send held in the undo queue", async () => {
-    await queue_email_to_server(plain_email, 10);
-
-    expect(h.build_signed_mime_payload).toHaveBeenCalledTimes(1);
-    expect(h.build_signed_mime_payload.mock.calls[0][0]).toMatchObject({
-      body: plain_email.body,
-      is_plain_text: true,
-    });
-    expect(h.queue_email).toHaveBeenCalledTimes(1);
   });
 
   it("leaves a rich text send on the html alternative", async () => {

@@ -60,10 +60,6 @@ export function clear_csrf_cache(): void {
   cached_csrf_token = null;
 }
 
-export function has_csrf_token(): boolean {
-  return get_csrf_token_from_cookie() !== null;
-}
-
 export function is_state_changing_method(method: string): boolean {
   const state_changing_methods = ["POST", "PUT", "PATCH", "DELETE"];
 

@@ -35,10 +35,6 @@ export {
 } from "./send_queue_body_encryption";
 export { create_sent_envelope } from "./send_queue_envelope";
 export {
-  reencrypt_all_sent_mail,
-  type SentMailResealSummary,
-} from "./sent_mail_reseal";
-export {
   assert_required_encryption_keys,
   execute_external_send,
   execute_send,

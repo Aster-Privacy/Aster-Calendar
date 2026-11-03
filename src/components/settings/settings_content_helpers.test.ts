@@ -56,31 +56,28 @@ describe("resolve_settings_section", () => {
     }
   });
 
-  it("maps mobile-only section ids onto their desktop equivalent", () => {
-    expect(resolve_settings_section("ghost_aliases")).toBe("aliases");
-    expect(resolve_settings_section("alias_directories")).toBe("aliases");
+  it("maps alternate section ids onto the section that renders them", () => {
     expect(resolve_settings_section("connection")).toBe("security");
-    expect(resolve_settings_section("signatures")).toBe("compose");
     expect(resolve_settings_section("about")).toBe("feedback");
-    expect(resolve_settings_section("external_accounts")).toBe("import");
+    expect(resolve_settings_section("plans")).toBe("billing");
+    expect(resolve_settings_section("import")).toBe("calendar_import_export");
+    expect(resolve_settings_section("notifications")).toBe(
+      "calendar_notifications",
+    );
   });
 
-  it("resolves a retired section id to its parent section and tab", () => {
-    expect(resolve_nav_target("encryption")).toEqual({
+  it("resolves a tab id to its parent section and tab", () => {
+    expect(resolve_nav_target("trusted_devices")).toEqual({
       section: "security",
-      tab: "encryption",
+      tab: "trusted_devices",
     });
-    expect(resolve_nav_target("templates")).toEqual({
-      section: "compose",
-      tab: "templates",
+    expect(resolve_nav_target("accessibility")).toEqual({
+      section: "appearance",
+      tab: "accessibility",
     });
-    expect(resolve_nav_target("vacation_reply")).toEqual({
-      section: "mail_rules",
-      tab: "vacation_reply",
-    });
-    expect(resolve_nav_target("filters")).toEqual({
-      section: "mail_rules",
-      tab: "rules",
+    expect(resolve_nav_target("family")).toEqual({
+      section: "billing",
+      tab: "family",
     });
     expect(resolve_nav_target("billing")).toEqual({ section: "billing" });
   });

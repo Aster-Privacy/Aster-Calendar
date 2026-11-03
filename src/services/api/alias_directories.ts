@@ -19,15 +19,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 import { api_client, type ApiResponse } from "./client";
-import { encrypt_alias_field, decrypt_alias_field } from "./aliases";
-import { sha256_base64 } from "./alias_hash";
-
-export const DIRECTORY_DOMAINS = [
-  "astermail.org",
-  "aster.cx",
-  "astermail.me",
-  "astermail.net",
-];
 
 export interface AliasDirectory {
   id: string;
@@ -41,10 +32,6 @@ export interface AliasDirectory {
   created_at: string;
 }
 
-export interface DecryptedAliasDirectory extends AliasDirectory {
-  label: string;
-}
-
 export interface ListAliasDirectoriesResponse {
   directories: AliasDirectory[];
 }
@@ -55,157 +42,4 @@ export async function list_alias_directories(): Promise<
   return api_client.get<ListAliasDirectoriesResponse>(
     "/addresses/v1/aliases/directories",
   );
-}
-
-export async function create_alias_directory(
-  directory_key: string,
-  domain: string,
-  auto_create_enabled: boolean,
-  color?: string,
-  captcha_token?: string,
-): Promise<ApiResponse<{ id: string; success: boolean }>> {
-  const key = directory_key.trim().toLowerCase();
-  const domain_lower = domain.trim().toLowerCase();
-  const directory_hash = await sha256_base64(`${key}@${domain_lower}`);
-  const legacy_hash = await sha256_base64(key);
-  const { encrypted, nonce } = await encrypt_alias_field(key);
-
-  return api_client.post<{ id: string; success: boolean }>(
-    "/addresses/v1/aliases/directories",
-    {
-      directory_hash,
-      legacy_hash,
-      encrypted_label: encrypted,
-      label_nonce: nonce,
-      domain: domain_lower,
-      auto_create_enabled,
-      color,
-      captcha_token,
-    },
-  );
-}
-
-export async function check_directory_availability(
-  directory_key: string,
-  domain: string,
-): Promise<ApiResponse<{ available: boolean }>> {
-  const key = directory_key.trim().toLowerCase();
-  const domain_lower = domain.trim().toLowerCase();
-  const directory_hash = await sha256_base64(`${key}@${domain_lower}`);
-  const legacy_hash = await sha256_base64(key);
-
-  return api_client.post<{ available: boolean }>(
-    "/addresses/v1/aliases/directories/availability",
-    { directory_hash, legacy_hash, domain: domain_lower },
-  );
-}
-
-export async function update_alias_directory(
-  directory_id: string,
-  updates: { auto_create_enabled: boolean; color?: string },
-): Promise<ApiResponse<{ success: boolean }>> {
-  return api_client.patch<{ success: boolean }>(
-    `/addresses/v1/aliases/directories/${directory_id}`,
-    updates,
-  );
-}
-
-export async function delete_alias_directory(
-  directory_id: string,
-): Promise<ApiResponse<{ status: string }>> {
-  return api_client.delete<{ status: string }>(
-    `/addresses/v1/aliases/directories/${directory_id}`,
-  );
-}
-
-export interface DeletedAliasDirectory {
-  id: string;
-  directory_hash: string;
-  encrypted_label?: string;
-  label_nonce?: string;
-  domain: string;
-  color?: string;
-  deleted_at: string;
-}
-
-export interface DecryptedDeletedAliasDirectory extends DeletedAliasDirectory {
-  label: string;
-}
-
-export interface ListDeletedAliasDirectoriesResponse {
-  directories: DeletedAliasDirectory[];
-  total: number;
-}
-
-export async function list_deleted_alias_directories(): Promise<
-  ApiResponse<ListDeletedAliasDirectoriesResponse>
-> {
-  return api_client.get<ListDeletedAliasDirectoriesResponse>(
-    "/addresses/v1/aliases/directories/deleted",
-  );
-}
-
-export async function restore_alias_directory(
-  deleted_id: string,
-): Promise<ApiResponse<{ id: string; success: boolean }>> {
-  return api_client.post<{ id: string; success: boolean }>(
-    `/addresses/v1/aliases/directories/deleted/${deleted_id}/restore`,
-    {},
-  );
-}
-
-export async function purge_deleted_alias_directory(
-  deleted_id: string,
-): Promise<ApiResponse<{ status: string }>> {
-  return api_client.delete<{ status: string }>(
-    `/addresses/v1/aliases/directories/deleted/${deleted_id}`,
-  );
-}
-
-export async function empty_deleted_alias_directories(): Promise<
-  ApiResponse<{ status: string; count: number }>
-> {
-  return api_client.delete<{ status: string; count: number }>(
-    "/addresses/v1/aliases/directories/deleted",
-  );
-}
-
-export async function decrypt_deleted_alias_directory(
-  directory: DeletedAliasDirectory,
-  fallback: string,
-): Promise<DecryptedDeletedAliasDirectory> {
-  if (directory.encrypted_label && directory.label_nonce) {
-    try {
-      const label = await decrypt_alias_field(
-        directory.encrypted_label,
-        directory.label_nonce,
-      );
-
-      return { ...directory, label };
-    } catch {
-      return { ...directory, label: fallback };
-    }
-  }
-
-  return { ...directory, label: fallback };
-}
-
-export async function decrypt_alias_directory(
-  directory: AliasDirectory,
-  fallback: string,
-): Promise<DecryptedAliasDirectory> {
-  if (directory.encrypted_label && directory.label_nonce) {
-    try {
-      const label = await decrypt_alias_field(
-        directory.encrypted_label,
-        directory.label_nonce,
-      );
-
-      return { ...directory, label };
-    } catch {
-      return { ...directory, label: fallback };
-    }
-  }
-
-  return { ...directory, label: fallback };
 }

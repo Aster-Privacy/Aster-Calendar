@@ -30,28 +30,8 @@ export interface Device {
   last_seen_at: string | null;
 }
 
-export interface EnrollDeviceRequest {
-  name: string;
-  ed25519_pk: string;
-  mlkem_pk: string;
-  x25519_pk: string;
-}
-
-export interface EnrollDeviceResponse {
-  device_id: string;
-}
-
 export interface ListDevicesResponse {
   devices: Device[];
-}
-
-export async function enroll_device(
-  request: EnrollDeviceRequest,
-): Promise<ApiResponse<EnrollDeviceResponse>> {
-  return api_client.post<EnrollDeviceResponse>(
-    "/core/v1/devices/enroll",
-    request,
-  );
 }
 
 export async function list_devices(): Promise<

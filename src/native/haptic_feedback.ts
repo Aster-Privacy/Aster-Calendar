@@ -98,23 +98,3 @@ export async function haptic_vibrate(duration: number = 300): Promise<void> {
     ignore_error("native/haptic_feedback:haptic_vibrate", caught);
   }
 }
-
-export async function haptic_swipe_threshold(): Promise<void> {
-  await haptic_impact("medium");
-}
-
-export async function haptic_send_success(): Promise<void> {
-  await haptic_notification("success");
-}
-
-export async function haptic_error(): Promise<void> {
-  await haptic_notification("error");
-}
-
-export async function haptic_long_press(): Promise<void> {
-  await haptic_impact("heavy");
-}
-
-export async function haptic_selection_feedback(): Promise<void> {
-  await haptic_impact("light");
-}

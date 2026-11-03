@@ -27,29 +27,6 @@ type Translate = (
 
 const DISPUTED_PREFIX = "Payment disputed: ";
 
-const PLAN_DESCRIPTION_KEYS: Record<string, TranslationKey> = {
-  free: "settings.free_plan_description",
-  starter: "auth.plan_starter_description",
-  pro: "auth.plan_pro_description",
-  duo: "auth.plan_duo_description",
-  family: "auth.plan_family_description",
-  star: "auth.plan_star_description",
-  nova: "auth.plan_nova_description",
-  supernova: "auth.plan_supernova_description",
-};
-
-export function describe_plan(
-  code: string | null | undefined,
-  description: string | null | undefined,
-  t: Translate,
-): string {
-  const key = PLAN_DESCRIPTION_KEYS[(code ?? "").trim().toLowerCase()];
-
-  if (key) return t(key);
-
-  return (description ?? "").trim();
-}
-
 const CRYPTO_PATTERN =
   /^Crypto (payment|manual credit) \(([^)]+) on ([^)]+)\) - (.+) (\d+)mo$/;
 

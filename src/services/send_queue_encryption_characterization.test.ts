@@ -90,8 +90,7 @@ vi.mock("@/services/api/send", () => ({
   send_external_email: vi.fn(async () => h.external_send_response),
 }));
 
-vi.mock("@/services/api/mail", () => ({
-  mark_thread_read: vi.fn(async () => ({ data: {} })),
+vi.mock("@/services/api/mail_items", () => ({
   list_encrypted_mail_items: vi.fn(async () => ({
     data: { items: h.listed_items, next_cursor: null },
   })),
@@ -106,7 +105,7 @@ vi.mock("@/services/api/attachments", () => ({
   update_attachment_meta: vi.fn(async () => ({ data: { status: "updated" } })),
 }));
 
-vi.mock("@/services/crypto/mail_metadata", () => ({
+vi.mock("@/services/crypto/mail_metadata_core", () => ({
   encrypt_mail_metadata: vi.fn(async () => ({
     encrypted_metadata: "meta-ct",
     metadata_nonce: "meta-nonce",
@@ -159,13 +158,13 @@ import {
   create_sent_envelope,
   execute_send,
   execute_external_send,
-  reencrypt_all_sent_mail,
 } from "./send_queue_encryption";
+import { reencrypt_all_sent_mail } from "./sent_mail_reseal";
 
 import type { QueuedEmailInternal, MailEnvelope } from "./send_queue_types";
 
 import { send_simple_email, send_external_email } from "./api/send";
-import { list_encrypted_mail_items, update_mail_item } from "./api/mail";
+import { list_encrypted_mail_items, update_mail_item } from "./api/mail_items";
 import { get_recipient_public_key } from "./api/keys";
 import {
   create_attachment,

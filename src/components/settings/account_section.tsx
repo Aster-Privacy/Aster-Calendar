@@ -89,7 +89,6 @@ import {
   set_inactivity_settings,
 } from "@/services/api/auth";
 import { get_badge_visual } from "@/components/ui/badge_registry";
-import { set_my_badge_prefs } from "@/stores/my_badge_prefs_store";
 import { format_date } from "@/utils/date_format";
 import {
   get_recovery_email,
@@ -110,7 +109,6 @@ import { InfoPopover } from "@/components/ui/info_popover";
 import { use_plan_limits } from "@/hooks/use_plan_limits";
 import { open_profile_picture_dialog } from "@/stores/profile_picture_dialog_store";
 import { is_onion_host } from "@/lib/onion_host";
-import { is_calendar_app } from "@/lib/app_kind";
 import { SETTINGS_ANCHORS } from "@/lib/settings_links";
 import {
   show_plan_limit_upgrade,
@@ -331,10 +329,7 @@ export function AccountSection() {
     ]);
 
     if (badges_response.data) set_badges(badges_response.data);
-    if (prefs_response.data) {
-      set_badge_prefs(prefs_response.data);
-      set_my_badge_prefs(prefs_response.data);
-    }
+    if (prefs_response.data) set_badge_prefs(prefs_response.data);
     if (recovery_response.data) set_recovery(recovery_response.data);
     if (inactivity_response.data)
       set_inactivity_window(inactivity_response.data.inactivity_window_months);
@@ -376,21 +371,17 @@ export function AccountSection() {
     const optimistic: BadgePreferences = { ...badge_prefs, ...patch };
 
     set_badge_prefs(optimistic);
-    set_my_badge_prefs(optimistic);
     try {
       const response = await update_badge_preferences(patch);
 
       if (response.data) {
         set_badge_prefs(response.data);
-        set_my_badge_prefs(response.data);
       } else {
         set_badge_prefs(previous);
-        set_my_badge_prefs(previous);
         show_toast(response.error || t("badges.claim_failed"), "error");
       }
     } catch {
       set_badge_prefs(previous);
-      set_my_badge_prefs(previous);
       show_toast(t("badges.claim_failed"), "error");
     }
   };
@@ -951,18 +942,6 @@ export function AccountSection() {
                       persist_badge_prefs({ show_badge_profile: v }),
                   }}
                 />
-                {!is_calendar_app() && (
-                  <IslandRow
-                    description={t("badges.show_in_signature_description")}
-                    label={t("badges.show_in_signature")}
-                    toggle={{
-                      checked: badge_prefs.show_badge_signature,
-                      aria_label: t("badges.show_in_signature"),
-                      on_change: (v) =>
-                        persist_badge_prefs({ show_badge_signature: v }),
-                    }}
-                  />
-                )}
               </>
             )}
           </>

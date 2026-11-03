@@ -20,16 +20,12 @@
 //
 import { api_client, type ApiResponse } from "./client";
 import { BULK_REQUEST_LIMIT, send_in_chunks } from "./chunked_request";
-import {
-  array_to_base64,
-  base64_to_array,
-  normalize_email,
-} from "./sender_utils";
+import { array_to_base64, normalize_email } from "./sender_utils";
 
 import { user_facing_error } from "@/utils/user_facing_error";
 import { get_active_translations } from "@/lib/i18n/translations";
 import { HASH_ALG } from "@/services/crypto/constants";
-import { decrypt_aes_gcm_with_fallback } from "@/services/crypto/legacy_keks";
+
 import {
   get_or_create_derived_encryption_crypto_key,
   get_derived_encryption_key,
@@ -120,20 +116,6 @@ async function generate_integrity_hash(
   return array_to_base64(new Uint8Array(hash));
 }
 
-async function verify_integrity_hash(
-  encrypted_data: string,
-  nonce: string,
-  hash: string,
-): Promise<boolean> {
-  const hmac_key = await get_hmac_key();
-  const encoder = new TextEncoder();
-  const combined = `${encrypted_data}:${nonce}:blocked-senders-v1`;
-  const data = encoder.encode(combined);
-  const expected_hash = base64_to_array(hash);
-
-  return crypto.subtle.verify("HMAC", hmac_key, expected_hash, data);
-}
-
 export interface BlockedSenderData {
   email: string;
   name?: string;
@@ -170,38 +152,6 @@ export async function encrypt_block_data(data: BlockedSenderData): Promise<{
   return { encrypted_sender_data, sender_data_nonce, integrity_hash };
 }
 
-export async function decrypt_block_data(
-  encrypted_sender_data: string,
-  sender_data_nonce: string,
-  integrity_hash?: string,
-): Promise<BlockedSenderData> {
-  if (integrity_hash) {
-    const is_valid = await verify_integrity_hash(
-      encrypted_sender_data,
-      sender_data_nonce,
-      integrity_hash,
-    );
-
-    if (!is_valid) {
-      throw new Error(get_active_translations().errors.data_integrity_failed);
-    }
-  }
-
-  const key = await get_blocked_senders_encryption_key();
-  const ciphertext = base64_to_array(encrypted_sender_data);
-  const nonce = base64_to_array(sender_data_nonce);
-  const decrypted = await decrypt_aes_gcm_with_fallback(key, ciphertext, nonce);
-  const decoder = new TextDecoder();
-  const parsed = JSON.parse(decoder.decode(decrypted));
-
-  return {
-    email: parsed.email,
-    name: parsed.name,
-    blocked_at: parsed.blocked_at,
-    is_domain: parsed.is_domain ?? false,
-  };
-}
-
 export interface BlockedSenderResponse {
   id: string;
   sender_token: string;
@@ -223,81 +173,6 @@ export interface DecryptedBlockedSender {
   is_domain: boolean;
   action: string;
   created_at: string;
-}
-
-export async function list_blocked_senders(): Promise<
-  ApiResponse<DecryptedBlockedSender[]>
-> {
-  try {
-    const response = await api_client.get<{
-      blocked_senders: BlockedSenderResponse[];
-      total: number;
-    }>("/contacts/v1/blocked_senders");
-
-    if (response.error) {
-      return { error: response.error };
-    }
-
-    if (!response.data) {
-      return { data: [] };
-    }
-
-    const wire_items = response.data.blocked_senders;
-    const results = await Promise.allSettled(
-      wire_items.map(async (item) => {
-        const data = await decrypt_block_data(
-          item.encrypted_sender_data,
-          item.sender_data_nonce,
-          item.integrity_hash,
-        );
-
-        return {
-          id: item.id,
-          sender_token: item.sender_token,
-          email: data.email,
-          name: data.name,
-          blocked_at: data.blocked_at,
-          is_domain: item.is_domain,
-          action: item.action,
-          created_at: item.created_at,
-        };
-      }),
-    );
-
-    const decrypted: DecryptedBlockedSender[] = [];
-
-    results.forEach((result, index) => {
-      if (result.status === "fulfilled") {
-        decrypted.push(result.value);
-
-        return;
-      }
-
-      const item = wire_items[index];
-
-      if (!item) return;
-
-      decrypted.push({
-        id: item.id,
-        sender_token: item.sender_token,
-        is_unreadable: true,
-        email: "",
-        blocked_at: item.created_at,
-        is_domain: item.is_domain,
-        action: item.action,
-        created_at: item.created_at,
-      });
-    });
-
-    return { data: decrypted };
-  } catch (err) {
-    return {
-      error: user_facing_error(
-        err,
-        get_active_translations().common.something_went_wrong_try_again,
-      ),
-    };
-  }
 }
 
 export async function block_sender(
@@ -375,25 +250,6 @@ export async function unblock_sender(
 ): Promise<ApiResponse<{ success: boolean }>> {
   try {
     const sender_token = await generate_sender_token(email);
-    const response = await api_client.delete<{ success: boolean }>(
-      `/contacts/v1/blocked_senders?sender_token=${encodeURIComponent(sender_token)}`,
-    );
-
-    return response;
-  } catch (err) {
-    return {
-      error: user_facing_error(
-        err,
-        get_active_translations().common.something_went_wrong_try_again,
-      ),
-    };
-  }
-}
-
-export async function unblock_sender_by_token(
-  sender_token: string,
-): Promise<ApiResponse<{ success: boolean }>> {
-  try {
     const response = await api_client.delete<{ success: boolean }>(
       `/contacts/v1/blocked_senders?sender_token=${encodeURIComponent(sender_token)}`,
     );
@@ -512,10 +368,4 @@ export async function check_blocked_senders(
   } catch {
     return new Set();
   }
-}
-
-export async function is_sender_blocked(email: string): Promise<boolean> {
-  const blocked = await check_blocked_senders([email]);
-
-  return blocked.has(normalize_email(email));
 }

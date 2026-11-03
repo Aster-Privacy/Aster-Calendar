@@ -23,7 +23,6 @@ import type { ApiResponse } from "@/services/api/client";
 import { useState } from "react";
 import {
   ComputerDesktopIcon,
-  EnvelopeIcon,
   ShieldCheckIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline";
@@ -34,7 +33,6 @@ import {
   IslandRow,
   IslandSection,
   IslandSections,
-  UpgradeBtn,
 } from "@aster/ui";
 
 import { use_i18n } from "@/lib/i18n/context";
@@ -45,66 +43,15 @@ import {
   type Device,
   type ListDevicesResponse,
 } from "@/services/api/devices";
-import { dismiss_toast, show_toast } from "@/components/toast/simple_toast";
-import { use_settings_panel_data } from "@/components/settings/hooks/use_settings_prefetch";
-import { use_plan_limits } from "@/hooks/use_plan_limits";
-import { ignore_error } from "@/lib/ignore_error";
-import { is_calendar_app } from "@/lib/app_kind";
+import { show_toast } from "@/components/toast/simple_toast";
 import {
-  clear_plan_cache,
-  get_current_plan_code,
-} from "@/services/plan_limits";
+  use_settings_panel_data,
+} from "@/components/settings/hooks/use_settings_prefetch";
 import {
   app_locale,
   app_relative_dates,
   get_display_time_zone,
 } from "@/utils/date_format";
-
-const BRIDGE_LAUNCH_TIMEOUT_MS = 2500;
-const BRIDGE_HINT_TOAST_MS = 10000;
-
-function open_bridge_settings() {
-  window.dispatchEvent(
-    new CustomEvent("navigate-settings", { detail: "bridge" }),
-  );
-}
-
-function watch_bridge_launch(
-  on_opened: () => void,
-  on_not_opened: () => void,
-): void {
-  let settled = false;
-  const finish = () => {
-    settled = true;
-    window.clearTimeout(timer);
-    window.removeEventListener("blur", stop);
-    window.removeEventListener("pagehide", stop);
-    document.removeEventListener("visibilitychange", on_visibility);
-  };
-  const stop = () => {
-    if (settled) return;
-    finish();
-    on_opened();
-  };
-  const on_visibility = () => {
-    if (document.visibilityState === "hidden") stop();
-  };
-  const timer = window.setTimeout(() => {
-    if (settled) return;
-    finish();
-    on_not_opened();
-  }, BRIDGE_LAUNCH_TIMEOUT_MS);
-
-  window.addEventListener("blur", stop);
-  window.addEventListener("pagehide", stop);
-  document.addEventListener("visibilitychange", on_visibility);
-}
-
-function open_billing_settings() {
-  window.dispatchEvent(
-    new CustomEvent("navigate-settings", { detail: "billing" }),
-  );
-}
 
 type Translate = ReturnType<typeof use_i18n>["t"];
 
@@ -144,8 +91,6 @@ function format_last_seen(t: Translate, value: string | null): string {
 
 export function TrustedDevicesPanel() {
   const { t } = use_i18n();
-  const { limits } = use_plan_limits();
-  const is_free_plan = !!limits && limits.plan_code === "free";
   const {
     data: cached,
     error: load_error,
@@ -164,30 +109,6 @@ export function TrustedDevicesPanel() {
   const [pending_revoke, set_pending_revoke] = useState<Device | null>(null);
   const [pending_revoke_all, set_pending_revoke_all] = useState(false);
   const [is_revoking_all, set_is_revoking_all] = useState(false);
-  const [bridge_upgrade_modal_open, set_bridge_upgrade_modal_open] =
-    useState(false);
-
-  const handle_set_up = async (client: string) => {
-    const opening_toast_id = show_toast(
-      t("settings.desktop_bridge_opening"),
-      "info",
-      BRIDGE_HINT_TOAST_MS,
-    );
-    const known_code = limits?.plan_code;
-
-    if (!known_code || known_code === "free") {
-      clear_plan_cache();
-      const fresh_code = await get_current_plan_code();
-
-      if (fresh_code === "free") {
-        dismiss_toast(opening_toast_id);
-        set_bridge_upgrade_modal_open(true);
-
-        return;
-      }
-    }
-    await open_provision(client, opening_toast_id);
-  };
 
   const handle_revoke = async (device: Device) => {
     set_revoking_id(device.id);
@@ -220,78 +141,10 @@ export function TrustedDevicesPanel() {
     set_pending_revoke_all(false);
   };
 
-  const show_bridge_not_opened = (opening_toast_id: string) => {
-    dismiss_toast(opening_toast_id);
-    show_toast(
-      t("settings.desktop_bridge_not_opened"),
-      "error",
-      BRIDGE_HINT_TOAST_MS,
-      { label: t("settings.bridge"), on_click: open_bridge_settings },
-    );
-  };
-
-  const open_provision = async (label: string, opening_toast_id: string) => {
-    const url = `aster-mail://provision?label=${encodeURIComponent(label)}`;
-
-    watch_bridge_launch(
-      () => dismiss_toast(opening_toast_id),
-      () => show_bridge_not_opened(opening_toast_id),
-    );
-    const is_tauri =
-      typeof window !== "undefined" &&
-      ("__TAURI_INTERNALS__" in window || "__TAURI__" in window);
-
-    if (is_tauri) {
-      try {
-        const { open } = await import("@tauri-apps/plugin-shell");
-
-        await open(url);
-
-        return;
-      } catch (caught) {
-        ignore_error(
-          "components/settings/trusted_devices_panel:open_provision",
-          caught,
-        );
-      }
-    }
-    window.location.href = url;
-  };
-
   const confirm_device_name = pending_revoke?.name ?? "";
 
   return (
     <IslandSections>
-      {is_calendar_app() ? null : is_free_plan ? (
-        <IslandSection
-          description={t("settings.desktop_bridge_upgrade_description")}
-          icon={<EnvelopeIcon />}
-          padding="md"
-          title={t("settings.desktop_bridge_upgrade_title")}
-        >
-          <UpgradeBtn size="sm" onClick={open_billing_settings}>
-            {t("settings.desktop_bridge_upgrade_cta")}
-          </UpgradeBtn>
-        </IslandSection>
-      ) : (
-        <IslandSection
-          divided
-          description={t("settings.desktop_bridge_description")}
-          footer={t("settings.desktop_bridge_install_hint")}
-          icon={<EnvelopeIcon />}
-          title={t("settings.desktop_bridge_title")}
-        >
-          {["Thunderbird", "Apple Mail", "Outlook", "Generic IMAP"].map(
-            (client) => (
-              <IslandRow
-                key={client}
-                label={t("settings.desktop_bridge_set_up", { client })}
-                on_press={() => handle_set_up(client)}
-              />
-            ),
-          )}
-        </IslandSection>
-      )}
 
       <IslandSection
         bare
@@ -373,20 +226,6 @@ export function TrustedDevicesPanel() {
           </Island>
         )}
       </IslandSection>
-
-      <ConfirmationModal
-        cancel_text={t("auth.pair_device_cancel")}
-        confirm_text={t("settings.desktop_bridge_upgrade_cta")}
-        is_open={bridge_upgrade_modal_open}
-        message={t("settings.desktop_bridge_upgrade_description")}
-        on_cancel={() => set_bridge_upgrade_modal_open(false)}
-        on_confirm={() => {
-          set_bridge_upgrade_modal_open(false);
-          open_billing_settings();
-        }}
-        title={t("settings.desktop_bridge_upgrade_title")}
-        variant="info"
-      />
 
       <ConfirmationModal
         cancel_text={t("auth.pair_device_cancel")}

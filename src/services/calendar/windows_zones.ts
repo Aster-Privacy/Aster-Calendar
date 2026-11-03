@@ -173,5 +173,3 @@ const WINDOWS_TO_IANA = new Map<string, string>(
 export function windows_zone_to_iana(name: string): string | null {
   return WINDOWS_TO_IANA.get(name.trim().toLowerCase()) ?? null;
 }
-
-export const WINDOWS_ZONE_COUNT = WINDOWS_TO_IANA.size;

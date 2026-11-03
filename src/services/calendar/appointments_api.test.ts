@@ -25,7 +25,7 @@ const post = vi.fn();
 const del = vi.fn();
 const decrypt_mail_envelope = vi.fn();
 
-vi.mock("@/components/email/shared/decrypt_envelope", () => ({
+vi.mock("@/services/crypto/decrypt_envelope", () => ({
   decrypt_mail_envelope: (...args: unknown[]) => decrypt_mail_envelope(...args),
 }));
 

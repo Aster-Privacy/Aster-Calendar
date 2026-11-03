@@ -22,7 +22,6 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
-import { pt } from "@/lib/i18n/translations/pt";
 
 vi.mock("./use_settings_content", () => ({
   use_settings_content: () => ({
@@ -115,11 +114,11 @@ function render_settings(): HTMLDivElement {
   return container;
 }
 
-describe("settings sidebar back to inbox button", () => {
+describe("settings sidebar back to calendar button", () => {
   it("keeps the label on one line and the arrow at full size", () => {
     const el = render_settings();
     const label = Array.from(el.querySelectorAll("aside span")).find(
-      (span) => span.textContent === "common.back_to_inbox",
+      (span) => span.textContent === "calendar.back_to_calendar",
     );
 
     expect(label).toBeDefined();
@@ -127,10 +126,5 @@ describe("settings sidebar back to inbox button", () => {
     const icon = label!.parentElement!.querySelector("svg");
 
     expect(icon?.classList.contains("flex-shrink-0")).toBe(true);
-  });
-
-  it("uses the short European Portuguese label", () => {
-    expect(pt.common.back_to_inbox).toBe("Voltar à caixa de entrada");
-    expect(pt.common.back_to_inbox).toBe(pt.auth.back_to_inbox);
   });
 });

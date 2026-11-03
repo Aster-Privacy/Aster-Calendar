@@ -84,16 +84,6 @@ export function format_number(value: number): string {
   }
 }
 
-export function normalize_untrusted_url(value: string): string {
-  return value
-    .normalize("NFC")
-    .replace(
-      /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/g,
-      "",
-    )
-    .trim();
-}
-
 const OFFICIAL_SENDER_DOMAINS = new Set(["astermail.org", "aster.cx"]);
 
 function official_sender_parts(

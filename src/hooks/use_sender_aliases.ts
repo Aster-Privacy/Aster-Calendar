@@ -40,7 +40,7 @@ import {
   get_derived_encryption_key,
   on_keys_ready,
 } from "@/services/crypto/memory_key_store";
-import { MAIL_EVENTS, mail_event_bus } from "@/hooks/mail_events";
+import { APP_EVENTS, on_app_events } from "@/hooks/app_events";
 import {
   clear_local_address_avatars,
   set_local_address_avatars,
@@ -56,8 +56,7 @@ import {
   set_own_addresses,
 } from "@/services/calendar/own_addresses";
 
-export type SenderOptionType =
-  "primary" | "alias" | "domain" | "external" | "ghost";
+export type SenderOptionType = "primary" | "alias" | "domain";
 
 export interface SenderOption {
   id: string;
@@ -70,26 +69,6 @@ export interface SenderOption {
   domain_name?: string;
   profile_picture?: string;
   is_random?: boolean;
-}
-
-export const SIGNATURE_BINDABLE_SENDER_TYPES: SenderOptionType[] = [
-  "alias",
-  "domain",
-  "ghost",
-];
-
-export function is_signature_bindable_sender_type(
-  type: SenderOptionType,
-): boolean {
-  return SIGNATURE_BINDABLE_SENDER_TYPES.includes(type);
-}
-
-export function is_signature_bindable_sender(option: SenderOption): boolean {
-  return (
-    is_signature_bindable_sender_type(option.type) &&
-    option.is_enabled &&
-    !option.is_catch_all
-  );
 }
 
 export async function build_alias_hash_map(
@@ -122,8 +101,6 @@ let cached_domain_options: SenderOption[] = [];
 let cached_catch_all_domains: CustomDomain[] = [];
 let cached_disabled_addresses: string[] = [];
 let cached_pending_domain_names: string[] = [];
-let cached_external_options: SenderOption[] = [];
-let cached_ghost_options: SenderOption[] = [];
 let cached_user: User | null = null;
 let cache_populated = false;
 
@@ -143,7 +120,7 @@ function publish_local_address_avatars(): void {
       profile_picture: alias.profile_picture,
       display_name: alias.display_name,
     })),
-    ...[...cached_domain_options, ...cached_ghost_options].map((option) => ({
+    ...cached_domain_options.map((option) => ({
       email: option.email,
       profile_picture: option.profile_picture,
       display_name: option.display_name,
@@ -160,8 +137,6 @@ export function clear_sender_aliases_cache(): void {
   cached_catch_all_domains = [];
   cached_disabled_addresses = [];
   cached_pending_domain_names = [];
-  cached_external_options = [];
-  cached_ghost_options = [];
   cached_user = null;
   cache_populated = false;
   set_catch_all_context([], []);
@@ -188,11 +163,6 @@ export function use_sender_aliases(
   const [domain_options, set_domain_options] = useState<SenderOption[]>(
     cached_domain_options,
   );
-  const [external_options, set_external_options] = useState<SenderOption[]>(
-    cached_external_options,
-  );
-  const [ghost_options, set_ghost_options] =
-    useState<SenderOption[]>(cached_ghost_options);
   const [loading, set_loading] = useState(!cache_populated);
   const [user, set_user] = useState<User | null>(cached_user);
 
@@ -307,22 +277,14 @@ export function use_sender_aliases(
       set_catch_all_context(cached_catch_all_domains, [
         cached_user?.email,
         ...cached_aliases.map((a) => a.full_address),
-        ...[
-          ...cached_domain_options,
-          ...cached_ghost_options,
-          ...cached_external_options,
-        ].map((o) => o.email),
+        ...cached_domain_options.map((o) => o.email),
         ...cached_disabled_addresses,
       ]);
       set_own_addresses(
         [
           cached_user?.email,
           ...cached_aliases.map((a) => a.full_address),
-          ...[
-            ...cached_domain_options,
-            ...cached_ghost_options,
-            ...cached_external_options,
-          ].map((o) => o.email),
+          ...cached_domain_options.map((o) => o.email),
           ...cached_disabled_addresses,
         ],
         cached_catch_all_domains
@@ -336,8 +298,6 @@ export function use_sender_aliases(
       set_aliases(cached_aliases);
       set_alias_hashes(cached_alias_hashes);
       set_domain_options(cached_domain_options);
-      set_external_options(cached_external_options);
-      set_ghost_options(cached_ghost_options);
     } finally {
       set_loading(false);
     }
@@ -354,12 +314,8 @@ export function use_sender_aliases(
   }, [load_aliases]);
 
   useEffect(() => {
-    const unsub = mail_event_bus.subscribe_multiple(
-      [
-        MAIL_EVENTS.REFRESH_REQUESTED,
-        MAIL_EVENTS.MAIL_CHANGED,
-        MAIL_EVENTS.AUTH_READY,
-      ],
+    const unsub = on_app_events(
+      [APP_EVENTS.ALIASES_CHANGED, APP_EVENTS.AUTH_READY],
       load_aliases,
     );
 
@@ -389,8 +345,6 @@ export function use_sender_aliases(
       is_random: alias.is_random,
     })),
     ...domain_options,
-    ...external_options,
-    ...ghost_options,
   ].filter((option) => is_sendable_address(option.email));
 
   return {
@@ -409,77 +363,4 @@ export function use_sender_aliases(
     loading,
     refresh: load_aliases,
   };
-}
-
-export function get_cached_alias_for_routing_token(
-  routing_token: string | undefined,
-): string | undefined {
-  if (!routing_token) return undefined;
-
-  for (const [alias_id, hash] of cached_alias_hashes) {
-    if (hash === routing_token) {
-      const alias = cached_aliases.find((a) => a.id === alias_id);
-
-      return alias?.full_address;
-    }
-  }
-
-  return undefined;
-}
-
-export interface CachedSenderIdentity {
-  email: string;
-  address_hash: string;
-  display_name?: string;
-}
-
-export function get_cached_sender_identity_for_address(
-  address: string | undefined,
-): CachedSenderIdentity | undefined {
-  const target = address?.trim().toLowerCase();
-
-  if (!target) return undefined;
-
-  for (const alias of cached_aliases) {
-    if (alias.full_address?.trim().toLowerCase() !== target) continue;
-
-    const address_hash = cached_alias_hashes.get(alias.id);
-
-    if (!address_hash) return undefined;
-
-    return {
-      email: alias.full_address,
-      address_hash,
-      display_name: alias.display_name,
-    };
-  }
-
-  for (const option of [
-    ...cached_domain_options,
-    ...cached_external_options,
-    ...cached_ghost_options,
-  ]) {
-    if (option.email?.trim().toLowerCase() !== target) continue;
-    if (!option.address_hash) return undefined;
-
-    return {
-      email: option.email,
-      address_hash: option.address_hash,
-      display_name: option.display_name,
-    };
-  }
-
-  return undefined;
-}
-
-export function get_cached_ghost_for_routing_token(
-  routing_token: string | undefined,
-): string | undefined {
-  if (!routing_token) return undefined;
-
-  const match = cached_ghost_options.find(
-    (g) => g.address_hash === routing_token,
-  );
-
-  return match?.email;
 }

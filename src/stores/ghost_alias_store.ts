@@ -34,26 +34,12 @@ interface GhostEntry {
 
 const ghost_entries = new Map<string, GhostEntry>();
 
-export function register_ghost_email(email: string, sender?: SenderOption) {
-  const key = email.toLowerCase();
-  const existing = ghost_entries.get(key);
-
-  ghost_entries.set(key, {
-    email: key,
-    sender: sender ?? existing?.sender,
-  });
-}
-
 export function clear_ghost_entries() {
   ghost_entries.clear();
 }
 
 export function is_ghost_email(email: string): boolean {
   return ghost_entries.has(email.toLowerCase());
-}
-
-export function get_ghost_sender(email: string): SenderOption | undefined {
-  return ghost_entries.get(email.toLowerCase())?.sender;
 }
 
 export function looks_like_unregistered_ghost_email(email: string): boolean {

@@ -18,7 +18,6 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import type { EncryptedVault } from "./crypto/key_manager";
 
 import { api_client } from "./api/client";
 import { get_ws_base_url } from "./api/base_url";
@@ -26,55 +25,28 @@ import { request_cache } from "./api/request_cache";
 import { connection_store } from "./routing/connection_store";
 import { TorUnavailableError } from "./routing/tor_unavailable_error";
 
-import { decrypt_aes_gcm_with_fallback } from "@/services/crypto/legacy_keks";
-import { HASH_ALG } from "@/services/crypto/constants";
 import { is_onion_host } from "@/lib/onion_host";
 import {
   is_any_lockdown_active,
   LOCKDOWN_CHANGED_EVENT,
 } from "@/services/lockdown_store";
-import {
-  MAIL_EVENTS,
-  emit_reactions_changed,
-  emit_mail_items_removed,
-  emit_contacts_changed,
-  emit_folders_changed,
-  emit_tags_changed,
-  emit_definitions_stale,
-} from "@/hooks/mail_events";
-import { mark_view_stale } from "@/hooks/email_list_cache";
 import { is_low_network } from "@/services/low_network_state";
+import { emit_contacts_changed } from "@/hooks/app_events";
 import { ignore_error } from "@/lib/ignore_error";
-import { CATCH_UP_WHILE_LIVE_MS } from "@/services/sync_timing";
 import {
   calendar_sync_engine,
   handle_calendar_mutation_frame,
 } from "@/services/calendar/sync_engine";
-import { is_calendar_app } from "@/lib/app_kind";
-import {
-  claim_own_mail_mutation_echo,
-  clear_own_mail_mutations,
-} from "@/services/own_mail_mutations";
-
-export { CATCH_UP_WHILE_LIVE_MS };
 
 type ServerMessageType =
   | "auth_success"
   | "auth_error"
   | "preferences"
   | "preferences_saved"
-  | "draft"
-  | "draft_saved"
-  | "draft_deleted"
-  | "new_mail"
-  | "new_reaction"
   | "prekey_low"
   | "session_revoked"
   | "contacts_changed"
-  | "folders_changed"
-  | "tags_changed"
   | "preferences_changed"
-  | "mail_mutation"
   | "calendar_mutation"
   | "ping"
   | "pong";
@@ -85,30 +57,17 @@ interface ServerMessage {
   nonce?: string | null;
   success?: boolean;
   message?: string;
-  mail_item_id?: string;
   action?: string;
-  item_ids?: string[];
   ids?: string[];
   origin_device?: string | null;
 }
 
 const HEARTBEAT_INTERVAL_MS = 30000;
 const LIVENESS_TIMEOUT_MS = 75000;
-const CATCH_UP_TICK_MS = 60000;
-const DEFINITIONS_REFRESH_MIN_MS = 30000;
 export const PUSH_ARRIVED_MESSAGE = "aster_push_arrived";
 export const PREFERENCES_CHANGED_EVENT = "aster_preferences_changed";
-const MUTATION_REFRESH_DEBOUNCE_MS = 600;
-const ECHO_RECONCILE_MS = 30000;
 const RECONNECT_MAX_DELAY_MS = 30000;
 const WAKE_RECONNECT_MIN_GAP_MS = 5000;
-const REMOVAL_ACTIONS = new Set([
-  "trash",
-  "delete",
-  "archive",
-  "mark_spam",
-  "spam",
-]);
 
 type MessageHandler = (data: ServerMessage) => void;
 
@@ -131,15 +90,9 @@ class SyncClient {
   private reconnect_attempt = 0;
   private failure_streak_reported = false;
   private has_authenticated_before = false;
-  private last_catch_up_at = 0;
-  private last_definitions_refresh_at = 0;
-  private catch_up_timer: ReturnType<typeof setInterval> | null = null;
   private pending_connect_reject: ((err: Error) => void) | null = null;
   private heartbeat_timer: ReturnType<typeof setInterval> | null = null;
   private last_message_at = 0;
-  private mutation_refresh_timer: ReturnType<typeof setTimeout> | null = null;
-  private echo_reconcile_timer: ReturnType<typeof setTimeout> | null = null;
-  private last_soft_refresh_at = 0;
   private last_connect_started_at = 0;
 
   async connect(): Promise<void> {
@@ -256,17 +209,8 @@ class SyncClient {
           this.reconnect_attempt = 0;
           this.failure_streak_reported = false;
           this.start_heartbeat();
-          this.start_catch_up_timer();
           if (is_reconnect) {
-            this.catch_up_now();
-            if (is_calendar_app()) {
-              calendar_sync_engine.schedule_pull(0);
-            } else {
-              window.dispatchEvent(
-                new CustomEvent(MAIL_EVENTS.MAIL_SOFT_REFRESH),
-              );
-              this.refresh_definitions();
-            }
+            calendar_sync_engine.schedule_pull(0);
             window.dispatchEvent(new Event(PREFERENCES_CHANGED_EVENT));
           }
           settle_resolve();
@@ -315,77 +259,8 @@ class SyncClient {
     }
   }
 
-  catch_up_now(): void {
-    if (!this.should_reconnect) return;
-    if (
-      typeof document !== "undefined" &&
-      document.visibilityState === "hidden"
-    ) {
-      return;
-    }
-    this.last_catch_up_at = Date.now();
-  }
-
-  private start_catch_up_timer(): void {
-    if (this.catch_up_timer) return;
-
-    this.catch_up_timer = setInterval(() => {
-      if (!this.should_reconnect) return;
-      if (
-        typeof document !== "undefined" &&
-        document.visibilityState === "hidden"
-      ) {
-        return;
-      }
-      const socket_live =
-        this.authenticated && this.socket?.readyState === WebSocket.OPEN;
-      const since_last = Date.now() - this.last_catch_up_at;
-      const due = socket_live
-        ? since_last >= CATCH_UP_WHILE_LIVE_MS
-        : since_last >= CATCH_UP_TICK_MS;
-
-      if (due) this.catch_up_now();
-    }, CATCH_UP_TICK_MS);
-  }
-
-  private stop_catch_up_timer(): void {
-    if (this.catch_up_timer) {
-      clearInterval(this.catch_up_timer);
-      this.catch_up_timer = null;
-    }
-  }
-
   on_wake(): void {
     this.reconnect_now();
-
-    const socket_live =
-      this.authenticated && this.socket?.readyState === WebSocket.OPEN;
-
-    if (socket_live && Date.now() - this.last_catch_up_at >= CATCH_UP_TICK_MS) {
-      this.catch_up_now();
-    }
-
-    if (
-      this.should_reconnect &&
-      !is_calendar_app() &&
-      Date.now() - this.last_definitions_refresh_at >=
-        DEFINITIONS_REFRESH_MIN_MS
-    ) {
-      this.refresh_definitions();
-    }
-  }
-
-  private refresh_definitions(): void {
-    if (
-      typeof document !== "undefined" &&
-      document.visibilityState === "hidden"
-    ) {
-      return;
-    }
-    this.last_definitions_refresh_at = Date.now();
-    request_cache.invalidate("/mail/v1/labels");
-    request_cache.invalidate("/mail/v1/tags");
-    emit_definitions_stale();
   }
 
   reconnect_now(): void {
@@ -480,67 +355,10 @@ class SyncClient {
     }
   }
 
-  private handle_mail_mutation(data: ServerMessage): void {
-    const ids = data.item_ids ?? [];
-    const action = data.action ?? "";
-
-    mark_view_stale();
-
-    if (ids.length > 0 && REMOVAL_ACTIONS.has(action)) {
-      emit_mail_items_removed({ ids });
-    }
-
-    const echo = claim_own_mail_mutation_echo(action, ids);
-
-    if (echo) {
-      this.schedule_echo_reconcile(echo.settled_at);
-
-      return;
-    }
-
-    if (this.mutation_refresh_timer) {
-      clearTimeout(this.mutation_refresh_timer);
-    }
-
-    this.mutation_refresh_timer = setTimeout(() => {
-      this.mutation_refresh_timer = null;
-      window.dispatchEvent(new CustomEvent(MAIL_EVENTS.MAIL_SOFT_REFRESH));
-      window.dispatchEvent(new CustomEvent(MAIL_EVENTS.MAIL_STATS_STALE));
-      window.dispatchEvent(new CustomEvent(MAIL_EVENTS.MAIL_REMOTE_MUTATION));
-    }, MUTATION_REFRESH_DEBOUNCE_MS);
-  }
-
-  private schedule_echo_reconcile(settled_at: number | null): void {
-    if (settled_at !== null && this.last_soft_refresh_at >= settled_at) {
-      return;
-    }
-    if (this.echo_reconcile_timer || this.mutation_refresh_timer) return;
-
-    this.echo_reconcile_timer = setTimeout(() => {
-      this.echo_reconcile_timer = null;
-      window.dispatchEvent(new CustomEvent(MAIL_EVENTS.MAIL_SOFT_REFRESH));
-      window.dispatchEvent(new CustomEvent(MAIL_EVENTS.MAIL_STATS_STALE));
-    }, ECHO_RECONCILE_MS);
-  }
-
-  note_soft_refresh(): void {
-    this.last_soft_refresh_at = Date.now();
-    if (this.echo_reconcile_timer) {
-      clearTimeout(this.echo_reconcile_timer);
-      this.echo_reconcile_timer = null;
-    }
-  }
-
   private handle_message(data: ServerMessage): void {
     this.last_message_at = Date.now();
 
     if (data.type === "ping" || data.type === "pong") {
-      return;
-    }
-
-    if (data.type === "mail_mutation") {
-      this.handle_mail_mutation(data);
-
       return;
     }
 
@@ -551,26 +369,6 @@ class SyncClient {
         ids: data.ids,
         origin_device: data.origin_device,
       });
-
-      return;
-    }
-
-    if (data.type === "new_mail") {
-      this.last_catch_up_at = Date.now();
-      mark_view_stale();
-      if (!is_low_network()) {
-        window.dispatchEvent(
-          new CustomEvent(MAIL_EVENTS.EMAIL_RECEIVED, {
-            detail: { email_id: data.mail_item_id || "" },
-          }),
-        );
-      } else {
-        window.dispatchEvent(new CustomEvent(MAIL_EVENTS.MAIL_STATS_STALE));
-      }
-    }
-
-    if (data.type === "new_reaction") {
-      emit_reactions_changed({ mail_item_id: data.mail_item_id || "" });
 
       return;
     }
@@ -589,22 +387,8 @@ class SyncClient {
       return;
     }
 
-    if (data.type === "folders_changed") {
-      request_cache.invalidate("/mail/v1/labels");
-      emit_folders_changed();
-
-      return;
-    }
-
     if (data.type === "preferences_changed") {
       window.dispatchEvent(new Event(PREFERENCES_CHANGED_EVENT));
-
-      return;
-    }
-
-    if (data.type === "tags_changed") {
-      request_cache.invalidate("/mail/v1/tags");
-      emit_tags_changed();
 
       return;
     }
@@ -622,9 +406,6 @@ class SyncClient {
     const request_types: Record<string, string> = {
       preferences: "get_preferences",
       preferences_saved: "save_preferences",
-      draft: "get_draft",
-      draft_saved: "save_draft",
-      draft_deleted: "delete_draft",
     };
 
     const request_type = request_types[data.type];
@@ -700,59 +481,17 @@ class SyncClient {
     return response.success === true;
   }
 
-  async get_draft(): Promise<{
-    encrypted: string | null;
-    nonce: string | null;
-  }> {
-    const response = await this.send_and_wait({ type: "get_draft" }, "draft");
-
-    return {
-      encrypted: response.encrypted || null,
-      nonce: response.nonce || null,
-    };
-  }
-
-  async save_draft(encrypted: string, nonce: string): Promise<boolean> {
-    const response = await this.send_and_wait(
-      { type: "save_draft", encrypted, nonce },
-      "draft_saved",
-    );
-
-    return response.success === true;
-  }
-
-  async delete_draft(): Promise<boolean> {
-    const response = await this.send_and_wait(
-      { type: "delete_draft" },
-      "draft_deleted",
-    );
-
-    return response.success === true;
-  }
-
   disconnect(): void {
     this.should_reconnect = false;
     this.last_auth_error = false;
     this.auth_error_count = 0;
     this.reconnect_attempt = 0;
     this.has_authenticated_before = false;
-    this.last_definitions_refresh_at = 0;
     if (this.reconnect_timeout) {
       clearTimeout(this.reconnect_timeout);
       this.reconnect_timeout = null;
     }
     this.stop_heartbeat();
-    this.stop_catch_up_timer();
-    if (this.mutation_refresh_timer) {
-      clearTimeout(this.mutation_refresh_timer);
-      this.mutation_refresh_timer = null;
-    }
-    if (this.echo_reconcile_timer) {
-      clearTimeout(this.echo_reconcile_timer);
-      this.echo_reconcile_timer = null;
-    }
-    this.last_soft_refresh_at = 0;
-    clear_own_mail_mutations();
     this.clear_pending_requests();
     this.authenticated = false;
     this.socket?.close();
@@ -850,9 +589,6 @@ if (typeof window !== "undefined") {
   window.addEventListener("online", () => {
     sync_client.on_wake();
   });
-  window.addEventListener(MAIL_EVENTS.MAIL_SOFT_REFRESH, () => {
-    sync_client.note_soft_refresh();
-  });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
       sync_client.on_wake();
@@ -868,194 +604,8 @@ if (typeof window !== "undefined") {
 
       if (data?.type === PUSH_ARRIVED_MESSAGE) {
         request_cache.end_fresh_joins();
-        sync_client.catch_up_now();
+        calendar_sync_engine.schedule_pull(0);
       }
     });
-  }
-}
-
-async function derive_key(
-  vault: EncryptedVault,
-  context: string,
-): Promise<CryptoKey> {
-  const encoder = new TextEncoder();
-  const raw_key = encoder.encode(vault.identity_key);
-
-  const base_key = await crypto.subtle.importKey(
-    "raw",
-    raw_key,
-    "HKDF",
-    false,
-    ["deriveKey"],
-  );
-
-  return crypto.subtle.deriveKey(
-    {
-      name: "HKDF",
-      hash: HASH_ALG,
-      salt: new Uint8Array(32),
-      info: encoder.encode(context),
-    },
-    base_key,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"],
-  );
-}
-
-async function encrypt_data(
-  data: unknown,
-  vault: EncryptedVault,
-  context: string,
-): Promise<{ encrypted: string; nonce: string }> {
-  const key = await derive_key(vault, context);
-  const nonce = crypto.getRandomValues(new Uint8Array(12));
-  const encoded = new TextEncoder().encode(JSON.stringify(data));
-
-  const encrypted = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: nonce },
-    key,
-    encoded,
-  );
-
-  return {
-    encrypted: btoa(String.fromCharCode(...new Uint8Array(encrypted))),
-    nonce: btoa(String.fromCharCode(...nonce)),
-  };
-}
-
-async function decrypt_data<T>(
-  encrypted: string,
-  nonce: string,
-  vault: EncryptedVault,
-  context: string,
-): Promise<T> {
-  const key = await derive_key(vault, context);
-  const encrypted_bytes = Uint8Array.from(atob(encrypted), (c) =>
-    c.charCodeAt(0),
-  );
-  const nonce_bytes = Uint8Array.from(atob(nonce), (c) => c.charCodeAt(0));
-
-  const decrypted = await decrypt_aes_gcm_with_fallback(
-    key,
-    encrypted_bytes,
-    nonce_bytes,
-  );
-
-  return JSON.parse(new TextDecoder().decode(decrypted));
-}
-
-export async function sync_get_preferences<T>(
-  vault: EncryptedVault,
-  default_value: T,
-): Promise<T> {
-  const connected = await sync_client.wait_for_connection(3000);
-
-  if (!connected) {
-    return default_value;
-  }
-
-  try {
-    const { encrypted, nonce } = await sync_client.get_preferences();
-
-    if (!encrypted || !nonce) {
-      return default_value;
-    }
-
-    return await decrypt_data<T>(
-      encrypted,
-      nonce,
-      vault,
-      "astermail-preferences-v1",
-    );
-  } catch {
-    return default_value;
-  }
-}
-
-export async function sync_save_preferences<T>(
-  vault: EncryptedVault,
-  data: T,
-): Promise<boolean> {
-  if (!sync_client.is_connected()) {
-    return false;
-  }
-
-  try {
-    const { encrypted, nonce } = await encrypt_data(
-      data,
-      vault,
-      "astermail-preferences-v1",
-    );
-
-    return await sync_client.save_preferences(encrypted, nonce);
-  } catch {
-    return false;
-  }
-}
-
-export interface DraftData {
-  to_recipients: string[];
-  cc_recipients: string[];
-  bcc_recipients: string[];
-  subject: string;
-  message: string;
-}
-
-export async function sync_get_draft(
-  vault: EncryptedVault,
-): Promise<DraftData | null> {
-  if (!sync_client.is_connected()) {
-    return null;
-  }
-
-  try {
-    const { encrypted, nonce } = await sync_client.get_draft();
-
-    if (!encrypted || !nonce) {
-      return null;
-    }
-
-    return await decrypt_data<DraftData>(
-      encrypted,
-      nonce,
-      vault,
-      "astermail-draft-v1",
-    );
-  } catch {
-    return null;
-  }
-}
-
-export async function sync_save_draft(
-  vault: EncryptedVault,
-  data: DraftData,
-): Promise<boolean> {
-  if (!sync_client.is_connected()) {
-    return false;
-  }
-
-  try {
-    const { encrypted, nonce } = await encrypt_data(
-      data,
-      vault,
-      "astermail-draft-v1",
-    );
-
-    return await sync_client.save_draft(encrypted, nonce);
-  } catch {
-    return false;
-  }
-}
-
-export async function sync_delete_draft(): Promise<boolean> {
-  if (!sync_client.is_connected()) {
-    return false;
-  }
-
-  try {
-    return await sync_client.delete_draft();
-  } catch {
-    return false;
   }
 }

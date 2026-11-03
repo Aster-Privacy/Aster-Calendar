@@ -198,7 +198,7 @@ describe("contact photo cache", () => {
 
   it("notifies subscribers and refetches after a contact change", async () => {
     const mod = await load();
-    const { emit_contacts_changed } = await import("@/hooks/mail_events");
+    const { emit_contacts_changed } = await import("@/hooks/app_events");
     const listener = vi.fn();
 
     get_contact_photo.mockResolvedValue(photo_response([1]));
@@ -350,7 +350,7 @@ describe("one contact edit", () => {
     get_contact_photo.mockImplementation(async () => photo_response([1]));
 
     const mod = await load();
-    const { emit_contacts_changed } = await import("@/hooks/mail_events");
+    const { emit_contacts_changed } = await import("@/hooks/app_events");
 
     show_avatars(mod, emails);
     await settled(mod, emails);
@@ -387,7 +387,7 @@ describe("one contact edit", () => {
 
   it("keeps unchanged photos visible while the contacts reload", async () => {
     const { mod, contacts } = await setup();
-    const { emit_contacts_changed } = await import("@/hooks/mail_events");
+    const { emit_contacts_changed } = await import("@/hooks/app_events");
 
     contacts[3] = { ...contacts[3], updated_at: AFTER };
     list_contacts.mockImplementation(() => new Promise(() => undefined));
@@ -402,7 +402,7 @@ describe("one contact edit", () => {
 
   it("applies a change that arrives from another device", async () => {
     const { mod, contacts, emails } = await setup();
-    const { emit_contacts_changed } = await import("@/hooks/mail_events");
+    const { emit_contacts_changed } = await import("@/hooks/app_events");
 
     contacts[9] = {
       ...contacts[9],

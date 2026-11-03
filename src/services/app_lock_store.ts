@@ -18,16 +18,7 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import {
-  safe_local_get,
-  safe_local_keys,
-  safe_local_remove,
-  safe_local_set,
-  safe_session_get,
-  safe_session_keys,
-  safe_session_remove,
-  safe_session_set,
-} from "@/lib/safe_storage";
+import { safe_local_get, safe_local_keys, safe_local_remove, safe_local_set, safe_session_keys, safe_session_remove, safe_session_set } from "@/lib/safe_storage";
 import { decrypt_aes_gcm_bound_or_unbound } from "@/services/crypto/aes_gcm_aad_fallback";
 
 const MAX_ATTEMPTS = 5;
@@ -348,29 +339,6 @@ export function get_app_lock_config(account_id: string): AppLockConfig | null {
 }
 
 const hint_key = (id: string) => `aster:app_lock_hint:${id}`;
-const NATIVE_HINT_PREFIX = "aster:app_lock_native_hint:";
-const native_hint_key = (id: string) => `${NATIVE_HINT_PREFIX}${id}`;
-
-export function save_native_lock_hint(account_id: string): void {
-  if (!account_id) return;
-  safe_local_set(native_hint_key(account_id), "1");
-}
-
-export function clear_native_lock_hint(account_id: string): void {
-  if (!account_id) return;
-  safe_local_remove(native_hint_key(account_id));
-}
-
-export function has_pending_native_lock_hint(): boolean {
-  try {
-    return safe_local_keys().some(
-      (key) =>
-        key.startsWith(NATIVE_HINT_PREFIX) && safe_local_get(key) === "1",
-    );
-  } catch {
-    return false;
-  }
-}
 
 export function save_app_lock_config(
   account_id: string,
@@ -388,27 +356,6 @@ export function clear_app_lock_config(account_id: string): void {
   safe_local_remove(hint_key(account_id));
   safe_local_remove(attempts_key(account_id));
   safe_session_remove(attempts_key(account_id));
-}
-
-export function has_pending_lock_hint(): boolean {
-  try {
-    const prefix = "aster:app_lock_hint:";
-
-    return safe_local_keys().some((key) => {
-      if (!key.startsWith(prefix)) return false;
-      if (safe_local_get(key) !== "1") return false;
-
-      return !is_session_unlocked(key.slice(prefix.length));
-    });
-  } catch {
-    return false;
-  }
-}
-
-export function get_lock_hint(account_id: string): boolean {
-  if (!account_id) return false;
-
-  return safe_local_get(hint_key(account_id)) === "1";
 }
 
 export function generate_pin_salt(): Uint8Array {
@@ -486,10 +433,6 @@ export async function verify_pin(
     locked: result.locked,
     attempts_remaining: result.attempts_remaining,
   };
-}
-
-export function is_session_unlocked(account_id: string): boolean {
-  return safe_session_get(session_key(account_id)) === "1";
 }
 
 export function mark_session_unlocked(account_id: string): void {

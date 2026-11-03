@@ -43,7 +43,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown_menu";
 import { ProfileAvatar } from "@/components/ui/profile_avatar";
-import { SearchBar } from "@/components/search/search_bar";
 import { WorkspaceSwitcher } from "@/components/layout/workspace_switcher";
 import { AppSwitcher } from "@/components/layout/app_switcher";
 import { use_auth } from "@/contexts/auth_context";
@@ -64,14 +63,10 @@ const PRIVACY_URL = "https://astermail.org/privacy";
 const TERMS_URL = "https://astermail.org/terms";
 
 interface TopBarProps {
-  brand?: "mail" | "calendar";
   is_settings_view?: boolean;
   on_mobile_menu_toggle: () => void;
-  on_search_result_click?: (id: string) => void;
-  on_search_submit?: (query: string) => void;
   on_settings_click: () => void;
   on_shortcuts_click: () => void;
-  search_context?: string;
   search_slot?: ReactNode;
 }
 
@@ -122,17 +117,12 @@ function IconButton({
 }
 
 function top_bar_base({
-  brand = "mail",
   is_settings_view = false,
   on_mobile_menu_toggle,
-  on_search_result_click,
-  on_search_submit,
   on_settings_click,
   on_shortcuts_click,
-  search_context,
   search_slot,
 }: TopBarProps) {
-  const is_calendar = brand === "calendar";
   const { t } = use_i18n();
   const { user } = use_auth();
   const { preferences, update_preference } = use_preferences();
@@ -147,12 +137,6 @@ function top_bar_base({
   const is_mounted = useRef(true);
   const [is_accounts_open, set_is_accounts_open] = useState(false);
   const [is_mobile, set_is_mobile] = useState(false);
-  const [is_tablet, set_is_tablet] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.innerWidth >= 768 &&
-      window.innerWidth < 1024,
-  );
   const [show_account_tip, set_show_account_tip] = useState(false);
   const account_tip_timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const account_tip_blocked = useRef(false);
@@ -191,20 +175,8 @@ function top_bar_base({
   }, []);
 
   const open_support_compose = useCallback(() => {
-    if (is_calendar) {
-      open_external(`mailto:${SUPPORT_ADDRESS}`);
-
-      return;
-    }
-    if (window.location.pathname.startsWith("/settings")) {
-      navigate("/");
-    }
-    window.dispatchEvent(
-      new CustomEvent("aster:open-compose-prefilled", {
-        detail: { to: [SUPPORT_ADDRESS], subject: "", body: "" },
-      }),
-    );
-  }, [is_calendar, navigate]);
+    open_external(`mailto:${SUPPORT_ADDRESS}`);
+  }, []);
 
   const leave_account_tip = useCallback(() => {
     account_tip_blocked.current = false;
@@ -231,7 +203,6 @@ function top_bar_base({
       const width = window.innerWidth;
 
       set_is_mobile(width < 768);
-      set_is_tablet(width >= 768 && width < 1024);
     };
 
     check_breakpoint();
@@ -247,38 +218,24 @@ function top_bar_base({
     user?.username ||
     (primary_identity.email || account_email).split("@")[0];
 
-  const brand_label = is_calendar
-    ? t("calendar.aster_calendar_brand")
-    : t("common.aster_mail");
+  const brand_label = t("calendar.aster_calendar_brand");
   const dated_logo_light_src = use_dated_calendar_icon("logo_light");
   const dated_logo_dark_src = use_dated_calendar_icon("logo_dark");
-  const dated_mark_src = use_dated_calendar_icon("mark");
-  const logo_light_src = is_calendar
-    ? dated_logo_light_src
-    : "/aster_mail_logo_light.png";
-  const logo_dark_src = is_calendar
-    ? dated_logo_dark_src
-    : "/aster_mail_logo_dark.png";
+  const logo_light_src = dated_logo_light_src;
+  const logo_dark_src = dated_logo_dark_src;
 
   const sidebar_expanded_width = Math.min(
     360,
     Math.max(200, preferences.sidebar_width ?? 256),
   );
-  const is_rail_header =
-    !is_calendar &&
-    !is_mobile &&
-    !is_settings_view &&
-    (is_tablet || (preferences.sidebar_minimized ?? false));
-  const left_cluster_width = is_rail_header ? 64 : sidebar_expanded_width;
+  const left_cluster_width = sidebar_expanded_width;
 
   const go_home = useCallback(() => {
     navigate("/");
     window.dispatchEvent(
-      new CustomEvent(
-        is_calendar ? "aster-calendar-home" : "astermail:inbox-home",
-      ),
+      new CustomEvent("aster-calendar-home"),
     );
-  }, [is_calendar, navigate]);
+  }, [navigate]);
 
   const handle_menu_click = useCallback(() => {
     if (is_mobile) {
@@ -304,11 +261,7 @@ function top_bar_base({
       style={{ backgroundColor: "var(--bg-secondary)" }}
     >
       <div
-        className={
-          is_rail_header
-            ? "flex items-center justify-center flex-shrink-0"
-            : "flex items-center gap-2 flex-shrink-0 px-2 sm:ps-[22px] sm:pe-3"
-        }
+        className="flex items-center gap-2 flex-shrink-0 px-2 sm:ps-[22px] sm:pe-3"
         style={is_mobile ? undefined : { width: left_cluster_width }}
       >
         {is_mobile && (
@@ -326,56 +279,32 @@ function top_bar_base({
             type="button"
             onClick={go_home}
           >
-            {is_rail_header ? (
-              <img
-                alt={brand_label}
-                className="h-9 w-9 object-contain"
-                decoding="async"
-                draggable={false}
-                src={is_calendar ? dated_mark_src : "/mail_logo.png"}
-              />
-            ) : (
-              <>
-                <img
-                  alt={brand_label}
-                  className="h-6 w-auto max-w-full object-contain object-left dark:hidden"
-                  decoding="async"
-                  draggable={false}
-                  src={logo_light_src}
-                />
-                <img
-                  alt={brand_label}
-                  className="h-6 w-auto max-w-full object-contain object-left hidden dark:block"
-                  decoding="async"
-                  draggable={false}
-                  src={logo_dark_src}
-                />
-              </>
-            )}
+            <img
+              alt={brand_label}
+              className="h-6 w-auto max-w-full object-contain object-left dark:hidden"
+              decoding="async"
+              draggable={false}
+              src={logo_light_src}
+            />
+            <img
+              alt={brand_label}
+              className="h-6 w-auto max-w-full object-contain object-left hidden dark:block"
+              decoding="async"
+              draggable={false}
+              src={logo_dark_src}
+            />
           </button>
         </Tooltip>
-        {is_calendar && !is_rail_header && (
-          <div className="hidden sm:block">
-            <AppSwitcher on_open_current={go_home} />
-          </div>
-        )}
+        <div className="hidden sm:block">
+          <AppSwitcher on_open_current={go_home} />
+        </div>
       </div>
 
-      <div
-        className={`flex-1 min-w-0 flex items-center ${is_rail_header ? "ps-2" : "ps-1 md:ps-2"}`}
-      >
+      <div className="flex-1 min-w-0 flex items-center ps-1 md:ps-2">
         {is_settings_view ? (
           <div className="w-full" id="settings_search_slot" />
-        ) : search_slot !== undefined ? (
-          search_slot
         ) : (
-          <SearchBar
-            is_full_width={is_mobile || is_rail_header}
-            is_pill
-            on_result_click={on_search_result_click}
-            on_search_submit={on_search_submit}
-            search_context={search_context}
-          />
+          search_slot
         )}
       </div>
 
@@ -385,7 +314,7 @@ function top_bar_base({
             <DropdownMenuTrigger asChild>
               <button
                 aria-label={t("common.help")}
-                className={`${is_calendar ? "hidden sm:flex" : "flex"} items-center justify-center w-9 h-9 rounded-full transition-colors text-[var(--text-primary)] hover:bg-[var(--bg-hover)] focus:outline-none`}
+                className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full transition-colors text-[var(--text-primary)] hover:bg-[var(--bg-hover)] focus:outline-none"
                 type="button"
               >
                 <QuestionMarkCircleIcon className="w-5 h-5" />

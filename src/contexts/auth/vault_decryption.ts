@@ -27,7 +27,6 @@ import {
   has_vault_in_memory,
   has_vault_in_memory_for,
 } from "@/services/crypto/memory_key_store";
-import { reset_rekey_flag } from "@/services/crypto/auto_rekey";
 
 let vault_decryption_lock: Promise<void> | null = null;
 
@@ -66,7 +65,6 @@ export async function decrypt_vault_with_lock(
 
     const vault = await decrypt_vault(encrypted_vault, vault_nonce, passphrase);
 
-    reset_rekey_flag();
     await store_vault_in_memory(vault, passphrase, owner_user_id);
 
     return vault;

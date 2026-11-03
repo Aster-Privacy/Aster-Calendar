@@ -509,48 +509,6 @@ export function strip_css_urls(
   );
 }
 
-export interface RestrictedCss {
-  css: string;
-  blocked: boolean;
-}
-
-export function restrict_css_urls(
-  css: string,
-  is_allowed: (url: string) => boolean,
-): RestrictedCss {
-  let blocked = false;
-  const allow = (url: string): boolean => {
-    if (is_allowed(url)) return true;
-    blocked = true;
-
-    return false;
-  };
-  const restrict_call = (whole: string, inner: string): string => {
-    const sources = css_image_sources(inner);
-    const all_allowed = [...sources.urls, ...sources.bare]
-      .filter((source) => source.length > 0)
-      .every(allow);
-
-    return all_allowed ? whole : "none";
-  };
-  const decoded = strip_css_comments(decode_css_escapes(css));
-  const without_imports = decoded.replace(/@import[^;]*;?/gi, () => {
-    blocked = true;
-
-    return "";
-  });
-  const walked = walk_css_urls(without_imports, {
-    url: (whole, inner) => (allow(inner) ? whole : "none"),
-  });
-  const restricted = replace_balanced_calls(
-    replace_balanced_calls(walked, IMAGE_SET_HEAD, restrict_call),
-    CROSS_FADE_HEAD,
-    restrict_call,
-  );
-
-  return { css: restricted, blocked: blocked || restricted !== decoded };
-}
-
 const FONT_FACE_HEAD = /^@font-face\s*\{/i;
 
 const CSS_IDENT_CHARACTER = /[a-z0-9_-]/i;

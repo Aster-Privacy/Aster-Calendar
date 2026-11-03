@@ -42,8 +42,6 @@ const TAB_ID = `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}
 
 export const REMINDER_GRACE_MS = 5 * 60 * 1000;
 
-export type ReminderMode = "off" | "alerts" | "desktop";
-
 export interface ReminderTarget {
   event_id: string;
   title: string;

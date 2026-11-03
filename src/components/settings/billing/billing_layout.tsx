@@ -55,68 +55,6 @@ export function BillingSectionLabel({ children }: { children: ReactNode }) {
   );
 }
 
-export function BillingGroup({
-  children,
-  class_name = "",
-}: {
-  children: ReactNode;
-  class_name?: string;
-}) {
-  return (
-    <Island className={`overflow-hidden ${class_name}`}>{children}</Island>
-  );
-}
-
-export function BillingRow({
-  title,
-  description,
-  action,
-  children,
-}: {
-  title: ReactNode;
-  description?: ReactNode;
-  action?: ReactNode;
-  children?: ReactNode;
-}) {
-  return (
-    <div className="px-4 py-3.5">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-[14.5px] font-medium leading-5 text-txt-primary">
-            {title}
-          </p>
-          {description && (
-            <div className="mt-0.5 text-[12.5px] leading-[17px] text-txt-muted">
-              {description}
-            </div>
-          )}
-        </div>
-        {action && <div className="flex-shrink-0">{action}</div>}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-export function BillingIconBox({
-  icon: Icon,
-}: {
-  icon: ComponentType<SVGProps<SVGSVGElement>>;
-}) {
-  return (
-    <span
-      aria-hidden="true"
-      className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-txt-secondary"
-      style={{
-        backgroundColor:
-          "color-mix(in srgb, var(--text-primary) 7%, transparent)",
-      }}
-    >
-      <Icon className="h-[18px] w-[18px]" />
-    </span>
-  );
-}
-
 export function BillingNotice({
   title,
   body,

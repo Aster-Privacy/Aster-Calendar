@@ -56,19 +56,6 @@ const options: SenderOption[] = [
     is_enabled: false,
     address_hash: "hash-old",
   },
-  {
-    id: "ghost-1",
-    email: "ghost@astermail.org",
-    type: "ghost",
-    is_enabled: true,
-    address_hash: "hash-ghost",
-  },
-  {
-    id: "external-1",
-    email: "me@example.com",
-    type: "external",
-    is_enabled: true,
-  },
 ];
 
 afterEach(() => {
@@ -299,7 +286,7 @@ describe("reply_identity", () => {
       ["friend@example.com"],
       "me@astermail.org",
       "Me",
-      { chosen: "ghost@astermail.org" },
+      { chosen: "stranger@astermail.org" },
     );
 
     expect(identity.resolved).toBe(false);

@@ -90,7 +90,7 @@ import {
   stop_session_timeout,
   clear_session_timeout_data,
 } from "@/services/session_timeout_service";
-import { emit_auth_ready } from "@/hooks/mail_events";
+import { emit_auth_ready } from "@/hooks/app_events";
 import { load_preferred_sender_from_server } from "@/lib/preferred_sender";
 import { show_toast } from "@/components/toast/simple_toast";
 import { hard_redirect } from "@/lib/hard_redirect";

@@ -91,20 +91,6 @@ export interface Email {
   send_error?: string;
 }
 
-export interface DecryptedEmail extends Email {
-  body: string;
-  html_content?: string;
-  replies?: EmailReply[];
-}
-
-export interface EmailReply {
-  id: string;
-  sender: EmailSender;
-  timestamp: string;
-  body: string;
-  attachments?: EmailAttachment[];
-}
-
 export type MailItemType =
   | "received"
   | "sent"
@@ -239,23 +225,4 @@ export interface DecryptedEnvelope {
     content_id?: string;
     size?: number;
   }>;
-}
-
-export type InboxFilterType = "all" | "read" | "unread" | "attachments";
-
-export interface EmailListState {
-  emails: InboxEmail[];
-  is_loading: boolean;
-  is_loading_more: boolean;
-  total_messages: number;
-  has_more: boolean;
-  has_initial_load: boolean;
-  has_load_error?: boolean;
-  next_cursor?: string;
-}
-
-export interface ConfirmationDialogState {
-  show_delete: boolean;
-  show_archive: boolean;
-  show_spam: boolean;
 }

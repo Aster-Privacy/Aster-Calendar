@@ -24,7 +24,7 @@ import { createRoot, type Root } from "react-dom/client";
 
 const toast_mock = vi.fn();
 const invalidate_mock = vi.fn();
-const invalidate_stats_mock = vi.fn();
+const invalidate_usage_mock = vi.fn();
 
 vi.mock("@/lib/i18n/context", () => ({
   use_i18n: () => ({ t: (key: string) => key, language: "en" }),
@@ -45,8 +45,8 @@ vi.mock("@/services/api/request_cache", () => ({
   },
 }));
 
-vi.mock("@/hooks/use_mail_stats", () => ({
-  invalidate_mail_stats: () => invalidate_stats_mock(),
+vi.mock("@/hooks/use_storage_usage", () => ({
+  invalidate_storage_usage: () => invalidate_usage_mock(),
 }));
 
 const { CheckoutReturnHandler } = await import("./checkout_return_handler");
@@ -73,7 +73,7 @@ describe("CheckoutReturnHandler", () => {
   beforeEach(() => {
     toast_mock.mockClear();
     invalidate_mock.mockClear();
-    invalidate_stats_mock.mockClear();
+    invalidate_usage_mock.mockClear();
     sessionStorage.clear();
   });
 
@@ -94,7 +94,7 @@ describe("CheckoutReturnHandler", () => {
     );
     expect(invalidate_mock).toHaveBeenCalledWith("/payments/v1");
     expect(invalidate_mock).toHaveBeenCalledWith("/sync/v1");
-    expect(invalidate_stats_mock).toHaveBeenCalled();
+    expect(invalidate_usage_mock).toHaveBeenCalled();
   });
 
   it("confirms a family checkout", async () => {

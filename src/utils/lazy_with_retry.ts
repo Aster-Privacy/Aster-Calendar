@@ -18,14 +18,9 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import type {
-  ComponentProps,
-  ComponentType,
-  LazyExoticComponent,
-  ReactElement,
-} from "react";
+import type { ComponentType, LazyExoticComponent } from "react";
 
-import { createElement, lazy } from "react";
+import { lazy } from "react";
 
 import {
   error_message_of,
@@ -98,28 +93,6 @@ export function lazy_with_retry<T extends { default: ComponentType<any> }>(
   delay = DEFAULT_DELAY_MS,
 ): LazyExoticComponent<T["default"]> {
   return lazy(() => import_with_retry(import_fn, retries, delay));
-}
-
-export function lazy_on_demand<T extends { default: ComponentType<any> }>(
-  import_fn: () => Promise<T>,
-  retries = DEFAULT_RETRIES,
-  delay = DEFAULT_DELAY_MS,
-): (props: ComponentProps<T["default"]>) => ReactElement {
-  const create = (): LazyExoticComponent<ComponentType<any>> =>
-    lazy(() =>
-      retry_import(import_fn, retries, delay).catch((error: unknown) => {
-        throw new LazyLoadError(error, () => {
-          current = create();
-        });
-      }),
-    );
-  let current = create();
-
-  return function OnDemandComponent(
-    props: ComponentProps<T["default"]>,
-  ): ReactElement {
-    return createElement(current, props);
-  };
 }
 
 type IdleWindow = Window & {

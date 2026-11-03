@@ -615,15 +615,6 @@ export async function decode_event_row(
   }
 }
 
-export async function decrypt_event_row(
-  row: EventRowLike,
-  vault: EncryptedVault = require_vault(),
-): Promise<DecryptedCalendarEvent | null> {
-  const decoded = await decode_event_row(row, vault);
-
-  return decoded?.event ?? null;
-}
-
 export async function decode_calendar_row(
   row: CalendarRowLike,
   vault: EncryptedVault = require_vault(),
@@ -664,13 +655,4 @@ export async function decode_calendar_row(
   } catch {
     return null;
   }
-}
-
-export async function decrypt_calendar_row(
-  row: CalendarRowLike,
-  vault: EncryptedVault = require_vault(),
-): Promise<DecryptedCalendar | null> {
-  const decoded = await decode_calendar_row(row, vault);
-
-  return decoded?.calendar ?? null;
 }

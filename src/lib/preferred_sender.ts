@@ -121,23 +121,6 @@ function mark_preferred_sender_ready(): void {
   ready_listeners.clear();
 }
 
-export function is_preferred_sender_ready(): boolean {
-  return server_load_settled;
-}
-
-export function subscribe_preferred_sender_ready(
-  listener: () => void,
-): () => void {
-  if (server_load_settled) {
-    listener();
-
-    return () => {};
-  }
-  ready_listeners.add(listener);
-
-  return () => ready_listeners.delete(listener);
-}
-
 async function sync_preferred_sender_to_server(
   id: string | null,
 ): Promise<boolean> {

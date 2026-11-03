@@ -20,7 +20,6 @@
 //
 import { resolve_current_user } from "./current_identity";
 import { create_attachment } from "./api/attachments";
-import { mark_thread_read } from "./api/mail";
 import { send_external_email, send_simple_email } from "./api/send";
 import { describe_send_refusal } from "./send_refusal";
 import {
@@ -62,10 +61,8 @@ import {
 import { format_bytes } from "@/lib/utils";
 import { load_openpgp } from "@/services/crypto/openpgp_loader";
 import { get_active_translations } from "@/lib/i18n/translations";
-import {
-  extract_inline_images,
-  type Attachment,
-} from "@/components/compose/compose_shared_core";
+import { extract_inline_images } from "@/services/inline_images";
+import type { Attachment } from "@/types/attachment";
 import { ignore_error } from "@/lib/ignore_error";
 
 const CLIENT_SEND_ID_PATTERN =
@@ -218,11 +215,6 @@ export async function execute_send(
     );
   }
 
-  if (effective_thread_id) {
-    mark_thread_read(effective_thread_id).catch((caught) =>
-      ignore_error("services/send_queue_execute:execute_send", caught),
-    );
-  }
 
   return result.data.mail_item_id;
 }
@@ -610,11 +602,6 @@ export async function execute_external_send(
     );
   }
 
-  if (effective_thread_id) {
-    mark_thread_read(effective_thread_id).catch((caught) =>
-      ignore_error("services/send_queue_execute:execute_external_send", caught),
-    );
-  }
 
   return result.data.mail_item_id;
 }

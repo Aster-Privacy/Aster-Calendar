@@ -19,5 +19,3 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 export const COPY_FEEDBACK_MS = 2000;
-export const REFRESH_STATE_MS = 1000;
-export const FOCUS_DELAY_MS = 100;

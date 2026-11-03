@@ -44,14 +44,6 @@ vi.mock("@/services/crypto/encrypted_storage", async () => ({
   }),
 }));
 
-vi.mock("@/services/offline_email_cache", () => ({
-  clear_email_cache: vi.fn(async () => undefined),
-}));
-
-vi.mock("@/services/search_index_store", () => ({
-  clear_search_snapshots: vi.fn(async () => undefined),
-}));
-
 vi.mock("@/services/api/preferences", () => ({
   clear_preferences_cache: vi.fn(() => undefined),
 }));

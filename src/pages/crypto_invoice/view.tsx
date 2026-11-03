@@ -78,12 +78,12 @@ import { Button } from "@/components/ui/button";
 import { CoinIcon } from "@/components/ui/coin_icon";
 import { RoundedQrCode } from "@/components/ui/rounded_qr_code";
 import { Spinner } from "@/components/ui/spinner";
-import { ConfirmModal } from "@/components/email/inbox/inbox_confirmation_dialog";
+import { ConfirmModal } from "@/components/ui/confirm_modal";
 import { show_toast } from "@/components/toast/simple_toast";
 import { use_i18n } from "@/lib/i18n/context";
 import { open_external } from "@/utils/open_link";
 import { request_cache } from "@/services/api/request_cache";
-import { invalidate_mail_stats } from "@/hooks/use_mail_stats";
+import { invalidate_storage_usage } from "@/hooks/use_storage_usage";
 import {
   cancel_crypto_native_invoice,
   format_price,
@@ -418,7 +418,7 @@ export function CryptoInvoiceView({ id }: { id?: string }) {
       credited_notified.current = true;
       request_cache.invalidate("/payments/v1");
       request_cache.invalidate("/sync/v1");
-      invalidate_mail_stats();
+      invalidate_storage_usage();
       window.dispatchEvent(new CustomEvent("aster:plan-changed"));
       notify_crypto_invoice_changed();
       show_toast(t("settings.crypto_native_paid_title"), "success");

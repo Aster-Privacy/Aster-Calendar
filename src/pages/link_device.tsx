@@ -55,7 +55,6 @@ import { set_post_switch_path } from "@/lib/post_switch_path";
 import { api_client } from "@/services/api/client";
 import { has_stored_session_passphrase } from "@/contexts/auth/session_passphrase";
 import { UNLIMITED_ACCOUNTS } from "@/services/plan_limits";
-import { is_calendar_app } from "@/lib/app_kind";
 
 type PageState =
   | "choose_account"
@@ -462,7 +461,7 @@ export default function LinkDevice() {
   }, [auth_loading, accounts.length]);
 
   useEffect(() => {
-    document.title = `${t("auth.link_device_title")} | ${t(is_calendar_app() ? "calendar.aster_calendar_brand" : "common.aster_mail")}`;
+    document.title = `${t("auth.link_device_title")} | ${t("calendar.aster_calendar_brand")}`;
   }, [t]);
 
   useEffect(() => {

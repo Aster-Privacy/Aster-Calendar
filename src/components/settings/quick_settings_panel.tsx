@@ -29,7 +29,6 @@ import { use_i18n } from "@/lib/i18n/context";
 import { next_radio_index } from "@/lib/radiogroup_navigation";
 import { use_escape_layer } from "@/lib/overlay_layer_stack";
 import { use_panel_transition } from "@/components/layout/use_panel_transition";
-import { resolve_list_density } from "@/lib/list_density";
 import { useTheme } from "@/contexts/theme_context";
 import { use_preferences } from "@/contexts/preferences_context";
 import {
@@ -41,76 +40,7 @@ interface QuickSettingsPanelProps {
   is_open: boolean;
   on_close: () => void;
   on_open_full_settings: (section?: SettingsSection) => void;
-  rows?: ReactNode;
-}
-
-const THUMB_LINE = "var(--text-muted)";
-
-function ThumbLines({ count, gap }: { count: number; gap: string }) {
-  return (
-    <span className={`flex h-full w-full flex-col justify-center ${gap} p-2`}>
-      {Array.from({ length: count }, (_, i) => (
-        <span
-          key={i}
-          className="h-[2.5px] w-full rounded-full"
-          style={{ backgroundColor: THUMB_LINE, opacity: 0.45 }}
-        />
-      ))}
-    </span>
-  );
-}
-
-function ThumbSplit() {
-  return (
-    <span className="flex h-full w-full gap-1.5 p-2">
-      <span className="flex w-[42%] flex-col justify-center gap-1">
-        {Array.from({ length: 3 }, (_, i) => (
-          <span
-            key={i}
-            className="h-[2.5px] w-full rounded-full"
-            style={{
-              backgroundColor:
-                i === 0 ? "var(--quick-link, #3b82f6)" : THUMB_LINE,
-              opacity: i === 0 ? 1 : 0.45,
-            }}
-          />
-        ))}
-      </span>
-      <span
-        className="flex-1 rounded-[3px]"
-        style={{
-          border:
-            "1px solid color-mix(in srgb, var(--text-primary) 22%, transparent)",
-          backgroundColor: "var(--bg-primary)",
-        }}
-      />
-    </span>
-  );
-}
-
-function ThumbPaneBottom() {
-  return (
-    <span className="flex h-full w-full flex-col gap-1.5 p-2">
-      <span className="flex flex-col gap-1">
-        <span
-          className="h-[2.5px] w-full rounded-full"
-          style={{ backgroundColor: "var(--quick-link, #3b82f6)" }}
-        />
-        <span
-          className="h-[2.5px] w-full rounded-full"
-          style={{ backgroundColor: THUMB_LINE, opacity: 0.45 }}
-        />
-      </span>
-      <span
-        className="flex-1 rounded-[3px]"
-        style={{
-          border:
-            "1px solid color-mix(in srgb, var(--text-primary) 22%, transparent)",
-          backgroundColor: "var(--bg-primary)",
-        }}
-      />
-    </span>
-  );
+  rows: ReactNode;
 }
 
 function ThemeSystemMini() {
@@ -328,7 +258,7 @@ export function QuickSettingsPanel({
 }: QuickSettingsPanelProps) {
   const { t } = use_i18n();
   const { theme_preference, set_theme_preference } = useTheme();
-  const { preferences, update_preference, update_preferences } =
+  const { preferences, update_preferences } =
     use_preferences();
 
   const handle_theme_select = (mode: "light" | "dark" | "system") => {
@@ -385,87 +315,7 @@ export function QuickSettingsPanel({
           </Button>
         </div>
 
-        {rows ?? (
-          <>
-            <QuickSection
-              on_change={(v) =>
-                update_preference(
-                  "reading_pane_position",
-                  v as "right" | "bottom" | "hidden",
-                  true,
-                )
-              }
-              options={[
-                {
-                  value: "right",
-                  label: t("settings.right_side"),
-                  thumbnail: <ThumbSplit />,
-                },
-                {
-                  value: "bottom",
-                  label: t("settings.bottom"),
-                  thumbnail: <ThumbPaneBottom />,
-                },
-                {
-                  value: "hidden",
-                  label: t("settings.hidden_click_to_open"),
-                  thumbnail: <ThumbLines count={4} gap="gap-[3px]" />,
-                },
-              ]}
-              title={t("settings.reading_pane_position")}
-              value={preferences.reading_pane_position}
-            />
-
-            <QuickSection title={t("settings.quick_inbox_list")}>
-              <QuickToggle
-                checked={preferences.conversation_grouping ?? true}
-                label={t("settings.conversation_grouping")}
-                on_change={(next) =>
-                  update_preference("conversation_grouping", next, true)
-                }
-              />
-              <QuickToggle
-                checked={preferences.inbox_categories_enabled !== false}
-                label={t("settings.inbox_categories")}
-                on_change={(next) =>
-                  update_preference("inbox_categories_enabled", next, true)
-                }
-              />
-              <QuickToggle
-                checked={preferences.show_profile_pictures ?? true}
-                label={t("settings.quick_sender_pictures")}
-                on_change={(next) =>
-                  update_preference("show_profile_pictures", next, true)
-                }
-              />
-              <QuickToggle
-                checked={preferences.show_email_preview !== false}
-                label={t("settings.quick_preview_text")}
-                on_change={(next) =>
-                  update_preference("show_email_preview", next, true)
-                }
-              />
-            </QuickSection>
-
-            <QuickSection
-              on_change={(v) => update_preference("mail_list_density", v, true)}
-              options={[
-                {
-                  value: "comfortable",
-                  label: t("settings.density_comfortable"),
-                  thumbnail: <ThumbLines count={3} gap="gap-[7px]" />,
-                },
-                {
-                  value: "compact",
-                  label: t("settings.density_compact"),
-                  thumbnail: <ThumbLines count={5} gap="gap-[3px]" />,
-                },
-              ]}
-              title={t("settings.density")}
-              value={resolve_list_density(preferences.mail_list_density)}
-            />
-          </>
-        )}
+        {rows}
 
         <QuickSection
           action={

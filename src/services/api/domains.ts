@@ -30,7 +30,6 @@ import {
   get_derived_encryption_key,
 } from "@/services/crypto/memory_key_store";
 import { zero_uint8_array } from "@/services/crypto/secure_memory";
-import { app_locale } from "@/utils/date_format";
 
 export interface DnsRecord {
   record_type: string;
@@ -103,17 +102,6 @@ export interface DnsRecordsResponse {
   verification_status: VerificationStatus;
 }
 
-export interface VerificationResult {
-  success: boolean;
-  txt_verified: boolean;
-  mx_verified: boolean;
-  spf_verified: boolean;
-  dkim_verified: boolean;
-  dmarc_configured: boolean;
-  status: string;
-  message: string;
-}
-
 export type DomainCheckKey = "mx" | "spf" | "dkim" | "dmarc";
 export type DomainCheckOutcome = "pass" | "fail" | "unknown";
 export type DomainHealthSeverity = "ok" | "warning" | "critical";
@@ -138,60 +126,6 @@ export interface DomainHealth {
   dmarc_policy?: string;
   checked_at: string;
   cached: boolean;
-}
-
-export interface DomainLimitResponse {
-  current_count: number;
-  max_domains: number;
-  can_add: boolean;
-}
-
-export interface DomainSearchResult {
-  domain: string;
-  available: boolean;
-  price_cents: number | null;
-  renewal_price_cents: number | null;
-  currency: string;
-  availability_unknown?: boolean;
-}
-
-export interface DomainSearchResponse {
-  results: DomainSearchResult[];
-  suggestions?: DomainSearchResult[];
-  has_more_suggestions?: boolean;
-  next_suggest_page?: number;
-}
-
-export interface DomainCheckoutResponse {
-  order_id: string;
-  checkout_url: string;
-}
-
-export interface DomainOrder {
-  id: string;
-  domain: string;
-  status: string;
-  order_type: string;
-  fulfillment_step: string | null;
-  years: number;
-  price_cents: number;
-  currency: string;
-  custom_domain_id: string | null;
-  expires_at: string | null;
-  last_error: string | null;
-  created_at: string;
-}
-
-export interface DomainOrderListResponse {
-  orders: DomainOrder[];
-}
-
-export interface DkimRotationResponse {
-  success: boolean;
-  new_selector: string;
-  public_key: string;
-  dns_record: DnsRecord;
-  dns_auto_published?: boolean;
 }
 
 export interface DomainAddress {
@@ -463,16 +397,6 @@ export async function delete_domain(
   );
 }
 
-export async function trigger_verification(
-  domain_id: string,
-): Promise<ApiResponse<VerificationResult>> {
-  return api_client.post<VerificationResult>(
-    `/addresses/v1/domains/${domain_id}/verify`,
-    {},
-    { timeout: 45000 },
-  );
-}
-
 export async function get_dns_records(
   domain_id: string,
 ): Promise<ApiResponse<DnsRecordsResponse>> {
@@ -481,102 +405,11 @@ export async function get_dns_records(
   );
 }
 
-export async function get_domain_nameservers(
-  domain_id: string,
-): Promise<ApiResponse<{ nameservers: string[] }>> {
-  return api_client.get<{ nameservers: string[] }>(
-    `/addresses/v1/domains/${domain_id}/nameservers`,
-  );
-}
-
-export async function get_domain_health(
-  domain_id: string,
-): Promise<ApiResponse<DomainHealth>> {
-  return api_client.get<DomainHealth>(
-    `/addresses/v1/domains/${domain_id}/health`,
-    { timeout: 45000 },
-  );
-}
-
-export async function rotate_dkim(
-  domain_id: string,
-): Promise<ApiResponse<DkimRotationResponse>> {
-  return api_client.post<DkimRotationResponse>(
-    `/addresses/v1/domains/${domain_id}/dkim/rotate`,
-    {},
-  );
-}
-
-export async function get_domain_limit(): Promise<
-  ApiResponse<DomainLimitResponse>
-> {
-  return api_client.get<DomainLimitResponse>("/addresses/v1/domains/limit");
-}
-
 export async function list_domain_addresses(
   domain_id: string,
 ): Promise<ApiResponse<AddressListResponse>> {
   return api_client.get<AddressListResponse>(
     `/addresses/v1/domains/${domain_id}/addresses`,
-  );
-}
-
-export async function bulk_add_domain_addresses(
-  domain_id: string,
-  domain_name: string,
-  items: Array<{
-    local_part: string;
-    display_name?: string;
-    note?: string;
-    is_enabled?: boolean;
-  }>,
-): Promise<ApiResponse<{ created: number; failed: number }>> {
-  const addresses = await Promise.all(
-    items.map(async (item) => {
-      const normalized = item.local_part.toLowerCase().trim();
-      const [local_part_hash, address_routing_hash, enc] = await Promise.all([
-        compute_address_hash(normalized, domain_name),
-        compute_address_routing_hash(normalized, domain_name),
-        encrypt_address_field(normalized),
-      ]);
-      const entry: {
-        encrypted_local_part: string;
-        local_part_nonce: string;
-        local_part_hash: string;
-        address_routing_hash: string;
-        encrypted_display_name?: string;
-        display_name_nonce?: string;
-        encrypted_note?: string;
-        note_nonce?: string;
-        is_enabled?: boolean;
-      } = {
-        encrypted_local_part: enc.encrypted,
-        local_part_nonce: enc.nonce,
-        local_part_hash,
-        address_routing_hash,
-      };
-
-      if (item.is_enabled !== undefined) entry.is_enabled = item.is_enabled;
-      if (item.display_name) {
-        const enc_dn = await encrypt_address_field(item.display_name);
-
-        entry.encrypted_display_name = enc_dn.encrypted;
-        entry.display_name_nonce = enc_dn.nonce;
-      }
-      if (item.note) {
-        const enc_note = await encrypt_address_field(item.note);
-
-        entry.encrypted_note = enc_note.encrypted;
-        entry.note_nonce = enc_note.nonce;
-      }
-
-      return entry;
-    }),
-  );
-
-  return api_client.post<{ created: number; failed: number }>(
-    `/addresses/v1/domains/${domain_id}/bulk-addresses`,
-    { addresses },
   );
 }
 
@@ -698,149 +531,6 @@ export async function delete_domain_address(
   );
 }
 
-export async function search_purchasable_domains(
-  query: string,
-  suggest_page?: number,
-): Promise<ApiResponse<DomainSearchResponse>> {
-  const page_param =
-    suggest_page !== undefined ? `&suggest_page=${suggest_page}` : "";
-
-  return api_client.get<DomainSearchResponse>(
-    `/addresses/v1/domains/purchase/search?query=${encodeURIComponent(query)}${page_param}`,
-  );
-}
-
-export async function create_domain_checkout(
-  domain: string,
-  years: number,
-  payment_method: "stripe" | "crypto",
-  captcha_token?: string,
-): Promise<ApiResponse<DomainCheckoutResponse>> {
-  return api_client.post<DomainCheckoutResponse>(
-    "/addresses/v1/domains/purchase/checkout",
-    { domain, years, payment_method, captcha_token },
-  );
-}
-
-export async function get_domain_order(
-  order_id: string,
-): Promise<ApiResponse<DomainOrder>> {
-  return api_client.get<DomainOrder>(
-    `/addresses/v1/domains/purchase/orders/${order_id}`,
-  );
-}
-
-export async function list_domain_orders(): Promise<
-  ApiResponse<DomainOrderListResponse>
-> {
-  return api_client.get<DomainOrderListResponse>(
-    "/addresses/v1/domains/purchase/orders",
-  );
-}
-
-export async function cancel_domain_order(
-  order_id: string,
-): Promise<ApiResponse<{ success: boolean }>> {
-  return api_client.post<{ success: boolean }>(
-    `/addresses/v1/domains/purchase/orders/${order_id}/cancel`,
-    {},
-  );
-}
-
-export async function renew_domain_order(
-  order_id: string,
-  years: number,
-  payment_method: "stripe" | "crypto",
-  captcha_token?: string,
-): Promise<ApiResponse<DomainCheckoutResponse>> {
-  return api_client.post<DomainCheckoutResponse>(
-    `/addresses/v1/domains/purchase/orders/${order_id}/renew`,
-    { years, payment_method, captcha_token },
-  );
-}
-
-export function format_domain_price(
-  cents: number | null,
-  currency: string = "usd",
-): string {
-  if (cents === null) return "";
-
-  return new Intl.NumberFormat(app_locale(), {
-    style: "currency",
-    currency: currency.toUpperCase(),
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
-}
-
-export function validate_domain_name(domain: string): {
-  valid: boolean;
-  error?: string;
-  error_key?: TranslationKey;
-} {
-  if (!domain || domain.length === 0) {
-    return {
-      valid: false,
-      error: get_active_translations().errors.domain_empty,
-      error_key: "errors.domain_empty",
-    };
-  }
-
-  if (domain.length > 253) {
-    return {
-      valid: false,
-      error: get_active_translations().errors.domain_too_long,
-      error_key: "errors.domain_too_long",
-    };
-  }
-
-  const domain_lower = domain.toLowerCase();
-
-  if (
-    domain_lower.endsWith(".astermail.org") ||
-    domain_lower.endsWith(".aster.cx") ||
-    domain_lower === "astermail.org" ||
-    domain_lower === "aster.cx"
-  ) {
-    return {
-      valid: false,
-      error: get_active_translations().errors.domain_reserved,
-      error_key: "errors.domain_reserved",
-    };
-  }
-
-  const parts = domain.split(".");
-
-  if (parts.length < 2) {
-    return {
-      valid: false,
-      error: get_active_translations().errors.domain_invalid_format,
-      error_key: "errors.domain_invalid_format",
-    };
-  }
-
-  const valid_label_pattern = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/i;
-
-  for (const part of parts) {
-    if (part.length === 0 || part.length > 63) {
-      return {
-        valid: false,
-        error: get_active_translations().errors.domain_invalid_label,
-        error_key: "errors.domain_invalid_label",
-      };
-    }
-
-    if (!valid_label_pattern.test(part)) {
-      return {
-        valid: false,
-        error: get_active_translations().errors.domain_invalid_chars,
-        error_key: "errors.domain_invalid_chars",
-      };
-    }
-  }
-
-  return { valid: true };
-}
-
 export function validate_local_part(local_part: string): {
   valid: boolean;
   error?: string;
@@ -897,61 +587,4 @@ export function validate_local_part(local_part: string): {
   }
 
   return { valid: true };
-}
-
-export function get_status_color(status: string): string {
-  switch (status) {
-    case "active":
-      return "bg-green-500/15 text-green-600 dark:text-green-400";
-    case "pending":
-    case "verifying":
-    case "dns_pending":
-      return "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400";
-    case "suspended":
-    case "failed":
-      return "bg-red-500/15 text-red-600 dark:text-red-400";
-    default:
-      return "bg-gray-500/15 text-gray-600 dark:text-gray-400";
-  }
-}
-
-export function get_grace_days_remaining(expires_at: string): number {
-  const diff = new Date(expires_at).getTime() - Date.now();
-
-  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-}
-
-export function get_status_label(
-  status: string,
-  t: (key: TranslationKey, params?: Record<string, string | number>) => string,
-): string {
-  switch (status) {
-    case "active":
-      return t("settings.status_active");
-    case "pending":
-      return t("settings.status_pending");
-    case "verifying":
-      return t("settings.status_verifying");
-    case "dns_pending":
-      return t("settings.status_dns_pending");
-    case "suspended":
-      return t("settings.status_suspended");
-    case "failed":
-      return t("settings.status_failed");
-    default:
-      return status;
-  }
-}
-
-export function get_health_color(health: string): string {
-  switch (health) {
-    case "healthy":
-      return "text-green-500";
-    case "degraded":
-      return "text-yellow-500";
-    case "unhealthy":
-      return "text-red-500";
-    default:
-      return "text-gray-500";
-  }
 }

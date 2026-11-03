@@ -41,8 +41,6 @@ import { decrypt_aes_gcm_with_fallback } from "@/services/crypto/legacy_keks";
 import { HASH_ALG } from "@/services/crypto/constants";
 import { stop_session_timeout } from "@/services/session_timeout_service";
 import { sync_client } from "@/services/sync_client";
-import { undo_send_manager } from "@/services/undo_send_manager";
-import { clear_notification_state } from "@/services/notification_service";
 import { clear_external_key_cache } from "@/services/api/keys";
 import { clear_csrf_cache } from "@/services/api/csrf";
 import { ignore_error } from "@/lib/ignore_error";
@@ -528,13 +526,11 @@ export async function wipe_all_storage(): Promise<void> {
   clear_device_encryption_cache();
 
   clear_key_manager_state();
-  clear_notification_state();
   clear_external_key_cache();
   clear_csrf_cache();
 
   stop_session_timeout();
   sync_client.disconnect();
-  undo_send_manager.destroy();
 
   try {
     const { Capacitor } = await import("@capacitor/core");

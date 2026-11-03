@@ -327,13 +327,6 @@ export interface RecoveryMethods {
   inactive_key_sets: number;
 }
 
-export interface InitiatePhraseRecoveryResponse {
-  wrapped_vault: string;
-  wrap_nonce: string;
-  wrap_salt: string;
-  recovery_token: string;
-}
-
 export interface InactiveKeySetInfo {
   id: string;
   vault_version: number;
@@ -351,27 +344,6 @@ export async function get_recovery_methods(): Promise<
   ApiResponse<RecoveryMethods>
 > {
   return api_client.get<RecoveryMethods>("/core/v1/recovery/methods");
-}
-
-export async function delete_phrase_wrap(
-  current_password_hash: string,
-): Promise<ApiResponse<{ success: boolean }>> {
-  return api_client.delete<{ success: boolean }>("/core/v1/recovery/phrase", {
-    data: { current_password_hash },
-  });
-}
-
-export async function initiate_phrase_recovery(
-  email: string,
-  verifier_hash: string,
-): Promise<ApiResponse<InitiatePhraseRecoveryResponse>> {
-  return api_client.post<InitiatePhraseRecoveryResponse>(
-    "/core/v1/recovery/phrase/initiate",
-    {
-      email,
-      verifier_hash,
-    },
-  );
 }
 
 export async function list_inactive_key_sets(): Promise<
@@ -416,39 +388,6 @@ export async function consume_inactive_key_set(
   return api_client.post<{ success: boolean }>(
     "/core/v1/recovery/inactive/consume",
     { inactive_vault_id },
-  );
-}
-
-export interface DeviceRecoverySecret {
-  snapshot_id: string;
-  secret: string;
-}
-
-export async function put_device_recovery_secret(
-  snapshot_id: string,
-  secret: string,
-): Promise<ApiResponse<{ success: boolean }>> {
-  return api_client.put<{ success: boolean }>(
-    "/core/v1/recovery/device-secrets",
-    { snapshot_id, secret },
-  );
-}
-
-export async function fetch_device_recovery_secrets(
-  snapshot_ids: string[],
-): Promise<ApiResponse<{ secrets: DeviceRecoverySecret[] }>> {
-  return api_client.post<{ secrets: DeviceRecoverySecret[] }>(
-    "/core/v1/recovery/device-secrets/fetch",
-    { snapshot_ids },
-  );
-}
-
-export async function delete_device_recovery_secrets(
-  snapshot_ids: string[],
-): Promise<ApiResponse<{ success: boolean }>> {
-  return api_client.post<{ success: boolean }>(
-    "/core/v1/recovery/device-secrets/delete",
-    { snapshot_ids },
   );
 }
 

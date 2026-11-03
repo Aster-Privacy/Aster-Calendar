@@ -25,22 +25,17 @@ import type {
 } from "@/lib/security_criteria";
 import type { SettingsTarget } from "@/lib/settings_links";
 
-import { useCallback, useMemo, useRef, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import {
   ArrowPathIcon,
-  AtSymbolIcon,
   BellAlertIcon,
   ChevronRightIcon,
   ClipboardDocumentCheckIcon,
   ComputerDesktopIcon,
   DevicePhoneMobileIcon,
-  DocumentMinusIcon,
   EnvelopeIcon,
   ExclamationTriangleIcon,
-  EyeSlashIcon,
-  FingerPrintIcon,
   KeyIcon,
-  PhotoIcon,
   ShieldCheckIcon,
   ShieldExclamationIcon,
   XMarkIcon,
@@ -57,17 +52,9 @@ import {
   security_percent,
 } from "@/lib/security_criteria";
 import { AsterSecurityMark } from "@/components/icons/aster_security_mark";
-import {
-  format_key_fingerprint,
-  use_security_overview,
-} from "@/hooks/use_security_overview";
+import { use_security_overview } from "@/hooks/use_security_overview";
 import { use_recovery_status } from "@/hooks/use_recovery_status";
-import {
-  get_cached_aliases,
-  subscribe_aliases,
-} from "@/hooks/use_sidebar_aliases";
 import { use_i18n } from "@/lib/i18n/context";
-import { use_preferences } from "@/contexts/preferences_context";
 import { use_escape_layer } from "@/lib/overlay_layer_stack";
 import {
   open_settings_target,
@@ -80,12 +67,10 @@ interface QuickSecurityPanelProps {
   is_open: boolean;
   is_swapping: boolean;
   on_close: () => void;
-  account_only?: boolean;
 }
 
 type PanelIcon = ComponentType<{ className?: string }>;
 
-const ALIAS_PREVIEW_LIMIT = 4;
 const ROW_CLASS =
   "quick_settings_row flex w-full items-center gap-3 rounded-[10px] px-2 py-2.5 text-start";
 const ROW_TITLE_CLASS =
@@ -108,9 +93,6 @@ const CRITERION_ICONS: Record<SecurityCriterionId, PanelIcon> = {
   recovery_codes: ClipboardDocumentCheckIcon,
   recovery_email: EnvelopeIcon,
   login_alerts: BellAlertIcon,
-  tracking_pixels: EyeSlashIcon,
-  remote_images: PhotoIcon,
-  strip_exif: DocumentMinusIcon,
 };
 
 function SecurityScoreRing({
@@ -170,23 +152,6 @@ function SecurityScoreRing({
   );
 }
 
-function UsageBar({ count, max }: { count: number; max: number }) {
-  const ratio = Math.min(1, max > 0 ? count / max : 0);
-
-  return (
-    <div
-      aria-hidden="true"
-      className="h-1 w-full overflow-hidden rounded-full"
-      style={{ backgroundColor: TRACK_COLOR }}
-    >
-      <div
-        className="h-full rounded-full bg-[var(--accent-color)] transition-[width] duration-500 motion-reduce:transition-none"
-        style={{ width: `${Math.round(ratio * 100)}%` }}
-      />
-    </div>
-  );
-}
-
 function SectionHeading({ label }: { label: string }) {
   return (
     <h3 className="mt-5 mb-1 truncate px-2 text-[13px] leading-5 font-semibold text-txt-primary">
@@ -199,17 +164,11 @@ export function QuickSecurityPanel({
   is_open,
   is_swapping,
   on_close,
-  account_only = false,
 }: QuickSecurityPanelProps) {
   const { t } = use_i18n();
-  const { preferences } = use_preferences();
   const overview = use_security_overview(is_open);
   const recovery = use_recovery_status(is_open);
   const panel_ref = useRef<HTMLElement | null>(null);
-  const cached_aliases = useSyncExternalStore(
-    subscribe_aliases,
-    get_cached_aliases,
-  );
 
   const go_to_settings = useCallback(
     (target: SettingsTarget) => {
@@ -237,37 +196,16 @@ export function QuickSecurityPanel({
           recovery_codes_saved: recovery.has_codes,
           recovery_email_verified: overview.recovery_email_verified,
           login_alerts_enabled: overview.login_alerts_enabled,
-          block_tracking_pixels: preferences.block_tracking_pixels,
-          block_remote_images: preferences.block_remote_images,
-          strip_exif_on_compose: preferences.strip_exif_on_compose,
         },
-        account_only,
       ),
     [
-      account_only,
       overview.totp_enabled,
       overview.passkey_registered,
       recovery.has_codes,
       overview.recovery_email_verified,
       overview.login_alerts_enabled,
-      preferences.block_tracking_pixels,
-      preferences.block_remote_images,
-      preferences.strip_exif_on_compose,
     ],
   );
-
-  const alias_preview = useMemo(
-    () =>
-      [...cached_aliases]
-        .sort((a, b) => {
-          if (a.is_enabled !== b.is_enabled) return a.is_enabled ? -1 : 1;
-
-          return a.full_address.localeCompare(b.full_address);
-        })
-        .slice(0, ALIAS_PREVIEW_LIMIT),
-    [cached_aliases],
-  );
-  const alias_overflow = cached_aliases.length - alias_preview.length;
 
   const percent = security_percent(criteria);
   const status = security_status_from_percent(percent);
@@ -282,10 +220,6 @@ export function QuickSecurityPanel({
         ? t("common.verified")
         : t("common.not_verified")
       : state_label(item.met);
-
-  const alias_value = overview.alias_max
-    ? `${overview.alias_count}/${overview.alias_max}`
-    : String(overview.alias_count);
 
   const open_security = useCallback(() => {
     go_to_settings(SECURITY_CENTER_TARGETS.overview);
@@ -450,54 +384,6 @@ export function QuickSecurityPanel({
             </span>
             <ChevronRightIcon className={CHEVRON_CLASS} />
           </button>
-          {!account_only && (
-            <button
-              className={ROW_CLASS}
-              type="button"
-              onClick={() => go_to_settings(SECURITY_CENTER_TARGETS.aliases)}
-            >
-            <AtSymbolIcon aria-hidden="true" className={DONE_ICON_CLASS} />
-            <span className="min-w-0 flex-1">
-              <span className={ROW_TITLE_CLASS} title={t("common.aliases")}>
-                {t("common.aliases")}
-              </span>
-            </span>
-            <span className={ROW_VALUE_CLASS}>{alias_value}</span>
-            <ChevronRightIcon className={CHEVRON_CLASS} />
-          </button>
-          )}
-          {!account_only &&
-            (overview.alias_max > 0 || alias_preview.length > 0) && (
-            <div className="-mt-1 mb-1 ps-[38px] pe-9">
-              {overview.alias_max > 0 && (
-                <UsageBar
-                  count={overview.alias_count}
-                  max={overview.alias_max}
-                />
-              )}
-              {alias_preview.length > 0 && (
-                <ul className={overview.alias_max > 0 ? "mt-2" : ""}>
-                  {alias_preview.map((alias) => (
-                    <li
-                      key={alias.id}
-                      className={`truncate text-[12px] leading-[18px] ${
-                        alias.is_enabled
-                          ? "text-txt-secondary"
-                          : "text-txt-muted"
-                      }`}
-                    >
-                      {alias.full_address}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {alias_overflow > 0 && (
-                <p className="text-[12px] leading-[18px] text-txt-muted">
-                  {t("common.n_more", { count: alias_overflow })}
-                </p>
-              )}
-            </div>
-          )}
           <button
             className={ROW_CLASS}
             type="button"
@@ -537,37 +423,6 @@ export function QuickSecurityPanel({
               {state_label(overview.vanguard_enabled)}
             </Badge>
           </button>
-          {!account_only && overview.key_fingerprint && (
-            <>
-              <SectionHeading
-                label={t("settings.security_center_encryption_title")}
-              />
-              <button
-                className={ROW_CLASS}
-                type="button"
-                onClick={() =>
-                  go_to_settings(SECURITY_CENTER_TARGETS.encryption)
-                }
-              >
-                <FingerPrintIcon
-                  aria-hidden="true"
-                  className={DONE_ICON_CLASS}
-                />
-                <span className="min-w-0 flex-1">
-                  <span
-                    className={ROW_TITLE_CLASS}
-                    title={t("settings.security_center_identity_key")}
-                  >
-                    {t("settings.security_center_identity_key")}
-                  </span>
-                </span>
-                <span className="flex-shrink-0 font-mono text-[12px] tracking-wider text-txt-secondary">
-                  {format_key_fingerprint(overview.key_fingerprint)}
-                </span>
-                <ChevronRightIcon className={CHEVRON_CLASS} />
-              </button>
-            </>
-          )}
           {done.length > 0 && (
             <>
               <SectionHeading label={t("settings.security_center_protected")} />

@@ -92,7 +92,7 @@ vi.mock("./api/preferences", () => ({
   convert_preferences_to_account_key: async () => h.preferences_result,
 }));
 
-vi.mock("./api/mail", () => ({
+vi.mock("./api/mail_items", () => ({
   list_encrypted_mail_items: async (params: { cursor?: string }) => {
     h.listings++;
     h.on_list?.();

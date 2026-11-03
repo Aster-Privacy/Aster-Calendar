@@ -26,9 +26,7 @@ import {
   ChevronUpIcon,
   GlobeAltIcon,
   PaintBrushIcon,
-  PencilSquareIcon,
   SwatchIcon,
-  ViewColumnsIcon,
 } from "@heroicons/react/24/outline";
 import {
   Island,
@@ -58,21 +56,17 @@ import {
 } from "@/lib/i18n/languages";
 import { explicit_language_preference } from "@/services/api/preferences";
 import { ThemeCard } from "@/components/settings/appearance/theme_card";
-import { ViewModeCard } from "@/components/settings/appearance/view_mode_card";
-import { ComposeModeCard } from "@/components/settings/appearance/compose_mode_card";
 import { SettingRow } from "@/components/settings/appearance/setting_row";
-import { ColorSwatchPicker } from "@/components/settings/appearance/color_swatch_picker";
-import { TimeZonePicker } from "@/components/settings/appearance/time_zone_picker";
-import { get_supported_time_zones } from "@/lib/time_zones";
-import { resolve_list_density } from "@/lib/list_density";
-import { use_plan_limits } from "@/hooks/use_plan_limits";
-import { is_calendar_app } from "@/lib/app_kind";
-import { prompt_upgrade } from "@/components/settings/aliases/feature_lock";
 import {
-  FONT_OPTIONS,
-  DEFAULT_FONT_ID,
-  EMAIL_FONT_MATCH_APP_ID,
-} from "@/lib/font_options";
+  ColorSwatchPicker,
+} from "@/components/settings/appearance/color_swatch_picker";
+import {
+  TimeZonePicker,
+} from "@/components/settings/appearance/time_zone_picker";
+import { get_supported_time_zones } from "@/lib/time_zones";
+import { use_plan_limits } from "@/hooks/use_plan_limits";
+import { prompt_upgrade } from "@/components/settings/aliases/feature_lock";
+import { FONT_OPTIONS, DEFAULT_FONT_ID } from "@/lib/font_options";
 import {
   is_valid_hex_color,
   compute_custom_theme_vars,
@@ -101,7 +95,6 @@ const CUSTOM_THEME_ROLE_LABEL_KEYS: Record<string, keyof SettingsTranslations> =
 const LANGUAGES = get_supported_languages();
 
 export function AppearanceSection() {
-  const calendar_app = is_calendar_app();
   const { theme, theme_preference, set_theme_preference } = useTheme();
   const { preferences, update_preference, update_preferences } =
     use_preferences();
@@ -111,23 +104,6 @@ export function AppearanceSection() {
   const is_paid_plan = limits ? limits.plan_code !== "free" : plan_load_failed;
   const effective_theme_fields = get_effective_theme_fields(preferences);
   const theme_sync_enabled = is_theme_sync_enabled(preferences);
-  const reading_pane_hidden = preferences.reading_pane_position === "hidden";
-  const opens_in_popup =
-    preferences.email_view_mode === "popup" ||
-    (preferences.email_view_mode === "split" && reading_pane_hidden);
-
-  const select_split_view = () => {
-    if (reading_pane_hidden) {
-      update_preferences(
-        { email_view_mode: "split", reading_pane_position: "right" },
-        true,
-      );
-
-      return;
-    }
-    update_preference("email_view_mode", "split", true);
-  };
-
   useEffect(() => {
     if (!limits || is_paid_plan) return;
     if (effective_theme_fields.color_theme !== "custom") return;
@@ -189,10 +165,6 @@ export function AppearanceSection() {
   };
 
   const is_default_color = effective_theme_fields.color_theme === "default";
-  const mockup_theme: "light" | "dark" | "themed" = is_default_color
-    ? theme
-    : "themed";
-
   const handle_custom_color_change = (hex: string, immediate: boolean) => {
     if (!is_valid_hex_color(hex)) return;
 
@@ -207,10 +179,6 @@ export function AppearanceSection() {
 
   const handle_font_change = (value: string) => {
     update_preference("font_choice", value, true);
-  };
-
-  const handle_email_font_change = (value: string) => {
-    update_preference("email_font_choice", value, true);
   };
 
   const custom_theme_base = compute_custom_theme_vars(
@@ -506,35 +474,6 @@ export function AppearanceSection() {
             </Select>
           </SettingRow>
 
-          {!calendar_app && (
-            <SettingRow
-              description={t("settings.email_font_choice_description")}
-              label={t("settings.email_font_choice_title")}
-            >
-              <Select
-                value={preferences.email_font_choice ?? EMAIL_FONT_MATCH_APP_ID}
-                onValueChange={handle_email_font_change}
-              >
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={EMAIL_FONT_MATCH_APP_ID}>
-                    {t("settings.email_font_option_match_app")}
-                  </SelectItem>
-                  {FONT_OPTIONS.map((font) => (
-                    <SelectItem key={font.id} value={font.id}>
-                      {font.id === "default"
-                        ? t("settings.font_option_default")
-                        : font.id === "system"
-                          ? t("settings.font_option_system")
-                          : font.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </SettingRow>
-          )}
         </Island>
 
         {is_paid_plan && (
@@ -689,9 +628,7 @@ export function AppearanceSection() {
 
         <SettingRow
           description={t(
-            calendar_app
-              ? "settings.time_zone_description_calendar"
-              : "settings.time_zone_description",
+            "settings.time_zone_description_calendar",
           )}
           label={t("settings.time_zone")}
         >
@@ -703,117 +640,6 @@ export function AppearanceSection() {
         </SettingRow>
       </IslandSection>
 
-      {!calendar_app && (
-        <>
-          <IslandSection
-            bare
-            description={t("settings.email_view_description")}
-            icon={<ViewColumnsIcon />}
-            title={t("settings.email_view_mode")}
-          >
-            <div className="flex gap-4">
-              <ViewModeCard
-                is_selected={opens_in_popup}
-                label={t("settings.popup")}
-                mode="popup"
-                on_select={() =>
-                  update_preference("email_view_mode", "popup", true)
-                }
-                theme={mockup_theme}
-              />
-              <ViewModeCard
-                is_selected={
-                  preferences.email_view_mode === "split" &&
-                  !reading_pane_hidden
-                }
-                label={t("settings.split_view")}
-                mode="split"
-                on_select={select_split_view}
-                theme={mockup_theme}
-              />
-              <ViewModeCard
-                is_selected={preferences.email_view_mode === "fullpage"}
-                label={t("settings.full_page")}
-                mode="fullpage"
-                on_select={() =>
-                  update_preference("email_view_mode", "fullpage", true)
-                }
-                theme={mockup_theme}
-              />
-            </div>
-
-            <Island divided>
-              <SettingRow
-                description={t("settings.density_description")}
-                label={t("settings.density")}
-              >
-                <Select
-                  value={resolve_list_density(preferences.mail_list_density)}
-                  onValueChange={(value) =>
-                    update_preference("mail_list_density", value, true)
-                  }
-                >
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="comfortable">
-                      {t("settings.density_comfortable")}
-                    </SelectItem>
-                    <SelectItem value="compact">
-                      {t("settings.density_compact")}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </SettingRow>
-            </Island>
-          </IslandSection>
-
-          <IslandSection
-            bare
-            description={t("settings.compose_window_mode_description")}
-            icon={<PencilSquareIcon />}
-            title={t("settings.compose_window_mode")}
-          >
-            <div className="flex gap-4">
-              <ComposeModeCard
-                is_selected={
-                  (preferences.compose_window_mode ?? "default") === "default"
-                }
-                label={t("settings.compose_mode_default")}
-                mode="default"
-                on_select={() =>
-                  update_preference("compose_window_mode", "default", true)
-                }
-                theme={mockup_theme}
-              />
-              <ComposeModeCard
-                is_selected={
-                  (preferences.compose_window_mode ?? "default") ===
-                  "fullscreen"
-                }
-                label={t("settings.compose_mode_fullscreen")}
-                mode="fullscreen"
-                on_select={() =>
-                  update_preference("compose_window_mode", "fullscreen", true)
-                }
-                theme={mockup_theme}
-              />
-              <ComposeModeCard
-                is_selected={
-                  (preferences.compose_window_mode ?? "default") === "minimized"
-                }
-                label={t("settings.compose_mode_minimized")}
-                mode="minimized"
-                on_select={() =>
-                  update_preference("compose_window_mode", "minimized", true)
-                }
-                theme={mockup_theme}
-              />
-            </div>
-          </IslandSection>
-        </>
-      )}
     </IslandSections>
   );
 }
