@@ -11009,6 +11009,8 @@ export const ko = {
     back_to_calendar: "캘린더로 돌아가기",
     back_to_mail: "Mail로 돌아가기",
     my_calendars: "내 캘린더",
+    subscribed_calendars: "구독한 캘린더",
+    subscription_settings: "구독 설정",
     create: "만들기",
     create_menu_task: "할 일",
     apps: "앱",

@@ -11224,6 +11224,8 @@ export const ar = {
     back_to_calendar: "العودة إلى التقويم",
     back_to_mail: "العودة إلى Mail",
     my_calendars: "تقويماتي",
+    subscribed_calendars: "التقويمات المشترك بها",
+    subscription_settings: "إعدادات الاشتراك",
     create: "إنشاء",
     create_menu_task: "مهمة",
     apps: "التطبيقات",

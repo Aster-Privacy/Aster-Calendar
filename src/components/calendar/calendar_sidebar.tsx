@@ -19,6 +19,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 import type { SettingsSection } from "@/components/settings/settings_content";
+import type { IcsSubscription } from "@/services/calendar/subscriptions";
 import type {
   CalendarTag,
   DecryptedCalendar,
@@ -37,6 +38,7 @@ import {
   CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  Cog6ToothIcon,
   EllipsisHorizontalIcon,
   EyeIcon,
   EyeSlashIcon,
@@ -69,6 +71,7 @@ import {
   is_same_day,
   event_color_token,
   EVENT_COLOR_OPTIONS,
+  nearest_event_color,
 } from "@/components/calendar/calendar_utils";
 import { calendar_now } from "@/services/calendar/view_zone";
 import {
@@ -100,6 +103,7 @@ import { SidebarAccountSwitcher } from "@/components/layout/sidebar/sidebar_acco
 import { UpNextCard } from "@/components/calendar/up_next_card";
 import { use_preferences } from "@/contexts/preferences_context";
 import { BIRTHDAY_COLOR } from "@/services/calendar/birthdays";
+import { subscription_color } from "@/services/calendar/subscriptions";
 import { use_i18n } from "@/lib/i18n/context";
 import { use_should_reduce_motion } from "@/provider";
 import {
@@ -112,6 +116,12 @@ const SIDEBAR_MAX_WIDTH = 360;
 const SIDEBAR_DEFAULT_WIDTH = 256;
 const CALENDARS_COLLAPSED_KEY = "calendar_sidebar_calendars_collapsed";
 const LABELS_COLLAPSED_KEY = "calendar_sidebar_labels_collapsed";
+const SUBSCRIPTIONS_COLLAPSED_KEY = "calendar_sidebar_subscriptions_collapsed";
+
+type ShowOnlyTarget =
+  | { kind: "calendar"; id: string }
+  | { kind: "subscription"; id: string }
+  | { kind: "birthdays" };
 
 const DESTRUCTIVE_MENU_CLASS =
   "text-[var(--color-danger)] focus:!bg-[color-mix(in_srgb,var(--color-danger)_10%,transparent)] focus:text-[var(--color-danger)]";
@@ -176,6 +186,9 @@ export function CalendarSidebar({
   const [labels_collapsed, set_labels_collapsed] = useState(() =>
     get_cached_sidebar_state(LABELS_COLLAPSED_KEY),
   );
+  const [subscriptions_collapsed, set_subscriptions_collapsed] = useState(() =>
+    get_cached_sidebar_state(SUBSCRIPTIONS_COLLAPSED_KEY),
+  );
   const { preferences, update_preference } = use_preferences();
 
   useEffect(() => {
@@ -217,6 +230,14 @@ export function CalendarSidebar({
   const toggle_labels_section = useCallback(() => {
     set_labels_collapsed((previous) => {
       cache_sidebar_state(LABELS_COLLAPSED_KEY, !previous);
+
+      return !previous;
+    });
+  }, []);
+
+  const toggle_subscriptions_section = useCallback(() => {
+    set_subscriptions_collapsed((previous) => {
+      cache_sidebar_state(SUBSCRIPTIONS_COLLAPSED_KEY, !previous);
 
       return !previous;
     });
@@ -433,19 +454,80 @@ export function CalendarSidebar({
 
   const today = calendar_now();
 
-  const show_only_calendar = (calendar_id: string | null) => {
+  const subscriptions: IcsSubscription[] =
+    preferences.calendar_ics_subscriptions ?? [];
+
+  const update_subscription = (
+    subscription: IcsSubscription,
+    patch: Partial<IcsSubscription>,
+  ) => {
+    update_preference(
+      "calendar_ics_subscriptions",
+      subscriptions.map((entry) =>
+        entry.id === subscription.id ? { ...entry, ...patch } : entry,
+      ),
+    );
+  };
+
+  const set_subscription_visible = (
+    subscription: IcsSubscription,
+    is_visible: boolean,
+  ) => update_subscription(subscription, { hidden: !is_visible });
+
+  const change_subscription_color = (
+    subscription: IcsSubscription,
+    color: string,
+  ) => {
+    if (subscription.color.toLowerCase() === color.toLowerCase()) {
+      return;
+    }
+
+    update_subscription(subscription, { color });
+  };
+
+  const unsubscribe = (subscription: IcsSubscription) => {
+    update_preference(
+      "calendar_ics_subscriptions",
+      subscriptions.filter((entry) => entry.id !== subscription.id),
+    );
+    show_toast(
+      t("calendar.ie_sub_removed", { name: subscription.name }),
+      "success",
+    );
+  };
+
+  const show_only = (target: ShowOnlyTarget) => {
     for (const calendar of calendars) {
-      const next_visible = calendar.id === calendar_id;
+      const next_visible =
+        target.kind === "calendar" && calendar.id === target.id;
 
       if (calendar.is_visible !== next_visible) {
         on_toggle_calendar(calendar.id, next_visible);
       }
     }
 
-    const birthdays_hidden = calendar_id !== null;
+    const birthdays_hidden = target.kind !== "birthdays";
 
     if ((preferences.calendar_birthdays_hidden === true) !== birthdays_hidden) {
       update_preference("calendar_birthdays_hidden", birthdays_hidden);
+    }
+
+    const is_target = (subscription: IcsSubscription) =>
+      target.kind === "subscription" && subscription.id === target.id;
+
+    if (
+      subscriptions.some(
+        (subscription) =>
+          (subscription.hidden === true) === is_target(subscription),
+      )
+    ) {
+      update_preference(
+        "calendar_ics_subscriptions",
+        subscriptions.map((subscription) => ({
+          ...subscription,
+          hidden: !is_target(subscription),
+        })),
+      );
     }
   };
 
@@ -804,7 +886,7 @@ export function CalendarSidebar({
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-52">
-        <ContextMenuItem onClick={() => show_only_calendar(null)}>
+        <ContextMenuItem onClick={() => show_only({ kind: "birthdays" })}>
           <EyeIcon className="me-2 h-4 w-4" />
           {t("calendar.show_only_this_calendar")}
         </ContextMenuItem>
@@ -865,7 +947,9 @@ export function CalendarSidebar({
           {t("calendar.new_event")}
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem onClick={() => show_only_calendar(calendar.id)}>
+        <ContextMenuItem
+          onClick={() => show_only({ kind: "calendar", id: calendar.id })}
+        >
           <EyeIcon className="me-2 h-4 w-4" />
           {t("calendar.show_only_this_calendar")}
         </ContextMenuItem>
@@ -961,6 +1045,130 @@ export function CalendarSidebar({
     </ContextMenu>
   ));
 
+  const subscription_rows = subscriptions.map((subscription) => {
+    const color = subscription_color(subscription);
+    const current_color_name = nearest_event_color(color).name;
+    const is_visible = subscription.hidden !== true;
+
+    return (
+      <ContextMenu key={subscription.id}>
+        <ContextMenuTrigger asChild>
+          <div
+            className={`group relative rounded-[var(--aster-radius-item,8px)] data-[state=open]:[&>button]:bg-[var(--aster-hover)] ${
+              is_visible ? "" : "[&>button_span.flex-1]:opacity-55"
+            }`}
+            data-subscription-row={subscription.id}
+          >
+            <SidebarTagRow
+              rail_tip
+              aria-pressed={is_visible}
+              color={color}
+              icon_slot={visibility_box(color, is_visible)}
+              is_collapsed={is_collapsed}
+              label={subscription.name}
+              on_click={() =>
+                set_subscription_visible(subscription, !is_visible)
+              }
+              trailing={!is_collapsed ? <span className="w-5" /> : undefined}
+            />
+            {!is_collapsed && (
+              <button
+                aria-haspopup="menu"
+                aria-label={t("calendar.calendar_options")}
+                className={`absolute end-1.5 top-1/2 z-[2] inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-[8px] text-[var(--icon-muted)] opacity-0 transition-[opacity,background-color,color] duration-150 hover:bg-[var(--aster-hover)] hover:text-[var(--icon-active)] group-hover:opacity-100 group-data-[state=open]:opacity-100 focus-visible:opacity-100 ${focus_ring}`}
+                type="button"
+                onClick={open_calendar_menu}
+              >
+                <EllipsisHorizontalIcon className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent className="w-52">
+          <ContextMenuItem
+            onClick={() =>
+              show_only({ kind: "subscription", id: subscription.id })
+            }
+          >
+            <EyeIcon className="me-2 h-4 w-4" />
+            {t("calendar.show_only_this_calendar")}
+          </ContextMenuItem>
+          <ContextMenuItem
+            onClick={() => set_subscription_visible(subscription, !is_visible)}
+          >
+            {is_visible ? (
+              <EyeSlashIcon className="me-2 h-4 w-4" />
+            ) : (
+              <EyeIcon className="me-2 h-4 w-4" />
+            )}
+            {is_visible
+              ? t("calendar.hide_this_calendar")
+              : t("calendar.show_this_calendar")}
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <span
+                aria-hidden="true"
+                className="me-2 inline-flex h-4 w-4 items-center justify-center"
+              >
+                <span
+                  className="h-3 w-3 rounded-[3px]"
+                  style={{ backgroundColor: event_color_token(color) }}
+                />
+              </span>
+              {t("common.change_color")}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="w-44">
+              {EVENT_COLOR_OPTIONS.map((option) => {
+                const is_current = option.name === current_color_name;
+
+                return (
+                  <ContextMenuItem
+                    key={option.hex}
+                    aria-checked={is_current}
+                    role="menuitemradio"
+                    onClick={() =>
+                      change_subscription_color(subscription, option.hex)
+                    }
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="me-2 inline-flex h-4 w-4 items-center justify-center"
+                    >
+                      <span
+                        className="h-3 w-3 rounded-[3px]"
+                        style={{ backgroundColor: option.token }}
+                      />
+                    </span>
+                    <span className="flex-1">{t(option.name_key)}</span>
+                    {is_current && (
+                      <CheckIcon className="ms-2 h-4 w-4 text-txt-secondary" />
+                    )}
+                  </ContextMenuItem>
+                );
+              })}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+          <ContextMenuItem
+            onClick={() => on_settings_click("calendar_import_export")}
+          >
+            <Cog6ToothIcon className="me-2 h-4 w-4" />
+            {t("calendar.subscription_settings")}
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            className={DESTRUCTIVE_MENU_CLASS}
+            onClick={() => unsubscribe(subscription)}
+          >
+            <TrashIcon className="me-2 h-4 w-4" />
+            {t("calendar.ie_sub_remove")}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    );
+  });
+
   const sidebar_content = (
     <SidebarAsideView
       expanded_width={expanded_width}
@@ -1055,6 +1263,22 @@ export function CalendarSidebar({
             </div>
           )}
         </div>
+
+        {subscriptions.length > 0 && (
+          <div data-testid="calendar-sidebar-subscriptions">
+            <SidebarSectionToggle
+              is_collapsed={is_collapsed}
+              label={t("calendar.subscribed_calendars")}
+              on_toggle={toggle_subscriptions_section}
+              section_collapsed={subscriptions_collapsed}
+            />
+            {!subscriptions_collapsed && (
+              <div className={is_collapsed ? undefined : "py-1"}>
+                {subscription_rows}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className={is_collapsed ? "mt-3" : "mt-1"}>
           <SidebarNavRow

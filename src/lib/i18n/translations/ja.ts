@@ -11232,6 +11232,8 @@ export const ja = {
     back_to_calendar: "カレンダーに戻る",
     back_to_mail: "Mail に戻る",
     my_calendars: "マイカレンダー",
+    subscribed_calendars: "登録済みのカレンダー",
+    subscription_settings: "登録の設定",
     create: "作成",
     create_menu_task: "タスク",
     apps: "アプリ",

@@ -11653,6 +11653,8 @@ export const de = {
     back_to_calendar: "Zurück zum Kalender",
     back_to_mail: "Zurück zu Mail",
     my_calendars: "Meine Kalender",
+    subscribed_calendars: "Abonnierte Kalender",
+    subscription_settings: "Abo-Einstellungen",
     create: "Erstellen",
     create_menu_task: "Aufgabe",
     apps: "Apps",

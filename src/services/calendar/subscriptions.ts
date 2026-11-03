@@ -33,6 +33,7 @@ export interface IcsSubscription {
   url: string;
   name: string;
   color: string;
+  hidden?: boolean;
 }
 
 export const SUBSCRIPTION_EXPANSION_BUDGET = 400_000;
@@ -105,6 +106,23 @@ export function with_subscription_colors(
   });
 
   return changed ? recolored : events;
+}
+
+export function without_hidden_subscriptions(
+  events: DecryptedCalendarEvent[],
+  subscriptions: IcsSubscription[],
+): DecryptedCalendarEvent[] {
+  const hidden = new Set(
+    subscriptions
+      .filter((subscription) => subscription.hidden === true)
+      .map((subscription) => subscription_calendar_id(subscription.id)),
+  );
+
+  if (hidden.size === 0 || events.length === 0) {
+    return events;
+  }
+
+  return events.filter((event) => !hidden.has(event.calendar_id));
 }
 
 export function is_subscription_event(event: { id: string }): boolean {

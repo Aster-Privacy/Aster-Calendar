@@ -11784,6 +11784,8 @@ export const hi = {
     back_to_calendar: "कैलेंडर पर वापस जाएं",
     back_to_mail: "मेल पर वापस जाएं",
     my_calendars: "मेरे कैलेंडर",
+    subscribed_calendars: "सब्सक्राइब किए गए कैलेंडर",
+    subscription_settings: "सब्सक्रिप्शन सेटिंग",
     create: "बनाएं",
     create_menu_task: "कार्य",
     apps: "ऐप",

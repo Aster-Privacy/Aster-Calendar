@@ -34,6 +34,7 @@ const {
   MAX_SUBSCRIPTION_RECURRING_EVENTS,
   subscription_color,
   with_subscription_colors,
+  without_hidden_subscriptions,
 } = await import("@/services/calendar/subscriptions");
 
 const SUBSCRIPTION = {
@@ -247,5 +248,36 @@ describe("subscription colors", () => {
         .filter((event) => event.calendar_id === "__subscription_sub-2__")
         .every((event) => event.color === "#5249c4"),
     ).toBe(true);
+  });
+});
+
+describe("subscription visibility", () => {
+  it("drops the events of hidden subscriptions only", async () => {
+    post.mockResolvedValueOnce({ data: { ics: FEED } });
+    const first = await fetch_subscription_events(SUBSCRIPTION);
+    const other = { ...SUBSCRIPTION, id: "sub-2" };
+
+    post.mockResolvedValueOnce({ data: { ics: FEED } });
+    const second = await fetch_subscription_events(other);
+    const visible = without_hidden_subscriptions(
+      [...first, ...second],
+      [{ ...SUBSCRIPTION, hidden: true }, other],
+    );
+
+    expect(visible).toHaveLength(second.length);
+    expect(
+      visible.every((event) => event.calendar_id === "__subscription_sub-2__"),
+    ).toBe(true);
+  });
+
+  it("keeps the same array when nothing is hidden", async () => {
+    post.mockResolvedValue({ data: { ics: FEED } });
+
+    const events = await fetch_subscription_events(SUBSCRIPTION);
+
+    expect(without_hidden_subscriptions(events, [SUBSCRIPTION])).toBe(events);
+    expect(
+      without_hidden_subscriptions(events, [{ ...SUBSCRIPTION, hidden: false }]),
+    ).toBe(events);
   });
 });

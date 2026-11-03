@@ -11345,6 +11345,8 @@ export const tr = {
     back_to_calendar: "Takvime dön",
     back_to_mail: "Mail'e dön",
     my_calendars: "Takvimlerim",
+    subscribed_calendars: "Abone olunan takvimler",
+    subscription_settings: "Abonelik ayarları",
     create: "Oluştur",
     create_menu_task: "Görev",
     apps: "Uygulamalar",

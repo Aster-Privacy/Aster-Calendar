@@ -11496,6 +11496,8 @@ export const es = {
     back_to_calendar: "Volver al calendario",
     back_to_mail: "Volver a Mail",
     my_calendars: "Mis calendarios",
+    subscribed_calendars: "Calendarios suscritos",
+    subscription_settings: "Ajustes de la suscripción",
     create: "Crear",
     create_menu_task: "Tarea",
     apps: "Aplicaciones",

@@ -10196,6 +10196,8 @@ export const zh_CN = {
     back_to_calendar: "返回日历",
     back_to_mail: "返回 Mail",
     my_calendars: "我的日历",
+    subscribed_calendars: "已订阅的日历",
+    subscription_settings: "订阅设置",
     create: "创建",
     create_menu_task: "任务",
     apps: "应用",

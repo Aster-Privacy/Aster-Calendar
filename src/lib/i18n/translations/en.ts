@@ -11197,6 +11197,8 @@ export const en: Translations = {
     back_to_calendar: "Back to Calendar",
     back_to_mail: "Back to Mail",
     my_calendars: "My calendars",
+    subscribed_calendars: "Subscribed calendars",
+    subscription_settings: "Subscription settings",
     create: "Create",
     create_menu_task: "Task",
     apps: "Apps",

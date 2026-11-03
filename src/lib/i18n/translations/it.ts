@@ -11558,6 +11558,8 @@ export const it = {
     back_to_calendar: "Torna al calendario",
     back_to_mail: "Torna a Mail",
     my_calendars: "I miei calendari",
+    subscribed_calendars: "Calendari a cui sei iscritto",
+    subscription_settings: "Impostazioni dell'iscrizione",
     create: "Crea",
     create_menu_task: "Attività",
     apps: "App",

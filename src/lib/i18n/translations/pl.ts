@@ -11726,6 +11726,8 @@ export const pl = {
     back_to_calendar: "Powrót do kalendarza",
     back_to_mail: "Wróć do Mail",
     my_calendars: "Moje kalendarze",
+    subscribed_calendars: "Subskrybowane kalendarze",
+    subscription_settings: "Ustawienia subskrypcji",
     create: "Utwórz",
     create_menu_task: "Zadanie",
     apps: "Aplikacje",

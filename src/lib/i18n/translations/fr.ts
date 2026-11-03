@@ -11640,6 +11640,8 @@ export const fr = {
     back_to_calendar: "Retour au calendrier",
     back_to_mail: "Retour à Mail",
     my_calendars: "Mes agendas",
+    subscribed_calendars: "Agendas abonnés",
+    subscription_settings: "Paramètres de l'abonnement",
     create: "Créer",
     create_menu_task: "Tâche",
     apps: "Applications",

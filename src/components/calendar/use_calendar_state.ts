@@ -117,6 +117,7 @@ import {
   is_subscription_event,
   SUBSCRIPTION_EXPANSION_BUDGET,
   with_subscription_colors,
+  without_hidden_subscriptions,
 } from "@/services/calendar/subscriptions";
 import {
   BOOKING_CALENDAR_ID,
@@ -867,10 +868,15 @@ export function use_calendar_state() {
     ics_subscriptions.map((subscription) => [
       subscription.id,
       subscription.color,
+      subscription.hidden === true,
     ]),
   );
   const colored_subscription_events = useMemo(
-    () => with_subscription_colors(subscription_events, ics_subscriptions),
+    () =>
+      with_subscription_colors(
+        without_hidden_subscriptions(subscription_events, ics_subscriptions),
+        ics_subscriptions,
+      ),
     [subscription_events, subscription_colors_key],
   );
 

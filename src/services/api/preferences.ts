@@ -276,6 +276,7 @@ export interface UserPreferences {
     url: string;
     name: string;
     color: string;
+    hidden?: boolean;
   }[];
   task_lists?: { id: string; name: string; sort: "my_order" | "date" }[];
   notification_banner_snooze_until: string;

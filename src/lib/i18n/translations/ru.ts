@@ -11686,6 +11686,8 @@ export const ru = {
     back_to_calendar: "Назад к календарю",
     back_to_mail: "Назад в Mail",
     my_calendars: "Мои календари",
+    subscribed_calendars: "Календари по подписке",
+    subscription_settings: "Настройки подписки",
     create: "Создать",
     create_menu_task: "Задача",
     apps: "Приложения",

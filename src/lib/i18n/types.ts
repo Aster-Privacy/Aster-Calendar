@@ -695,6 +695,8 @@ export interface CalendarTranslations {
   back_to_calendar: string;
   back_to_mail: string;
   my_calendars: string;
+  subscribed_calendars: string;
+  subscription_settings: string;
   create: string;
   create_menu_task: string;
   apps: string;

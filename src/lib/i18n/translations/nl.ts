@@ -11482,6 +11482,8 @@ export const nl = {
     back_to_calendar: "Terug naar agenda",
     back_to_mail: "Terug naar Mail",
     my_calendars: "Mijn agenda's",
+    subscribed_calendars: "Geabonneerde agenda's",
+    subscription_settings: "Abonnementsinstellingen",
     create: "Maken",
     create_menu_task: "Taak",
     apps: "Apps",
