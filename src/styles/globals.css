@@ -5027,6 +5027,14 @@ html[data-input-modality="keyboard"]
   color: var(--text-muted);
 }
 
+.event_form_chip_input::placeholder {
+  color: #9ca3af;
+}
+
+.dark .event_form_chip_input::placeholder {
+  color: #6b7280;
+}
+
 .search_field_input:focus,
 .search_field_input:focus-visible {
   outline: none;

@@ -656,6 +656,14 @@ export interface CalendarTranslations {
   no_upcoming_events_hint: string;
   new_event: string;
   edit_event: string;
+  new_task: string;
+  edit_task: string;
+  new_out_of_office: string;
+  edit_out_of_office: string;
+  new_focus_time: string;
+  edit_focus_time: string;
+  new_working_location: string;
+  edit_working_location: string;
   delete_event: string;
   delete_event_confirmation: string;
   event_title: string;

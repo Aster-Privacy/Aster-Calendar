@@ -43,6 +43,7 @@ import {
   Bars3BottomLeftIcon,
   CalendarIcon,
   CheckIcon,
+  ChevronDownIcon,
   ClockIcon,
   ExclamationTriangleIcon,
   EyeIcon,
@@ -66,7 +67,7 @@ import {
   ink_on_fill,
 } from "@/components/calendar/calendar_utils";
 import { calendar_now } from "@/services/calendar/view_zone";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Button,
   Checkbox,
@@ -101,6 +102,7 @@ import { safe_http_url_from_input } from "@/services/calendar/safe_url";
 const REMINDER_OPTIONS = [0, 5, 10, 30, 60, 1440];
 const MAX_TITLE_LENGTH = 200;
 const MAX_LOCATION_LENGTH = 500;
+const MAX_CONFERENCE_URL_LENGTH = 2048;
 const MAX_DESCRIPTION_LENGTH = 20000;
 const MAX_ATTENDEES = 100;
 
@@ -136,6 +138,55 @@ const EVENT_KIND_OPTIONS: {
     label_key: "calendar.event_kind_working_location",
   },
 ];
+
+const FORM_TITLE_KEYS: Record<
+  CalendarEventKind,
+  { create: TranslationKey; edit: TranslationKey }
+> = {
+  default: { create: "calendar.new_event", edit: "calendar.edit_event" },
+  task: { create: "calendar.new_task", edit: "calendar.edit_task" },
+  out_of_office: {
+    create: "calendar.new_out_of_office",
+    edit: "calendar.edit_out_of_office",
+  },
+  focus_time: {
+    create: "calendar.new_focus_time",
+    edit: "calendar.edit_focus_time",
+  },
+  working_location: {
+    create: "calendar.new_working_location",
+    edit: "calendar.edit_working_location",
+  },
+};
+
+const MORE_OPTIONS_EASE = [0.2, 0, 0, 1] as const;
+
+const more_options_variants = {
+  hidden: {
+    height: 0,
+    opacity: 0,
+    transition: { duration: 0.16, ease: MORE_OPTIONS_EASE },
+  },
+  shown: {
+    height: "auto",
+    opacity: 1,
+    transition: {
+      duration: 0.22,
+      ease: MORE_OPTIONS_EASE,
+      staggerChildren: 0.045,
+      delayChildren: 0.04,
+    },
+  },
+};
+
+const more_option_row_variants = {
+  hidden: { opacity: 0, y: -6 },
+  shown: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.2, ease: MORE_OPTIONS_EASE },
+  },
+};
 
 const TIME_STEP_MINUTES = 15;
 
@@ -291,6 +342,8 @@ export function EventFormModal({
   const [working_location, set_working_location] =
     useState<CalendarWorkingLocation>("office");
   const [conference_url, set_conference_url] = useState("");
+  const [conference_url_touched, set_conference_url_touched] =
+    useState(false);
   const [attendees, set_attendees] = useState<string[]>([]);
   const [guests_can_modify, set_guests_can_modify] = useState(false);
   const [guests_can_invite, set_guests_can_invite] = useState(true);
@@ -388,7 +441,6 @@ export function EventFormModal({
       set_show_more(
         event.tags.length > 0 ||
           event.color !== null ||
-          event.conference_url.length > 0 ||
           event.availability !== "busy" ||
           event.visibility !== "default",
       );
@@ -401,6 +453,7 @@ export function EventFormModal({
       set_event_kind(event.event_kind);
       set_working_location(event.working_location ?? "office");
       set_conference_url(event.conference_url);
+      set_conference_url_touched(false);
 
       return;
     }
@@ -450,6 +503,7 @@ export function EventFormModal({
     set_event_kind(initial_event_kind ?? "default");
     set_working_location("office");
     set_conference_url(preferences.calendar_default_conference_url);
+    set_conference_url_touched(false);
   }, [
     is_open,
     event,
@@ -593,6 +647,10 @@ export function EventFormModal({
   const trimmed_title =
     title.trim() || (is_working_location ? working_location_title : "");
   const has_title_error = trimmed_title.length === 0;
+  const has_conference_url_error =
+    event_kind === "default" &&
+    conference_url.trim().length > 0 &&
+    safe_http_url_from_input(conference_url) === "";
 
   const range_start = is_all_day
     ? build_date(start_date, "00:00")
@@ -729,6 +787,7 @@ export function EventFormModal({
   const is_blocked =
     is_submitting ||
     has_title_error ||
+    has_conference_url_error ||
     has_invalid_dates ||
     has_range_error ||
     !calendar_id;
@@ -1060,7 +1119,7 @@ export function EventFormModal({
             className="truncate text-sm font-semibold text-txt-primary"
             id={heading_id}
           >
-            {event ? t("calendar.edit_event") : t("calendar.new_event")}
+            {t(FORM_TITLE_KEYS[event_kind][event ? "edit" : "create"])}
           </h2>
           <Tooltip tip={t("common.close")}>
             <IslandIconButton
@@ -1384,7 +1443,7 @@ export function EventFormModal({
                     ))}
                     <input
                       aria-label={t("calendar.attendees")}
-                      className="min-w-[8rem] flex-1 bg-transparent px-1 py-1 text-[14px] text-txt-primary placeholder:text-txt-muted outline-none"
+                      className="event_form_chip_input min-w-[8rem] flex-1 bg-transparent px-1 py-1 text-[14px] text-txt-primary outline-none"
                       placeholder={t("calendar.attendees_placeholder")}
                       type="text"
                       value={attendee_input}
@@ -1442,51 +1501,6 @@ export function EventFormModal({
                 </FieldRow>
               )}
 
-              {show_more && (
-                <FieldRow
-                  align_top
-                  icon={<TagIcon className="h-4 w-4" strokeWidth={1.75} />}
-                >
-                  <div className="aster_input aster_input_tonal !h-auto min-h-9 flex-wrap items-center gap-1.5 !px-2 py-[3px] focus-within:!bg-[var(--aster-field-hover)]">
-                    {tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-flex max-w-full items-center gap-1.5 rounded-[var(--aster-radius-item)] py-0.5 ps-2 pe-1 text-xs font-medium"
-                        style={{
-                          backgroundColor: `color-mix(in srgb, ${tag_color(tag)} 18%, var(--bg-primary))`,
-                          color: "var(--text-primary)",
-                        }}
-                      >
-                        <span className="truncate">{tag}</span>
-                        <button
-                          aria-label={t("calendar.remove_tag")}
-                          className="rounded-[var(--aster-radius-item)] p-0.5 text-txt-muted transition-colors duration-150 hover:bg-[var(--aster-hover)] hover:text-txt-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)]"
-                          type="button"
-                          onClick={() =>
-                            set_tags((current) =>
-                              current.filter((value) => value !== tag),
-                            )
-                          }
-                        >
-                          <XMarkIcon className="h-3 w-3" strokeWidth={1.75} />
-                        </button>
-                      </span>
-                    ))}
-                    <input
-                      aria-label={t("calendar.tags")}
-                      className="min-w-[8rem] flex-1 bg-transparent px-1 py-1 text-[14px] text-txt-primary placeholder:text-txt-muted outline-none"
-                      placeholder={t("calendar.tags_placeholder")}
-                      type="text"
-                      value={tag_input}
-                      onBlur={() => commit_tag(tag_input)}
-                      onChange={(input_event) =>
-                        set_tag_input(input_event.target.value)
-                      }
-                      onKeyDown={handle_tag_key_down}
-                    />
-                  </div>
-                </FieldRow>
-              )}
 
               {(!is_working_location || working_location === "other") && (
                 <FieldRow
@@ -1506,24 +1520,50 @@ export function EventFormModal({
                 </FieldRow>
               )}
 
-              {show_more && is_meeting_kind && (
+              {is_meeting_kind && (
                 <FieldRow
+                  align_top
                   icon={
                     <VideoCameraIcon className="h-4 w-4" strokeWidth={1.75} />
                   }
                 >
                   <input
+                    aria-describedby={
+                      conference_url_touched && has_conference_url_error
+                        ? "event-form-conference-url-error"
+                        : undefined
+                    }
+                    aria-invalid={
+                      conference_url_touched && has_conference_url_error
+                    }
                     aria-label={t("calendar.conference_url")}
+                    autoCapitalize="off"
+                    autoComplete="off"
+                    autoCorrect="off"
                     className="aster_input aster_input_tonal !h-9 w-full !px-3 !text-[14px]"
+                    inputMode="url"
+                    maxLength={MAX_CONFERENCE_URL_LENGTH}
                     placeholder={t("calendar.conference_url_placeholder")}
+                    spellCheck={false}
                     type="url"
                     value={conference_url}
+                    onBlur={() => set_conference_url_touched(true)}
                     onChange={(input_event) =>
                       set_conference_url(input_event.target.value)
                     }
                   />
+                  {conference_url_touched && has_conference_url_error && (
+                    <p
+                      className={error_class}
+                      id="event-form-conference-url-error"
+                      role="alert"
+                    >
+                      {t("calendar.settings_conference_url_invalid")}
+                    </p>
+                  )}
                 </FieldRow>
               )}
+
 
               <FieldRow
                 icon={<BellIcon className="h-4 w-4" strokeWidth={1.75} />}
@@ -1590,121 +1630,10 @@ export function EventFormModal({
                 />
               </FieldRow>
 
-              {show_more && (
-                <FieldRow
-                  align_top
-                  icon={<SwatchIcon className="h-4 w-4" strokeWidth={1.75} />}
-                >
-                  <div className="flex flex-wrap items-center gap-2.5 py-1 ps-1">
-                    <button
-                      aria-label={t("calendar.color_calendar_default")}
-                      aria-pressed={color === null}
-                      className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-full transition-shadow duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--aster-dialog-bg)]"
-                      style={{
-                        backgroundColor: accent_color,
-                        boxShadow:
-                          color === null
-                            ? `0 0 0 2px var(--aster-dialog-bg), 0 0 0 4px ${accent_color}`
-                            : "none",
-                      }}
-                      title={t("calendar.color_calendar_default")}
-                      type="button"
-                      onClick={() => set_color(null)}
-                    >
-                      {color === null && (
-                        <CheckIcon
-                          className="h-3 w-3"
-                          style={{ color: ink_on_fill(accent_color) }}
-                        />
-                      )}
-                    </button>
-                    {EVENT_COLOR_OPTIONS.map((option) => {
-                      const is_selected =
-                        color !== null &&
-                        nearest_event_color(color).name === option.name;
-
-                      return (
-                        <button
-                          key={option.name}
-                          aria-label={t(option.name_key)}
-                          aria-pressed={is_selected}
-                          className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-full transition-shadow duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--aster-dialog-bg)]"
-                          style={{
-                            backgroundColor: option.token,
-                            boxShadow: is_selected
-                              ? `0 0 0 2px var(--aster-dialog-bg), 0 0 0 4px ${option.token}`
-                              : "none",
-                          }}
-                          title={t(option.name_key)}
-                          type="button"
-                          onClick={() => set_color(option.hex)}
-                        >
-                          {is_selected && (
-                            <CheckIcon
-                              className="h-3 w-3"
-                              style={{
-                                color: "var(--calendar_event_text, #ffffff)",
-                              }}
-                            />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </FieldRow>
-              )}
-
-              {show_more && (
-                <FieldRow
-                  icon={<EyeIcon className="h-4 w-4" strokeWidth={1.75} />}
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <CalendarSelect
-                      aria_label={t("calendar.availability")}
-                      class_name="min-w-[8rem]"
-                      options={[
-                        {
-                          value: "busy",
-                          label: t("calendar.availability_busy"),
-                        },
-                        {
-                          value: "free",
-                          label: t("calendar.availability_free"),
-                        },
-                      ]}
-                      value={availability}
-                      on_change={(value) =>
-                        set_availability(value as CalendarEventAvailability)
-                      }
-                    />
-                    <CalendarSelect
-                      aria_label={t("calendar.visibility")}
-                      class_name="min-w-[10rem]"
-                      options={[
-                        {
-                          value: "default",
-                          label: t("calendar.visibility_default"),
-                        },
-                        {
-                          value: "public",
-                          label: t("calendar.visibility_public"),
-                        },
-                        {
-                          value: "private",
-                          label: t("calendar.visibility_private"),
-                        },
-                      ]}
-                      value={visibility}
-                      on_change={(value) =>
-                        set_visibility(value as CalendarEventVisibility)
-                      }
-                    />
-                  </div>
-                </FieldRow>
-              )}
 
               <div className="-ms-2 ps-9">
                 <button
+                  aria-expanded={show_more}
                   className="inline-flex items-center gap-1.5 rounded-[var(--aster-radius-item)] px-2 py-1.5 text-[13px] font-medium text-txt-secondary hover:bg-[var(--aster-hover)] hover:text-txt-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)]"
                   type="button"
                   onClick={() => set_show_more((current) => !current)}
@@ -1712,8 +1641,186 @@ export function EventFormModal({
                   {show_more
                     ? t("calendar.fewer_options")
                     : t("calendar.more_options")}
+                  <ChevronDownIcon
+                    aria-hidden="true"
+                    className={`h-3.5 w-3.5 transition-transform duration-200 ${show_more ? "rotate-180" : ""}`}
+                    strokeWidth={2}
+                  />
                 </button>
               </div>
+
+              <AnimatePresence initial={false}>
+                {show_more && (
+                  <motion.div
+                    key="more-options"
+                    animate="shown"
+                    className="-mx-1 -mb-1 -mt-3 overflow-hidden px-1"
+                    data-testid="event-form-more-options"
+                    exit={reduce_motion ? undefined : "hidden"}
+                    initial={reduce_motion ? false : "hidden"}
+                    variants={more_options_variants}
+                  >
+                    <div className="flex flex-col gap-3 pb-1 pt-3">
+                      <motion.div variants={more_option_row_variants}>
+                        <FieldRow
+                          align_top
+                          icon={<TagIcon className="h-4 w-4" strokeWidth={1.75} />}
+                        >
+                          <div className="aster_input aster_input_tonal !h-auto min-h-9 flex-wrap items-center gap-1.5 !px-2 py-[3px] focus-within:!bg-[var(--aster-field-hover)]">
+                            {tags.map((tag) => (
+                              <span
+                                key={tag}
+                                className="inline-flex max-w-full items-center gap-1.5 rounded-[var(--aster-radius-item)] py-0.5 ps-2 pe-1 text-xs font-medium"
+                                style={{
+                                  backgroundColor: `color-mix(in srgb, ${tag_color(tag)} 18%, var(--bg-primary))`,
+                                  color: "var(--text-primary)",
+                                }}
+                              >
+                                <span className="truncate">{tag}</span>
+                                <button
+                                  aria-label={t("calendar.remove_tag")}
+                                  className="rounded-[var(--aster-radius-item)] p-0.5 text-txt-muted transition-colors duration-150 hover:bg-[var(--aster-hover)] hover:text-txt-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)]"
+                                  type="button"
+                                  onClick={() =>
+                                    set_tags((current) =>
+                                      current.filter((value) => value !== tag),
+                                    )
+                                  }
+                                >
+                                  <XMarkIcon className="h-3 w-3" strokeWidth={1.75} />
+                                </button>
+                              </span>
+                            ))}
+                            <input
+                              aria-label={t("calendar.tags")}
+                              className="event_form_chip_input min-w-[8rem] flex-1 bg-transparent px-1 py-1 text-[14px] text-txt-primary outline-none"
+                              placeholder={t("calendar.tags_placeholder")}
+                              type="text"
+                              value={tag_input}
+                              onBlur={() => commit_tag(tag_input)}
+                              onChange={(input_event) =>
+                                set_tag_input(input_event.target.value)
+                              }
+                              onKeyDown={handle_tag_key_down}
+                            />
+                          </div>
+                        </FieldRow>
+                      </motion.div>
+                      <motion.div variants={more_option_row_variants}>
+                        <FieldRow
+                          align_top
+                          icon={<SwatchIcon className="h-4 w-4" strokeWidth={1.75} />}
+                        >
+                          <div className="flex flex-wrap items-center gap-2.5 py-1 ps-1">
+                            <button
+                              aria-label={t("calendar.color_calendar_default")}
+                              aria-pressed={color === null}
+                              className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-full transition-shadow duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--aster-dialog-bg)]"
+                              style={{
+                                backgroundColor: accent_color,
+                                boxShadow:
+                                  color === null
+                                    ? `0 0 0 2px var(--aster-dialog-bg), 0 0 0 4px ${accent_color}`
+                                    : "none",
+                              }}
+                              title={t("calendar.color_calendar_default")}
+                              type="button"
+                              onClick={() => set_color(null)}
+                            >
+                              {color === null && (
+                                <CheckIcon
+                                  className="h-3 w-3"
+                                  style={{ color: ink_on_fill(accent_color) }}
+                                />
+                              )}
+                            </button>
+                            {EVENT_COLOR_OPTIONS.map((option) => {
+                              const is_selected =
+                                color !== null &&
+                                nearest_event_color(color).name === option.name;
+
+                              return (
+                                <button
+                                  key={option.name}
+                                  aria-label={t(option.name_key)}
+                                  aria-pressed={is_selected}
+                                  className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-full transition-shadow duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--aster-dialog-bg)]"
+                                  style={{
+                                    backgroundColor: option.token,
+                                    boxShadow: is_selected
+                                      ? `0 0 0 2px var(--aster-dialog-bg), 0 0 0 4px ${option.token}`
+                                      : "none",
+                                  }}
+                                  title={t(option.name_key)}
+                                  type="button"
+                                  onClick={() => set_color(option.hex)}
+                                >
+                                  {is_selected && (
+                                    <CheckIcon
+                                      className="h-3 w-3"
+                                      style={{
+                                        color: "var(--calendar_event_text, #ffffff)",
+                                      }}
+                                    />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </FieldRow>
+                      </motion.div>
+                      <motion.div variants={more_option_row_variants}>
+                        <FieldRow
+                          icon={<EyeIcon className="h-4 w-4" strokeWidth={1.75} />}
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <CalendarSelect
+                              aria_label={t("calendar.availability")}
+                              class_name="min-w-[8rem]"
+                              options={[
+                                {
+                                  value: "busy",
+                                  label: t("calendar.availability_busy"),
+                                },
+                                {
+                                  value: "free",
+                                  label: t("calendar.availability_free"),
+                                },
+                              ]}
+                              value={availability}
+                              on_change={(value) =>
+                                set_availability(value as CalendarEventAvailability)
+                              }
+                            />
+                            <CalendarSelect
+                              aria_label={t("calendar.visibility")}
+                              class_name="min-w-[10rem]"
+                              options={[
+                                {
+                                  value: "default",
+                                  label: t("calendar.visibility_default"),
+                                },
+                                {
+                                  value: "public",
+                                  label: t("calendar.visibility_public"),
+                                },
+                                {
+                                  value: "private",
+                                  label: t("calendar.visibility_private"),
+                                },
+                              ]}
+                              value={visibility}
+                              on_change={(value) =>
+                                set_visibility(value as CalendarEventVisibility)
+                              }
+                            />
+                          </div>
+                        </FieldRow>
+                      </motion.div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <FieldRow
                 align_top
