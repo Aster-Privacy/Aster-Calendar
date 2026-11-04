@@ -398,6 +398,38 @@ function pending_server_ids(op: QueuedOperation): string[] {
   return [];
 }
 
+function referenced_ids(op: QueuedOperation): string[] {
+  const ids = new Set<string>();
+
+  switch (op.kind) {
+    case "event_create":
+      ids.add(op.calendar_id);
+      break;
+    case "event_update":
+      ids.add(op.event_id);
+      ids.add(op.calendar_id);
+      break;
+    case "event_delete":
+      ids.add(op.event_id);
+      break;
+    case "event_batch":
+      for (const item of op.operations) {
+        if (item.op !== "create") ids.add(item.event_id);
+        if (item.op !== "delete") ids.add(item.calendar_id);
+      }
+      break;
+    case "calendar_create":
+      break;
+    case "calendar_update":
+    case "calendar_delete":
+    case "calendar_visibility":
+      ids.add(op.calendar_id);
+      break;
+  }
+
+  return Array.from(ids);
+}
+
 function remap_op(
   op: QueuedOperation,
   temp_id: string,
@@ -1800,20 +1832,29 @@ export class CalendarMutationQueue {
   }
 
   private resolve_acked(op: QueuedOperation): QueuedOperation {
-    let resolved = op;
+    const matches = referenced_ids(op).filter((id) =>
+      this.resolved_ids.has(id),
+    );
 
-    for (const [temp_id, real_id] of this.resolved_ids) {
-      const copy: QueuedOperation =
-        resolved === op ? structuredClone(op) : resolved;
+    if (matches.length === 0) return op;
+
+    const copy = structuredClone(op);
+    let changed = false;
+
+    for (const temp_id of matches) {
+      const real_id = this.resolved_ids.get(temp_id);
+
+      if (real_id === undefined) continue;
+
       const version =
         conflict_target(op) === "calendar"
           ? calendar_row_version(real_id)
           : event_row_version(real_id);
 
-      if (remap_op(copy, temp_id, real_id, version)) resolved = copy;
+      if (remap_op(copy, temp_id, real_id, version)) changed = true;
     }
 
-    return resolved;
+    return changed ? copy : op;
   }
 
   private rebase_following(

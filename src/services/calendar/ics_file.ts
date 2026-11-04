@@ -73,7 +73,7 @@ export interface IcsEventSource {
   block: string;
 }
 
-const MAX_IMPORT_EVENTS = 2000;
+const MAX_IMPORT_EVENTS = 5000;
 const MAX_IMPORT_TEXT_BYTES = 20 * 1024 * 1024;
 const MAX_ATTENDEES = 200;
 const MAX_EXCEPTIONS = 500;
