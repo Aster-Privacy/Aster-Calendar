@@ -28,7 +28,12 @@ export type CalendarEventAvailability = "busy" | "free";
 export type CalendarEventVisibility = "default" | "public" | "private";
 
 export type CalendarEventKind =
-  "default" | "task" | "out_of_office" | "focus_time" | "working_location";
+  | "default"
+  | "task"
+  | "out_of_office"
+  | "focus_time"
+  | "working_location"
+  | "birthday";
 
 export type CalendarWorkingLocation = "home" | "office" | "other";
 

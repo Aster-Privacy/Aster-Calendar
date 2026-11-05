@@ -11119,6 +11119,7 @@ export const ko = {
     task_created: "작업을 만들었습니다",
     task_reopened: "할 일을 다시 열었습니다",
     event_kind_working_location: "근무 장소",
+    event_kind_birthday: "생일",
     working_location: "근무 장소",
     working_location_home: "자택",
     working_location_office: "사무실",

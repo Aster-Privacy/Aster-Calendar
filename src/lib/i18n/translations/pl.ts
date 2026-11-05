@@ -11839,6 +11839,7 @@ export const pl = {
     task_created: "Utworzono zadanie",
     task_reopened: "Zadanie otwarte ponownie",
     event_kind_working_location: "Miejsce pracy",
+    event_kind_birthday: "Urodziny",
     working_location: "Miejsce pracy",
     working_location_home: "Dom",
     working_location_office: "Biuro",

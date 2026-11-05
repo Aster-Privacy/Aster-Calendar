@@ -11706,6 +11706,7 @@ export const pt_br = {
     task_created: "Tarefa criada",
     task_reopened: "Tarefa reaberta",
     event_kind_working_location: "Local de trabalho",
+    event_kind_birthday: "Aniversário",
     working_location: "Local de trabalho",
     working_location_home: "Casa",
     working_location_office: "Escritório",

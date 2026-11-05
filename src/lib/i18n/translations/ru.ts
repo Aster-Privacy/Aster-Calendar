@@ -11799,6 +11799,7 @@ export const ru = {
     task_created: "Задача создана",
     task_reopened: "Задача снова открыта",
     event_kind_working_location: "Место работы",
+    event_kind_birthday: "День рождения",
     working_location: "Место работы",
     working_location_home: "Дом",
     working_location_office: "Офис",

@@ -23,6 +23,7 @@ import type { CalendarEventKind } from "@/types/calendar";
 import {
   BoltIcon,
   BuildingOffice2Icon,
+  CakeIcon,
   CheckCircleIcon,
   MoonIcon,
 } from "@heroicons/react/24/outline";
@@ -61,6 +62,10 @@ export function EventKindIcon({ kind, className }: EventKindIconProps) {
         strokeWidth={1.75}
       />
     );
+  }
+
+  if (kind === "birthday") {
+    return <CakeIcon aria-hidden="true" className={shared} strokeWidth={1.75} />;
   }
 
   return null;

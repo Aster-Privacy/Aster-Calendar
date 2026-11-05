@@ -11336,6 +11336,7 @@ export const ar = {
     task_created: "تم إنشاء المهمة",
     task_reopened: "أُعيد فتح المهمة",
     event_kind_working_location: "موقع العمل",
+    event_kind_birthday: "عيد ميلاد",
     working_location: "موقع العمل",
     working_location_home: "المنزل",
     working_location_office: "المكتب",

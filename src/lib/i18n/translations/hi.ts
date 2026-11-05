@@ -11410,6 +11410,7 @@ export const hi = {
     task_created: "टास्क बन गया",
     task_reopened: "टास्क फिर से खुला",
     event_kind_working_location: "काम की जगह",
+    event_kind_birthday: "जन्मदिन",
     working_location: "काम की जगह",
     working_location_home: "घर",
     working_location_office: "ऑफ़िस",

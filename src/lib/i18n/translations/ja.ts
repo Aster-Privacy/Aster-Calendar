@@ -11342,6 +11342,7 @@ export const ja = {
     task_created: "タスクを作成しました",
     task_reopened: "タスクを未完了に戻しました",
     event_kind_working_location: "勤務場所",
+    event_kind_birthday: "誕生日",
     working_location: "勤務場所",
     working_location_home: "自宅",
     working_location_office: "オフィス",

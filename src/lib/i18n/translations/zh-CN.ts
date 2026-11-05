@@ -10304,6 +10304,7 @@ export const zh_CN = {
     task_created: "已创建任务",
     task_reopened: "任务已重新打开",
     event_kind_working_location: "工作地点",
+    event_kind_birthday: "生日",
     working_location: "工作地点",
     working_location_home: "家",
     working_location_office: "办公室",

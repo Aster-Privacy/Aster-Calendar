@@ -54,6 +54,7 @@ import {
   nearest_event_color,
   resolve_event_color,
 } from "@/components/calendar/calendar_utils";
+import { BIRTHDAY_COLOR } from "@/services/calendar/birthdays";
 
 function timed_event(
   id: string,
@@ -704,6 +705,12 @@ describe("event color palette", () => {
       "var(--cal_color_red)",
     );
     expect(resolve_event_color(task, "#2563eb")).toBe("var(--cal_color_sky)");
+    expect(
+      resolve_event_color(
+        timed_event("d", start, end, { event_kind: "birthday" }),
+        "#2563eb",
+      ),
+    ).toBe(event_color_token(BIRTHDAY_COLOR));
     expect(resolve_event_color(plain, "#15803d")).toBe(
       "var(--cal_color_green)",
     );

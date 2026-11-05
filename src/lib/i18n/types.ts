@@ -804,6 +804,7 @@ export interface CalendarTranslations {
   task_created: string;
   task_reopened: string;
   event_kind_working_location: string;
+  event_kind_birthday: string;
   working_location: string;
   working_location_home: string;
   working_location_office: string;

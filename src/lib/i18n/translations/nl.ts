@@ -11594,6 +11594,7 @@ export const nl = {
     task_created: "Taak gemaakt",
     task_reopened: "Taak heropend",
     event_kind_working_location: "Werklocatie",
+    event_kind_birthday: "Verjaardag",
     working_location: "Werklocatie",
     working_location_home: "Thuis",
     working_location_office: "Kantoor",

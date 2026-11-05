@@ -11608,6 +11608,7 @@ export const es = {
     task_created: "Tarea creada",
     task_reopened: "Tarea reabierta",
     event_kind_working_location: "Lugar de trabajo",
+    event_kind_birthday: "Cumpleaños",
     working_location: "Lugar de trabajo",
     working_location_home: "Casa",
     working_location_office: "Oficina",

@@ -93,6 +93,20 @@ export function birthdays_in_range(
   );
 }
 
+export function is_birthday_kind(event: { event_kind: string }): boolean {
+  return event.event_kind === "birthday";
+}
+
+export function is_event_shown(
+  event: { event_kind: string; calendar_id: string },
+  visible_calendar_ids: ReadonlySet<string>,
+  show_birthdays: boolean,
+): boolean {
+  return is_birthday_kind(event)
+    ? show_birthdays
+    : visible_calendar_ids.has(event.calendar_id);
+}
+
 export function is_birthday_event(event: { id: string }): boolean {
   return event.id.startsWith(BIRTHDAY_EVENT_PREFIX);
 }

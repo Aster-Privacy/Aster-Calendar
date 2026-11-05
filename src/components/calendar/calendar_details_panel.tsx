@@ -69,7 +69,10 @@ import {
   is_own_address,
   use_own_addresses_version,
 } from "@/services/calendar/own_addresses";
-import { is_birthday_event } from "@/services/calendar/birthdays";
+import {
+  is_birthday_event,
+  is_birthday_kind,
+} from "@/services/calendar/birthdays";
 import { is_subscription_event } from "@/services/calendar/subscriptions";
 import { is_booking_event } from "@/services/calendar/appointments";
 import { safe_http_url } from "@/services/calendar/safe_url";
@@ -82,6 +85,7 @@ const EVENT_KIND_LABELS: Record<CalendarEventKind, TranslationKey> = {
   out_of_office: "calendar.event_kind_out_of_office",
   focus_time: "calendar.event_kind_focus_time",
   working_location: "calendar.event_kind_working_location",
+  birthday: "calendar.event_kind_birthday",
 };
 
 const RESPONSE_LABELS: Record<CalendarAttendeeResponse, TranslationKey> = {
@@ -464,8 +468,9 @@ export function CalendarDetailsPanel({
   };
 
   const render_event_details = (event: DecryptedCalendarEvent) => {
-    const calendar_name =
-      calendar_by_id.get(event.calendar_id)?.name ?? t("calendar.calendar");
+    const calendar_name = is_birthday_kind(event)
+      ? t("calendar.settings_birthdays")
+      : (calendar_by_id.get(event.calendar_id)?.name ?? t("calendar.calendar"));
     const kind_label =
       event.event_kind === "default"
         ? null

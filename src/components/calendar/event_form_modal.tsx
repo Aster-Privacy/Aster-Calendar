@@ -56,7 +56,10 @@ import {
 } from "@heroicons/react/24/outline";
 
 import { DateField } from "@/components/calendar/date_field";
-import { RecurrenceField } from "@/components/calendar/recurrence_field";
+import {
+  preset_to_rule,
+  RecurrenceField,
+} from "@/components/calendar/recurrence_field";
 import { TimeField } from "@/components/calendar/time_field";
 import { use_calendar_breakpoint } from "@/components/calendar/use_calendar_breakpoint";
 import { use_visible_viewport } from "@/components/calendar/use_visible_viewport";
@@ -98,6 +101,10 @@ import { use_preferences } from "@/contexts/preferences_context";
 import { use_i18n } from "@/lib/i18n/context";
 import { use_should_reduce_motion } from "@/provider";
 import { safe_http_url_from_input } from "@/services/calendar/safe_url";
+import {
+  BIRTHDAY_CALENDAR_ID,
+  BIRTHDAY_COLOR,
+} from "@/services/calendar/birthdays";
 
 const REMINDER_OPTIONS = [0, 5, 10, 30, 60, 1440];
 const MAX_TITLE_LENGTH = 200;
@@ -137,6 +144,7 @@ const EVENT_KIND_OPTIONS: {
     value: "working_location",
     label_key: "calendar.event_kind_working_location",
   },
+  { value: "birthday", label_key: "calendar.event_kind_birthday" },
 ];
 
 const FORM_TITLE_KEYS: Record<
@@ -157,6 +165,7 @@ const FORM_TITLE_KEYS: Record<
     create: "calendar.new_working_location",
     edit: "calendar.edit_working_location",
   },
+  birthday: { create: "calendar.new_event", edit: "calendar.edit_event" },
 };
 
 const MORE_OPTIONS_EASE = [0.2, 0, 0, 1] as const;
@@ -792,9 +801,12 @@ export function EventFormModal({
     has_range_error ||
     !calendar_id;
 
+  const is_birthday = event_kind === "birthday";
   const selected_calendar =
     calendars.find((calendar) => calendar.id === calendar_id) ?? calendars[0];
-  const accent_color = selected_calendar?.color ?? "var(--accent-color)";
+  const accent_color = is_birthday
+    ? BIRTHDAY_COLOR
+    : (selected_calendar?.color ?? "var(--accent-color)");
 
   const attendee_candidate_error = (
     candidate: string,
@@ -899,10 +911,41 @@ export function EventFormModal({
   const is_meeting_kind = event_kind === "default";
 
   useEffect(() => {
-    if (event_kind === "working_location") {
+    if (event_kind === "working_location" || event_kind === "birthday") {
       set_is_all_day(true);
     }
   }, [event_kind]);
+
+  const choose_event_kind = (next: CalendarEventKind) => {
+    set_event_kind(next);
+
+    if (next !== "birthday" || recurrence !== null) {
+      return;
+    }
+
+    set_recurrence_touched(true);
+    set_recurrence(
+      preset_to_rule(
+        "yearly",
+        Number.isNaN(range_start.getTime()) ? calendar_now() : range_start,
+        null,
+      ),
+    );
+  };
+
+  const choose_calendar = (next: string) => {
+    if (next === BIRTHDAY_CALENDAR_ID) {
+      choose_event_kind("birthday");
+
+      return;
+    }
+
+    set_calendar_id(next);
+
+    if (is_birthday) {
+      set_event_kind("default");
+    }
+  };
 
   const handle_submit = async () => {
     set_title_touched(true);
@@ -975,7 +1018,7 @@ export function EventFormModal({
         availability:
           event_kind === "default"
             ? availability
-            : event_kind === "working_location"
+            : event_kind === "working_location" || event_kind === "birthday"
               ? "free"
               : "busy",
         visibility,
@@ -1177,7 +1220,7 @@ export function EventFormModal({
                   }))}
                   value={event_kind}
                   on_change={(value) =>
-                    set_event_kind(value as CalendarEventKind)
+                    choose_event_kind(value as CalendarEventKind)
                   }
                 />
               </div>
@@ -1196,7 +1239,7 @@ export function EventFormModal({
                       className="aster_segmented_option min-w-0 flex-auto truncate whitespace-nowrap !px-2"
                       title={t(option.label_key)}
                       type="button"
-                      onClick={() => set_event_kind(option.value)}
+                      onClick={() => choose_event_kind(option.value)}
                     >
                       {t(option.label_key)}
                     </button>
@@ -1599,7 +1642,14 @@ export function EventFormModal({
                   aria_label={t("calendar.select_calendar")}
                   full_width
                   class_name="min-w-[12rem]"
-                  options={calendars.map((calendar) => ({
+                  options={[
+                    ...calendars,
+                    {
+                      color: BIRTHDAY_COLOR,
+                      id: BIRTHDAY_CALENDAR_ID,
+                      name: t("calendar.settings_birthdays"),
+                    },
+                  ].map((calendar) => ({
                     value: calendar.id,
                     text: calendar.name,
                     label: (
@@ -1621,12 +1671,14 @@ export function EventFormModal({
                         style={{ backgroundColor: accent_color }}
                       />
                       <span className="truncate">
-                        {selected_calendar?.name ?? t("calendar.calendar")}
+                        {is_birthday
+                          ? t("calendar.settings_birthdays")
+                          : (selected_calendar?.name ?? t("calendar.calendar"))}
                       </span>
                     </span>
                   )}
-                  value={calendar_id}
-                  on_change={set_calendar_id}
+                  value={is_birthday ? BIRTHDAY_CALENDAR_ID : calendar_id}
+                  on_change={choose_calendar}
                 />
               </FieldRow>
 
