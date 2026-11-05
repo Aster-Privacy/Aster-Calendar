@@ -238,7 +238,8 @@ export function normalize_event_kind(value: unknown): CalendarEventKind {
   return value === "out_of_office" ||
     value === "focus_time" ||
     value === "task" ||
-    value === "working_location"
+    value === "working_location" ||
+    value === "birthday"
     ? value
     : "default";
 }

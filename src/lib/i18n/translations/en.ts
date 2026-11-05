@@ -11309,6 +11309,7 @@ export const en: Translations = {
     task_created: "Task created",
     task_reopened: "Task reopened",
     event_kind_working_location: "Working location",
+    event_kind_birthday: "Birthday",
     working_location: "Working location",
     working_location_home: "Home",
     working_location_office: "Office",

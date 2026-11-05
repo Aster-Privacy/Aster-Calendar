@@ -32,6 +32,7 @@ import {
   type TagColorVariant,
   tag_color_label_key,
 } from "@/components/ui/email_tag";
+import { BIRTHDAY_COLOR } from "@/services/calendar/birthdays";
 
 export const MINUTES_PER_DAY = 24 * 60;
 
@@ -1032,6 +1033,7 @@ const EVENT_KIND_COLORS: Record<string, string> = {
   out_of_office: "var(--cal_color_slate)",
   focus_time: "var(--cal_color_teal)",
   working_location: "var(--cal_color_green)",
+  birthday: BIRTHDAY_COLOR,
 };
 
 export function resolve_event_color(
@@ -1045,7 +1047,7 @@ export function resolve_event_color(
   const kind_color = EVENT_KIND_COLORS[event.event_kind];
 
   if (kind_color !== undefined) {
-    return kind_color;
+    return event_color_token(kind_color);
   }
 
   return calendar_color

@@ -109,6 +109,7 @@ import {
   BIRTHDAY_EVENT_PREFIX,
   birthdays_in_range,
   is_birthday_event,
+  is_event_shown,
 } from "@/services/calendar/birthdays";
 import type { BirthdaySource } from "@/services/calendar/birthdays";
 import { decrypt_contact, list_contacts } from "@/services/api/contacts";
@@ -1087,7 +1088,9 @@ export function use_calendar_state() {
   const calendar_filtered_events = useMemo(
     () =>
       searchable_events
-        .filter((event) => visible_calendar_ids.has(event.calendar_id))
+        .filter((event) =>
+          is_event_shown(event, visible_calendar_ids, show_birthdays),
+        )
         .filter((event) => event_has_any_tag(event, selected_tags))
         .filter(
           (event) => show_declined_events || !is_declined_by(event, self_email),
@@ -1103,6 +1106,7 @@ export function use_calendar_state() {
       booking_events,
       searchable_events,
       visible_calendar_ids,
+      show_birthdays,
       selected_tags,
       show_declined_events,
       self_email,
@@ -1113,9 +1117,11 @@ export function use_calendar_state() {
   const available_tags = useMemo(
     () =>
       collect_tags(
-        events.filter((event) => visible_calendar_ids.has(event.calendar_id)),
+        events.filter((event) =>
+          is_event_shown(event, visible_calendar_ids, show_birthdays),
+        ),
       ),
-    [events, visible_calendar_ids],
+    [events, visible_calendar_ids, show_birthdays],
   );
 
   const handle_toggle_tag = useCallback((tag: string) => {
@@ -1885,10 +1891,21 @@ export function use_calendar_state() {
         apply_saved_event(shift_event_to_view(result.data));
       }
 
+      if (draft.event_kind === "birthday" && !show_birthdays) {
+        update_preference("calendar_birthdays_hidden", false);
+      }
+
       handle_form_close();
       reload();
     },
-    [apply_saved_event, editing_event, handle_form_close, reload],
+    [
+      apply_saved_event,
+      editing_event,
+      handle_form_close,
+      reload,
+      show_birthdays,
+      update_preference,
+    ],
   );
 
   const handle_duplicate_event = useCallback(

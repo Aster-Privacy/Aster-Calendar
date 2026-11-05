@@ -11670,6 +11670,7 @@ export const it = {
     task_created: "Attività creata",
     task_reopened: "Attività riaperta",
     event_kind_working_location: "Luogo di lavoro",
+    event_kind_birthday: "Compleanno",
     working_location: "Luogo di lavoro",
     working_location_home: "Casa",
     working_location_office: "Ufficio",

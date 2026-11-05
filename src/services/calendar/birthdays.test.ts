@@ -20,7 +20,46 @@
 //
 import { describe, expect, it } from "vitest";
 
-import { birthdays_in_range } from "@/services/calendar/birthdays";
+import {
+  birthdays_in_range,
+  is_birthday_kind,
+  is_event_shown,
+} from "@/services/calendar/birthdays";
+import { normalize_event_kind } from "@/services/calendar/calendar_codec";
+
+describe("birthday events you create", () => {
+  const visible = new Set(["personal"]);
+
+  it("keeps the birthday kind through decoding", () => {
+    expect(normalize_event_kind("birthday")).toBe("birthday");
+    expect(normalize_event_kind("anniversary")).toBe("default");
+  });
+
+  it("follows the birthdays toggle instead of its calendar", () => {
+    const birthday = { calendar_id: "hidden", event_kind: "birthday" };
+
+    expect(is_birthday_kind(birthday)).toBe(true);
+    expect(is_event_shown(birthday, visible, true)).toBe(true);
+    expect(is_event_shown(birthday, visible, false)).toBe(false);
+  });
+
+  it("follows calendar visibility for other events", () => {
+    expect(
+      is_event_shown(
+        { calendar_id: "personal", event_kind: "default" },
+        visible,
+        false,
+      ),
+    ).toBe(true);
+    expect(
+      is_event_shown(
+        { calendar_id: "hidden", event_kind: "default" },
+        visible,
+        true,
+      ),
+    ).toBe(false);
+  });
+});
 
 describe("birthdays_in_range", () => {
   it("maps a full date to the range year", () => {

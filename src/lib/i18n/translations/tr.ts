@@ -11458,6 +11458,7 @@ export const tr = {
     task_created: "Görev oluşturuldu",
     task_reopened: "Görev yeniden açıldı",
     event_kind_working_location: "Çalışma yeri",
+    event_kind_birthday: "Doğum günü",
     working_location: "Çalışma yeri",
     working_location_home: "Ev",
     working_location_office: "Ofis",

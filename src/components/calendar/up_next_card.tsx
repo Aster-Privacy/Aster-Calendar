@@ -103,6 +103,7 @@ function is_candidate(
     visible_ids.has(event.calendar_id) &&
     event.event_kind !== "task" &&
     event.event_kind !== "working_location" &&
+    event.event_kind !== "birthday" &&
     event.status !== "cancelled" &&
     !is_declined_by(event, self_email)
   );

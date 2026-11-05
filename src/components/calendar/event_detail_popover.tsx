@@ -71,6 +71,7 @@ import {
 } from "@/components/ui/dropdown_menu";
 import { get_display_time_zone } from "@/utils/date_format";
 import { is_booking_event } from "@/services/calendar/appointments";
+import { is_birthday_kind } from "@/services/calendar/birthdays";
 import { use_guarded_link } from "@/components/calendar/use_guarded_link";
 import {
   safe_http_url,
@@ -105,6 +106,7 @@ const EVENT_KIND_LABELS: Record<CalendarEventKind, TranslationKey> = {
   out_of_office: "calendar.event_kind_out_of_office",
   focus_time: "calendar.event_kind_focus_time",
   working_location: "calendar.event_kind_working_location",
+  birthday: "calendar.event_kind_birthday",
 };
 
 const WORKING_LOCATION_LABELS: Record<CalendarWorkingLocation, TranslationKey> =
@@ -558,6 +560,9 @@ export function EventDetailPopover({
   const starts_at = new Date(event.starts_at);
   const ends_at = new Date(event.ends_at);
   const color = resolve_event_color(event, calendar?.color);
+  const calendar_name = is_birthday_kind(event)
+    ? t("calendar.settings_birthdays")
+    : calendar?.name;
   const title_id = `event_detail_title_${event.id}`;
 
   const day_label = new Intl.DateTimeFormat(language, {
@@ -770,14 +775,14 @@ export function EventDetailPopover({
               >
                 {event.title || t("calendar.untitled_event")}
               </h2>
-              {calendar && (
+              {calendar_name && (
                 <span
                   className="mt-0.5 inline-flex max-w-full items-center rounded-[var(--aster-radius-item)] px-2 py-0.5 text-xs font-medium leading-4 text-txt-secondary"
                   style={{
                     backgroundColor: `color-mix(in srgb, ${color} 14%, var(--aster-field-bg))`,
                   }}
                 >
-                  <span className="truncate">{calendar.name}</span>
+                  <span className="truncate">{calendar_name}</span>
                 </span>
               )}
             </div>
@@ -948,7 +953,7 @@ export function EventDetailPopover({
                 className="h-2 w-2 flex-shrink-0 rounded-full"
                 style={{ backgroundColor: color }}
               />
-              {calendar?.name ?? t("calendar.event")}
+              {calendar_name ?? t("calendar.event")}
             </span>
           </PopoverRow>
 

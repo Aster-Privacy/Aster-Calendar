@@ -11753,6 +11753,7 @@ export const fr = {
     task_created: "Tâche créée",
     task_reopened: "Tâche rouverte",
     event_kind_working_location: "Lieu de travail",
+    event_kind_birthday: "Anniversaire",
     working_location: "Lieu de travail",
     working_location_home: "Domicile",
     working_location_office: "Bureau",
