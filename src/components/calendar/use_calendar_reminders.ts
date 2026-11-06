@@ -197,7 +197,7 @@ export function use_calendar_reminders(): void {
       if (targets.length > 1) {
         if (conceal) {
           return current.t("calendar.missed_reminders_hidden_many", {
-            count: String(targets.length),
+            count: targets.length,
           });
         }
 
@@ -209,13 +209,13 @@ export function use_calendar_reminders(): void {
         if (remaining > 0) {
           listed.push(
             current.t("calendar.missed_reminders_more", {
-              count: String(remaining),
+              count: remaining,
             }),
           );
         }
 
         return current.t("calendar.missed_reminders_many", {
-          count: String(targets.length),
+          count: targets.length,
           titles: format_list(listed, current.language),
         });
       }
