@@ -11969,16 +11969,23 @@ export const fr = {
     reminder_hidden_title: "Événement à venir",
     reminder_hidden_toast_timed: "Vous avez un événement à {{time}}",
     reminder_hidden_toast_all_day: "Vous avez un événement aujourd'hui",
+    missed_reminder_one: "Rappel manqué : {{title}}, {{time}}",
+    missed_reminder_hidden_one: "Rappel manqué pour un événement : {{time}}",
+    missed_reminders_many: "Rappels manqués ({{count}}) : {{titles}}",
+    missed_reminders_hidden_many: "Rappels d'événements manqués ({{count}})",
+    missed_reminders_more: "{{count}} de plus",
     settings_notifications: "Notifications",
     settings_notification_mode: "Notifications",
     settings_notification_mode_desc:
-      "Comment les rappels vous parviennent quand l'agenda est ouvert",
+      "Comment les rappels d'événements vous parviennent lorsque Aster Calendar est ouvert",
     settings_notification_off: "Off",
     settings_notification_background: "Quand les rappels arrivent",
     settings_notification_background_note:
-      "Les rappels arrivent tant qu'Aster Calendar est ouvert dans un onglet, même en arrière-plan. Après la fermeture du navigateur, aucun rappel n'arrive jusqu'à ce que vous rouvriez Aster Calendar.",
+      "Les rappels arrivent tant qu'Aster Calendar est ouvert dans un onglet, même en arrière-plan. Si Aster Calendar est fermé à l'heure d'un rappel, vous le verrez à la prochaine ouverture d'Aster Calendar, pendant 24 heures au maximum.",
     settings_notification_alerts: "Alertes dans l'application",
     settings_notification_desktop: "Notifications de bureau",
+    settings_notification_desktop_desc:
+      "Autorisez les notifications dans votre navigateur pour recevoir les rappels sur votre bureau. En attendant, les rappels s'affichent sous forme d'alertes dans l'application.",
     settings_notification_sound: "Jouer les sons de notification",
     settings_notification_sound_desc:
       "Jouer un bref signal quand un rappel se déclenche",

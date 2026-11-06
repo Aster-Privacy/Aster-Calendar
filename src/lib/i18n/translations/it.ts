@@ -11881,16 +11881,23 @@ export const it = {
     reminder_hidden_title: "Evento imminente",
     reminder_hidden_toast_timed: "Hai un evento alle {{time}}",
     reminder_hidden_toast_all_day: "Hai un evento oggi",
+    missed_reminder_one: "Promemoria perso: {{title}}, {{time}}",
+    missed_reminder_hidden_one: "Promemoria perso per un evento: {{time}}",
+    missed_reminders_many: "Promemoria persi ({{count}}): {{titles}}",
+    missed_reminders_hidden_many: "Promemoria di eventi persi ({{count}})",
+    missed_reminders_more: "altri {{count}}",
     settings_notifications: "Notifiche",
     settings_notification_mode: "Notifiche",
     settings_notification_mode_desc:
-      "Come ti raggiungono i promemoria mentre il calendario è aperto",
+      "Come ti arrivano i promemoria degli eventi mentre Aster Calendar è aperto",
     settings_notification_off: "Off",
     settings_notification_background: "Quando arrivano i promemoria",
     settings_notification_background_note:
-      "I promemoria arrivano finché Aster Calendar è aperto in una scheda qualsiasi, anche in una scheda in secondo piano. Dopo la chiusura del browser non arriva alcun promemoria finché non riapri Aster Calendar.",
+      "I promemoria arrivano finché Aster Calendar è aperto in una scheda qualsiasi, anche in una scheda in secondo piano. Se Aster Calendar è chiuso quando scatta un promemoria, lo vedrai alla successiva apertura di Aster Calendar, entro 24 ore.",
     settings_notification_alerts: "Avvisi in-app",
     settings_notification_desktop: "Notifiche desktop",
+    settings_notification_desktop_desc:
+      "Consenti le notifiche nel browser per ricevere i promemoria sul desktop. Fino ad allora, i promemoria vengono mostrati come avvisi in-app.",
     settings_notification_sound: "Riproduci suoni di notifica",
     settings_notification_sound_desc:
       "Riproduci un breve tono quando scatta un promemoria",

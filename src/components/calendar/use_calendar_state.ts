@@ -82,6 +82,7 @@ import {
   take_legacy_calendar_trash,
 } from "@/services/api/preferences";
 import { calendar_store_fully_v3 } from "@/services/calendar/blob_migration";
+import { calendar_sync_engine } from "@/services/calendar/sync_engine";
 import {
   calendar_write_key,
   set_calendar_v3_floor,
@@ -510,7 +511,7 @@ export function use_calendar_state() {
 
         if (!cancelled) set_load_failed(true);
       } finally {
-        if (!cancelled) {
+        if (!cancelled && !calendar_sync_engine.awaiting_first_sync()) {
           set_is_loading(false);
         }
       }

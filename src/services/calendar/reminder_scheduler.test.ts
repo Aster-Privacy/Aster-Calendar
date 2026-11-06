@@ -23,6 +23,12 @@ import type { DecryptedCalendarEvent } from "@/types/calendar";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  create_memory_shown_store,
+  record_shown_reminder,
+} from "@/lib/shown_reminder_log";
+import {
+  absorb_background_shown_reminders,
+  build_missed_reminder_targets,
   build_reminder_targets,
   claim_reminder,
   clear_fired_reminders,
@@ -277,6 +283,174 @@ describe("build_reminder_targets", () => {
     );
 
     expect(first.key).not.toBe(moved.key);
+  });
+});
+
+describe("build_missed_reminder_targets", () => {
+  const minutes_ago = (minutes: number) =>
+    new Date(NOW - minutes * 60 * 1000).toISOString();
+
+  it("returns a reminder that came due while the app was closed", () => {
+    const targets = build_missed_reminder_targets(
+      [make_event({ starts_at: minutes_ago(-10) })],
+      BASE,
+    );
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0].fire_at).toBe(NOW - 20 * 60 * 1000);
+    expect(targets[0].key).toBe(`evt-1:${minutes_ago(-10)}:30`);
+  });
+
+  it("includes events that have already ended", () => {
+    const targets = build_missed_reminder_targets(
+      [
+        make_event({
+          ends_at: minutes_ago(120),
+          reminder_minutes: 5,
+          starts_at: minutes_ago(180),
+        }),
+      ],
+      BASE,
+    );
+
+    expect(targets).toHaveLength(1);
+  });
+
+  it("leaves reminders inside the grace window to the live scheduler", () => {
+    const live = make_event({ starts_at: new Date(NOW + 28 * 60 * 1000).toISOString() });
+
+    expect(build_missed_reminder_targets([live], BASE)).toEqual([]);
+    expect(build_reminder_targets([live], BASE)).toHaveLength(1);
+  });
+
+  it("ignores reminders older than a day", () => {
+    const targets = build_missed_reminder_targets(
+      [make_event({ reminder_minutes: 0, starts_at: minutes_ago(25 * 60) })],
+      BASE,
+    );
+
+    expect(targets).toEqual([]);
+  });
+
+  it("ignores upcoming reminders", () => {
+    expect(build_missed_reminder_targets([make_event()], BASE)).toEqual([]);
+  });
+
+  it("skips events created after their reminder time", () => {
+    const targets = build_missed_reminder_targets(
+      [
+        make_event({
+          created_at: minutes_ago(15),
+          reminder_minutes: 0,
+          starts_at: minutes_ago(30),
+        }),
+      ],
+      BASE,
+    );
+
+    expect(targets).toEqual([]);
+  });
+
+  it("respects disabled reminders and cancelled events", () => {
+    const past = minutes_ago(60);
+
+    expect(
+      build_missed_reminder_targets(
+        [
+          make_event({ reminder_minutes: -1, starts_at: past }),
+          make_event({ id: "evt-2", starts_at: past, status: "cancelled" }),
+        ],
+        BASE,
+      ),
+    ).toEqual([]);
+  });
+
+  it("respects the only accepted setting", () => {
+    const declined = make_event({
+      attendees: [
+        {
+          email: "me@example.com",
+          display_name: null,
+          response: "declined",
+          is_organizer: false,
+        },
+      ],
+      starts_at: minutes_ago(60),
+    });
+
+    expect(
+      build_missed_reminder_targets([declined], {
+        ...BASE,
+        only_accepted: true,
+        self_email: "me@example.com",
+      }),
+    ).toEqual([]);
+    expect(build_missed_reminder_targets([declined], BASE)).toHaveLength(1);
+  });
+
+  it("lists each occurrence once in fire order and keeps the latest twenty", () => {
+    const events = Array.from({ length: 25 }, (_, index) =>
+      make_event({
+        id: `evt-${index}`,
+        reminder_minutes: 0,
+        starts_at: minutes_ago(60 + index * 10),
+      }),
+    );
+    const targets = build_missed_reminder_targets(
+      [...events, events[0]],
+      BASE,
+    );
+
+    expect(targets).toHaveLength(20);
+    expect(targets[19].event_id).toBe("evt-0");
+    expect(targets[0].event_id).toBe("evt-19");
+    expect(
+      targets.every(
+        (target, index) => index === 0 || target.fire_at > targets[index - 1].fire_at,
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("absorb_background_shown_reminders", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("marks reminders the service worker showed as fired", async () => {
+    const store = create_memory_shown_store();
+    const event = make_event({
+      starts_at: new Date(NOW - 60 * 60 * 1000).toISOString(),
+    });
+    const [target] = build_missed_reminder_targets([event], BASE);
+
+    await record_shown_reminder(store, target.key);
+    expect(has_fired(target.key)).toBe(false);
+
+    await absorb_background_shown_reminders(store);
+
+    expect(has_fired(target.key)).toBe(true);
+    expect(await claim_reminder(target.key)).toBe(false);
+    expect(store.peek()).toEqual([]);
+  });
+
+  it("leaves reminders the service worker did not show", async () => {
+    const store = create_memory_shown_store();
+
+    await record_shown_reminder(store, "evt-9:x:0");
+    await absorb_background_shown_reminders(store);
+
+    expect(has_fired("evt-1:x:0")).toBe(false);
+    expect(has_fired("evt-9:x:0")).toBe(true);
+  });
+
+  it("keeps working when the log cannot be read", async () => {
+    await expect(
+      absorb_background_shown_reminders({
+        update: () => Promise.reject(new Error("blocked")),
+        destroy: () => Promise.resolve(),
+      }),
+    ).resolves.toBeUndefined();
   });
 });
 

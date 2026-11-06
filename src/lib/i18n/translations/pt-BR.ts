@@ -11914,16 +11914,23 @@ export const pt_br = {
     reminder_hidden_title: "Próximo evento",
     reminder_hidden_toast_timed: "Você tem um evento às {{time}}",
     reminder_hidden_toast_all_day: "Você tem um evento hoje",
+    missed_reminder_one: "Lembrete perdido: {{title}}, {{time}}",
+    missed_reminder_hidden_one: "Lembrete perdido de um evento: {{time}}",
+    missed_reminders_many: "Lembretes perdidos ({{count}}): {{titles}}",
+    missed_reminders_hidden_many: "Lembretes de eventos perdidos ({{count}})",
+    missed_reminders_more: "mais {{count}}",
     settings_notifications: "Notificações",
     settings_notification_mode: "Notificações",
     settings_notification_mode_desc:
-      "Como os lembretes de eventos chegam até você enquanto o Calendário está aberto",
+      "Como os lembretes de eventos chegam até você enquanto o Aster Calendar está aberto",
     settings_notification_off: "Desativadas",
     settings_notification_background: "Quando os lembretes chegam",
     settings_notification_background_note:
-      "Os lembretes chegam enquanto o Aster Calendar estiver aberto em qualquer aba, inclusive uma aba em segundo plano. Depois que você fecha o navegador, nenhum lembrete chega até você abrir o Aster Calendar de novo.",
+      "Os lembretes chegam enquanto o Aster Calendar estiver aberto em qualquer aba, inclusive uma aba em segundo plano. Se o Aster Calendar estiver fechado na hora de um lembrete, você o verá na próxima vez que abrir o Aster Calendar, por até 24 horas.",
     settings_notification_alerts: "Alertas no app",
     settings_notification_desktop: "Notificações na área de trabalho",
+    settings_notification_desktop_desc:
+      "Permita notificações no navegador para receber lembretes na área de trabalho. Até lá, os lembretes aparecem como alertas no app.",
     settings_notification_sound: "Tocar sons de notificação",
     settings_notification_sound_desc:
       "Toca um som curto quando um lembrete dispara",

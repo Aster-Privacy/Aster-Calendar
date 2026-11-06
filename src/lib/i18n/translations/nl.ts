@@ -11804,16 +11804,23 @@ export const nl = {
     reminder_hidden_title: "Aankomende afspraak",
     reminder_hidden_toast_timed: "Je hebt om {{time}} een afspraak",
     reminder_hidden_toast_all_day: "Je hebt vandaag een afspraak",
+    missed_reminder_one: "Gemiste herinnering: {{title}}, {{time}}",
+    missed_reminder_hidden_one: "Gemiste herinnering voor een afspraak: {{time}}",
+    missed_reminders_many: "Gemiste herinneringen ({{count}}): {{titles}}",
+    missed_reminders_hidden_many: "Gemiste herinneringen aan afspraken ({{count}})",
+    missed_reminders_more: "nog {{count}}",
     settings_notifications: "Meldingen",
     settings_notification_mode: "Meldingen",
     settings_notification_mode_desc:
-      "Hoe herinneringen je bereiken terwijl Agenda open is",
+      "Hoe herinneringen aan afspraken je bereiken terwijl Aster Calendar geopend is",
     settings_notification_off: "Off",
     settings_notification_background: "Wanneer herinneringen aankomen",
     settings_notification_background_note:
-      "Herinneringen komen aan zolang Aster Calendar in een tabblad geopend is, ook in een tabblad op de achtergrond. Nadat je de browser sluit, komen er geen herinneringen aan totdat je Aster Calendar opnieuw opent.",
+      "Herinneringen komen aan zolang Aster Calendar in een tabblad geopend is, ook in een tabblad op de achtergrond. Is Aster Calendar gesloten wanneer een herinnering afgaat, dan zie je die de volgende keer dat je Aster Calendar opent, tot 24 uur later.",
     settings_notification_alerts: "Meldingen in de app",
     settings_notification_desktop: "Bureaubladmeldingen",
+    settings_notification_desktop_desc:
+      "Sta meldingen toe in je browser om herinneringen op je bureaublad te krijgen. Tot die tijd verschijnen herinneringen als meldingen in de app.",
     settings_notification_sound: "Meldingsgeluiden afspelen",
     settings_notification_sound_desc:
       "Speel een korte toon wanneer een herinnering afgaat",

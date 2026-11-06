@@ -27,8 +27,11 @@ import { use_i18n } from "@/lib/i18n/context";
 import { use_preferences } from "@/contexts/preferences_context";
 import { list_events, subscribe_calendar_changes } from "@/services/api/calendar";
 import { BACKGROUND_REMINDER_SHOWN } from "@/lib/calendar_reminder_messages";
+import { calendar_sync_engine } from "@/services/calendar/sync_engine";
 import {
-  REMINDER_GRACE_MS,
+  MISSED_REMINDER_WINDOW_MS,
+  absorb_background_shown_reminders,
+  build_missed_reminder_targets,
   build_reminder_targets,
   claim_reminder,
   clear_background_reminders,
@@ -51,6 +54,30 @@ import { get_app_lock_config } from "@/services/app_lock_store";
 
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 const LOOKAHEAD_MS = 12 * 60 * 60 * 1000;
+const MISSED_TOAST_MS = 15000;
+const MISSED_LISTED_TITLES = 3;
+
+function format_list(items: string[], language: string): string {
+  const list_format = (
+    Intl as unknown as {
+      ListFormat?: new (
+        locale?: string,
+        options?: { style?: string; type?: string },
+      ) => { format: (items: string[]) => string };
+    }
+  ).ListFormat;
+
+  try {
+    return list_format
+      ? new list_format(language, {
+          style: "long",
+          type: "conjunction",
+        }).format(items)
+      : items.join(", ");
+  } catch {
+    return items.join(", ");
+  }
+}
 
 export function use_calendar_reminders(): void {
   const { preferences } = use_preferences();
@@ -163,6 +190,81 @@ export function use_calendar_reminders(): void {
       }
     };
 
+    const describe_missed = (targets: ReminderTarget[]) => {
+      const current = latest.current;
+      const conceal = should_conceal();
+
+      if (targets.length > 1) {
+        if (conceal) {
+          return current.t("calendar.missed_reminders_hidden_many", {
+            count: targets.length,
+          });
+        }
+
+        const listed = targets
+          .slice(-MISSED_LISTED_TITLES)
+          .map((target) => target.title);
+        const remaining = targets.length - listed.length;
+
+        if (remaining > 0) {
+          listed.push(
+            current.t("calendar.missed_reminders_more", {
+              count: remaining,
+            }),
+          );
+        }
+
+        return current.t("calendar.missed_reminders_many", {
+          count: targets.length,
+          titles: format_list(listed, current.language),
+        });
+      }
+
+      const target = targets[0];
+      const time = new Intl.DateTimeFormat(
+        current.language,
+        target.is_all_day
+          ? { day: "numeric", month: "short", weekday: "short" }
+          : {
+              hour: "numeric",
+              hour12: current.time_format === "12h",
+              minute: "2-digit",
+              weekday: "short",
+            },
+      ).format(new Date(target.starts_at));
+
+      return conceal
+        ? current.t("calendar.missed_reminder_hidden_one", { time })
+        : current.t("calendar.missed_reminder_one", {
+            time,
+            title: target.title,
+          });
+    };
+
+    const catch_up_missed = async (targets: ReminderTarget[]) => {
+      const claimed: ReminderTarget[] = [];
+
+      for (const target of targets) {
+        if (cancelled) {
+          return;
+        }
+
+        if (!has_fired(target.key) && (await claim_reminder(target.key))) {
+          claimed.push(target);
+        }
+      }
+
+      if (claimed.length === 0) {
+        return;
+      }
+
+      for (const target of claimed) {
+        report_background_reminder_fired(target.key);
+      }
+
+      show_toast(describe_missed(claimed), "info", MISSED_TOAST_MS);
+    };
+
     const hand_to_service_worker = (targets: ReminderTarget[]) => {
       if (latest.current.mode !== "desktop" || !desktop_reminders_allowed()) {
         clear_background_reminders();
@@ -206,7 +308,7 @@ export function use_calendar_reminders(): void {
 
       try {
         const { data } = await list_events(
-          new Date(now - REMINDER_GRACE_MS),
+          new Date(now - MISSED_REMINDER_WINDOW_MS),
           new Date(now + LOOKAHEAD_MS),
         );
 
@@ -216,13 +318,14 @@ export function use_calendar_reminders(): void {
 
         clear_timers();
 
-        const targets = build_reminder_targets(data, {
+        const options = {
           default_all_day_reminder_minutes: default_all_day_reminder,
           default_reminder_minutes: default_reminder,
           now,
           only_accepted: latest.current.only_accepted,
           self_email: user?.email,
-        });
+        };
+        const targets = build_reminder_targets(data, options);
 
         const pending = targets.filter((target) => !has_fired(target.key));
 
@@ -235,6 +338,11 @@ export function use_calendar_reminders(): void {
 
         pending_targets = pending;
         hand_to_service_worker(pending);
+
+        if (calendar_sync_engine.has_settled_first_sync()) {
+          await absorb_background_shown_reminders();
+          await catch_up_missed(build_missed_reminder_targets(data, options));
+        }
       } catch {
         return;
       }

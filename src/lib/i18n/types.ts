@@ -977,6 +977,11 @@ export interface CalendarTranslations {
   reminder_hidden_title: string;
   reminder_hidden_toast_timed: string;
   reminder_hidden_toast_all_day: string;
+  missed_reminder_one: string;
+  missed_reminder_hidden_one: string;
+  missed_reminders_many: string;
+  missed_reminders_hidden_many: string;
+  missed_reminders_more: string;
   settings_notifications: string;
   settings_notification_mode: string;
   settings_notification_mode_desc: string;
@@ -985,6 +990,7 @@ export interface CalendarTranslations {
   settings_notification_background_note: string;
   settings_notification_alerts: string;
   settings_notification_desktop: string;
+  settings_notification_desktop_desc: string;
   settings_notification_sound: string;
   settings_notification_sound_desc: string;
   settings_notify_only_accepted: string;

@@ -11975,16 +11975,23 @@ export const de = {
     reminder_hidden_title: "Anstehender Termin",
     reminder_hidden_toast_timed: "Du hast um {{time}} einen Termin",
     reminder_hidden_toast_all_day: "Du hast heute einen Termin",
+    missed_reminder_one: "Verpasste Erinnerung: {{title}}, {{time}}",
+    missed_reminder_hidden_one: "Verpasste Erinnerung für einen Termin: {{time}}",
+    missed_reminders_many: "Verpasste Erinnerungen ({{count}}): {{titles}}",
+    missed_reminders_hidden_many: "Verpasste Terminerinnerungen ({{count}})",
+    missed_reminders_more: "{{count}} weitere",
     settings_notifications: "Benachrichtigungen",
     settings_notification_mode: "Benachrichtigungen",
     settings_notification_mode_desc:
-      "Wie dich Erinnerungen erreichen, während der Kalender offen ist",
+      "Wie dich Terminerinnerungen erreichen, während Aster Calendar geöffnet ist",
     settings_notification_off: "Off",
     settings_notification_background: "Wann Erinnerungen ankommen",
     settings_notification_background_note:
-      "Erinnerungen kommen an, solange Aster Calendar in einem beliebigen Tab geöffnet ist, auch in einem Tab im Hintergrund. Nach dem Schließen des Browsers kommen keine Erinnerungen an, bis du Aster Calendar wieder öffnest.",
+      "Erinnerungen kommen an, solange Aster Calendar in einem beliebigen Tab geöffnet ist, auch in einem Tab im Hintergrund. Ist Aster Calendar geschlossen, wenn eine Erinnerung fällig wird, siehst du sie beim nächsten Öffnen von Aster Calendar, bis zu 24 Stunden lang.",
     settings_notification_alerts: "In-App-Hinweise",
     settings_notification_desktop: "Desktop-Benachrichtigungen",
+    settings_notification_desktop_desc:
+      "Erlaube Mitteilungen in deinem Browser, um Erinnerungen auf dem Desktop zu erhalten. Bis dahin erscheinen Erinnerungen als Hinweise in der App.",
     settings_notification_sound: "Benachrichtigungstöne abspielen",
     settings_notification_sound_desc:
       "Kurzen Ton abspielen, wenn eine Erinnerung auslöst",

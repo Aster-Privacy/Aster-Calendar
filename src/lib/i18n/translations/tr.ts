@@ -11663,16 +11663,23 @@ export const tr = {
     reminder_hidden_title: "Yaklaşan etkinlik",
     reminder_hidden_toast_timed: "{{time}} saatinde bir etkinliğiniz var",
     reminder_hidden_toast_all_day: "Bugün bir etkinliğiniz var",
+    missed_reminder_one: "Kaçırılan hatırlatıcı: {{title}}, {{time}}",
+    missed_reminder_hidden_one: "Bir etkinlik için kaçırılan hatırlatıcı: {{time}}",
+    missed_reminders_many: "Kaçırılan hatırlatıcılar ({{count}}): {{titles}}",
+    missed_reminders_hidden_many: "Kaçırılan etkinlik hatırlatıcıları ({{count}})",
+    missed_reminders_more: "{{count}} tane daha",
     settings_notifications: "Bildirimler",
     settings_notification_mode: "Bildirimler",
     settings_notification_mode_desc:
-      "Takvim açıkken hatırlatıcıların size ulaşma şekli",
+      "Aster Calendar açıkken etkinlik hatırlatıcılarının size nasıl ulaşacağı",
     settings_notification_off: "Off",
     settings_notification_background: "Hatırlatıcılar ne zaman gelir",
     settings_notification_background_note:
-      "Hatırlatıcılar, Aster Calendar herhangi bir sekmede açık olduğu sürece gelir; arka plandaki bir sekme de buna dahildir. Tarayıcıyı kapattıktan sonra Aster Calendar'i yeniden açana kadar hatırlatıcı gelmez.",
+      "Hatırlatıcılar, Aster Calendar herhangi bir sekmede açık olduğu sürece gelir; arka plandaki bir sekme de buna dahildir. Bir hatırlatıcının zamanı geldiğinde Aster Calendar kapalıysa, Aster Calendar'ı 24 saat içinde yeniden açtığınızda hatırlatıcıyı görürsünüz.",
     settings_notification_alerts: "Uygulama içi uyarılar",
     settings_notification_desktop: "Masaüstü bildirimleri",
+    settings_notification_desktop_desc:
+      "Hatırlatıcıları masaüstünde almak için tarayıcınızda bildirimlere izin verin. O zamana kadar hatırlatıcılar uygulama içi uyarı olarak gösterilir.",
     settings_notification_sound: "Bildirim seslerini çal",
     settings_notification_sound_desc:
       "Hatırlatıcı tetiklendiğinde kısa bir ses çal",

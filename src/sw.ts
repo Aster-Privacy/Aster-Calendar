@@ -25,6 +25,10 @@ import {
   push_fallback_title,
 } from "@/lib/push_fallback_strings";
 import { create_background_reminder_registry } from "@/lib/background_reminder_registry";
+import {
+  create_indexed_db_shown_store,
+  record_shown_reminder,
+} from "@/lib/shown_reminder_log";
 import type { BackgroundReminder } from "@/lib/calendar_reminder_messages";
 
 import {
@@ -72,6 +76,8 @@ self.addEventListener("activate", (event: ExtendableEvent) => {
   );
 });
 
+const shown_reminder_log = create_indexed_db_shown_store();
+
 async function show_background_reminder(
   reminder: BackgroundReminder,
 ): Promise<void> {
@@ -96,6 +102,8 @@ async function show_background_reminder(
     for (const client of clients) {
       client.postMessage({ type: BACKGROUND_REMINDER_SHOWN, key: reminder.key });
     }
+
+    await record_shown_reminder(shown_reminder_log, reminder.key);
   } catch (caught) {
     ignore_error("sw", caught);
   }
