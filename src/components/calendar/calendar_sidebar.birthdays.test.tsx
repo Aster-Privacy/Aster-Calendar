@@ -84,6 +84,7 @@ vi.mock("@/services/api/calendar", () => ({
 }));
 
 vi.mock("@/components/calendar/calendar_edit_dialog", () => ({
+  CalendarClearDialog: () => null,
   CalendarDeleteDialog: () => null,
   CalendarEditDialog: (props: (typeof edit_dialogs)[number]) => {
     edit_dialogs.push(props);
