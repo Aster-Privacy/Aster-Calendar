@@ -28,6 +28,12 @@ import {
   BACKGROUND_REMINDER_FIRED,
   CALENDAR_NOTIFICATION_TAG_PREFIX,
 } from "@/lib/calendar_reminder_messages";
+import {
+  type ShownReminderStore,
+  create_indexed_db_shown_store,
+  reminder_digest,
+  take_shown_reminders,
+} from "@/lib/shown_reminder_log";
 
 const FIRED_STORAGE_KEY = "aster_calendar_fired_reminders";
 const MAX_SCHEDULED = 60;
@@ -59,26 +65,7 @@ interface FiredEntry {
 }
 
 function fired_digest(key: string): string {
-  let h1 = 0xdeadbeef;
-  let h2 = 0x41c6ce57;
-
-  for (let i = 0; i < key.length; i++) {
-    const code = key.charCodeAt(i);
-
-    h1 = Math.imul(h1 ^ code, 2654435761);
-    h2 = Math.imul(h2 ^ code, 1597334677);
-  }
-  h1 =
-    Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^
-    Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-  h2 =
-    Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^
-    Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-
-  return (
-    (h2 >>> 0).toString(36).padStart(7, "0") +
-    (h1 >>> 0).toString(36).padStart(7, "0")
-  );
+  return reminder_digest(key);
 }
 
 function read_fired(): FiredEntry[] {
@@ -126,16 +113,43 @@ export function has_fired(key: string): boolean {
   return read_fired().some((entry) => entry.key === digest);
 }
 
-export function mark_fired(key: string): void {
-  const digest = fired_digest(key);
+function mark_fired_digests(digests: string[], at: number): void {
   const entries = read_fired();
+  const known = new Set(entries.map((entry) => entry.key));
+  let changed = false;
 
-  if (entries.some((entry) => entry.key === digest)) {
-    return;
+  for (const digest of digests) {
+    if (known.has(digest)) {
+      continue;
+    }
+
+    known.add(digest);
+    entries.push({ key: digest, at });
+    changed = true;
   }
 
-  entries.push({ key: digest, at: Date.now() });
-  write_fired(entries);
+  if (changed) {
+    write_fired(entries);
+  }
+}
+
+export function mark_fired(key: string): void {
+  mark_fired_digests([fired_digest(key)], Date.now());
+}
+
+export async function absorb_background_shown_reminders(
+  store: ShownReminderStore = create_indexed_db_shown_store(),
+): Promise<void> {
+  try {
+    const shown = await take_shown_reminders(store);
+
+    mark_fired_digests(
+      shown.map((entry) => entry.digest),
+      Date.now(),
+    );
+  } catch {
+    return;
+  }
 }
 
 function take_claim(key: string): boolean {
@@ -216,7 +230,10 @@ export async function claim_reminder(key: string): Promise<boolean> {
   return claim_with_storage(key);
 }
 
-export function clear_fired_reminders(): void {
+export function clear_fired_reminders(
+  store: ShownReminderStore = create_indexed_db_shown_store(),
+): void {
+  void store.destroy().catch(() => undefined);
   try {
     window.localStorage.removeItem(FIRED_STORAGE_KEY);
   } catch {

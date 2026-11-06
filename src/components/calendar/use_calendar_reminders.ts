@@ -30,6 +30,7 @@ import { BACKGROUND_REMINDER_SHOWN } from "@/lib/calendar_reminder_messages";
 import { calendar_sync_engine } from "@/services/calendar/sync_engine";
 import {
   MISSED_REMINDER_WINDOW_MS,
+  absorb_background_shown_reminders,
   build_missed_reminder_targets,
   build_reminder_targets,
   claim_reminder,
@@ -339,6 +340,7 @@ export function use_calendar_reminders(): void {
         hand_to_service_worker(pending);
 
         if (calendar_sync_engine.has_settled_first_sync()) {
+          await absorb_background_shown_reminders();
           await catch_up_missed(build_missed_reminder_targets(data, options));
         }
       } catch {

@@ -23,6 +23,11 @@ import type { DecryptedCalendarEvent } from "@/types/calendar";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  create_memory_shown_store,
+  record_shown_reminder,
+} from "@/lib/shown_reminder_log";
+import {
+  absorb_background_shown_reminders,
   build_missed_reminder_targets,
   build_reminder_targets,
   claim_reminder,
@@ -404,6 +409,48 @@ describe("build_missed_reminder_targets", () => {
         (target, index) => index === 0 || target.fire_at > targets[index - 1].fire_at,
       ),
     ).toBe(true);
+  });
+});
+
+describe("absorb_background_shown_reminders", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("marks reminders the service worker showed as fired", async () => {
+    const store = create_memory_shown_store();
+    const event = make_event({
+      starts_at: new Date(NOW - 60 * 60 * 1000).toISOString(),
+    });
+    const [target] = build_missed_reminder_targets([event], BASE);
+
+    await record_shown_reminder(store, target.key);
+    expect(has_fired(target.key)).toBe(false);
+
+    await absorb_background_shown_reminders(store);
+
+    expect(has_fired(target.key)).toBe(true);
+    expect(await claim_reminder(target.key)).toBe(false);
+    expect(store.peek()).toEqual([]);
+  });
+
+  it("leaves reminders the service worker did not show", async () => {
+    const store = create_memory_shown_store();
+
+    await record_shown_reminder(store, "evt-9:x:0");
+    await absorb_background_shown_reminders(store);
+
+    expect(has_fired("evt-1:x:0")).toBe(false);
+    expect(has_fired("evt-9:x:0")).toBe(true);
+  });
+
+  it("keeps working when the log cannot be read", async () => {
+    await expect(
+      absorb_background_shown_reminders({
+        update: () => Promise.reject(new Error("blocked")),
+        destroy: () => Promise.resolve(),
+      }),
+    ).resolves.toBeUndefined();
   });
 });
 
