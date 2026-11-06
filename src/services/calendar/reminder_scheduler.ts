@@ -33,7 +33,7 @@ const FIRED_STORAGE_KEY = "aster_calendar_fired_reminders";
 const MAX_SCHEDULED = 60;
 const MAX_LEAD_MS = 12 * 60 * 60 * 1000;
 const MAX_TIMEOUT_MS = 2147483647;
-const FIRED_RETENTION_MS = 24 * 60 * 60 * 1000;
+const FIRED_RETENTION_MS = 25 * 60 * 60 * 1000;
 const CLAIM_STORAGE_PREFIX = "aster_calendar_reminder_claim:";
 const CLAIM_LOCK_PREFIX = "aster_calendar_reminder:";
 const CLAIM_TTL_MS = 30 * 1000;
@@ -41,6 +41,8 @@ const CLAIM_SETTLE_MS = 60;
 const TAB_ID = `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
 
 export const REMINDER_GRACE_MS = 5 * 60 * 1000;
+export const MISSED_REMINDER_WINDOW_MS = 24 * 60 * 60 * 1000;
+const MAX_MISSED = 20;
 
 export interface ReminderTarget {
   event_id: string;
@@ -277,69 +279,113 @@ function self_response(
   return match ? match.response : null;
 }
 
+interface ReminderOptions {
+  default_reminder_minutes: number;
+  default_all_day_reminder_minutes?: number;
+  now: number;
+  only_accepted: boolean;
+  self_email?: string;
+}
+
+function reminder_target_for(
+  event: DecryptedCalendarEvent,
+  options: ReminderOptions,
+): ReminderTarget | null {
+  if (event.status === "cancelled") {
+    return null;
+  }
+
+  const fallback_minutes =
+    event.is_all_day && options.default_all_day_reminder_minutes !== undefined
+      ? options.default_all_day_reminder_minutes
+      : options.default_reminder_minutes;
+  const minutes = event.reminder_minutes ?? fallback_minutes;
+
+  if (minutes < 0) {
+    return null;
+  }
+
+  if (options.only_accepted) {
+    const response = self_response(event, options.self_email);
+
+    if (response === "declined" || response === "needs_action") {
+      return null;
+    }
+  }
+
+  const starts_ms = new Date(event.starts_at).getTime();
+
+  if (!Number.isFinite(starts_ms)) {
+    return null;
+  }
+
+  return {
+    event_id: event.id,
+    title: event.title,
+    starts_at: event.starts_at,
+    is_all_day: event.is_all_day,
+    fire_at: starts_ms - minutes * 60 * 1000,
+    key: `${event.id}:${event.starts_at}:${minutes}`,
+  };
+}
+
 export function build_reminder_targets(
   events: DecryptedCalendarEvent[],
-  options: {
-    default_reminder_minutes: number;
-    default_all_day_reminder_minutes?: number;
-    now: number;
-    only_accepted: boolean;
-    self_email?: string;
-  },
+  options: ReminderOptions,
 ): ReminderTarget[] {
   const targets: ReminderTarget[] = [];
 
   for (const event of events) {
-    if (event.status === "cancelled") {
-      continue;
-    }
-
-    const fallback_minutes =
-      event.is_all_day && options.default_all_day_reminder_minutes !== undefined
-        ? options.default_all_day_reminder_minutes
-        : options.default_reminder_minutes;
-    const minutes = event.reminder_minutes ?? fallback_minutes;
-
-    if (minutes < 0) {
-      continue;
-    }
-
-    if (options.only_accepted) {
-      const response = self_response(event, options.self_email);
-
-      if (response === "declined" || response === "needs_action") {
-        continue;
-      }
-    }
-
-    const starts_ms = new Date(event.starts_at).getTime();
-
-    if (!Number.isFinite(starts_ms)) {
-      continue;
-    }
-
-    const fire_at = starts_ms - minutes * 60 * 1000;
+    const target = reminder_target_for(event, options);
 
     if (
-      fire_at <= options.now - REMINDER_GRACE_MS ||
-      fire_at - options.now > MAX_LEAD_MS
+      !target ||
+      target.fire_at <= options.now - REMINDER_GRACE_MS ||
+      target.fire_at - options.now > MAX_LEAD_MS
     ) {
       continue;
     }
 
-    targets.push({
-      event_id: event.id,
-      title: event.title,
-      starts_at: event.starts_at,
-      is_all_day: event.is_all_day,
-      fire_at,
-      key: `${event.id}:${event.starts_at}:${minutes}`,
-    });
+    targets.push(target);
   }
 
   return targets
     .sort((left, right) => left.fire_at - right.fire_at)
     .slice(0, MAX_SCHEDULED);
+}
+
+export function build_missed_reminder_targets(
+  events: DecryptedCalendarEvent[],
+  options: ReminderOptions,
+): ReminderTarget[] {
+  const targets: ReminderTarget[] = [];
+  const seen = new Set<string>();
+
+  for (const event of events) {
+    const target = reminder_target_for(event, options);
+
+    if (
+      !target ||
+      seen.has(target.key) ||
+      target.fire_at > options.now - REMINDER_GRACE_MS ||
+      target.fire_at <= options.now - MISSED_REMINDER_WINDOW_MS
+    ) {
+      continue;
+    }
+
+    const created_ms = new Date(event.created_at).getTime();
+
+    if (Number.isFinite(created_ms) && created_ms > target.fire_at) {
+      continue;
+    }
+
+    seen.add(target.key);
+    targets.push(target);
+  }
+
+  return targets
+    .sort((left, right) => left.fire_at - right.fire_at)
+    .slice(-MAX_MISSED);
 }
 
 export function play_reminder_sound(): void {

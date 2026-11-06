@@ -12007,16 +12007,23 @@ export const ru = {
     reminder_hidden_title: "Предстоящее событие",
     reminder_hidden_toast_timed: "У вас событие в {{time}}",
     reminder_hidden_toast_all_day: "У вас сегодня событие",
+    missed_reminder_one: "Пропущенное напоминание: {{title}}, {{time}}",
+    missed_reminder_hidden_one: "Пропущенное напоминание о событии: {{time}}",
+    missed_reminders_many: "Пропущенные напоминания ({{count}}): {{titles}}",
+    missed_reminders_hidden_many: "Пропущенные напоминания о событиях ({{count}})",
+    missed_reminders_more: "ещё {{count}}",
     settings_notifications: "Уведомления",
     settings_notification_mode: "Уведомления",
     settings_notification_mode_desc:
-      "Как напоминания приходят, пока календарь открыт",
+      "Как приходят напоминания о событиях, пока Aster Calendar открыт",
     settings_notification_off: "Off",
     settings_notification_background: "Когда приходят напоминания",
     settings_notification_background_note:
-      "Напоминания приходят, пока Aster Calendar открыт в любой вкладке, в том числе в фоновой. После закрытия браузера напоминания не приходят, пока вы снова не откроете Aster Calendar.",
+      "Напоминания приходят, пока Aster Calendar открыт в любой вкладке, в том числе в фоновой. Если Aster Calendar был закрыт в момент напоминания, вы увидите его при следующем открытии Aster Calendar в течение 24 часов.",
     settings_notification_alerts: "Оповещения в приложении",
     settings_notification_desktop: "Уведомления на рабочем столе",
+    settings_notification_desktop_desc:
+      "Разрешите уведомления в браузере, чтобы получать напоминания на рабочем столе. До этого напоминания показываются как оповещения в приложении.",
     settings_notification_sound: "Воспроизводить звуки уведомлений",
     settings_notification_sound_desc:
       "Короткий сигнал при срабатывании напоминания",

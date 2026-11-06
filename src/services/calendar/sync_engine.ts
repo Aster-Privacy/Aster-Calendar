@@ -252,6 +252,7 @@ export class CalendarSyncEngine {
   private account_id: string | null = null;
   private generation = 0;
   private loaded = false;
+  private initial_pull_settled = false;
   private load_promise: Promise<void> | null = null;
   private pull_promise: Promise<boolean> | null = null;
   private pull_again = false;
@@ -452,6 +453,16 @@ export class CalendarSyncEngine {
 
   async initial_load(): Promise<void> {
     await this.ensure_loaded();
+  }
+
+  has_settled_first_sync(): boolean {
+    return this.loaded && this.initial_pull_settled;
+  }
+
+  awaiting_first_sync(): boolean {
+    return (
+      this.loaded && !this.initial_pull_settled && this.event_rows.size === 0
+    );
   }
 
   async pull_delta(): Promise<boolean> {
@@ -919,6 +930,7 @@ export class CalendarSyncEngine {
       this.coalesce_timer = null;
     }
     this.loaded = false;
+    this.initial_pull_settled = false;
     this.event_rows.clear();
     this.events.clear();
     this.calendar_rows.clear();
@@ -981,7 +993,14 @@ export class CalendarSyncEngine {
     this.attach_listeners();
     this.notify();
 
-    await this.pull_delta();
+    try {
+      await this.pull_delta();
+    } finally {
+      if (this.is_current(account_id, generation)) {
+        this.initial_pull_settled = true;
+        this.notify();
+      }
+    }
   }
 
   private async pull_with_retries(): Promise<boolean> {

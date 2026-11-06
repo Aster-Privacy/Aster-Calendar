@@ -235,6 +235,90 @@ describe("calendar sync engine", () => {
     await load;
   });
 
+  it("reports a pending first sync while an empty cache waits on the server", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    get.mockImplementation(async () => {
+      await gate;
+
+      return empty_calendars();
+    });
+
+    const listener = vi.fn();
+
+    calendar_sync_engine.subscribe(listener);
+    const load = calendar_sync_engine.initial_load();
+
+    await wait(10);
+
+    expect(calendar_sync_engine.awaiting_first_sync()).toBe(true);
+    expect(calendar_sync_engine.has_settled_first_sync()).toBe(false);
+
+    const calls_before_settle = listener.mock.calls.length;
+
+    release();
+    await load;
+
+    expect(calendar_sync_engine.awaiting_first_sync()).toBe(false);
+    expect(calendar_sync_engine.has_settled_first_sync()).toBe(true);
+    expect(listener.mock.calls.length).toBeGreaterThan(calls_before_settle);
+
+    calendar_sync_engine.reset();
+
+    expect(calendar_sync_engine.has_settled_first_sync()).toBe(false);
+  });
+
+  it("does not hold back cached rows for the first sync", async () => {
+    await store.apply_page(ACCOUNT, {
+      events: [cached_event("evt-1", "Cached standup")],
+      meta: {
+        events_cursor: {
+          server_time: new Date().toISOString(),
+          cursor_id: null,
+        },
+        calendars_cursor: {
+          server_time: new Date().toISOString(),
+          cursor_id: null,
+        },
+      },
+    });
+
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    get.mockImplementation(async () => {
+      await gate;
+
+      return empty_calendars();
+    });
+
+    const load = calendar_sync_engine.initial_load();
+
+    await wait(10);
+
+    expect(calendar_sync_engine.awaiting_first_sync()).toBe(false);
+    expect(calendar_sync_engine.has_settled_first_sync()).toBe(false);
+
+    release();
+    await load;
+
+    expect(calendar_sync_engine.has_settled_first_sync()).toBe(true);
+  });
+
+  it("settles the first sync when the pull fails", async () => {
+    set_online(false);
+
+    await calendar_sync_engine.initial_load();
+
+    expect(calendar_sync_engine.awaiting_first_sync()).toBe(false);
+    expect(calendar_sync_engine.has_settled_first_sync()).toBe(true);
+  });
+
   it("decrypts rows that arrived before the vault once keys are ready", async () => {
     key_store.vault_present = false;
     await store.apply_page(ACCOUNT, {

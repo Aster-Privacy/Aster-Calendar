@@ -11819,16 +11819,23 @@ export const es = {
     reminder_hidden_title: "Próximo evento",
     reminder_hidden_toast_timed: "Tienes un evento a las {{time}}",
     reminder_hidden_toast_all_day: "Tienes un evento hoy",
+    missed_reminder_one: "Recordatorio perdido: {{title}}, {{time}}",
+    missed_reminder_hidden_one: "Recordatorio perdido de un evento: {{time}}",
+    missed_reminders_many: "Recordatorios perdidos ({{count}}): {{titles}}",
+    missed_reminders_hidden_many: "Recordatorios de eventos perdidos ({{count}})",
+    missed_reminders_more: "{{count}} más",
     settings_notifications: "Notificaciones",
     settings_notification_mode: "Notificaciones",
     settings_notification_mode_desc:
-      "Cómo te llegan los recordatorios mientras el calendario está abierto",
+      "Cómo te llegan los recordatorios de eventos mientras Aster Calendar está abierto",
     settings_notification_off: "Off",
     settings_notification_background: "Cuándo llegan los recordatorios",
     settings_notification_background_note:
-      "Los recordatorios llegan mientras Aster Calendar esté abierto en cualquier pestaña, incluida una pestaña en segundo plano. Después de cerrar el navegador, no llega ningún recordatorio hasta que vuelvas a abrir Aster Calendar.",
+      "Los recordatorios llegan mientras Aster Calendar esté abierto en cualquier pestaña, incluida una pestaña en segundo plano. Si Aster Calendar está cerrado cuando vence un recordatorio, lo verás la próxima vez que abras Aster Calendar, durante un máximo de 24 horas.",
     settings_notification_alerts: "Alertas en la aplicación",
     settings_notification_desktop: "Notificaciones de escritorio",
+    settings_notification_desktop_desc:
+      "Permite las notificaciones en tu navegador para recibir recordatorios en el escritorio. Hasta entonces, los recordatorios se muestran como alertas en la aplicación.",
     settings_notification_sound: "Reproducir sonidos de notificación",
     settings_notification_sound_desc:
       "Reproduce un tono corto cuando salta un recordatorio",

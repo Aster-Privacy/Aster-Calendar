@@ -12047,16 +12047,23 @@ export const pl = {
     reminder_hidden_title: "Nadchodzące wydarzenie",
     reminder_hidden_toast_timed: "Masz wydarzenie o {{time}}",
     reminder_hidden_toast_all_day: "Masz dziś wydarzenie",
+    missed_reminder_one: "Pominięte przypomnienie: {{title}}, {{time}}",
+    missed_reminder_hidden_one: "Pominięte przypomnienie o wydarzeniu: {{time}}",
+    missed_reminders_many: "Pominięte przypomnienia ({{count}}): {{titles}}",
+    missed_reminders_hidden_many: "Pominięte przypomnienia o wydarzeniach ({{count}})",
+    missed_reminders_more: "jeszcze {{count}}",
     settings_notifications: "Powiadomienia",
     settings_notification_mode: "Powiadomienia",
     settings_notification_mode_desc:
-      "Jak przypomnienia docierają, gdy kalendarz jest otwarty",
+      "Jak docierają do Ciebie przypomnienia o wydarzeniach, gdy Aster Calendar jest otwarty",
     settings_notification_off: "Off",
     settings_notification_background: "Kiedy docierają przypomnienia",
     settings_notification_background_note:
-      "Przypomnienia docierają, dopóki Aster Calendar jest otwarty w dowolnej karcie, także w karcie w tle. Po zamknięciu przeglądarki przypomnienia nie docierają, dopóki ponownie nie otworzysz Aster Calendar.",
+      "Przypomnienia docierają, dopóki Aster Calendar jest otwarty w dowolnej karcie, także w karcie w tle. Jeśli Aster Calendar jest zamknięty w chwili przypomnienia, zobaczysz je przy następnym otwarciu Aster Calendar, maksymalnie przez 24 godziny.",
     settings_notification_alerts: "Alerty w aplikacji",
     settings_notification_desktop: "Powiadomienia pulpitu",
+    settings_notification_desktop_desc:
+      "Zezwól na powiadomienia w przeglądarce, aby otrzymywać przypomnienia na pulpicie. Do tego czasu przypomnienia są wyświetlane jako alerty w aplikacji.",
     settings_notification_sound: "Odtwarzaj dźwięki powiadomień",
     settings_notification_sound_desc: "Krótki dźwięk, gdy odpali przypomnienie",
     settings_notify_only_accepted:

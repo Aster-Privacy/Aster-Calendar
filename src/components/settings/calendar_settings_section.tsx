@@ -1268,7 +1268,7 @@ export function CalendarNotificationsSection() {
             description={
               permission === "denied"
                 ? t("calendar.settings_notification_permission_blocked")
-                : t("calendar.settings_notification_mode_desc")
+                : t("calendar.settings_notification_desktop_desc")
             }
             trailing={
               permission === "default" ? (
