@@ -11290,6 +11290,20 @@ export const pl = {
     calendar_name_placeholder: "Praca, Rodzina, Podróże",
     delete_calendar_message:
       "Ta czynność trwale usuwa „{{name}}” i wszystkie wydarzenia w nim. Usunięte wydarzenia nie trafiają do kosza.",
+    clear_calendar_events: "Usuń wszystkie wydarzenia",
+    clear_calendar_title: "Usunąć wszystkie wydarzenia?",
+    clear_calendar_message:
+      "Wszystkie wydarzenia w „{{name}}” zostaną trwale usunięte (łącznie: {{count}}). Usunięte wydarzenia nie trafiają do kosza i tej czynności nie można cofnąć.",
+    clear_calendar_message_one:
+      "Wszystkie wydarzenia w „{{name}}” zostaną trwale usunięte (łącznie: {{count}}). Usunięte wydarzenia nie trafiają do kosza i tej czynności nie można cofnąć.",
+    clear_calendar_counting: "Liczenie wydarzeń…",
+    clear_calendar_empty_title: "Brak wydarzeń do usunięcia",
+    clear_calendar_empty_message: "„{{name}}” nie zawiera żadnych wydarzeń.",
+    clear_calendar_in_progress: "Usuwanie wydarzeń…",
+    clear_calendar_done: "Usunięte wydarzenia: {{count}}",
+    clear_calendar_done_one: "Usunięte wydarzenia: {{count}}",
+    clear_calendar_failed:
+      "Nie udało się usunąć niektórych wydarzeń. Spróbuj ponownie.",
     tour_welcome_title: "Witamy w Aster Calendar",
     tour_welcome_description:
       "Twoje wydarzenia są szyfrowane na tym urządzeniu, zanim je opuszczą. Ta krótka wycieczka pokazuje, gdzie co jest.",

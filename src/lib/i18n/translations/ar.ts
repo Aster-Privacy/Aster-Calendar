@@ -10826,6 +10826,19 @@ export const ar = {
     calendar_name_placeholder: "العمل، العائلة، السفر",
     delete_calendar_message:
       "سيؤدي هذا إلى حذف ”{{name}}“ وجميع الأحداث فيه نهائيًا. لا تنتقل الأحداث المحذوفة إلى سلة المهملات.",
+    clear_calendar_events: "حذف جميع الأحداث",
+    clear_calendar_title: "هل تريد حذف جميع الأحداث؟",
+    clear_calendar_message:
+      "سيؤدي هذا إلى حذف جميع الأحداث في ”{{name}}“ نهائيًا (العدد: {{count}}). لا تنتقل الأحداث المحذوفة إلى سلة المهملات، ولا يمكنك التراجع عن ذلك.",
+    clear_calendar_message_one:
+      "سيؤدي هذا إلى حذف جميع الأحداث في ”{{name}}“ نهائيًا (العدد: {{count}}). لا تنتقل الأحداث المحذوفة إلى سلة المهملات، ولا يمكنك التراجع عن ذلك.",
+    clear_calendar_counting: "جارٍ عدّ الأحداث…",
+    clear_calendar_empty_title: "لا توجد أحداث لحذفها",
+    clear_calendar_empty_message: "لا يحتوي ”{{name}}“ على أي أحداث.",
+    clear_calendar_in_progress: "جارٍ حذف الأحداث…",
+    clear_calendar_done: "الأحداث المحذوفة: {{count}}",
+    clear_calendar_done_one: "الأحداث المحذوفة: {{count}}",
+    clear_calendar_failed: "تعذّر حذف بعض الأحداث. حاول مرة أخرى.",
     tour_welcome_title: "مرحبًا بك في Aster Calendar",
     tour_welcome_description:
       "يتم تشفير أحداثك على هذا الجهاز قبل أن تغادره. تعرض لك هذه الجولة القصيرة مكان كل شيء.",

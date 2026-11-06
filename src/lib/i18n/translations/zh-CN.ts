@@ -9837,6 +9837,16 @@ export const zh_CN = {
     calendar_name_placeholder: "工作、家庭、旅行",
     delete_calendar_message:
       "此操作将永久删除“{{name}}”及其中的所有日程。已删除的日程不会进入回收站。",
+    clear_calendar_events: "删除所有日程",
+    clear_calendar_title: "要删除所有日程吗？",
+    clear_calendar_message:
+      "此操作将永久删除“{{name}}”中的 {{count}} 个日程。已删除的日程不会进入回收站，且无法撤销。",
+    clear_calendar_counting: "正在统计日程…",
+    clear_calendar_empty_title: "没有可删除的日程",
+    clear_calendar_empty_message: "“{{name}}”中没有日程。",
+    clear_calendar_in_progress: "正在删除日程…",
+    clear_calendar_done: "已删除 {{count}} 个日程",
+    clear_calendar_failed: "部分日程无法删除。请重试。",
     tour_welcome_title: "欢迎使用 Aster Calendar",
     tour_welcome_description:
       "您的日程在离开此设备之前就已在本机加密。这个简短的导览会带您了解各项功能的位置。",

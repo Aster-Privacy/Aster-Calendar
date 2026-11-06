@@ -10866,6 +10866,19 @@ export const hi = {
     calendar_name_placeholder: "काम, परिवार, यात्रा",
     delete_calendar_message:
       "इससे “{{name}}” और उसके सभी इवेंट हमेशा के लिए हट जाएंगे। हटाए गए इवेंट ट्रैश में नहीं जाते।",
+    clear_calendar_events: "सभी इवेंट हटाएं",
+    clear_calendar_title: "सभी इवेंट हटाएं?",
+    clear_calendar_message:
+      "इससे “{{name}}” के {{count}} इवेंट हमेशा के लिए हट जाएंगे। हटाए गए इवेंट ट्रैश में नहीं जाते, और आप इसे पहले जैसा नहीं कर सकते।",
+    clear_calendar_message_one:
+      "इससे “{{name}}” का {{count}} इवेंट हमेशा के लिए हट जाएगा। हटाए गए इवेंट ट्रैश में नहीं जाते, और आप इसे पहले जैसा नहीं कर सकते।",
+    clear_calendar_counting: "इवेंट गिने जा रहे हैं…",
+    clear_calendar_empty_title: "हटाने के लिए कोई इवेंट नहीं है",
+    clear_calendar_empty_message: "“{{name}}” में कोई इवेंट नहीं है।",
+    clear_calendar_in_progress: "इवेंट हटाए जा रहे हैं…",
+    clear_calendar_done: "{{count}} इवेंट हटाए गए",
+    clear_calendar_done_one: "{{count}} इवेंट हटाया गया",
+    clear_calendar_failed: "कुछ इवेंट हटाए नहीं जा सके। फिर से कोशिश करें।",
     tour_welcome_title: "Aster Calendar में आपका स्वागत है",
     tour_welcome_description:
       "आपके इवेंट इस डिवाइस से बाहर जाने से पहले इसी पर एन्क्रिप्ट होते हैं। यह छोटा टूर आपको दिखाता है कि सब कुछ कहां है।",

@@ -11153,6 +11153,20 @@ export const pt_br = {
     calendar_name_placeholder: "Trabalho, Família, Viagens",
     delete_calendar_message:
       "Isso exclui permanentemente “{{name}}” e todos os eventos dele. Eventos excluídos não vão para a lixeira.",
+    clear_calendar_events: "Excluir todos os eventos",
+    clear_calendar_title: "Excluir todos os eventos?",
+    clear_calendar_message:
+      "Isso exclui permanentemente {{count}} eventos de “{{name}}”. Eventos excluídos não vão para a lixeira, e não é possível desfazer esta ação.",
+    clear_calendar_message_one:
+      "Isso exclui permanentemente {{count}} evento de “{{name}}”. Eventos excluídos não vão para a lixeira, e não é possível desfazer esta ação.",
+    clear_calendar_counting: "Contando eventos…",
+    clear_calendar_empty_title: "Nenhum evento para excluir",
+    clear_calendar_empty_message: "“{{name}}” não tem eventos.",
+    clear_calendar_in_progress: "Excluindo eventos…",
+    clear_calendar_done: "{{count}} eventos excluídos",
+    clear_calendar_done_one: "{{count}} evento excluído",
+    clear_calendar_failed:
+      "Não foi possível excluir alguns eventos. Tente novamente.",
     tour_welcome_title: "Boas-vindas ao Aster Calendar",
     tour_welcome_description:
       "Seus eventos são criptografados neste dispositivo antes de sair dele. Este tour rápido mostra onde está tudo.",

@@ -11218,6 +11218,20 @@ export const de = {
     calendar_name_placeholder: "Arbeit, Familie, Reisen",
     delete_calendar_message:
       "Dadurch werden „{{name}}“ und alle Termine darin dauerhaft gelöscht. Gelöschte Termine landen nicht im Papierkorb.",
+    clear_calendar_events: "Alle Termine löschen",
+    clear_calendar_title: "Alle Termine löschen?",
+    clear_calendar_message:
+      "Dadurch werden {{count}} Termine in „{{name}}“ dauerhaft gelöscht. Gelöschte Termine landen nicht im Papierkorb, und du kannst diesen Schritt nicht rückgängig machen.",
+    clear_calendar_message_one:
+      "Dadurch wird {{count}} Termin in „{{name}}“ dauerhaft gelöscht. Gelöschte Termine landen nicht im Papierkorb, und du kannst diesen Schritt nicht rückgängig machen.",
+    clear_calendar_counting: "Termine werden gezählt…",
+    clear_calendar_empty_title: "Keine Termine zum Löschen",
+    clear_calendar_empty_message: "„{{name}}“ enthält keine Termine.",
+    clear_calendar_in_progress: "Termine werden gelöscht…",
+    clear_calendar_done: "{{count}} Termine gelöscht",
+    clear_calendar_done_one: "{{count}} Termin gelöscht",
+    clear_calendar_failed:
+      "Einige Termine konnten nicht gelöscht werden. Versuche es erneut.",
     tour_welcome_title: "Willkommen bei Aster Calendar",
     tour_welcome_description:
       "Deine Termine werden auf diesem Gerät verschlüsselt, bevor sie es verlassen. Diese kurze Tour zeigt dir, wo alles ist.",

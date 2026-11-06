@@ -51,6 +51,7 @@ import {
   calendar_row_version,
   event_row_version,
   generate_temp_id,
+  is_temp_id,
 } from "@/services/calendar/mutation_queue";
 import {
   expand_events,
@@ -1147,4 +1148,80 @@ export async function delete_events_batch(
   }));
 
   return { data: await run_plan(operations, vault) };
+}
+
+function is_clearable_calendar_event(
+  event: DecryptedCalendarEvent,
+  calendar_id: string,
+): boolean {
+  return (
+    event.calendar_id === calendar_id &&
+    !event.trashed_at &&
+    event.event_kind !== "task"
+  );
+}
+
+export async function list_calendar_event_ids(
+  calendar_id: string,
+): Promise<string[]> {
+  require_vault();
+  await calendar_sync_engine.ensure_loaded();
+  await calendar_sync_engine.pull_delta().catch(() => false);
+
+  return calendar_sync_engine
+    .get_events()
+    .filter((event) => is_clearable_calendar_event(event, calendar_id))
+    .map((event) => event.id);
+}
+
+export interface ClearCalendarResult {
+  deleted: number;
+  failed: number;
+}
+
+export async function delete_all_calendar_events(
+  calendar_id: string,
+  on_progress?: (done: number, total: number) => void,
+): Promise<ClearCalendarResult> {
+  const event_ids = await list_calendar_event_ids(calendar_id);
+  const total = event_ids.length;
+  const local_ids = event_ids.filter((event_id) => is_temp_id(event_id));
+  const server_ids = event_ids.filter((event_id) => !is_temp_id(event_id));
+  let deleted = 0;
+  let failed = 0;
+
+  for (
+    let index = 0;
+    index < server_ids.length;
+    index += MAX_BATCH_OPERATIONS
+  ) {
+    const chunk = server_ids.slice(index, index + MAX_BATCH_OPERATIONS);
+    const result = await delete_events_batch(chunk).catch(() => ({
+      data: null,
+    }));
+
+    if (result.data) {
+      deleted += chunk.length;
+    } else {
+      failed += chunk.length;
+    }
+
+    on_progress?.(deleted + failed, total);
+  }
+
+  for (const event_id of local_ids) {
+    const result = await delete_event(event_id).catch(() => ({
+      success: false,
+    }));
+
+    if (result.success) {
+      deleted += 1;
+    } else {
+      failed += 1;
+    }
+
+    on_progress?.(deleted + failed, total);
+  }
+
+  return { deleted, failed };
 }

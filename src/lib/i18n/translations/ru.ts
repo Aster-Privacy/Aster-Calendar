@@ -11260,6 +11260,20 @@ export const ru = {
     calendar_name_placeholder: "Работа, Семья, Поездки",
     delete_calendar_message:
       "Это навсегда удалит «{{name}}» и все события в нём. Удалённые события не попадают в корзину.",
+    clear_calendar_events: "Удалить все события",
+    clear_calendar_title: "Удалить все события?",
+    clear_calendar_message:
+      "Все события в «{{name}}» будут удалены навсегда (всего: {{count}}). Удалённые события не попадают в корзину, и это действие нельзя отменить.",
+    clear_calendar_message_one:
+      "Все события в «{{name}}» будут удалены навсегда (всего: {{count}}). Удалённые события не попадают в корзину, и это действие нельзя отменить.",
+    clear_calendar_counting: "Подсчёт событий…",
+    clear_calendar_empty_title: "Нет событий для удаления",
+    clear_calendar_empty_message: "В «{{name}}» нет событий.",
+    clear_calendar_in_progress: "Удаление событий…",
+    clear_calendar_done: "Удалено событий: {{count}}",
+    clear_calendar_done_one: "Удалено событий: {{count}}",
+    clear_calendar_failed:
+      "Не удалось удалить некоторые события. Повторите попытку.",
     tour_welcome_title: "Добро пожаловать в Aster Calendar",
     tour_welcome_description:
       "Ваши события шифруются на этом устройстве до того, как покинут его. Эта короткая экскурсия покажет, где что находится.",

@@ -10632,6 +10632,16 @@ export const ko = {
     calendar_name_placeholder: "업무, 가족, 여행",
     delete_calendar_message:
       "“{{name}}” 캘린더와 그 안의 모든 일정이 영구적으로 삭제됩니다. 삭제된 일정은 휴지통으로 이동하지 않습니다.",
+    clear_calendar_events: "모든 일정 삭제",
+    clear_calendar_title: "모든 일정을 삭제할까요?",
+    clear_calendar_message:
+      "“{{name}}”의 일정 {{count}}개가 영구적으로 삭제됩니다. 삭제된 일정은 휴지통으로 이동하지 않으며 되돌릴 수 없습니다.",
+    clear_calendar_counting: "일정 수를 세는 중…",
+    clear_calendar_empty_title: "삭제할 일정이 없음",
+    clear_calendar_empty_message: "“{{name}}”에 일정이 없습니다.",
+    clear_calendar_in_progress: "일정 삭제 중…",
+    clear_calendar_done: "일정 {{count}}개 삭제됨",
+    clear_calendar_failed: "일부 일정을 삭제하지 못했습니다. 다시 시도하세요.",
     tour_welcome_title: "Aster Calendar에 오신 것을 환영합니다",
     tour_welcome_description:
       "일정은 이 기기를 떠나기 전에 기기에서 암호화됩니다. 이 짧은 둘러보기에서 각 기능의 위치를 확인하세요.",

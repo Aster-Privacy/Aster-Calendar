@@ -11051,6 +11051,20 @@ export const nl = {
     calendar_name_placeholder: "Werk, Gezin, Reizen",
     delete_calendar_message:
       "Hiermee verwijder je “{{name}}” en alle afspraken erin definitief. Verwijderde afspraken gaan niet naar de prullenmand.",
+    clear_calendar_events: "Alle afspraken verwijderen",
+    clear_calendar_title: "Alle afspraken verwijderen?",
+    clear_calendar_message:
+      "Hiermee verwijder je {{count}} afspraken in “{{name}}” definitief. Verwijderde afspraken gaan niet naar de prullenmand en je kunt dit niet ongedaan maken.",
+    clear_calendar_message_one:
+      "Hiermee verwijder je {{count}} afspraak in “{{name}}” definitief. Verwijderde afspraken gaan niet naar de prullenmand en je kunt dit niet ongedaan maken.",
+    clear_calendar_counting: "Afspraken tellen…",
+    clear_calendar_empty_title: "Geen afspraken om te verwijderen",
+    clear_calendar_empty_message: "“{{name}}” heeft geen afspraken.",
+    clear_calendar_in_progress: "Afspraken verwijderen…",
+    clear_calendar_done: "{{count}} afspraken verwijderd",
+    clear_calendar_done_one: "{{count}} afspraak verwijderd",
+    clear_calendar_failed:
+      "Sommige afspraken konden niet worden verwijderd. Probeer het opnieuw.",
     tour_welcome_title: "Welkom bij Aster Calendar",
     tour_welcome_description:
       "Je afspraken worden op dit apparaat versleuteld voordat ze het verlaten. Deze korte rondleiding laat zien waar alles staat.",

@@ -10845,6 +10845,16 @@ export const ja = {
     calendar_name_placeholder: "仕事、家族、旅行",
     delete_calendar_message:
       "「{{name}}」とその中のすべての予定を完全に削除します。削除した予定はゴミ箱には移動しません。",
+    clear_calendar_events: "すべての予定を削除",
+    clear_calendar_title: "すべての予定を削除しますか？",
+    clear_calendar_message:
+      "「{{name}}」の{{count}}件の予定を完全に削除します。削除した予定はゴミ箱には移動せず、元に戻せません。",
+    clear_calendar_counting: "予定を数えています…",
+    clear_calendar_empty_title: "削除する予定はありません",
+    clear_calendar_empty_message: "「{{name}}」には予定がありません。",
+    clear_calendar_in_progress: "予定を削除しています…",
+    clear_calendar_done: "{{count}}件の予定を削除しました",
+    clear_calendar_failed: "一部の予定を削除できませんでした。もう一度お試しください。",
     tour_welcome_title: "Aster Calendar へようこそ",
     tour_welcome_description:
       "予定はこのデバイスから送信される前に暗号化されます。この短いツアーで、各機能の場所を確認できます。",
