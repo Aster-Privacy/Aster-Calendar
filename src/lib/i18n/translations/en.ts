@@ -11133,7 +11133,7 @@ export const en: Translations = {
     search_operator_hint:
       'Try -word to exclude, "quotes" for a phrase, after:2026-01-31',
     only_you_can_read_calendar:
-      "Only you can read your calendar. Events are encrypted on your device before they leave it.",
+      "Only you can read the events you create. They're encrypted on your device before they leave it.",
     all_day: "All day",
     more_events: "+{{count}} more",
     a11y_event_moved: "{{title}} moved to {{date}}, {{time}}",
@@ -11456,7 +11456,7 @@ export const en: Translations = {
     settings_info_week_start:
       "Month, week and mini calendars all begin on this day.",
     settings_info_density:
-      "Compact fits more hours on screen; responsive scales rows to your window.",
+      "Compact fits more hours on the screen. Responsive scales the rows to fit your window.",
     settings_info_secondary_timezone:
       "A second column of times appears beside the grid, useful for remote teams.",
     world_clock: "World clock",
@@ -11491,7 +11491,7 @@ export const en: Translations = {
     settings_default_conference_desc:
       "Pre-fill this conference link on new events",
     settings_info_default_conference:
-      "New events start with this video call link. Useful if you always meet in the same room.",
+      "New events start with this video call link. This is useful if you always meet in the same room.",
     settings_info_auto_add:
       "Invitations can appear on your calendar right away or only once you reply.",
     settings_info_keyboard_shortcuts:
