@@ -18,6 +18,8 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
+import { add_days, start_of_day } from "@/components/calendar/calendar_utils";
+
 const MINUTES_PER_DAY = 1440;
 const MINUTES_PER_HOUR = 60;
 const EVENING_HOUR = 19;
@@ -41,22 +43,6 @@ export interface QuickParseResult {
 interface Span {
   start: number;
   end: number;
-}
-
-function start_of_day(date: Date): Date {
-  const copy = new Date(date);
-
-  copy.setHours(0, 0, 0, 0);
-
-  return copy;
-}
-
-function add_days(date: Date, days: number): Date {
-  const copy = new Date(date);
-
-  copy.setDate(copy.getDate() + days);
-
-  return copy;
 }
 
 const name_cache = new Map<string, string[][]>();

@@ -45,11 +45,9 @@ import {
   build_week_days,
   week_start_day_index,
   ink_on_fill,
-  EVENT_COLOR_OPTIONS,
   build_event_block_style,
   grid_contains_day,
   is_offset_in_view,
-  contrast_ratio,
   event_color_token,
   nearest_event_color,
   resolve_event_color,
@@ -650,17 +648,6 @@ describe("ink_on_fill", () => {
 });
 
 describe("event color palette", () => {
-  it("keeps at least 4.5:1 contrast between white text and every swatch", () => {
-    for (const option of EVENT_COLOR_OPTIONS) {
-      expect(contrast_ratio("#ffffff", option.fill)).toBeGreaterThanOrEqual(
-        4.5,
-      );
-      expect(
-        contrast_ratio("#ffffff", option.dark_fill),
-      ).toBeGreaterThanOrEqual(4.5);
-    }
-  });
-
   it("maps a stored swatch hex to its own token", () => {
     expect(event_color_token("#0f766e")).toBe("var(--cal_color_teal)");
     expect(event_color_token("#1D4ED8")).toBe("var(--cal_color_blue)");

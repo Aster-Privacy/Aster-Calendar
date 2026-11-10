@@ -64,7 +64,7 @@ describe("calendar payload encryption", () => {
     expect(record.format).toBe(CALENDAR_BLOB_FORMAT_V1);
     await expect(
       decrypt_calendar_payload(record, vault, binding, [await test_key()]),
-    ).rejects.toBeDefined();
+    ).rejects.toThrow();
   });
 
   it("round trips a v2 blob bound to its ids", async () => {
@@ -109,13 +109,13 @@ describe("calendar payload encryption", () => {
         calendar_id: "cal-1",
         event_id: "evt-2",
       }),
-    ).rejects.toBeDefined();
+    ).rejects.toThrow();
     await expect(
       decrypt_calendar_payload_v2(record, [key], {
         calendar_id: "cal-2",
         event_id: "evt-1",
       }),
-    ).rejects.toBeDefined();
+    ).rejects.toThrow();
     await expect(
       decrypt_calendar_payload(
         record,
@@ -123,7 +123,7 @@ describe("calendar payload encryption", () => {
         { calendar_id: "cal-2", event_id: "evt-1" },
         [key],
       ),
-    ).rejects.toBeDefined();
+    ).rejects.toThrow();
   });
 
   it("rejects an event blob bound only to its calendar", async () => {
@@ -134,7 +134,7 @@ describe("calendar payload encryption", () => {
 
     await expect(
       decrypt_calendar_payload_v2(record, [key], binding),
-    ).rejects.toBeDefined();
+    ).rejects.toThrow();
   });
 
   it("rejects a calendar blob without a calendar id", async () => {
@@ -145,7 +145,7 @@ describe("calendar payload encryption", () => {
 
     await expect(
       decrypt_calendar_payload_v2(record, [key], { calendar_id: "cal-9" }),
-    ).rejects.toBeDefined();
+    ).rejects.toThrow();
     await expect(
       decrypt_calendar_payload_v2(
         await encrypt_calendar_payload_v2({ name: "Team" }, key, {
@@ -154,7 +154,7 @@ describe("calendar payload encryption", () => {
         [key],
         { calendar_id: "cal-9" },
       ),
-    ).rejects.toBeDefined();
+    ).rejects.toThrow();
   });
 
   it("round trips a payload larger than the argument spread limit", async () => {
@@ -182,7 +182,7 @@ describe("calendar payload encryption", () => {
 
     await expect(
       decrypt_calendar_payload(record, other, binding, []),
-    ).rejects.toBeDefined();
+    ).rejects.toThrow();
   });
 
   it("fails to decrypt a v2 blob with a different key", async () => {
@@ -194,7 +194,7 @@ describe("calendar payload encryption", () => {
 
     await expect(
       decrypt_calendar_payload(record, vault, binding, [await test_key("two")]),
-    ).rejects.toBeDefined();
+    ).rejects.toThrow();
   });
 });
 

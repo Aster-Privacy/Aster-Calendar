@@ -20,6 +20,8 @@
 //
 import type { DecryptedCalendarEvent } from "@/types/calendar";
 
+import { add_days, start_of_day } from "@/components/calendar/calendar_utils";
+
 export interface CalendarInsightSlice {
   calendar_id: string;
   minutes: number;
@@ -72,22 +74,6 @@ const MINUTE_MS = 60000;
 const DAY_MS = 86400000;
 const SLOT_STEP_MINUTES = 15;
 const MAX_SLOT_SEARCH_DAYS = 14;
-
-function start_of_day(date: Date): Date {
-  const result = new Date(date);
-
-  result.setHours(0, 0, 0, 0);
-
-  return result;
-}
-
-function add_days(date: Date, days: number): Date {
-  const result = new Date(date);
-
-  result.setDate(result.getDate() + days);
-
-  return result;
-}
 
 function days_between(range_start: Date, range_end: Date): Date[] {
   const days: Date[] = [];

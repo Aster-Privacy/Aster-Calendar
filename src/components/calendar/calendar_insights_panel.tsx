@@ -56,7 +56,10 @@ import {
 } from "@aster/ui";
 
 import { CalendarEmptyState } from "@/components/calendar/calendar_empty_state";
-import { event_color_token } from "@/components/calendar/calendar_utils";
+import {
+  add_days,
+  event_color_token,
+} from "@/components/calendar/calendar_utils";
 import { EmptyScheduleIllustration } from "@/components/calendar/illustrations/calendar_illustrations";
 import { ContactAvatar } from "@/components/common/contacts/contact_avatar";
 import { use_should_reduce_motion } from "@/provider";
@@ -150,14 +153,6 @@ export function format_minutes(
     hours: number_format.format(hours),
     minutes: number_format.format(rest),
   });
-}
-
-function add_days(date: Date, days: number): Date {
-  const result = new Date(date);
-
-  result.setDate(result.getDate() + days);
-
-  return result;
 }
 
 export function compute_range(

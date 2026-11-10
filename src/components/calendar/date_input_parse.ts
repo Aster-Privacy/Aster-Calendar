@@ -18,27 +18,12 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
+import { add_days, start_of_day } from "@/components/calendar/calendar_utils";
 import { parse_quick_input } from "@/components/calendar/quick_parse";
 
 export interface DateInputParseOptions {
   reference: Date;
   language?: string;
-}
-
-function start_of_day(date: Date): Date {
-  const copy = new Date(date);
-
-  copy.setHours(0, 0, 0, 0);
-
-  return copy;
-}
-
-function add_days(date: Date, days: number): Date {
-  const copy = new Date(date);
-
-  copy.setDate(copy.getDate() + days);
-
-  return copy;
 }
 
 function valid_date(year: number, month: number, day: number): Date | null {

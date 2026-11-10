@@ -194,16 +194,16 @@ describe("calendar v3 payload encryption", () => {
         calendar_id: "cal-1",
         event_id: "evt-2",
       }),
-    ).rejects.toBeDefined();
+    ).rejects.toThrow();
     await expect(
       decrypt_calendar_payload(record, vault, {
         calendar_id: "cal-2",
         event_id: "evt-1",
       }),
-    ).rejects.toBeDefined();
+    ).rejects.toThrow();
     await expect(
       decrypt_calendar_payload(record, vault, { calendar_id: "cal-1" }),
-    ).rejects.toBeDefined();
+    ).rejects.toThrow();
   });
 
   it("refuses to bind without a calendar id", async () => {
@@ -331,15 +331,15 @@ describe("calendar v3 payload encryption", () => {
 
     await expect(
       decrypt_calendar_payload(v1, vault, binding),
-    ).rejects.toBeDefined();
+    ).rejects.toThrow();
     await expect(
       decrypt_calendar_payload(unbound, vault, binding),
-    ).rejects.toBeDefined();
+    ).rejects.toThrow();
     await expect(
       decrypt_calendar_payload(calendar_unbound, vault, {
         calendar_id: "cal-1",
       }),
-    ).rejects.toBeDefined();
+    ).rejects.toThrow();
   });
 
   it("rejects a v3-framed v1 blob for an account with a post-quantum identity", async () => {
@@ -352,7 +352,7 @@ describe("calendar v3 payload encryption", () => {
 
     await expect(
       decrypt_calendar_payload(v1, vault, binding),
-    ).rejects.toBeDefined();
+    ).rejects.toThrow();
   });
 
   it("rejects v1 and unbound v2 blobs for an account without a post-quantum identity", async () => {
@@ -366,10 +366,10 @@ describe("calendar v3 payload encryption", () => {
 
     await expect(
       decrypt_calendar_payload(v1, vault, binding),
-    ).rejects.toBeDefined();
+    ).rejects.toThrow();
     await expect(
       decrypt_calendar_payload(unbound, vault, binding),
-    ).rejects.toBeDefined();
+    ).rejects.toThrow();
   });
 
   it("writes v2 for an account without a post-quantum identity when the account key is loaded", async () => {
@@ -417,7 +417,7 @@ describe("calendar v3 payload encryption", () => {
 
     await expect(
       decrypt_calendar_payload(record, vault, binding),
-    ).rejects.toBeDefined();
+    ).rejects.toThrow();
   });
 
   it("writes v2 for an account without a post-quantum identity", async () => {
