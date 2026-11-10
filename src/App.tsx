@@ -75,6 +75,7 @@ import { FullPageLoader } from "@/components/common/full_page_loader";
 import { ErrorBoundary } from "@/components/ui/error_boundary";
 import { install_global_autoscroll } from "@/lib/global_autoscroll";
 import { ignore_error } from "@/lib/ignore_error";
+import { AppLock } from "@/components/mobile/app_lock";
 import { safe_local_get } from "@/lib/safe_storage";
 import { lazy_with_retry } from "@/utils/lazy_with_retry";
 
@@ -445,7 +446,7 @@ function App() {
   }, []);
 
   return (
-    <>
+    <AppLock>
       <ErrorBoundary fallback={null}>
         <BillingSuccessHandler />
       </ErrorBoundary>
@@ -528,7 +529,7 @@ function App() {
         </Suspense>
       </ErrorBoundary>
       <GlobalOfflineIndicator />
-    </>
+    </AppLock>
   );
 }
 

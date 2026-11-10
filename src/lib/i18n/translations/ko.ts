@@ -25,6 +25,13 @@ export const ko = {
     add_to_group: "그룹에 추가",
     added_to_group: "그룹에 추가함",
     app_lock_attempts_remaining_one: "{{count}}회 남음",
+    app_lock_server_unreachable: "지금은 Aster Calendar에서 PIN을 확인할 수 없습니다. 연결을 확인하거나 비밀번호로 잠금을 해제하세요.",
+    app_lock_unlock_with_password: "비밀번호로 잠금 해제",
+    app_lock_use_pin: "PIN 사용",
+    app_lock_enter_password: "비밀번호 입력",
+    app_lock_wrong_password: "비밀번호가 올바르지 않습니다. 다시 시도하세요.",
+    app_lock_try_again_later: "시도 횟수가 너무 많습니다. 잠시 후 다시 시도하세요.",
+    app_lock_pin_reset: "이 기기에서 앱 잠금이 해제되었습니다. 로그인하라는 메시지가 표시되면 비밀번호를 사용한 다음 설정에서 새 PIN을 설정하세요.",
     birthdays_upcoming: "다가오는 생일 {{count}}건",
     bulk_create_hint:
       "한 줄에 연락처 하나씩 입력합니다. 이름과 이메일 주소를 함께 저장하려면 주소를 꺾쇠괄호로 감쌉니다.",

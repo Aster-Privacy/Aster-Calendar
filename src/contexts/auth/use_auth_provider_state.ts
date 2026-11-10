@@ -29,6 +29,7 @@ import {
   clear_stored_encrypted_vault,
   get_session_passphrase,
   clear_session_passphrase,
+  is_session_passphrase_pin_locked,
 } from "./session_passphrase";
 import { purge_all_local_data } from "./purge_local_data";
 import {
@@ -110,6 +111,7 @@ import {
   clear_app_lock_config,
   clear_session_unlock,
 } from "@/services/app_lock_store";
+import { release_app_lock } from "@/services/app_lock_unlock";
 import { ignore_error } from "@/lib/ignore_error";
 
 async function resume_surviving_account(
@@ -122,7 +124,9 @@ async function resume_surviving_account(
     () => null,
   );
 
-  if (!passphrase) return false;
+  if (!passphrase && !is_session_passphrase_pin_locked(survivor.id)) {
+    return false;
+  }
 
   api_client.end_intentional_logout();
   api_client.set_expected_user_id(survivor.user.id);
@@ -208,6 +212,7 @@ export function use_auth_provider_state() {
         let stored_vault: ReturnType<typeof get_stored_encrypted_vault> = null;
 
         let device_passphrase_used = false;
+        let target_pin_locked = false;
 
         if (target_kind !== "shared") {
           try {
@@ -216,13 +221,20 @@ export function use_auth_provider_state() {
             stored_passphrase = null;
           }
           stored_vault = get_stored_encrypted_vault(target.id);
+          target_pin_locked =
+            !stored_passphrase && is_session_passphrase_pin_locked(target.id);
 
-          if (!stored_passphrase && stored_vault && is_tauri()) {
+          if (
+            !stored_passphrase &&
+            !target_pin_locked &&
+            stored_vault &&
+            is_tauri()
+          ) {
             stored_passphrase = await read_device_passphrase(target.device_id);
             device_passphrase_used = !!stored_passphrase;
           }
 
-          if (!stored_passphrase || !stored_vault) {
+          if ((!stored_passphrase && !target_pin_locked) || !stored_vault) {
             keep_outgoing_session_as_is();
             begin_account_reauth(target, previous_account_id);
 
@@ -319,7 +331,7 @@ export function use_auth_provider_state() {
           }
         }
 
-        if (stored_passphrase && stored_vault) {
+        if ((stored_passphrase || target_pin_locked) && stored_vault) {
           set_is_adding_account(false);
 
           const attempt = async (): Promise<SessionReestablishResult> => {
@@ -452,6 +464,16 @@ export function use_auth_provider_state() {
 
       if (current_id && uses_account_hub()) {
         await with_timeout(sign_out_hub_accounts([current_id]), 2500).catch(
+          (caught) =>
+            ignore_error(
+              "contexts/auth/use_auth_provider_state:use_auth_provider_state",
+              caught,
+            ),
+        );
+      }
+
+      if (current_id) {
+        await with_timeout(release_app_lock(current_id), 4000).catch(
           (caught) =>
             ignore_error(
               "contexts/auth/use_auth_provider_state:use_auth_provider_state",
@@ -1005,7 +1027,10 @@ export function use_auth_provider_state() {
           () => null,
         );
 
-        if (passphrase && !cancelled) {
+        if (
+          (passphrase || is_session_passphrase_pin_locked(hub_current)) &&
+          !cancelled
+        ) {
           await switch_to_account(hub_current, { following_hub: true });
         }
       }

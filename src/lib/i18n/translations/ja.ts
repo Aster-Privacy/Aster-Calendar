@@ -24,6 +24,13 @@ export const ja = {
     add_to_group: "グループに追加",
     added_to_group: "グループに追加しました",
     app_lock_attempts_remaining_one: "残り {{count}} 回",
+    app_lock_server_unreachable: "現在 Aster Calendar で PIN を確認できません。接続を確認するか、パスワードでロックを解除してください。",
+    app_lock_unlock_with_password: "パスワードでロック解除",
+    app_lock_use_pin: "PIN を使用",
+    app_lock_enter_password: "パスワードを入力",
+    app_lock_wrong_password: "パスワードが正しくありません。もう一度お試しください。",
+    app_lock_try_again_later: "試行回数が多すぎます。しばらく待ってから、もう一度お試しください。",
+    app_lock_pin_reset: "このデバイスのアプリロックがオフになりました。サインインを求められたらパスワードを使用し、設定で新しい PIN を設定してください。",
     birthdays_upcoming: "誕生日が {{count}} 件あります",
     bulk_create_hint:
       "1 行に 1 件の連絡先を入力します。名前とメールアドレスをまとめて保存するには、アドレスを山かっこで囲みます。",

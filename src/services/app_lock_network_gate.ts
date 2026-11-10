@@ -23,9 +23,14 @@ const ALLOWED_WHILE_LOCKED = [
   "/core/v1/auth/logout",
   "/core/v1/auth/logout-all",
   "/core/v1/auth/clear-session",
+  "/core/v1/auth/app-lock/",
 ];
 
 let locked = false;
+
+export function set_app_network_locked(value: boolean): void {
+  locked = value;
+}
 
 export function is_app_network_locked(): boolean {
   return locked;
