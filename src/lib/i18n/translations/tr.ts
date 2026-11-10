@@ -574,6 +574,9 @@ export const tr = {
       "Ödemeniz alınamadı. Erişim {{days}} gün içinde kısıtlanacak.",
     billing_alert_action: "Öde",
     dismiss: "Kapat",
+    web_sandbox_off_title: "Web içeriği sistem korumalı alanı olmadan çalışıyor",
+    web_sandbox_off_body:
+      "Bu bilgisayarda Aster Calendar, bubblewrap korumalı alanını başlatamıyor, bu nedenle web içeriği korumalı alan olmadan çalışıyor. Yeniden açmak için bubblewrap paketini yükleyin, ayrıcalıksız kullanıcı ad alanlarına izin verin ve Aster Calendar uygulamasını yeniden başlatın.",
     load_content: "Yükle",
     open_link: "Bağlantıyı aç",
     no_icon: "Simge yok",

@@ -567,6 +567,9 @@ export const nl = {
       "Je betaling is niet gelukt. De toegang wordt over {{days}} dagen beperkt.",
     billing_alert_action: "Betalen",
     dismiss: "Negeren",
+    web_sandbox_off_title: "Webinhoud draait zonder de systeemsandbox",
+    web_sandbox_off_body:
+      "Op deze computer kan Aster Calendar de bubblewrap-sandbox niet starten, dus webinhoud draait zonder sandbox. Installeer het pakket bubblewrap, sta niet-geprivilegieerde gebruikersnaamruimten toe en start Aster Calendar opnieuw om de sandbox weer in te schakelen.",
     load_content: "Laden",
     open_link: "Link openen",
     no_icon: "Geen pictogram",
