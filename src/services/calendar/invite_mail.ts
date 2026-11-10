@@ -37,6 +37,7 @@ import {
   type ItipMethod,
   type ItipParty,
 } from "./itip";
+import { sanitize_calendar_email, sanitize_calendar_text } from "./sanitize";
 
 export type Translate = (
   key: TranslationKey,
@@ -319,6 +320,32 @@ export function reply_target(
   return sender.length > 0 ? sender : null;
 }
 
+export type RsvpReplyDecision =
+  | { kind: "send"; to: string }
+  | { kind: "confirm"; organizer: string }
+  | { kind: "none" };
+
+export function decide_rsvp_reply(
+  organizer_email: string | null | undefined,
+  authenticated_sender: string | null | undefined,
+  confirmed_organizer = false,
+): RsvpReplyDecision {
+  const organizer = sanitize_calendar_email(organizer_email ?? "");
+  const target = reply_target(
+    organizer,
+    sanitize_calendar_email(authenticated_sender ?? ""),
+    confirmed_organizer,
+  );
+
+  if (target !== null) {
+    return { kind: "send", to: target };
+  }
+
+  return organizer.length > 0
+    ? { kind: "confirm", organizer }
+    : { kind: "none" };
+}
+
 export async function send_reply(options: SendReplyOptions): Promise<boolean> {
   const { event, organizer, attendee, response, t, language } = options;
   const ics = build_itip_reply(event, {
@@ -333,7 +360,8 @@ export async function send_reply(options: SendReplyOptions): Promise<boolean> {
     return false;
   }
 
-  const title = event.title.trim() || t("calendar.untitled_event");
+  const title =
+    sanitize_calendar_text(event.title, "title") || t("calendar.untitled_event");
   const range = format_invite_range(event, language);
   const label = response_label(response, t);
   const body = [
@@ -346,7 +374,7 @@ export async function send_reply(options: SendReplyOptions): Promise<boolean> {
     t("calendar.invite_body_when", { when: range }),
   ].join("\n");
 
-  const recipient = (options.to ?? organizer.email).trim();
+  const recipient = sanitize_calendar_email(options.to ?? organizer.email);
 
   if (recipient.length === 0) {
     return false;

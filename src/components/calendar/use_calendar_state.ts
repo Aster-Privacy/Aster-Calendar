@@ -143,9 +143,15 @@ import {
 import { show_toast } from "@/components/toast/simple_toast";
 import { register_event_render_alias } from "@/services/calendar/event_render_key";
 import { use_calendar_now_tick } from "@/components/calendar/use_calendar_now_tick";
-import { send_reply } from "@/services/calendar/invite_mail";
+import {
+  deliver_rsvp_reply,
+  rsvp_confirmation_key,
+  type RsvpReplyOutcome,
+  type RsvpReplyRequest,
+} from "@/services/calendar/rsvp_reply";
+import { sanitize_calendar_email } from "@/services/calendar/sanitize";
 import { set_own_response } from "@/services/calendar/invite_store";
-import { event_organizer_email, same_address } from "@/services/calendar/itip";
+import { event_organizer_email } from "@/services/calendar/itip";
 import { reply_identity } from "@/services/calendar/invite_sender";
 import {
   is_own_address,
@@ -1889,6 +1895,26 @@ export function use_calendar_state() {
     );
   }, [events, handle_event_click]);
 
+  const [pending_rsvp_reply, set_pending_rsvp_reply] =
+    useState<RsvpReplyRequest | null>(null);
+  const confirmed_rsvp_organizers_ref = useRef<Set<string>>(new Set());
+
+  const show_rsvp_outcome = useCallback(
+    (outcome: RsvpReplyOutcome) => {
+      const sent = outcome === "sent";
+
+      show_toast(
+        t(
+          sent
+            ? "calendar.invite_card_reply_sent"
+            : "calendar.invite_card_reply_send_failed",
+        ),
+        sent ? "success" : "error",
+      );
+    },
+    [t],
+  );
+
   const handle_event_respond = useCallback(
     async (
       event: DecryptedCalendarEvent,
@@ -1938,39 +1964,71 @@ export function use_calendar_state() {
           return;
         }
 
-        const organizer_party = updated.attendees.find((attendee) =>
-          same_address(attendee.email, organizer),
-        );
-        const sent = await send_reply({
+        const request: RsvpReplyRequest = {
           event: updated,
-          organizer: {
-            email: organizer,
-            display_name: organizer_party?.display_name ?? null,
-          },
-          attendee: {
-            email: identity.reply_email,
-            display_name: identity.display_name,
-          },
-          sender: identity.sender,
+          organizer_email: sanitize_calendar_email(organizer),
+          identity,
           response,
+          authenticated_sender: null,
+          confirmed_organizer: confirmed_rsvp_organizers_ref.current.has(
+            rsvp_confirmation_key(updated, sanitize_calendar_email(organizer)),
+          ),
           t,
           language,
-        });
+        };
+        const outcome = await deliver_rsvp_reply(request);
 
-        show_toast(
-          t(
-            sent
-              ? "calendar.invite_card_reply_sent"
-              : "calendar.invite_card_reply_send_failed",
-          ),
-          sent ? "success" : "error",
-        );
+        if (outcome === "needs_confirmation") {
+          set_pending_rsvp_reply(request);
+
+          return;
+        }
+
+        show_rsvp_outcome(outcome);
       } catch {
         show_toast(t("calendar.invite_save_failed"), "error");
       }
     },
-    [apply_saved_event, language, reload, self_email, t, user?.display_name],
+    [
+      apply_saved_event,
+      language,
+      reload,
+      self_email,
+      show_rsvp_outcome,
+      t,
+      user?.display_name,
+    ],
   );
+
+  const confirm_rsvp_reply = useCallback(async () => {
+    const request = pending_rsvp_reply;
+
+    set_pending_rsvp_reply(null);
+
+    if (!request) {
+      return;
+    }
+
+    confirmed_rsvp_organizers_ref.current.add(
+      rsvp_confirmation_key(request.event, request.organizer_email),
+    );
+
+    try {
+      const outcome = await deliver_rsvp_reply({
+        ...request,
+        confirmed_organizer: true,
+      });
+
+      show_rsvp_outcome(outcome === "sent" ? "sent" : "failed");
+    } catch {
+      show_rsvp_outcome("failed");
+    }
+  }, [pending_rsvp_reply, show_rsvp_outcome]);
+
+  const cancel_rsvp_reply = useCallback(() => {
+    set_pending_rsvp_reply(null);
+    show_toast(t("calendar.event_updated"), "success");
+  }, [t]);
 
   const handle_edit_event = useCallback((event: DecryptedCalendarEvent) => {
     if (is_readonly_event(event)) {
@@ -2768,6 +2826,9 @@ export function use_calendar_state() {
     handle_create_all_day_click,
     handle_event_click,
     handle_event_respond,
+    pending_rsvp_reply,
+    confirm_rsvp_reply,
+    cancel_rsvp_reply,
     handle_edit_event,
     form_initial_draft,
     form_initial_kind,
