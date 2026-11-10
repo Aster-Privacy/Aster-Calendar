@@ -21,6 +21,7 @@
 import type { EncryptedVault } from "@/services/crypto/key_manager";
 import type { CustomCategoryRule } from "@/data/category_catalog";
 import type { LanguageCode } from "@/lib/i18n/types";
+import type { ScheduleRange } from "@/services/calendar/schedule_range";
 
 import { api_client } from "./client";
 
@@ -40,6 +41,10 @@ import {
   clamp_inbox_page_size,
 } from "@/lib/inbox_page_size";
 import { ignore_error } from "@/lib/ignore_error";
+import {
+  DEFAULT_SCHEDULE_RANGE,
+  resolve_schedule_range,
+} from "@/services/calendar/schedule_range";
 import { locale_date_format, locale_time_format } from "@/utils/date_format";
 import {
   detect_browser_language,
@@ -224,6 +229,9 @@ export interface UserPreferences {
   calendar_default_view:
     "month" | "week" | "day" | "agenda" | "year" | "custom";
   calendar_custom_view_days: number;
+  calendar_schedule_range: ScheduleRange;
+  calendar_schedule_custom_start: string;
+  calendar_schedule_custom_end: string;
   calendar_week_starts_on: "sunday" | "monday" | "saturday";
   calendar_show_weekends: boolean;
   calendar_show_week_numbers: boolean;
@@ -686,6 +694,9 @@ export const CACHEABLE_PREFERENCE_KEYS: readonly (keyof UserPreferences)[] = [
   "block_external_images",
   "calendar_default_view",
   "calendar_custom_view_days",
+  "calendar_schedule_range",
+  "calendar_schedule_custom_start",
+  "calendar_schedule_custom_end",
   "calendar_week_starts_on",
   "calendar_show_weekends",
   "calendar_show_week_numbers",
@@ -1033,6 +1044,9 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   block_external_images: false,
   calendar_default_view: "month",
   calendar_custom_view_days: 4,
+  calendar_schedule_range: DEFAULT_SCHEDULE_RANGE,
+  calendar_schedule_custom_start: "",
+  calendar_schedule_custom_end: "",
   calendar_week_starts_on: "sunday",
   calendar_show_weekends: true,
   calendar_show_week_numbers: false,
@@ -1356,6 +1370,20 @@ export function build_merged_preferences(
       merged.external_content_blocking_mode = "trackers";
     }
   }
+
+  if (typeof merged.calendar_schedule_custom_start !== "string") {
+    merged.calendar_schedule_custom_start = "";
+  }
+
+  if (typeof merged.calendar_schedule_custom_end !== "string") {
+    merged.calendar_schedule_custom_end = "";
+  }
+
+  merged.calendar_schedule_range = resolve_schedule_range(
+    merged.calendar_schedule_range,
+    merged.calendar_schedule_custom_start,
+    merged.calendar_schedule_custom_end,
+  );
 
   merged.custom_categories = sanitize_custom_categories(
     merged.custom_categories,

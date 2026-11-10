@@ -26,6 +26,7 @@ import {
   add_months,
   add_years,
   assign_overlap_columns,
+  bucket_events_by_day,
   merge_by_id,
   event_occurs_on,
   format_alternate_day,
@@ -751,5 +752,51 @@ describe("grid_contains_day", () => {
     const grid = build_month_grid(new Date(2026, 9, 1), 1);
 
     expect(grid_contains_day(grid, new Date(2026, 11, 10))).toBe(false);
+  });
+});
+
+describe("bucket_events_by_day", () => {
+  it("groups events by local day across a long range", () => {
+    const first = new Date(2026, 0, 1);
+    const last = new Date(2026, 11, 31);
+    const morning = timed_event(
+      "morning",
+      new Date(2026, 5, 10, 9),
+      new Date(2026, 5, 10, 10),
+    );
+    const early = timed_event(
+      "early",
+      new Date(2026, 5, 10, 7),
+      new Date(2026, 5, 10, 8),
+    );
+    const spanning = timed_event(
+      "spanning",
+      new Date(2025, 11, 31, 20),
+      new Date(2026, 0, 2, 9),
+    );
+    const outside = timed_event(
+      "outside",
+      new Date(2027, 0, 5, 9),
+      new Date(2027, 0, 5, 10),
+    );
+
+    const buckets = bucket_events_by_day(
+      [morning, early, spanning, outside],
+      first,
+      last,
+    );
+
+    expect(buckets.get("2026-06-10")?.map((event) => event.id)).toEqual([
+      "early",
+      "morning",
+    ]);
+    expect(buckets.get("2026-01-01")?.map((event) => event.id)).toEqual([
+      "spanning",
+    ]);
+    expect(buckets.get("2026-01-02")?.map((event) => event.id)).toEqual([
+      "spanning",
+    ]);
+    expect(buckets.has("2025-12-31")).toBe(false);
+    expect(buckets.has("2027-01-05")).toBe(false);
   });
 });

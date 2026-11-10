@@ -37,14 +37,23 @@ import { Button } from "@aster/ui";
 import { CalendarEmptyState } from "@/components/calendar/calendar_empty_state";
 import { EmptyScheduleIllustration } from "@/components/calendar/illustrations/calendar_illustrations";
 
-import { Fragment, memo, useEffect, useRef } from "react";
+import {
+  Fragment,
+  memo,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { CalendarEventContextMenu } from "@/components/calendar/calendar_event_context_menu";
 import { EventKindIcon } from "@/components/calendar/event_kind_icon";
 import {
   add_days,
+  bucket_events_by_day,
+  build_day_key,
   end_of_day,
-  events_for_day,
   task_title_class,
   is_same_day,
   PAST_EVENT_OPACITY,
@@ -57,6 +66,7 @@ import { format_time } from "@/utils/date_format";
 import { use_i18n } from "@/lib/i18n/context";
 
 const MONTH_HEADER_HEIGHT = "32px";
+const RENDER_BATCH = 60;
 const NOW_COLOR = "var(--calendar_now_line, var(--accent-color))";
 const RELATIVE_LABEL_MAX_LENGTH = 9;
 const DAY_PERIOD_PATTERN = /\s*(AM|PM|am|pm|a\.m\.|p\.m\.)$/;
@@ -158,6 +168,8 @@ interface CalendarAgendaViewProps {
   is_loading_more: boolean;
   on_load_more: () => void;
   dim_past_events?: boolean;
+  range_start?: Date;
+  range_end?: Date;
 }
 
 function month_key(day: Date): string {
@@ -202,21 +214,103 @@ export const CalendarAgendaView = memo(function CalendarAgendaView({
   is_loading_more,
   on_load_more,
   dim_past_events = false,
+  range_start,
+  range_end,
 }: CalendarAgendaViewProps) {
   const { language } = use_i18n();
   const today = use_calendar_now_tick();
   const scroll_ref = useRef<HTMLDivElement>(null);
   const sentinel_ref = useRef<HTMLDivElement>(null);
-  const range_days = Array.from({ length: day_count + 1 }, (_, index) =>
-    add_days(anchor_date, index),
-  );
-  const day_groups = range_days
-    .map((day) => ({ day, day_events: events_for_day(events, day) }))
-    .filter(
-      (group) => group.day_events.length > 0 || is_same_day(group.day, today),
-    );
+  const is_bounded = Boolean(range_start && range_end);
+  const first_ms = start_of_day(range_start ?? anchor_date).getTime();
+  const last_ms = start_of_day(
+    range_end ?? add_days(anchor_date, day_count),
+  ).getTime();
+  const today_key = build_day_key(today);
+  const day_groups = useMemo(() => {
+    const first = new Date(first_ms);
+    const last = new Date(last_ms);
+    const buckets = bucket_events_by_day(events, first, last);
+    const groups: { day: Date; day_events: DecryptedCalendarEvent[] }[] = [];
+
+    for (
+      let day = first;
+      day.getTime() <= last.getTime();
+      day = add_days(day, 1)
+    ) {
+      const key = build_day_key(day);
+      const day_events = buckets.get(key);
+
+      if (day_events || key === today_key) {
+        groups.push({ day, day_events: day_events ?? [] });
+      }
+    }
+
+    return groups;
+  }, [events, first_ms, last_ms, today_key]);
   const has_any_event = day_groups.some((group) => group.day_events.length > 0);
-  const can_load_more = has_more && !is_loading_more;
+  const today_index = day_groups.findIndex((group) =>
+    is_same_day(group.day, today),
+  );
+  const range_key = `${first_ms}:${last_ms}`;
+  const [render_window, set_render_window] = useState({
+    key: "",
+    count: 0,
+  });
+  const initial_count = Math.max(0, today_index) + RENDER_BATCH;
+  const render_count = is_bounded
+    ? render_window.key === range_key
+      ? Math.max(render_window.count, initial_count)
+      : initial_count
+    : day_groups.length;
+  const visible_groups =
+    render_count >= day_groups.length
+      ? day_groups
+      : day_groups.slice(0, render_count);
+  const has_hidden_groups = visible_groups.length < day_groups.length;
+  const can_load_more = is_bounded
+    ? has_hidden_groups
+    : has_more && !is_loading_more;
+  const scrolled_key_ref = useRef("");
+
+  useLayoutEffect(() => {
+    const root = scroll_ref.current;
+
+    if (!root || !is_bounded || scrolled_key_ref.current === range_key) {
+      return;
+    }
+
+    scrolled_key_ref.current = range_key;
+
+    const target =
+      today_index > 0
+        ? root.querySelector<HTMLElement>('[aria-current="date"]')
+        : null;
+    const top = target
+      ? target.getBoundingClientRect().top -
+        root.getBoundingClientRect().top +
+        root.scrollTop -
+        parseInt(MONTH_HEADER_HEIGHT, 10)
+      : 0;
+
+    root.scrollTo({ top: Math.max(0, top), behavior: "instant" });
+  }, [is_bounded, range_key, today_index]);
+
+  const show_more = () => {
+    if (is_bounded) {
+      set_render_window({
+        key: range_key,
+        count: render_count + RENDER_BATCH,
+      });
+
+      return;
+    }
+
+    on_load_more();
+  };
+  const show_more_ref = useRef(show_more);
+
+  show_more_ref.current = show_more;
 
   useEffect(() => {
     const root = scroll_ref.current;
@@ -229,7 +323,7 @@ export const CalendarAgendaView = memo(function CalendarAgendaView({
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
-          on_load_more();
+          show_more_ref.current();
         }
       },
       { root, rootMargin: "0px 0px 600px 0px" },
@@ -238,7 +332,7 @@ export const CalendarAgendaView = memo(function CalendarAgendaView({
     observer.observe(sentinel);
 
     return () => observer.disconnect();
-  }, [can_load_more, on_load_more, day_count]);
+  }, [can_load_more, day_count, render_count]);
 
   const render_time_column = (event: DecryptedCalendarEvent, day: Date) => {
     const starts_at = new Date(event.starts_at);
@@ -301,7 +395,7 @@ export const CalendarAgendaView = memo(function CalendarAgendaView({
     );
   };
 
-  if (!has_any_event && !has_more) {
+  if (!has_any_event && (is_bounded || !has_more)) {
     return (
       <div className="flex min-h-0 flex-1 flex-col items-center">
         <div aria-hidden="true" className="min-h-6 flex-[38]" />
@@ -337,7 +431,7 @@ export const CalendarAgendaView = memo(function CalendarAgendaView({
       ref={scroll_ref}
       className="min-h-0 flex-1 overflow-y-auto overscroll-contain scroll-smooth pb-6"
     >
-      {day_groups.map(({ day, day_events }) => {
+      {visible_groups.map(({ day, day_events }) => {
         const is_today = is_same_day(day, today);
         const is_past_day = day.getTime() < start_of_day(today).getTime();
         const current_month = month_key(day);
@@ -498,7 +592,7 @@ export const CalendarAgendaView = memo(function CalendarAgendaView({
           </div>
         );
       })}
-      {has_more && (
+      {can_load_more && (
         <div ref={sentinel_ref} aria-hidden="true" className="h-px w-full" />
       )}
     </div>
