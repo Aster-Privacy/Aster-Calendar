@@ -678,24 +678,27 @@ function period_floor_day(
 ): number {
   const anchor_day_number = day_number(start.year, start.month, start.day);
 
-  let day = anchor_day_number;
-
   if (rule.frequency === "daily") {
-    day = anchor_day_number + index * rule.interval;
-  } else if (rule.frequency === "weekly") {
-    day =
+    return anchor_day_number + index * rule.interval;
+  }
+  if (rule.frequency === "weekly") {
+    return (
       week_start_day_number(anchor_day_number, week_start) +
-      index * rule.interval * 7;
-  } else if (rule.frequency === "monthly") {
+      index * rule.interval * 7
+    );
+  }
+  if (rule.frequency === "monthly") {
     const month_index =
       start.year * 12 + (start.month - 1) + index * rule.interval;
 
-    day = day_number(Math.floor(month_index / 12), (month_index % 12) + 1, 1);
-  } else {
-    day = day_number(start.year + index * rule.interval, 1, 1);
+    return day_number(
+      Math.floor(month_index / 12),
+      (month_index % 12) + 1,
+      1,
+    );
   }
 
-  return day;
+  return day_number(start.year + index * rule.interval, 1, 1);
 }
 
 export interface ExpansionBudget {
