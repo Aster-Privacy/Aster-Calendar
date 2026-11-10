@@ -37,7 +37,9 @@ import {
   first_row_at_or_after,
   include_in_upcoming_window,
   initial_upcoming_window,
+  jump_upcoming_window,
   month_start_offset,
+  UPCOMING_MAX_JUMP_DAYS,
 } from "@/services/calendar/schedule_range";
 
 function bounds(
@@ -388,6 +390,41 @@ describe("upcoming window", () => {
       expect(window.end.getHours()).toBe(23);
       expect(window.end.getMinutes()).toBe(59);
     }
+  });
+
+  it("widens to a nearby jump target", () => {
+    const window = initial_upcoming_window(new Date(2026, 10, 10));
+    const jumped = jump_upcoming_window(window, new Date(2027, 5, 15));
+
+    expect(jumped.start.getTime()).toBe(window.start.getTime());
+    expect(local_stamp(jumped.end)).toBe("2027-06-15 23:59:59.999");
+  });
+
+  it("starts a fresh window for a distant jump target", () => {
+    const window = initial_upcoming_window(new Date(2026, 10, 10));
+    const past = jump_upcoming_window(window, new Date(1000, 0, 1));
+    const future = jump_upcoming_window(window, new Date(2400, 6, 4));
+
+    expect(past).toEqual(initial_upcoming_window(new Date(1000, 0, 1)));
+    expect(future).toEqual(initial_upcoming_window(new Date(2400, 6, 4)));
+  });
+
+  it("widens at exactly the jump limit and resets one day past it", () => {
+    const window = initial_upcoming_window(new Date(2026, 10, 10));
+    const at_limit = new Date(window.end);
+
+    at_limit.setHours(0, 0, 0, 0);
+    at_limit.setDate(at_limit.getDate() + UPCOMING_MAX_JUMP_DAYS);
+    const past_limit = new Date(at_limit);
+
+    past_limit.setDate(past_limit.getDate() + 1);
+
+    expect(jump_upcoming_window(window, at_limit).start.getTime()).toBe(
+      window.start.getTime(),
+    );
+    expect(jump_upcoming_window(window, past_limit)).toEqual(
+      initial_upcoming_window(past_limit),
+    );
   });
 
   it("widens to include a month outside the window", () => {

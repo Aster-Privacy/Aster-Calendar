@@ -170,6 +170,7 @@ import {
   include_in_upcoming_window,
   initial_upcoming_window,
   extend_upcoming_window,
+  jump_upcoming_window,
   is_schedule_range_pageable,
   month_start_offset,
   resolve_schedule_range,
@@ -439,7 +440,7 @@ export function use_calendar_state() {
     }
 
     set_upcoming_window((current) =>
-      include_in_upcoming_window(current, anchor_date, anchor_date),
+      jump_upcoming_window(current, anchor_date),
     );
     set_agenda_visible_month(anchor_date);
     request_agenda_scroll(anchor_date);
