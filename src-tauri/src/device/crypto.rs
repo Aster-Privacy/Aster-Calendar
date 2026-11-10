@@ -675,9 +675,27 @@ pub fn device_sign_challenge(
     Ok(b64url(&sig.to_bytes()))
 }
 
+fn is_local_app_url(url: &tauri::Url, allow_dev_hosts: bool) -> bool {
+    let host = url.host_str().unwrap_or("");
+    match url.scheme() {
+        "tauri" => host == "localhost",
+        "http" | "https" => {
+            host == "tauri.localhost"
+                || (allow_dev_hosts && matches!(host, "127.0.0.1" | "localhost"))
+        }
+        _ => false,
+    }
+}
+
 fn require_primary_webview(window: &tauri::WebviewWindow) -> Result<(), String> {
     if window.label() != "main" {
         return Err("command not available in this window".to_string());
+    }
+    let url = window
+        .url()
+        .map_err(|_| "command not available in this window".to_string())?;
+    if !is_local_app_url(&url, cfg!(debug_assertions)) {
+        return Err("command not available on this page".to_string());
     }
     Ok(())
 }
@@ -1156,6 +1174,16 @@ pub async fn send_device_http_request(
     })
 }
 
+const MAX_PBKDF2_BITS: u32 = 4096;
+
+fn hkdf_max_bits(hash: &str) -> Result<u32, String> {
+    match hash.to_uppercase().as_str() {
+        "SHA-256" => Ok(255 * 32 * 8),
+        "SHA-512" => Ok(255 * 64 * 8),
+        _ => Err(format!("unsupported hash: {}", hash)),
+    }
+}
+
 #[tauri::command]
 pub fn crypto_pbkdf2(
     password: Vec<u8>,
@@ -1172,6 +1200,9 @@ pub fn crypto_pbkdf2(
     }
     if iterations > 2_000_000 {
         return Err(format!("iterations {} exceeds maximum of 2000000", iterations));
+    }
+    if bits > MAX_PBKDF2_BITS {
+        return Err(format!("bits {} exceeds maximum of {}", bits, MAX_PBKDF2_BITS));
     }
     let dk_len = (bits / 8) as usize;
     let mut dk = vec![0u8; dk_len];
@@ -1202,6 +1233,10 @@ pub fn crypto_hkdf(
 ) -> Result<Vec<u8>, String> {
     if bits == 0 || bits % 8 != 0 {
         return Err(format!("bits must be a non-zero multiple of 8, got {}", bits));
+    }
+    let max_bits = hkdf_max_bits(&hash)?;
+    if bits > max_bits {
+        return Err(format!("bits {} exceeds maximum of {} for {}", bits, max_bits, hash));
     }
     let dk_len = (bits / 8) as usize;
     let mut okm = vec![0u8; dk_len];
@@ -1280,6 +1315,35 @@ pub fn crypto_hmac_sign(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn local_app_urls_are_accepted() {
+        for url in ["tauri://localhost/", "http://tauri.localhost/", "https://tauri.localhost/calendar"] {
+            assert!(is_local_app_url(&tauri::Url::parse(url).unwrap(), false), "{url}");
+        }
+    }
+
+    #[test]
+    fn remote_and_dev_urls_are_rejected_in_release() {
+        for url in [
+            "https://hooks.stripe.com/",
+            "https://evil.astermail.org/",
+            "https://tauri.localhost.evil.com/",
+            "tauri://evil/",
+            "http://127.0.0.1:1420/",
+            "about:blank",
+        ] {
+            assert!(!is_local_app_url(&tauri::Url::parse(url).unwrap(), false), "{url}");
+        }
+        assert!(is_local_app_url(&tauri::Url::parse("http://127.0.0.1:1420/").unwrap(), true));
+    }
+
+    #[test]
+    fn hkdf_output_limit_matches_rfc5869() {
+        assert_eq!(hkdf_max_bits("SHA-256").unwrap(), 65_280);
+        assert_eq!(hkdf_max_bits("sha-512").unwrap(), 130_560);
+        assert!(hkdf_max_bits("SHA-1").is_err());
+    }
 
     fn test_key(seed: u8) -> [u8; 32] {
         [seed; 32]
