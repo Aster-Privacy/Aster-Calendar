@@ -68,6 +68,7 @@ import {
   iso_week_number,
   is_offset_in_view,
   minutes_from_midnight,
+  PAST_EVENT_OPACITY,
   resolve_event_color,
   build_event_block_style,
   event_color_token,
@@ -2263,6 +2264,10 @@ export const CalendarTimeGridView = memo(function CalendarTimeGridView({
                     const is_dragging =
                       all_day_event_drag?.event.id === event.id &&
                       all_day_event_drag.moved;
+                    const is_all_day_past =
+                      dim_past_events &&
+                      !is_active &&
+                      new Date(event.ends_at).getTime() < now.getTime();
                     const can_resize =
                       is_end &&
                       !is_readonly_event(event) &&
@@ -2291,13 +2296,20 @@ export const CalendarTimeGridView = memo(function CalendarTimeGridView({
                           className="relative flex w-full shrink-0 items-center pl-2 pr-1.5 h-6 py-0 leading-4 text-[12px] font-medium truncate text-start focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-color)] touch-none"
                           style={{
                             ...all_day_segment_style(
-                              build_event_block_style(color, { is_active }),
+                              build_event_block_style(color, {
+                                is_active,
+                                is_past: is_all_day_past,
+                              }),
                               is_start,
                               is_end,
                               is_active,
                             ),
                             cursor: is_dragging ? "grabbing" : "pointer",
-                            opacity: is_dragging ? 0.85 : undefined,
+                            opacity: is_dragging
+                              ? 0.85
+                              : is_all_day_past
+                                ? PAST_EVENT_OPACITY
+                                : undefined,
                             transition: is_dragging ? "none" : undefined,
                             overflow: title_span > 1 ? "visible" : undefined,
                             zIndex: title_span > 1 ? 1 : undefined,
@@ -2819,7 +2831,7 @@ export const CalendarTimeGridView = memo(function CalendarTimeGridView({
                             opacity: is_live_drag
                               ? 0.35
                               : is_past && !is_active
-                                ? 0.6
+                                ? PAST_EVENT_OPACITY
                                 : undefined,
                             transition: is_dragging ? "none" : undefined,
                             zIndex: is_active

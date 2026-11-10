@@ -229,6 +229,7 @@ interface MonthDayChipsProps {
   calendar_by_id: Map<string, DecryptedCalendar>;
   calendars: DecryptedCalendar[];
   time_format: "12h" | "24h";
+  dim_past_events: boolean;
 }
 
 const MonthDayChips = memo(function MonthDayChips({
@@ -241,6 +242,7 @@ const MonthDayChips = memo(function MonthDayChips({
   calendar_by_id,
   calendars,
   time_format,
+  dim_past_events,
 }: MonthDayChipsProps) {
   const overflow_count = day_events.length - shown_count;
 
@@ -270,6 +272,7 @@ const MonthDayChips = memo(function MonthDayChips({
                 is_active,
                 is_all_day: event.is_all_day,
                 is_past:
+                  dim_past_events &&
                   !is_active &&
                   new Date(event.ends_at).getTime() < calendar_now().getTime(),
               })}
@@ -405,6 +408,7 @@ interface CalendarMonthViewProps {
   on_wheel_navigate: (direction: 1 | -1) => void;
   on_range_select: (start: Date, end: Date, is_all_day: boolean) => void;
   default_duration_minutes: number;
+  dim_past_events?: boolean;
 }
 
 export const CalendarMonthView = memo(function CalendarMonthView({
@@ -434,6 +438,7 @@ export const CalendarMonthView = memo(function CalendarMonthView({
   on_wheel_navigate,
   on_range_select,
   default_duration_minutes,
+  dim_past_events = false,
 }: CalendarMonthViewProps) {
   const [overflow_day, set_overflow_day] = useState<{
     day: Date;
@@ -1158,6 +1163,7 @@ export const CalendarMonthView = memo(function CalendarMonthView({
                     }
                     api={chip_api}
                     calendar_by_id={calendar_by_id}
+                    dim_past_events={dim_past_events}
                     calendars={calendars}
                     day={day}
                     day_events={day_events}
@@ -1255,6 +1261,7 @@ export const CalendarMonthView = memo(function CalendarMonthView({
                         is_active,
                         is_all_day: event.is_all_day,
                         is_past:
+                          dim_past_events &&
                           !is_active &&
                           new Date(event.ends_at).getTime() <
                             calendar_now().getTime(),

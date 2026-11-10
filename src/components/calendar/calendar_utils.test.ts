@@ -713,7 +713,7 @@ describe("event color palette", () => {
     expect(style.borderInlineStart).toBeUndefined();
     expect(style.boxShadow).toBe("0 0 0 1px var(--bg-primary)");
     expect(style.opacity).toBeUndefined();
-    expect(style.filter).toBe("saturate(0.45)");
+    expect(style.filter).toBe("saturate(0.6)");
     expect(style.outline).toBeUndefined();
     expect(
       build_event_block_style("#be123c", { is_active: true }).outline,

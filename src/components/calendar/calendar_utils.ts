@@ -973,7 +973,9 @@ export function event_color_token(color: string | null | undefined): string {
   return nearest_event_color(color).token;
 }
 
-const PAST_EVENT_FILTER = "saturate(0.45)";
+const PAST_EVENT_FILTER = "saturate(0.6)";
+
+export const PAST_EVENT_OPACITY = 0.75;
 
 export interface EventBlockOptions {
   is_active?: boolean;

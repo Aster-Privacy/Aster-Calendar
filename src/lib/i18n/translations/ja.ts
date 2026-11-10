@@ -11824,10 +11824,10 @@ export const ja = {
       "Aster creates the file on this device. Once you save it, the file isn't encrypted, so store it somewhere you trust.",
     ie_sub_name_placeholder: "Team holidays",
     ie_sub_url_label: "Calendar URL",
-    ie_sub_url_hint: "Use a public iCal link that starts with https://",
+    ie_sub_url_hint: "Use a public iCal link that starts with https:// or webcal://",
     ie_sub_fetch_note:
       "Aster のサーバーがフィードを代わりにダウンロードするため、フィードの提供元にお使いの IP アドレスが知られることはありません。ダウンロード時に、Aster のサーバーはリンクとフィード内の予定を読み取れます。",
-    ie_sub_url_error: "Enter a URL that starts with https://",
+    ie_sub_url_error: "Enter a URL that starts with https:// or webcal://",
     ie_sub_name_error: "Enter a name for this calendar.",
     ie_sub_duplicate: "You're already subscribed to this calendar.",
     ie_sub_list_title: "Your subscriptions",
@@ -11843,6 +11843,7 @@ export const ja = {
     ie_sub_remove: "Unsubscribe",
     ie_sub_remove_named: "Unsubscribe from {{ name }}",
     ie_sub_color: "Change color",
+    ie_sub_color_label: "Color",
     ie_sub_color_named: "Change color for {{ name }}",
     ie_sub_removed: "Unsubscribed from {{ name }}",
     event_save_failed:

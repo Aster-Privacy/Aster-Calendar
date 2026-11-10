@@ -68,8 +68,12 @@ import {
 } from "@/services/calendar/ics_import";
 import {
   check_subscription,
+  normalize_subscription_url,
+  pick_subscription_color,
   subscription_color,
 } from "@/services/calendar/subscriptions";
+import { holiday_color } from "@/services/calendar/holidays";
+import { birthday_color } from "@/services/calendar/birthdays";
 
 type ImportPhase = "idle" | "reading" | "preview" | "importing" | "done";
 
@@ -84,14 +88,6 @@ const IMPORT_BATCH_SIZE = 25;
 const ALL_CALENDARS = "__all__";
 const MAX_SUBSCRIPTION_NAME_LENGTH = 100;
 const MAX_SUBSCRIPTION_URL_LENGTH = 2048;
-const SUBSCRIPTION_COLORS = [
-  "#0b8043",
-  "#3f51b5",
-  "#d81b60",
-  "#f4511e",
-  "#8e24aa",
-  "#039be5",
-];
 const FILE_ACCEPT = ".ics,.ical,text/calendar";
 
 function is_https_url(value: string): boolean {
@@ -762,23 +758,23 @@ function CalendarExportCard({ calendars }: { calendars: DecryptedCalendar[] }) {
 }
 
 function SubscriptionColorButton({
-  subscription,
+  color,
+  label,
   on_change,
 }: {
-  subscription: IcsSubscription;
+  color: string;
+  label: string;
   on_change: (color: string) => void;
 }) {
   const { t } = use_i18n();
   const [open, set_open] = useState(false);
-  const current = nearest_event_color(subscription_color(subscription));
+  const current = nearest_event_color(subscription_color({ color }));
 
   return (
     <Popover open={open} onOpenChange={set_open}>
       <PopoverTrigger asChild>
         <button
-          aria-label={t("calendar.ie_sub_color_named", {
-            name: subscription.name,
-          })}
+          aria-label={label}
           className="flex h-8 w-8 items-center justify-center rounded-full transition-colors duration-150 hover:bg-[var(--aster-island-hover,rgba(127,127,127,0.12))] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] motion-reduce:transition-none"
           data-subscription-color={current.name}
           title={t("calendar.ie_sub_color")}
@@ -796,9 +792,7 @@ function SubscriptionColorButton({
         sideOffset={6}
       >
         <div
-          aria-label={t("calendar.ie_sub_color_named", {
-            name: subscription.name,
-          })}
+          aria-label={label}
           className="grid grid-cols-6 gap-2"
           role="radiogroup"
         >
@@ -852,10 +846,17 @@ export function CalendarSubscriptionsCard() {
   const [show_errors, set_show_errors] = useState(false);
   const [url_touched, set_url_touched] = useState(false);
   const [checking_id, set_checking_id] = useState<string | null>(null);
+  const [picked_color, set_picked_color] = useState<string | null>(null);
   const subscriptions: IcsSubscription[] =
     preferences.calendar_ics_subscriptions ?? [];
+  const suggested_color = pick_subscription_color([
+    ...subscriptions.map((subscription) => subscription.color),
+    holiday_color(preferences.calendar_holidays_color),
+    birthday_color(preferences.calendar_birthdays_color),
+  ]);
+  const new_color = picked_color ?? suggested_color;
 
-  const trimmed_url = url.trim();
+  const trimmed_url = normalize_subscription_url(url);
   const trimmed_name = name.trim();
   const is_duplicate = subscriptions.some(
     (subscription) => subscription.url === trimmed_url,
@@ -889,10 +890,7 @@ export function CalendarSubscriptionsCard() {
     update_preference("calendar_ics_subscriptions", [
       ...subscriptions,
       {
-        color:
-          SUBSCRIPTION_COLORS[
-            subscriptions.length % SUBSCRIPTION_COLORS.length
-          ],
+        color: new_color,
         id: crypto.randomUUID(),
         name: trimmed_name.slice(0, MAX_SUBSCRIPTION_NAME_LENGTH),
         url: trimmed_url,
@@ -900,6 +898,7 @@ export function CalendarSubscriptionsCard() {
     ]);
     set_name("");
     set_url("");
+    set_picked_color(null);
     set_show_errors(false);
     set_url_touched(false);
     show_toast(t("calendar.settings_subscription_added"), "success");
@@ -1014,7 +1013,17 @@ export function CalendarSubscriptionsCard() {
               onChange={(event) => set_url(event.target.value)}
             />
           </FieldBlock>
-          <div className="flex justify-end">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <SubscriptionColorButton
+                color={new_color}
+                label={t("calendar.ie_sub_color_label")}
+                on_change={set_picked_color}
+              />
+              <span className="text-sm text-txt-secondary">
+                {t("calendar.ie_sub_color_label")}
+              </span>
+            </div>
             <Button size="md" type="submit" variant="primary">
               {t("calendar.settings_subscription_add")}
             </Button>
@@ -1039,8 +1048,11 @@ export function CalendarSubscriptionsCard() {
               }
               icon={
                 <SubscriptionColorButton
+                  color={subscription.color}
+                  label={t("calendar.ie_sub_color_named", {
+                    name: subscription.name,
+                  })}
                   on_change={(color) => handle_color(subscription, color)}
-                  subscription={subscription}
                 />
               }
               label={subscription.name}
