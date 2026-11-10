@@ -34,6 +34,10 @@ import {
   reminder_digest,
   take_shown_reminders,
 } from "@/lib/shown_reminder_log";
+import {
+  effective_reminders,
+  scheduled_reminder_minutes,
+} from "@/services/calendar/event_reminders";
 
 const FIRED_STORAGE_KEY = "aster_calendar_fired_reminders";
 const MAX_SCHEDULED = 60;
@@ -304,46 +308,49 @@ interface ReminderOptions {
   self_email?: string;
 }
 
-function reminder_target_for(
+function reminder_targets_for(
   event: DecryptedCalendarEvent,
   options: ReminderOptions,
-): ReminderTarget | null {
+): ReminderTarget[] {
   if (event.status === "cancelled") {
-    return null;
+    return [];
   }
 
   const fallback_minutes =
     event.is_all_day && options.default_all_day_reminder_minutes !== undefined
       ? options.default_all_day_reminder_minutes
       : options.default_reminder_minutes;
-  const minutes = event.reminder_minutes ?? fallback_minutes;
+  const minutes_list = scheduled_reminder_minutes(
+    effective_reminders(event),
+    fallback_minutes,
+  );
 
-  if (minutes < 0) {
-    return null;
+  if (minutes_list.length === 0) {
+    return [];
   }
 
   if (options.only_accepted) {
     const response = self_response(event, options.self_email);
 
     if (response === "declined" || response === "needs_action") {
-      return null;
+      return [];
     }
   }
 
   const starts_ms = new Date(event.starts_at).getTime();
 
   if (!Number.isFinite(starts_ms)) {
-    return null;
+    return [];
   }
 
-  return {
+  return minutes_list.map((minutes) => ({
     event_id: event.id,
     title: event.title,
     starts_at: event.starts_at,
     is_all_day: event.is_all_day,
     fire_at: starts_ms - minutes * 60 * 1000,
     key: `${event.id}:${event.starts_at}:${minutes}`,
-  };
+  }));
 }
 
 export function build_reminder_targets(
@@ -351,19 +358,21 @@ export function build_reminder_targets(
   options: ReminderOptions,
 ): ReminderTarget[] {
   const targets: ReminderTarget[] = [];
+  const seen = new Set<string>();
 
   for (const event of events) {
-    const target = reminder_target_for(event, options);
+    for (const target of reminder_targets_for(event, options)) {
+      if (
+        seen.has(target.key) ||
+        target.fire_at <= options.now - REMINDER_GRACE_MS ||
+        target.fire_at - options.now > MAX_LEAD_MS
+      ) {
+        continue;
+      }
 
-    if (
-      !target ||
-      target.fire_at <= options.now - REMINDER_GRACE_MS ||
-      target.fire_at - options.now > MAX_LEAD_MS
-    ) {
-      continue;
+      seen.add(target.key);
+      targets.push(target);
     }
-
-    targets.push(target);
   }
 
   return targets
@@ -375,32 +384,33 @@ export function build_missed_reminder_targets(
   events: DecryptedCalendarEvent[],
   options: ReminderOptions,
 ): ReminderTarget[] {
-  const targets: ReminderTarget[] = [];
-  const seen = new Set<string>();
+  const latest = new Map<string, ReminderTarget>();
 
   for (const event of events) {
-    const target = reminder_target_for(event, options);
-
-    if (
-      !target ||
-      seen.has(target.key) ||
-      target.fire_at > options.now - REMINDER_GRACE_MS ||
-      target.fire_at <= options.now - MISSED_REMINDER_WINDOW_MS
-    ) {
-      continue;
-    }
-
     const created_ms = new Date(event.created_at).getTime();
 
-    if (Number.isFinite(created_ms) && created_ms > target.fire_at) {
-      continue;
-    }
+    for (const target of reminder_targets_for(event, options)) {
+      if (
+        target.fire_at > options.now - REMINDER_GRACE_MS ||
+        target.fire_at <= options.now - MISSED_REMINDER_WINDOW_MS
+      ) {
+        continue;
+      }
 
-    seen.add(target.key);
-    targets.push(target);
+      if (Number.isFinite(created_ms) && created_ms > target.fire_at) {
+        continue;
+      }
+
+      const occurrence = `${target.event_id}:${target.starts_at}`;
+      const current = latest.get(occurrence);
+
+      if (!current || target.fire_at > current.fire_at) {
+        latest.set(occurrence, target);
+      }
+    }
   }
 
-  return targets
+  return Array.from(latest.values())
     .sort((left, right) => left.fire_at - right.fire_at)
     .slice(-MAX_MISSED);
 }

@@ -286,6 +286,71 @@ describe("build_reminder_targets", () => {
   });
 });
 
+describe("build_reminder_targets with several reminders", () => {
+  const hours_ahead = (hours: number) =>
+    new Date(NOW + hours * 60 * 60 * 1000).toISOString();
+
+  it("schedules one target per reminder", () => {
+    const targets = build_reminder_targets(
+      [
+        make_event({
+          starts_at: hours_ahead(2),
+          reminder_minutes: 10,
+          reminders: [10, 60],
+        }),
+      ],
+      BASE,
+    );
+
+    expect(targets.map((target) => target.fire_at)).toEqual([
+      NOW + 60 * 60 * 1000,
+      NOW + 110 * 60 * 1000,
+    ]);
+    expect(new Set(targets.map((target) => target.key)).size).toBe(2);
+  });
+
+  it("fires a week-ahead reminder for an event a week away", () => {
+    const targets = build_reminder_targets(
+      [
+        make_event({
+          starts_at: hours_ahead(7 * 24 + 1),
+          reminder_minutes: 10,
+          reminders: [10, 10080],
+        }),
+      ],
+      BASE,
+    );
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0].fire_at).toBe(NOW + 60 * 60 * 1000);
+  });
+
+  it("skips the default when the event has an empty reminder list", () => {
+    expect(
+      build_reminder_targets(
+        [make_event({ reminder_minutes: null, reminders: [] })],
+        BASE,
+      ),
+    ).toEqual([]);
+  });
+
+  it("reports one missed reminder per occurrence", () => {
+    const targets = build_missed_reminder_targets(
+      [
+        make_event({
+          starts_at: new Date(NOW - 10 * 60 * 1000).toISOString(),
+          reminder_minutes: 30,
+          reminders: [30, 60],
+        }),
+      ],
+      BASE,
+    );
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0].fire_at).toBe(NOW - 40 * 60 * 1000);
+  });
+});
+
 describe("build_missed_reminder_targets", () => {
   const minutes_ago = (minutes: number) =>
     new Date(NOW - minutes * 60 * 1000).toISOString();

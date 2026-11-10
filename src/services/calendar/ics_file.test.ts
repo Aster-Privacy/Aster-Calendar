@@ -332,6 +332,87 @@ describe("parse_ics_events", () => {
     expect(parsed[0].reminder_minutes).toBe(60);
   });
 
+  it("writes week triggers and one alarm per reminder", () => {
+    const ics = build_ics(
+      [make_event({ reminder_minutes: 90, reminders: [90, 2880, 10080] })],
+      STAMP,
+    );
+
+    expect(ics.match(/BEGIN:VALARM/g)).toHaveLength(3);
+    expect(ics).toContain("TRIGGER:-PT90M");
+    expect(ics).toContain("TRIGGER:-P2D");
+    expect(ics).toContain("TRIGGER:-P1W");
+  });
+
+  it("writes no alarm for an explicit empty reminder list", () => {
+    expect(
+      build_ics([make_event({ reminder_minutes: null, reminders: [] })], STAMP),
+    ).not.toContain("BEGIN:VALARM");
+  });
+
+  it("reads every alarm and caps them at four weeks", () => {
+    const parsed = parse_ics_events(
+      [
+        "BEGIN:VCALENDAR",
+        "BEGIN:VEVENT",
+        "UID:alarm-3",
+        "DTSTART:20260302T090000Z",
+        "DTEND:20260302T100000Z",
+        "SUMMARY:Standup",
+        "BEGIN:VALARM",
+        "TRIGGER:-P1W",
+        "END:VALARM",
+        "BEGIN:VALARM",
+        "TRIGGER:-PT90M",
+        "END:VALARM",
+        "BEGIN:VALARM",
+        "TRIGGER:-P2D",
+        "END:VALARM",
+        "BEGIN:VALARM",
+        "TRIGGER:-P6W",
+        "END:VALARM",
+        "END:VEVENT",
+        "END:VCALENDAR",
+      ].join("\r\n"),
+    );
+
+    expect(parsed[0].reminder_minutes).toBe(90);
+    expect(parsed[0].reminders).toEqual([90, 2880, 10080, 40320]);
+  });
+
+  it("reads an alarm relative to the event end", () => {
+    const parsed = parse_ics_events(
+      [
+        "BEGIN:VCALENDAR",
+        "BEGIN:VEVENT",
+        "UID:alarm-4",
+        "DTSTART:20260302T090000Z",
+        "DTEND:20260302T100000Z",
+        "SUMMARY:Standup",
+        "BEGIN:VALARM",
+        "TRIGGER;RELATED=END:-PT90M",
+        "END:VALARM",
+        "END:VEVENT",
+        "END:VCALENDAR",
+      ].join("\r\n"),
+    );
+
+    expect(parsed[0].reminder_minutes).toBe(30);
+    expect(parsed[0].reminders).toBeUndefined();
+  });
+
+  it("round-trips several long reminders through export and import", () => {
+    const parsed = parse_ics_events(
+      build_ics(
+        [make_event({ reminder_minutes: 90, reminders: [90, 2880, 10080] })],
+        STAMP,
+      ),
+    );
+
+    expect(parsed[0].reminder_minutes).toBe(90);
+    expect(parsed[0].reminders).toEqual([90, 2880, 10080]);
+  });
+
   it("returns nothing for input without events", () => {
     expect(parse_ics_events("")).toEqual([]);
     expect(parse_ics_events("BEGIN:VCALENDAR\r\nEND:VCALENDAR")).toEqual([]);

@@ -40,6 +40,11 @@ import { safe_http_url } from "@/services/calendar/safe_url";
 import { windows_zone_to_iana } from "@/services/calendar/windows_zones";
 import { find_ics_blocks } from "@/services/calendar/ics_blocks";
 import {
+  effective_reminders,
+  MAX_REMINDER_MINUTES,
+  normalize_reminder_list,
+} from "@/services/calendar/event_reminders";
+import {
   sanitize_calendar_email,
   sanitize_calendar_text,
 } from "@/services/calendar/sanitize";
@@ -59,6 +64,7 @@ export interface ImportedIcsEvent {
   visibility: CalendarEventVisibility;
   conference_url: string;
   reminder_minutes: number | null;
+  reminders?: number[];
   uid: string | null;
   recurrence_id: string | null;
   dropped_time_zones?: string[];
@@ -82,7 +88,6 @@ const MAX_UID_LENGTH = 255;
 const MIN_IMPORT_YEAR = 1900;
 const MAX_IMPORT_YEAR = 2200;
 const DEFAULT_DURATION_MS = 60 * 60 * 1000;
-const MAX_REMINDER_MINUTES = 40320;
 
 const DURATION_PATTERN =
   /^([+-])?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/;
@@ -375,6 +380,10 @@ function reminder_trigger(raw_minutes: number): string {
     return "PT0S";
   }
 
+  if (minutes % 10080 === 0) {
+    return `-P${minutes / 10080}W`;
+  }
+
   if (minutes % 1440 === 0) {
     return `-P${minutes / 1440}D`;
   }
@@ -568,12 +577,14 @@ export function build_vevent_lines(
     lines.push(`URL:${escape_text(event.conference_url)}`);
   }
 
-  if (extras.include_alarm !== false && event.reminder_minutes !== null) {
-    lines.push("BEGIN:VALARM");
-    lines.push("ACTION:DISPLAY");
-    lines.push(`DESCRIPTION:${escape_text(event.title)}`);
-    lines.push(`TRIGGER:${reminder_trigger(event.reminder_minutes)}`);
-    lines.push("END:VALARM");
+  if (extras.include_alarm !== false) {
+    for (const minutes of effective_reminders(event) ?? []) {
+      lines.push("BEGIN:VALARM");
+      lines.push("ACTION:DISPLAY");
+      lines.push(`DESCRIPTION:${escape_text(event.title)}`);
+      lines.push(`TRIGGER:${reminder_trigger(minutes)}`);
+      lines.push("END:VALARM");
+    }
   }
 
   if (extras.organizer) {
@@ -787,7 +798,7 @@ function parse_block(block: string): ParsedBlock | null {
   let availability: CalendarEventAvailability = "busy";
   let visibility: CalendarEventVisibility = "default";
   let conference_url = "";
-  let reminder_minutes: number | null = null;
+  const alarm_triggers: { offset_ms: number; related_end: boolean }[] = [];
   let in_alarm = false;
   let uid: string | null = null;
   let recurrence_id: Date | null = null;
@@ -842,18 +853,14 @@ function parse_block(block: string): ParsedBlock | null {
     }
 
     if (in_alarm) {
-      if (
-        name === "TRIGGER" &&
-        reminder_minutes === null &&
-        params.VALUE !== "DATE-TIME"
-      ) {
+      if (name === "TRIGGER" && params.VALUE !== "DATE-TIME") {
         const offset = parse_duration(value);
 
-        if (offset !== null && offset <= 0) {
-          reminder_minutes = Math.min(
-            Math.round(-offset / 60000),
-            MAX_REMINDER_MINUTES,
-          );
+        if (offset !== null) {
+          alarm_triggers.push({
+            offset_ms: offset,
+            related_end: params.RELATED?.toUpperCase() === "END",
+          });
         }
       }
 
@@ -964,6 +971,19 @@ function parse_block(block: string): ParsedBlock | null {
         : resolved_end;
 
   const final_end = is_all_day ? all_day_inclusive_end(base_end) : base_end;
+  const span_ms = final_end.getTime() - starts.getTime();
+  const alarm_minutes = alarm_triggers.flatMap(({ offset_ms, related_end }) => {
+    const relative_to_start = related_end ? offset_ms + span_ms : offset_ms;
+
+    if (relative_to_start > 0) {
+      return [];
+    }
+
+    return [
+      Math.min(Math.round(-relative_to_start / 60000), MAX_REMINDER_MINUTES),
+    ];
+  });
+  const imported_reminders = normalize_reminder_list(alarm_minutes) ?? [];
 
   if (recurrence) {
     recurrence = {
@@ -988,7 +1008,10 @@ function parse_block(block: string): ParsedBlock | null {
       availability,
       visibility,
       conference_url,
-      reminder_minutes,
+      reminder_minutes: imported_reminders[0] ?? null,
+      ...(imported_reminders.length > 1
+        ? { reminders: imported_reminders }
+        : {}),
       uid,
       ...(dropped_zones.size > 0
         ? { dropped_time_zones: Array.from(dropped_zones) }

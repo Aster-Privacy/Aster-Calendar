@@ -80,6 +80,7 @@ import {
 } from "@aster/ui";
 
 import { CalendarSelect } from "@/components/calendar/calendar_select";
+import { EventReminderEditor } from "@/components/calendar/event_reminder_editor";
 import { InviteSenderSelect } from "@/components/calendar/invite_sender_select";
 import { ProfileAvatar } from "@/components/ui/profile_avatar";
 import {
@@ -105,32 +106,20 @@ import {
   BIRTHDAY_CALENDAR_ID,
   BIRTHDAY_COLOR,
 } from "@/services/calendar/birthdays";
+import {
+  ALL_DAY_EVENT_REMINDER_CHOICES,
+  EVENT_REMINDER_CHOICES,
+  default_reminder_list,
+  effective_reminders,
+  reminder_fields,
+  remap_reminders,
+} from "@/services/calendar/event_reminders";
 
-const REMINDER_OPTIONS = [0, 5, 10, 30, 60, 1440];
 const MAX_TITLE_LENGTH = 200;
 const MAX_LOCATION_LENGTH = 500;
 const MAX_CONFERENCE_URL_LENGTH = 2048;
 const MAX_DESCRIPTION_LENGTH = 20000;
 const MAX_ATTENDEES = 100;
-
-export function describe_reminder(
-  minutes: number,
-  t: (key: TranslationKey, params?: Record<string, string | number>) => string,
-): string {
-  if (minutes === 0) {
-    return t("calendar.reminder_at_start");
-  }
-
-  if (minutes === 60) {
-    return t("calendar.reminder_hour_before");
-  }
-
-  if (minutes === 1440) {
-    return t("calendar.reminder_day_before");
-  }
-
-  return t("calendar.reminder_minutes_before", { count: minutes });
-}
 
 const EVENT_KIND_OPTIONS: {
   value: CalendarEventKind;
@@ -337,7 +326,7 @@ export function EventFormModal({
   const [start_time, set_start_time] = useState("09:00");
   const [end_date, set_end_date] = useState("");
   const [end_time, set_end_time] = useState("10:00");
-  const [reminder_minutes, set_reminder_minutes] = useState<number | null>(10);
+  const [reminders, set_reminders] = useState<number[]>([10]);
   const [recurrence, set_recurrence] = useState<RecurrenceRule | null>(null);
   const [recurrence_exceptions, set_recurrence_exceptions] = useState<string[]>(
     [],
@@ -442,7 +431,7 @@ export function EventFormModal({
       set_end_date(to_local_date_value(event_end));
       set_start_time(to_local_time_value(event_start));
       set_end_time(to_local_time_value(event_end));
-      set_reminder_minutes(event.reminder_minutes);
+      set_reminders(effective_reminders(event) ?? []);
       set_attendees(event.attendees.map((attendee) => attendee.email));
       set_guests_can_modify(event.guests_can_modify);
       set_guests_can_invite(event.guests_can_invite);
@@ -497,7 +486,7 @@ export function EventFormModal({
         ? preferences.calendar_default_all_day_reminder_minutes
         : default_reminder_minutes;
 
-    set_reminder_minutes(initial_reminder < 0 ? null : initial_reminder);
+    set_reminders(default_reminder_list(initial_reminder));
     set_attendees([]);
     set_guests_can_modify(preferences.calendar_default_guests_can_modify);
     set_guests_can_invite(preferences.calendar_default_guests_can_invite);
@@ -600,8 +589,6 @@ export function EventFormModal({
           unitDisplay: "narrow",
         }).format(minutes / 60);
 
-  const reminder_label = (minutes: number) => describe_reminder(minutes, t);
-
   const handle_start_time_change = (next: string) => {
     const previous_duration =
       build_date(end_date, end_time).getTime() -
@@ -694,7 +681,7 @@ export function EventFormModal({
     end_date,
     start_time,
     end_time,
-    reminder_minutes,
+    reminders,
     attendees,
     guests_can_modify,
     guests_can_invite,
@@ -1013,7 +1000,7 @@ export function EventFormModal({
           : range_end
         ).toISOString(),
         is_all_day,
-        reminder_minutes,
+        ...reminder_fields(reminders),
         color,
         availability:
           event_kind === "default"
@@ -1374,14 +1361,34 @@ export function EventFormModal({
                     onCheckedChange={(checked) => {
                       const next = checked === true;
 
+                      if (next === is_all_day) {
+                        return;
+                      }
+
                       set_is_all_day(next);
 
                       if (event === null) {
-                        const fallback = next
-                          ? preferences.calendar_default_all_day_reminder_minutes
-                          : default_reminder_minutes;
-
-                        set_reminder_minutes(fallback < 0 ? null : fallback);
+                        set_reminders(
+                          default_reminder_list(
+                            next
+                              ? preferences.calendar_default_all_day_reminder_minutes
+                              : default_reminder_minutes,
+                          ),
+                        );
+                      } else {
+                        set_reminders((current) =>
+                          next
+                            ? remap_reminders(
+                                current,
+                                EVENT_REMINDER_CHOICES,
+                                ALL_DAY_EVENT_REMINDER_CHOICES,
+                              )
+                            : remap_reminders(
+                                current,
+                                ALL_DAY_EVENT_REMINDER_CHOICES,
+                                EVENT_REMINDER_CHOICES,
+                              ),
+                        );
                       }
                     }}
                   />
@@ -1611,27 +1618,10 @@ export function EventFormModal({
               <FieldRow
                 icon={<BellIcon className="h-4 w-4" strokeWidth={1.75} />}
               >
-                <CalendarSelect
-                  aria_label={t("calendar.reminder")}
-                  full_width
-                  class_name="min-w-[10rem]"
-                  options={[
-                    { value: "none", label: t("calendar.reminder_none") },
-                    ...REMINDER_OPTIONS.map((minutes) => ({
-                      value: String(minutes),
-                      label: reminder_label(minutes),
-                    })),
-                  ]}
-                  value={
-                    reminder_minutes === null
-                      ? "none"
-                      : String(reminder_minutes)
-                  }
-                  on_change={(value) =>
-                    set_reminder_minutes(
-                      value === "none" ? null : Number(value),
-                    )
-                  }
+                <EventReminderEditor
+                  is_all_day={is_all_day}
+                  reminders={reminders}
+                  on_change={set_reminders}
                 />
               </FieldRow>
 

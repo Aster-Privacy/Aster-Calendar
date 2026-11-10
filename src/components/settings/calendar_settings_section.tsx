@@ -84,9 +84,16 @@ import {
   EVENT_COLOR_OPTIONS,
   week_start_day_index,
 } from "@/components/calendar/calendar_utils";
+import {
+  DEFAULT_ALL_DAY_REMINDER_OPTIONS,
+  DEFAULT_REMINDER_OPTIONS,
+  format_default_reminder,
+} from "@/services/calendar/event_reminders";
 const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120];
-const REMINDER_OPTIONS = [0, 5, 10, 15, 30, 60, 1440];
-const ALL_DAY_REMINDER_OPTIONS = [0, 420, 1440, 2880, 10080];
+const REMINDER_OPTIONS = DEFAULT_REMINDER_OPTIONS.filter((value) => value >= 0);
+const ALL_DAY_REMINDER_OPTIONS = DEFAULT_ALL_DAY_REMINDER_OPTIONS.filter(
+  (value) => value >= 0,
+);
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, hour) => hour);
 const MONTH_MAX_EVENT_OPTIONS = [2, 3, 4, 5, 6];
 const CONTROL_WIDTH = 220;
@@ -871,41 +878,8 @@ export function CalendarEventsSection() {
     return t("calendar.settings_hours", { count: minutes / 60 });
   };
 
-  const reminder_label = (minutes: number) => {
-    if (minutes === 0) {
-      return t("calendar.reminder_at_start");
-    }
-
-    if (minutes === 60) {
-      return t("calendar.reminder_hour_before");
-    }
-
-    if (minutes === 1440) {
-      return t("calendar.reminder_day_before");
-    }
-
-    return t("calendar.reminder_minutes_before", { count: minutes });
-  };
-
-  const all_day_reminder_label = (minutes: number) => {
-    if (minutes === 0) {
-      return t("calendar.reminder_at_start");
-    }
-
-    if (minutes === 420) {
-      return t("calendar.reminder_day_before_evening");
-    }
-
-    if (minutes === 1440) {
-      return t("calendar.reminder_day_before");
-    }
-
-    if (minutes === 10080) {
-      return t("calendar.reminder_week_before");
-    }
-
-    return t("calendar.reminder_days_before", { count: minutes / 1440 });
-  };
+  const reminder_label = (minutes: number) =>
+    format_default_reminder(minutes, t);
 
   return (
     <IslandSections>
@@ -1176,7 +1150,7 @@ export function CalendarEventsSection() {
               preferences.calendar_default_all_day_reminder_minutes,
             ).map((minutes) => ({
               value: String(minutes),
-              label: all_day_reminder_label(minutes),
+              label: reminder_label(minutes),
             })),
           ]}
           value={

@@ -26,6 +26,7 @@ import { use_auth } from "@/contexts/auth/use_auth_hook";
 import { use_i18n } from "@/lib/i18n/context";
 import { use_preferences } from "@/contexts/preferences_context";
 import { list_events, subscribe_calendar_changes } from "@/services/api/calendar";
+import { MAX_REMINDER_MINUTES } from "@/services/calendar/event_reminders";
 import { BACKGROUND_REMINDER_SHOWN } from "@/lib/calendar_reminder_messages";
 import { calendar_sync_engine } from "@/services/calendar/sync_engine";
 import {
@@ -53,7 +54,7 @@ import { is_app_network_locked } from "@/services/app_lock_network_gate";
 import { get_app_lock_config } from "@/services/app_lock_store";
 
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000;
-const LOOKAHEAD_MS = 12 * 60 * 60 * 1000;
+const LOOKAHEAD_MS = 12 * 60 * 60 * 1000 + MAX_REMINDER_MINUTES * 60 * 1000;
 const MISSED_TOAST_MS = 15000;
 const MISSED_LISTED_TITLES = 3;
 

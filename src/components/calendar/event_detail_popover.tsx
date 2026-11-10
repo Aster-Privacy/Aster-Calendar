@@ -58,7 +58,10 @@ import { IslandIconButton, Tooltip } from "@aster/ui";
 import { AttendeeResponseStatus } from "@/components/calendar/attendee_response_status";
 import { ProfileAvatar } from "@/components/ui/profile_avatar";
 import { describe_recurrence } from "@/components/calendar/recurrence_field";
-import { describe_reminder } from "@/components/calendar/event_form_modal";
+import {
+  effective_reminders,
+  format_reminder,
+} from "@/services/calendar/event_reminders";
 import { resolve_event_color } from "@/components/calendar/calendar_utils";
 import { EventKindIcon } from "@/components/calendar/event_kind_icon";
 import { is_event_organizer } from "@/services/calendar/itip";
@@ -584,10 +587,9 @@ export function EventDetailPopover({
         format_options.time_format === "12h",
       );
 
-  const reminder_label =
-    event.reminder_minutes === null
-      ? null
-      : describe_reminder(event.reminder_minutes, t);
+  const reminder_labels = (effective_reminders(event) ?? []).map((minutes) =>
+    format_reminder(minutes, t),
+  );
 
   const recurrence_label = event.recurrence
     ? describe_recurrence(event.recurrence, starts_at, language, t)
@@ -1073,8 +1075,14 @@ export function EventDetailPopover({
             </PopoverRow>
           )}
 
-          {reminder_label && (
-            <PopoverRow icon={<BellAlertIcon />}>{reminder_label}</PopoverRow>
+          {reminder_labels.length > 0 && (
+            <PopoverRow icon={<BellAlertIcon />}>
+              <div className="flex flex-col">
+                {reminder_labels.map((label) => (
+                  <span key={label}>{label}</span>
+                ))}
+              </div>
+            </PopoverRow>
           )}
         </div>
       </div>

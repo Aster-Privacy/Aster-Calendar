@@ -35,6 +35,10 @@ import type {
 } from "@/types/calendar";
 
 import { normalize_recurrence } from "@/services/calendar/recurrence";
+import {
+  normalize_reminder_list,
+  normalize_reminder_minutes,
+} from "@/services/calendar/event_reminders";
 import { normalize_calendar_icon } from "@/types/calendar";
 import type {
   CalendarBlobFormat,
@@ -85,6 +89,7 @@ export interface EventBlob {
   attendees: DecryptedCalendarEvent["attendees"];
   tags?: string[];
   reminder_minutes: number | null;
+  reminders?: number[];
   color?: string | null;
   availability?: CalendarEventAvailability;
   visibility?: CalendarEventVisibility;
@@ -422,7 +427,8 @@ export function draft_to_blob(draft: CalendarEventDraft): EventBlob {
     status: EVENT_STATUSES.has(draft.status) ? draft.status : "confirmed",
     attendees: normalize_attendees(draft.attendees),
     tags: normalize_tags(draft.tags),
-    reminder_minutes: draft.reminder_minutes,
+    reminder_minutes: normalize_reminder_minutes(draft.reminder_minutes),
+    ...reminder_list_field(draft.reminders),
     color: normalize_event_color(draft.color),
     availability: normalize_availability(draft.availability),
     visibility: normalize_visibility(draft.visibility),
@@ -442,6 +448,14 @@ export function draft_to_blob(draft: CalendarEventDraft): EventBlob {
     trashed_at: normalize_trashed_at(draft.trashed_at),
     task_meta: normalize_task_meta(draft.task_meta),
   };
+}
+
+function reminder_list_field(value: readonly unknown[] | null | undefined): {
+  reminders?: number[];
+} {
+  const list = normalize_reminder_list(value);
+
+  return list === null ? {} : { reminders: list };
 }
 
 function string_field(value: unknown): string {
@@ -464,7 +478,8 @@ export function blob_to_event(
     is_all_day: blob.is_all_day === true,
     status: EVENT_STATUSES.has(blob.status) ? blob.status : "confirmed",
     attendees: normalize_attendees(blob.attendees),
-    reminder_minutes: blob.reminder_minutes,
+    reminder_minutes: normalize_reminder_minutes(blob.reminder_minutes),
+    reminders: normalize_reminder_list(blob.reminders),
     tags: normalize_tags(blob.tags),
     color: normalize_event_color(blob.color),
     availability: normalize_availability(blob.availability),
@@ -508,6 +523,7 @@ export function event_to_draft(
     attendees: event.attendees,
     tags: event.tags,
     reminder_minutes: event.reminder_minutes,
+    reminders: event.reminders ?? null,
     color: event.color,
     availability: event.availability,
     visibility: event.visibility,
