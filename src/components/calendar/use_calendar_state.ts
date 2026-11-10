@@ -37,8 +37,6 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  AGENDA_DAY_COUNT,
-  AGENDA_MAX_DAY_COUNT,
   add_days,
   add_months,
   add_years,
@@ -48,7 +46,6 @@ import {
   event_has_any_tag,
   clamp_custom_view_days,
   get_visible_range,
-  next_agenda_day_count,
   is_same_day,
   merge_by_id,
   start_of_day,
@@ -164,10 +161,15 @@ import {
 } from "@/services/calendar/event_reminders";
 import {
   get_schedule_range,
+  include_in_upcoming_window,
+  initial_upcoming_window,
+  extend_upcoming_window,
   is_schedule_range_pageable,
+  month_start_offset,
   resolve_schedule_range,
   shift_schedule_anchor,
   type ScheduleRange,
+  type UpcomingWindow,
 } from "@/services/calendar/schedule_range";
 
 let booking_feature_unavailable_for: string | null = null;
@@ -256,7 +258,6 @@ export function use_calendar_state() {
     schedule_custom_start,
     schedule_custom_end,
   );
-  const is_schedule_upcoming = schedule_range === "upcoming";
   const view_zone = resolve_view_zone(preferences.calendar_timezone);
 
   if (get_active_view_zone() !== view_zone) {
@@ -349,41 +350,108 @@ export function use_calendar_state() {
       schedule_custom_end,
     ],
   );
-  const range_start_ms = computed_range.range_start.getTime();
-  const period_end_ms = computed_range.range_end.getTime();
-  const agenda_key = `${view_mode}:${schedule_range}:${range_start_ms}`;
-  const [agenda_span, set_agenda_span] = useState({
-    key: "",
-    day_count: AGENDA_DAY_COUNT,
-  });
-  const [agenda_loaded_end_ms, set_agenda_loaded_end_ms] = useState(0);
-  const agenda_day_count =
-    view_mode === "agenda" && agenda_span.key === agenda_key
-      ? agenda_span.day_count
-      : AGENDA_DAY_COUNT;
-  const range_end_ms =
-    view_mode === "agenda" && is_schedule_upcoming
-      ? end_of_day(
-          add_days(computed_range.range_start, agenda_day_count),
-        ).getTime()
-      : period_end_ms;
+  const is_schedule_endless =
+    view_mode === "agenda" && schedule_range === "upcoming";
+  const [upcoming_window, set_upcoming_window] = useState<UpcomingWindow>(() =>
+    initial_upcoming_window(calendar_now()),
+  );
+  const [agenda_visible_month, set_agenda_visible_month_state] = useState(() =>
+    month_start_offset(calendar_now(), 0),
+  );
+  const [agenda_scroll_request, set_agenda_scroll_request] = useState<{
+    token: number;
+    day: Date;
+  } | null>(null);
+  const range_start_ms = is_schedule_endless
+    ? upcoming_window.start.getTime()
+    : computed_range.range_start.getTime();
+  const period_end_ms = is_schedule_endless
+    ? upcoming_window.end.getTime()
+    : computed_range.range_end.getTime();
+  const range_end_ms = period_end_ms;
   const range_start = useMemo(() => new Date(range_start_ms), [range_start_ms]);
   const range_end = useMemo(() => new Date(range_end_ms), [range_end_ms]);
   const period_end = useMemo(() => new Date(period_end_ms), [period_end_ms]);
-  const agenda_has_more =
-    is_schedule_upcoming && agenda_day_count < AGENDA_MAX_DAY_COUNT;
-  const is_agenda_loading_more = agenda_loaded_end_ms !== range_end_ms;
+  const [agenda_loaded_key, set_agenda_loaded_key] = useState("");
+  const is_agenda_window_loading =
+    agenda_loaded_key !== `${range_start_ms}:${range_end_ms}`;
 
-  const load_more_agenda = useCallback(() => {
-    if (!agenda_has_more || is_agenda_loading_more) {
+  const request_agenda_scroll = useCallback((day: Date) => {
+    set_agenda_scroll_request((current) => ({
+      token: (current?.token ?? 0) + 1,
+      day,
+    }));
+  }, []);
+
+  const set_agenda_visible_month = useCallback((month: Date) => {
+    const first = month_start_offset(month, 0);
+
+    set_agenda_visible_month_state((current) =>
+      current.getTime() === first.getTime() ? current : first,
+    );
+  }, []);
+
+  const extend_agenda_window = useCallback(
+    (direction: -1 | 1) => {
+      if (!is_schedule_endless || is_agenda_window_loading) {
+        return;
+      }
+
+      set_upcoming_window((current) =>
+        extend_upcoming_window(current, direction),
+      );
+    },
+    [is_schedule_endless, is_agenda_window_loading],
+  );
+
+  const open_endless_on_today = useCallback(() => {
+    const today = calendar_now();
+
+    set_upcoming_window((current) =>
+      today.getTime() < current.start.getTime() ||
+      today.getTime() > current.end.getTime()
+        ? initial_upcoming_window(today)
+        : current,
+    );
+    set_agenda_visible_month(today);
+    request_agenda_scroll(today);
+  }, [request_agenda_scroll, set_agenda_visible_month]);
+
+  useEffect(() => {
+    if (is_schedule_endless) {
+      open_endless_on_today();
+    }
+  }, [is_schedule_endless, open_endless_on_today]);
+
+  const is_schedule_endless_ref = useRef(is_schedule_endless);
+
+  is_schedule_endless_ref.current = is_schedule_endless;
+
+  useEffect(() => {
+    if (!is_schedule_endless_ref.current) {
       return;
     }
 
-    set_agenda_span({
-      key: agenda_key,
-      day_count: next_agenda_day_count(agenda_day_count),
-    });
-  }, [agenda_day_count, agenda_has_more, agenda_key, is_agenda_loading_more]);
+    set_upcoming_window((current) =>
+      include_in_upcoming_window(current, anchor_date, anchor_date),
+    );
+    set_agenda_visible_month(anchor_date);
+    request_agenda_scroll(anchor_date);
+  }, [anchor_date, request_agenda_scroll, set_agenda_visible_month]);
+
+  const page_endless_month = useCallback(
+    (delta: -1 | 1) => {
+      const target = month_start_offset(agenda_visible_month, delta);
+      const last = add_days(month_start_offset(target, 1), -1);
+
+      set_upcoming_window((current) =>
+        include_in_upcoming_window(current, target, last),
+      );
+      set_agenda_visible_month(target);
+      request_agenda_scroll(target);
+    },
+    [agenda_visible_month, request_agenda_scroll, set_agenda_visible_month],
+  );
 
   const reload = useCallback(() => {
     set_reload_token((token) => token + 1);
@@ -522,7 +590,9 @@ export function use_calendar_state() {
         );
 
         set_events((current) => merge_by_id(current, fresh_events));
-        set_agenda_loaded_end_ms(range_end.getTime());
+        set_agenda_loaded_key(
+          `${range_start.getTime()}:${range_end.getTime()}`,
+        );
         set_calendars((current) => merge_by_id(current, calendars_result.data));
         const purging = pending_purges_ref.current;
         const visible_trash =
@@ -549,7 +619,12 @@ export function use_calendar_state() {
           return;
         }
 
-        if (!cancelled) set_load_failed(true);
+        if (!cancelled) {
+          set_agenda_loaded_key(
+            `${range_start.getTime()}:${range_end.getTime()}`,
+          );
+          set_load_failed(true);
+        }
       } finally {
         if (!cancelled && !calendar_sync_engine.awaiting_first_sync()) {
           set_is_loading(false);
@@ -1242,10 +1317,20 @@ export function use_calendar_state() {
     set_nav_token((token) => token + 1);
     set_anchor_date(today);
     set_selected_date(today);
-  }, [clear_search]);
+
+    if (is_schedule_endless) {
+      open_endless_on_today();
+    }
+  }, [clear_search, is_schedule_endless, open_endless_on_today]);
 
   const go_to_previous = useCallback(() => {
     if (view_mode === "agenda" && !is_schedule_range_pageable(schedule_range)) {
+      return;
+    }
+
+    if (is_schedule_endless) {
+      page_endless_month(-1);
+
       return;
     }
 
@@ -1274,10 +1359,22 @@ export function use_calendar_state() {
 
       return shift_schedule_anchor(schedule_range, current, -1);
     });
-  }, [view_mode, custom_view_days, schedule_range]);
+  }, [
+    view_mode,
+    custom_view_days,
+    schedule_range,
+    is_schedule_endless,
+    page_endless_month,
+  ]);
 
   const go_to_next = useCallback(() => {
     if (view_mode === "agenda" && !is_schedule_range_pageable(schedule_range)) {
+      return;
+    }
+
+    if (is_schedule_endless) {
+      page_endless_month(1);
+
       return;
     }
 
@@ -1306,7 +1403,13 @@ export function use_calendar_state() {
 
       return shift_schedule_anchor(schedule_range, current, 1);
     });
-  }, [view_mode, custom_view_days, schedule_range]);
+  }, [
+    view_mode,
+    custom_view_days,
+    schedule_range,
+    is_schedule_endless,
+    page_endless_month,
+  ]);
 
   const set_schedule_range = useCallback(
     (next: ScheduleRange, custom_start?: string, custom_end?: string) => {
@@ -2627,10 +2730,12 @@ export function use_calendar_state() {
     range_start,
     range_end,
     period_end,
-    agenda_day_count,
-    agenda_has_more,
-    is_agenda_loading_more,
-    load_more_agenda,
+    is_schedule_endless,
+    is_agenda_window_loading,
+    extend_agenda_window,
+    agenda_visible_month,
+    set_agenda_visible_month,
+    agenda_scroll_request,
     schedule_range,
     schedule_custom_start,
     schedule_custom_end,

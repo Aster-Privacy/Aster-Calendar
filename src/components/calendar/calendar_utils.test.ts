@@ -36,9 +36,6 @@ import {
   clamp_custom_view_days,
   get_event_day_bounds,
   get_visible_range,
-  next_agenda_day_count,
-  AGENDA_DAY_COUNT,
-  AGENDA_MAX_DAY_COUNT,
   iso_week_number,
   trim_month_grid,
   MAX_CUSTOM_VIEW_DAYS,
@@ -256,16 +253,6 @@ describe("get_visible_range", () => {
     );
 
     expect(span_days).toBe(MAX_CUSTOM_VIEW_DAYS - 1);
-  });
-});
-
-describe("next_agenda_day_count", () => {
-  it("doubles the agenda span until it reaches the cap", () => {
-    expect(next_agenda_day_count(AGENDA_DAY_COUNT)).toBe(AGENDA_DAY_COUNT * 2);
-    expect(next_agenda_day_count(600)).toBe(AGENDA_MAX_DAY_COUNT);
-    expect(next_agenda_day_count(AGENDA_MAX_DAY_COUNT)).toBe(
-      AGENDA_MAX_DAY_COUNT,
-    );
   });
 });
 

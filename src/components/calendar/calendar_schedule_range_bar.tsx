@@ -167,12 +167,14 @@ export function CalendarScheduleRangeBar({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <span
-        className="min-w-0 truncate text-[13px] tabular-nums text-txt-muted"
-        data-testid="calendar-schedule-range-text"
-      >
-        {format_range_text(range_start, range_end, language)}
-      </span>
+      {range !== "upcoming" && (
+        <span
+          className="min-w-0 truncate text-[13px] tabular-nums text-txt-muted"
+          data-testid="calendar-schedule-range-text"
+        >
+          {format_range_text(range_start, range_end, language)}
+        </span>
+      )}
 
       <CalendarScheduleCustomModal
         custom_end={custom_end}

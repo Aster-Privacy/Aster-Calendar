@@ -33,6 +33,11 @@ import {
   SCHEDULE_RANGES,
   shift_schedule_anchor,
   validate_schedule_custom,
+  extend_upcoming_window,
+  first_row_at_or_after,
+  include_in_upcoming_window,
+  initial_upcoming_window,
+  month_start_offset,
 } from "@/services/calendar/schedule_range";
 
 function bounds(
@@ -344,5 +349,112 @@ describe("stored schedule range preference", () => {
 
     expect(broken.calendar_schedule_range).toBe("upcoming");
     expect(broken.calendar_schedule_custom_start).toBe("");
+  });
+});
+
+function local_stamp(date: Date): string {
+  const pad = (value: number, size = 2) => String(value).padStart(size, "0");
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
+}
+
+describe("upcoming window", () => {
+  it("opens 30 days back and 90 days ahead of today", () => {
+    const window = initial_upcoming_window(new Date(2026, 10, 10, 15));
+
+    expect(local_stamp(window.start)).toBe("2026-10-11 00:00:00.000");
+    expect(local_stamp(window.end)).toBe("2027-02-08 23:59:59.999");
+  });
+
+  it("extends one end by 90 days at a time", () => {
+    const window = initial_upcoming_window(new Date(2026, 10, 10));
+    const earlier = extend_upcoming_window(window, -1);
+    const later = extend_upcoming_window(window, 1);
+
+    expect(local_stamp(earlier.start)).toBe("2026-07-13 00:00:00.000");
+    expect(earlier.end.getTime()).toBe(window.end.getTime());
+    expect(local_stamp(later.end)).toBe("2027-05-09 23:59:59.999");
+    expect(later.start.getTime()).toBe(window.start.getTime());
+  });
+
+  it("keeps day boundaries across daylight saving changes", () => {
+    let window = initial_upcoming_window(new Date(2026, 3, 15));
+
+    for (let step = 0; step < 4; step += 1) {
+      window = extend_upcoming_window(window, -1);
+      window = extend_upcoming_window(window, 1);
+      expect(window.start.getHours()).toBe(0);
+      expect(window.start.getMinutes()).toBe(0);
+      expect(window.end.getHours()).toBe(23);
+      expect(window.end.getMinutes()).toBe(59);
+    }
+  });
+
+  it("widens to include a month outside the window", () => {
+    const window = initial_upcoming_window(new Date(2026, 10, 10));
+    const widened = include_in_upcoming_window(
+      window,
+      new Date(2027, 5, 1),
+      new Date(2027, 5, 30),
+    );
+
+    expect(widened.start.getTime()).toBe(window.start.getTime());
+    expect(local_stamp(widened.end)).toBe("2027-06-30 23:59:59.999");
+
+    const earlier = include_in_upcoming_window(
+      window,
+      new Date(2025, 0, 1, 12),
+      new Date(2025, 0, 31),
+    );
+
+    expect(local_stamp(earlier.start)).toBe("2025-01-01 00:00:00.000");
+    expect(earlier.end.getTime()).toBe(window.end.getTime());
+  });
+
+  it("leaves the window alone when the range is already inside it", () => {
+    const window = initial_upcoming_window(new Date(2026, 10, 10));
+    const same = include_in_upcoming_window(
+      window,
+      new Date(2026, 11, 1),
+      new Date(2026, 11, 31),
+    );
+
+    expect(same.start.getTime()).toBe(window.start.getTime());
+    expect(same.end.getTime()).toBe(window.end.getTime());
+  });
+});
+
+describe("month_start_offset", () => {
+  it("moves to the first day of the next month from a long month", () => {
+    expect(local_stamp(month_start_offset(new Date(2026, 0, 31, 9), 1))).toBe(
+      "2026-02-01 00:00:00.000",
+    );
+  });
+
+  it("crosses year boundaries in both directions", () => {
+    expect(local_stamp(month_start_offset(new Date(2026, 11, 15), 1))).toBe(
+      "2027-01-01 00:00:00.000",
+    );
+    expect(local_stamp(month_start_offset(new Date(2027, 0, 15), -1))).toBe(
+      "2026-12-01 00:00:00.000",
+    );
+  });
+});
+
+describe("first_row_at_or_after", () => {
+  const days = [
+    new Date(2026, 10, 3),
+    new Date(2026, 10, 20),
+    new Date(2026, 11, 5),
+  ];
+
+  it("finds the first day on or after the target", () => {
+    expect(first_row_at_or_after(days, new Date(2026, 11, 1))).toBe(2);
+    expect(first_row_at_or_after(days, new Date(2026, 10, 20, 18))).toBe(1);
+  });
+
+  it("returns 0 before the first day and -1 after the last", () => {
+    expect(first_row_at_or_after(days, new Date(2026, 0, 1))).toBe(0);
+    expect(first_row_at_or_after(days, new Date(2027, 0, 1))).toBe(-1);
   });
 });
