@@ -72,8 +72,8 @@ import {
   pick_subscription_color,
   subscription_color,
 } from "@/services/calendar/subscriptions";
-import { holiday_color } from "@/services/calendar/holidays";
-import { birthday_color } from "@/services/calendar/birthdays";
+import { HOLIDAY_COLOR } from "@/services/calendar/holidays";
+import { BIRTHDAY_COLOR } from "@/services/calendar/birthdays";
 
 type ImportPhase = "idle" | "reading" | "preview" | "importing" | "done";
 
@@ -851,8 +851,8 @@ export function CalendarSubscriptionsCard() {
     preferences.calendar_ics_subscriptions ?? [];
   const suggested_color = pick_subscription_color([
     ...subscriptions.map((subscription) => subscription.color),
-    holiday_color(preferences.calendar_holidays_color),
-    birthday_color(preferences.calendar_birthdays_color),
+    HOLIDAY_COLOR,
+    BIRTHDAY_COLOR,
   ]);
   const new_color = picked_color ?? suggested_color;
 
