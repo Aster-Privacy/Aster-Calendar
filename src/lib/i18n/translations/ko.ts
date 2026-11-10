@@ -11595,10 +11595,10 @@ export const ko = {
       "Aster creates the file on this device. Once you save it, the file isn't encrypted, so store it somewhere you trust.",
     ie_sub_name_placeholder: "Team holidays",
     ie_sub_url_label: "Calendar URL",
-    ie_sub_url_hint: "Use a public iCal link that starts with https://",
+    ie_sub_url_hint: "Use a public iCal link that starts with https:// or webcal://",
     ie_sub_fetch_note:
       "Aster 서버가 대신 피드를 다운로드하므로 피드 제공자는 사용자의 IP 주소를 볼 수 없습니다. 다운로드하는 동안 Aster 서버는 링크와 피드의 일정을 읽을 수 있습니다.",
-    ie_sub_url_error: "Enter a URL that starts with https://",
+    ie_sub_url_error: "Enter a URL that starts with https:// or webcal://",
     ie_sub_name_error: "Enter a name for this calendar.",
     ie_sub_duplicate: "You're already subscribed to this calendar.",
     ie_sub_list_title: "Your subscriptions",
@@ -11614,6 +11614,7 @@ export const ko = {
     ie_sub_remove: "Unsubscribe",
     ie_sub_remove_named: "Unsubscribe from {{ name }}",
     ie_sub_color: "Change color",
+    ie_sub_color_label: "Color",
     ie_sub_color_named: "Change color for {{ name }}",
     ie_sub_removed: "Unsubscribed from {{ name }}",
     event_save_failed:

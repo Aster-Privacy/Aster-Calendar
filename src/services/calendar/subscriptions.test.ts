@@ -281,3 +281,36 @@ describe("subscription visibility", () => {
     ).toBe(events);
   });
 });
+
+describe("subscription url and color helpers", () => {
+  it("turns a webcal link into https and leaves https alone", async () => {
+    const { normalize_subscription_url } = await import(
+      "@/services/calendar/subscriptions"
+    );
+
+    expect(normalize_subscription_url(" webcal://example.com/a.ics ")).toBe(
+      "https://example.com/a.ics",
+    );
+    expect(normalize_subscription_url("WEBCALS://example.com/a.ics")).toBe(
+      "https://example.com/a.ics",
+    );
+    expect(normalize_subscription_url("https://example.com/a.ics")).toBe(
+      "https://example.com/a.ics",
+    );
+  });
+
+  it("skips colors that are already taken", async () => {
+    const { pick_subscription_color, SUBSCRIPTION_COLORS } = await import(
+      "@/services/calendar/subscriptions"
+    );
+
+    expect(pick_subscription_color([])).toBe(SUBSCRIPTION_COLORS[0]);
+    expect(pick_subscription_color(["#0b8043"])).not.toBe("#0b8043");
+    expect(
+      pick_subscription_color([SUBSCRIPTION_COLORS[0].toUpperCase()]),
+    ).toBe(SUBSCRIPTION_COLORS[1]);
+    expect(SUBSCRIPTION_COLORS).toContain(
+      pick_subscription_color([...SUBSCRIPTION_COLORS]),
+    );
+  });
+});

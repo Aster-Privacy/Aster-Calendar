@@ -58,6 +58,7 @@ vi.mock("@/services/api/client", () => ({
 }));
 
 import { CalendarSubscriptionsCard } from "@/components/settings/calendar_import_export_section";
+import { EVENT_COLOR_OPTIONS } from "@/components/calendar/calendar_utils";
 
 const mounted: Array<{ root: Root; container: HTMLDivElement }> = [];
 
@@ -76,15 +77,57 @@ function render_card(): HTMLDivElement {
   return container;
 }
 
-function color_buttons(): HTMLButtonElement[] {
+function all_color_buttons(): HTMLButtonElement[] {
   return Array.from(
     document.querySelectorAll<HTMLButtonElement>("[data-subscription-color]"),
   );
 }
 
-function open_picker(index: number): HTMLButtonElement[] {
+function color_buttons(): HTMLButtonElement[] {
+  return all_color_buttons().filter((button) =>
+    (button.getAttribute("aria-label") ?? "").includes(
+      "calendar.ie_sub_color_named",
+    ),
+  );
+}
+
+function new_color_button(): HTMLButtonElement {
+  return all_color_buttons().find(
+    (button) =>
+      button.getAttribute("aria-label") === "calendar.ie_sub_color_label",
+  )!;
+}
+
+function type_into(id: string, value: string) {
+  const input = document.getElementById(id) as HTMLInputElement;
+  const setter = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    "value",
+  )!.set!;
+
   act(() => {
-    color_buttons()[index].click();
+    setter.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+function submit_form() {
+  const form = document.querySelector("form")!;
+
+  act(() => {
+    form.dispatchEvent(
+      new Event("submit", { bubbles: true, cancelable: true }),
+    );
+  });
+}
+
+function open_picker(index: number): HTMLButtonElement[] {
+  return open_picker_for(color_buttons()[index]);
+}
+
+function open_picker_for(button: HTMLButtonElement): HTMLButtonElement[] {
+  act(() => {
+    button.click();
   });
 
   return Array.from(
@@ -185,5 +228,66 @@ describe("subscription color picker", () => {
     });
 
     expect(update_preference).not.toHaveBeenCalled();
+  });
+});
+
+describe("adding a subscription", () => {
+  it("suggests a color that no subscription or holiday calendar uses", () => {
+    render_card();
+
+    const button = new_color_button();
+
+    expect(button).toBeDefined();
+    expect(button.dataset.subscriptionColor).not.toBe("green");
+    expect(button.dataset.subscriptionColor).not.toBe(
+      color_buttons()[1].dataset.subscriptionColor,
+    );
+  });
+
+  it("saves the color picked in the form", () => {
+    render_card();
+
+    const options = open_picker_for(new_color_button());
+    const purple = options.find(
+      (option) => option.dataset.subscriptionColorOption === "purple",
+    )!;
+
+    act(() => {
+      purple.click();
+    });
+
+    expect(new_color_button().dataset.subscriptionColor).toBe("purple");
+
+    type_into("calendar_subscription_name", "Club");
+    type_into("calendar_subscription_url", "https://example.com/club.ics");
+    submit_form();
+
+    expect(update_preference).toHaveBeenCalledTimes(1);
+
+    const [key, value] = update_preference.mock.calls[0];
+    const added = value[value.length - 1];
+
+    expect(key).toBe("calendar_ics_subscriptions");
+    expect(value).toHaveLength(3);
+    expect(added.name).toBe("Club");
+    expect(added.color.toLowerCase()).toBe(
+      EVENT_COLOR_OPTIONS.find(
+        (option) => option.name === "purple",
+      )!.hex.toLowerCase(),
+    );
+  });
+
+  it("accepts a webcal link and stores it as https", () => {
+    render_card();
+
+    type_into("calendar_subscription_name", "Club");
+    type_into("calendar_subscription_url", "webcal://example.com/club.ics");
+    submit_form();
+
+    expect(update_preference).toHaveBeenCalledTimes(1);
+
+    const value = update_preference.mock.calls[0][1];
+
+    expect(value[value.length - 1].url).toBe("https://example.com/club.ics");
   });
 });

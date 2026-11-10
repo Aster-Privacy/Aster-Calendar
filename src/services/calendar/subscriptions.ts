@@ -36,6 +36,34 @@ export interface IcsSubscription {
   hidden?: boolean;
 }
 
+export const SUBSCRIPTION_COLORS = [
+  "#8e24aa",
+  "#3f51b5",
+  "#039be5",
+  "#f4511e",
+  "#d81b60",
+  "#0b8043",
+];
+
+const WEBCAL_SCHEME_PATTERN = /^webcals?:\/\//i;
+
+export function normalize_subscription_url(value: string): string {
+  const trimmed = value.trim();
+
+  return WEBCAL_SCHEME_PATTERN.test(trimmed)
+    ? trimmed.replace(WEBCAL_SCHEME_PATTERN, "https://")
+    : trimmed;
+}
+
+export function pick_subscription_color(taken: string[]): string {
+  const used = new Set(taken.map((color) => color.toLowerCase()));
+
+  return (
+    SUBSCRIPTION_COLORS.find((color) => !used.has(color)) ??
+    SUBSCRIPTION_COLORS[used.size % SUBSCRIPTION_COLORS.length]
+  );
+}
+
 export const SUBSCRIPTION_EXPANSION_BUDGET = 400_000;
 export const MAX_SUBSCRIPTION_RECURRING_EVENTS = 500;
 

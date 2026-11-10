@@ -12090,7 +12090,7 @@ export const pl = {
     settings_show_declined_desc: "Zachowaj odrzucone wydarzenia w siatce",
     settings_dim_past_events: "Przyciemniaj minione wydarzenia",
     settings_dim_past_events_desc:
-      "Wygaszaj wydarzenia, które już się skończyły",
+      "Przyciemniaj wydarzenia, które już się skończyły",
     settings_density: "Gęstość informacji",
     settings_density_desc: "Ile miejsca w pionie zajmuje każda godzina",
     settings_density_responsive: "Elastyczna",
@@ -12340,10 +12340,10 @@ export const pl = {
       "Aster creates the file on this device. Once you save it, the file isn't encrypted, so store it somewhere you trust.",
     ie_sub_name_placeholder: "Team holidays",
     ie_sub_url_label: "Calendar URL",
-    ie_sub_url_hint: "Use a public iCal link that starts with https://",
+    ie_sub_url_hint: "Use a public iCal link that starts with https:// or webcal://",
     ie_sub_fetch_note:
       "Serwery Aster pobierają kanał za Ciebie, więc jego dostawca nigdy nie widzi Twojego adresu IP. Podczas pobierania serwery Aster mogą odczytać link i wydarzenia z kanału.",
-    ie_sub_url_error: "Enter a URL that starts with https://",
+    ie_sub_url_error: "Enter a URL that starts with https:// or webcal://",
     ie_sub_name_error: "Enter a name for this calendar.",
     ie_sub_duplicate: "You're already subscribed to this calendar.",
     ie_sub_list_title: "Your subscriptions",
@@ -12359,6 +12359,7 @@ export const pl = {
     ie_sub_remove: "Unsubscribe",
     ie_sub_remove_named: "Unsubscribe from {{ name }}",
     ie_sub_color: "Change color",
+    ie_sub_color_label: "Color",
     ie_sub_color_named: "Change color for {{ name }}",
     ie_sub_removed: "Unsubscribed from {{ name }}",
     event_save_failed:

@@ -47,6 +47,7 @@ import {
   events_for_day,
   task_title_class,
   is_same_day,
+  PAST_EVENT_OPACITY,
   resolve_event_color,
   start_of_day,
   event_occurrence_key,
@@ -156,6 +157,7 @@ interface CalendarAgendaViewProps {
   has_more: boolean;
   is_loading_more: boolean;
   on_load_more: () => void;
+  dim_past_events?: boolean;
 }
 
 function month_key(day: Date): string {
@@ -199,6 +201,7 @@ export const CalendarAgendaView = memo(function CalendarAgendaView({
   has_more,
   is_loading_more,
   on_load_more,
+  dim_past_events = false,
 }: CalendarAgendaViewProps) {
   const { language } = use_i18n();
   const today = use_calendar_now_tick();
@@ -417,6 +420,7 @@ export const CalendarAgendaView = memo(function CalendarAgendaView({
                   const is_active =
                     event_occurrence_key(event) === selected_event_id;
                   const is_past =
+                    dim_past_events &&
                     new Date(event.ends_at).getTime() < today.getTime();
 
                   return (
@@ -437,7 +441,10 @@ export const CalendarAgendaView = memo(function CalendarAgendaView({
                           }`}
                           data-event-id={event.id}
                           style={{
-                            opacity: is_past && !is_active ? 0.6 : undefined,
+                            opacity:
+                              is_past && !is_active
+                                ? PAST_EVENT_OPACITY
+                                : undefined,
                             outlineColor: "var(--accent-color)",
                           }}
                           title={event.title}
