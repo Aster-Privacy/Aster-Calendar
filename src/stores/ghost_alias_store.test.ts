@@ -62,15 +62,15 @@ describe("looks_like_unregistered_ghost_email (reply From-field alias bug)", () 
     ).toBe(false);
   });
 
-  it("does not match a primary or custom-domain address", () => {
+  it("matches ghost-shaped names but not plain or custom-domain addresses", () => {
     expect(
-      looks_like_unregistered_ghost_email("jordan.sami@astermail.org"),
+      looks_like_unregistered_ghost_email("alex.rivera@astermail.org"),
     ).toBe(true);
-    expect(looks_like_unregistered_ghost_email("jordan@astermail.org")).toBe(
+    expect(looks_like_unregistered_ghost_email("alex@astermail.org")).toBe(
       false,
     );
     expect(
-      looks_like_unregistered_ghost_email("jordan.sami@customdomain.com"),
+      looks_like_unregistered_ghost_email("alex.rivera@example.com"),
     ).toBe(false);
   });
 });
