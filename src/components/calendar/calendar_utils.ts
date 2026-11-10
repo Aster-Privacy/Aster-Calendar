@@ -169,16 +169,6 @@ export function build_custom_days(anchor: Date, day_count: number): Date[] {
 
 export const PHONE_DAY_COUNT = 3;
 export const PHONE_CUSTOM_DAY_COUNT = 4;
-export const AGENDA_DAY_COUNT = 30;
-export const AGENDA_MAX_DAY_COUNT = 730;
-
-export function next_agenda_day_count(current: number): number {
-  return Math.min(
-    AGENDA_MAX_DAY_COUNT,
-    Math.max(AGENDA_DAY_COUNT, current * 2),
-  );
-}
-
 export function build_phone_week_days(
   anchor: Date,
   week_start_day: number,

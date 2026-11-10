@@ -286,6 +286,12 @@ export function CalendarContent({
       );
     }
 
+    if (state.is_schedule_endless) {
+      return new Intl.DateTimeFormat(language, { month: "short" }).format(
+        state.agenda_visible_month,
+      );
+    }
+
     if (state.view_mode === "agenda" && is_phone) {
       return new Intl.DateTimeFormat(language, { month: "short" }).format(
         state.range_start,
@@ -337,7 +343,9 @@ export function CalendarContent({
     is_phone,
     language,
     state.anchor_date,
+    state.agenda_visible_month,
     state.custom_view_days,
+    state.is_schedule_endless,
     state.period_end,
     state.range_start,
     state.view_mode,
@@ -359,6 +367,12 @@ export function CalendarContent({
       });
 
       return `${range.format(first)} - ${range.format(last)}`;
+    }
+
+    if (state.is_schedule_endless) {
+      return new Intl.DateTimeFormat(language, { month: "long" }).format(
+        state.agenda_visible_month,
+      );
     }
 
     if (state.view_mode === "agenda") {
@@ -398,7 +412,9 @@ export function CalendarContent({
   }, [
     language,
     state.anchor_date,
+    state.agenda_visible_month,
     state.custom_view_days,
+    state.is_schedule_endless,
     state.period_end,
     state.range_start,
     state.view_mode,
@@ -407,6 +423,10 @@ export function CalendarContent({
 
   const period_year = useMemo(() => {
     const year = new Intl.DateTimeFormat(language, { year: "numeric" });
+
+    if (state.is_schedule_endless) {
+      return year.format(state.agenda_visible_month);
+    }
 
     if (state.view_mode === "agenda") {
       if (state.range_start.getFullYear() !== state.period_end.getFullYear()) {
@@ -433,7 +453,9 @@ export function CalendarContent({
   }, [
     language,
     state.anchor_date,
+    state.agenda_visible_month,
     state.custom_view_days,
+    state.is_schedule_endless,
     state.period_end,
     state.range_start,
     state.view_mode,
@@ -676,7 +698,8 @@ export function CalendarContent({
     !state.is_loading &&
     !is_search_settling &&
     state.events.length === 0 &&
-    (is_searching || (state.view_mode === "agenda" && !state.agenda_has_more));
+    (is_searching ||
+      (state.view_mode === "agenda" && !state.is_schedule_endless));
 
   const has_any_events = useMemo(
     () => calendar_sync_engine.get_events().some((event) => !event.trashed_at),
@@ -1466,28 +1489,25 @@ export function CalendarContent({
 
           {state.view_mode === "agenda" && !show_empty_state && (
             <CalendarAgendaView
-              anchor_date={state.anchor_date}
               dim_past_events={state.preferences.calendar_dim_past_events}
               calendar_by_id={state.calendar_by_id}
               calendars={state.calendars}
-              day_count={state.agenda_day_count}
               event_menu_actions={event_menu_actions}
               events={state.events}
-              has_more={state.agenda_has_more}
-              is_loading_more={state.is_agenda_loading_more}
-              on_load_more={state.load_more_agenda}
+              endless={
+                state.is_schedule_endless
+                  ? {
+                      is_loading: state.is_agenda_window_loading,
+                      scroll_request: state.agenda_scroll_request,
+                      on_extend: state.extend_agenda_window,
+                      on_visible_month_change: state.set_agenda_visible_month,
+                    }
+                  : undefined
+              }
               on_create_click={state.handle_create_click}
               on_event_click={state.handle_event_click}
-              range_end={
-                state.schedule_range === "upcoming"
-                  ? undefined
-                  : state.period_end
-              }
-              range_start={
-                state.schedule_range === "upcoming"
-                  ? undefined
-                  : state.range_start
-              }
+              range_end={state.period_end}
+              range_start={state.range_start}
               selected_event_id={
                 state.selected_event
                   ? event_occurrence_key(state.selected_event)
