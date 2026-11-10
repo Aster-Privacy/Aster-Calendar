@@ -162,6 +162,13 @@ import {
   default_reminder_list,
   reminder_fields,
 } from "@/services/calendar/event_reminders";
+import {
+  get_schedule_range,
+  is_schedule_range_pageable,
+  resolve_schedule_range,
+  shift_schedule_anchor,
+  type ScheduleRange,
+} from "@/services/calendar/schedule_range";
 
 let booking_feature_unavailable_for: string | null = null;
 const SEARCH_WINDOW_DAYS = 730;
@@ -212,8 +219,13 @@ const NON_TEXT_INPUT_TYPES = new Set([
 export function use_calendar_state() {
   const { t, language } = use_i18n();
   const { user } = use_auth();
-  const { preferences, update_preference, has_loaded_from_server, save_now } =
-    use_preferences();
+  const {
+    preferences,
+    update_preference,
+    update_preferences,
+    has_loaded_from_server,
+    save_now,
+  } = use_preferences();
 
   const self_email = (user?.email ?? "").trim().toLowerCase();
   const own_addresses_version = use_own_addresses_version();
@@ -237,6 +249,14 @@ export function use_calendar_state() {
   const custom_view_days = clamp_custom_view_days(
     preferences.calendar_custom_view_days ?? 4,
   );
+  const schedule_custom_start = preferences.calendar_schedule_custom_start ?? "";
+  const schedule_custom_end = preferences.calendar_schedule_custom_end ?? "";
+  const schedule_range = resolve_schedule_range(
+    preferences.calendar_schedule_range,
+    schedule_custom_start,
+    schedule_custom_end,
+  );
+  const is_schedule_upcoming = schedule_range === "upcoming";
   const view_zone = resolve_view_zone(preferences.calendar_timezone);
 
   if (get_active_view_zone() !== view_zone) {
@@ -306,17 +326,32 @@ export function use_calendar_state() {
 
   const computed_range = useMemo(
     () =>
-      get_visible_range(
-        anchor_date,
-        view_mode,
-        week_start_day,
-        custom_view_days,
-      ),
-    [anchor_date, view_mode, week_start_day, custom_view_days],
+      view_mode === "agenda" && schedule_range !== "upcoming"
+        ? get_schedule_range(
+            schedule_range,
+            anchor_date,
+            schedule_custom_start,
+            schedule_custom_end,
+          )
+        : get_visible_range(
+            anchor_date,
+            view_mode,
+            week_start_day,
+            custom_view_days,
+          ),
+    [
+      anchor_date,
+      view_mode,
+      week_start_day,
+      custom_view_days,
+      schedule_range,
+      schedule_custom_start,
+      schedule_custom_end,
+    ],
   );
   const range_start_ms = computed_range.range_start.getTime();
   const period_end_ms = computed_range.range_end.getTime();
-  const agenda_key = `${view_mode}:${range_start_ms}`;
+  const agenda_key = `${view_mode}:${schedule_range}:${range_start_ms}`;
   const [agenda_span, set_agenda_span] = useState({
     key: "",
     day_count: AGENDA_DAY_COUNT,
@@ -327,7 +362,7 @@ export function use_calendar_state() {
       ? agenda_span.day_count
       : AGENDA_DAY_COUNT;
   const range_end_ms =
-    view_mode === "agenda"
+    view_mode === "agenda" && is_schedule_upcoming
       ? end_of_day(
           add_days(computed_range.range_start, agenda_day_count),
         ).getTime()
@@ -335,7 +370,8 @@ export function use_calendar_state() {
   const range_start = useMemo(() => new Date(range_start_ms), [range_start_ms]);
   const range_end = useMemo(() => new Date(range_end_ms), [range_end_ms]);
   const period_end = useMemo(() => new Date(period_end_ms), [period_end_ms]);
-  const agenda_has_more = agenda_day_count < AGENDA_MAX_DAY_COUNT;
+  const agenda_has_more =
+    is_schedule_upcoming && agenda_day_count < AGENDA_MAX_DAY_COUNT;
   const is_agenda_loading_more = agenda_loaded_end_ms !== range_end_ms;
 
   const load_more_agenda = useCallback(() => {
@@ -1209,6 +1245,10 @@ export function use_calendar_state() {
   }, [clear_search]);
 
   const go_to_previous = useCallback(() => {
+    if (view_mode === "agenda" && !is_schedule_range_pageable(schedule_range)) {
+      return;
+    }
+
     set_nav_direction(-1);
     set_nav_token((token) => token + 1);
     set_anchor_date((current) => {
@@ -1232,11 +1272,15 @@ export function use_calendar_state() {
         return add_days(current, -custom_view_days);
       }
 
-      return add_days(current, -AGENDA_DAY_COUNT);
+      return shift_schedule_anchor(schedule_range, current, -1);
     });
-  }, [view_mode, custom_view_days]);
+  }, [view_mode, custom_view_days, schedule_range]);
 
   const go_to_next = useCallback(() => {
+    if (view_mode === "agenda" && !is_schedule_range_pageable(schedule_range)) {
+      return;
+    }
+
     set_nav_direction(1);
     set_nav_token((token) => token + 1);
     set_anchor_date((current) => {
@@ -1260,9 +1304,31 @@ export function use_calendar_state() {
         return add_days(current, custom_view_days);
       }
 
-      return add_days(current, AGENDA_DAY_COUNT);
+      return shift_schedule_anchor(schedule_range, current, 1);
     });
-  }, [view_mode, custom_view_days]);
+  }, [view_mode, custom_view_days, schedule_range]);
+
+  const set_schedule_range = useCallback(
+    (next: ScheduleRange, custom_start?: string, custom_end?: string) => {
+      const today = calendar_now();
+
+      clear_search();
+      set_nav_direction(0);
+      set_nav_token((token) => token + 1);
+      update_preferences({
+        calendar_schedule_range: next,
+        ...(next === "custom"
+          ? {
+              calendar_schedule_custom_start: custom_start ?? "",
+              calendar_schedule_custom_end: custom_end ?? "",
+            }
+          : {}),
+      });
+      set_anchor_date(today);
+      set_selected_date(today);
+    },
+    [clear_search, update_preferences],
+  );
 
   const handle_page_to_day = useCallback((day: Date) => {
     set_selected_date(day);
@@ -2565,6 +2631,12 @@ export function use_calendar_state() {
     agenda_has_more,
     is_agenda_loading_more,
     load_more_agenda,
+    schedule_range,
+    schedule_custom_start,
+    schedule_custom_end,
+    schedule_is_pageable:
+      view_mode !== "agenda" || is_schedule_range_pageable(schedule_range),
+    set_schedule_range,
     set_search_query,
     set_selected_event,
     set_event_to_delete: request_event_delete,

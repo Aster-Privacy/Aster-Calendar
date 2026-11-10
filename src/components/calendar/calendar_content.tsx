@@ -47,6 +47,7 @@ import {
   NoResultsIllustration,
 } from "@/components/calendar/illustrations/calendar_illustrations";
 
+import { CalendarScheduleRangeBar } from "@/components/calendar/calendar_schedule_range_bar";
 import { CalendarAgendaView } from "@/components/calendar/calendar_agenda_view";
 import {
   PHONE_CUSTOM_DAY_COUNT,
@@ -1306,10 +1307,25 @@ export function CalendarContent({
         period_month={period_month}
         period_month_short={period_month_short}
         period_year={period_year}
+        can_page={state.schedule_is_pageable}
         custom_view_days={state.custom_view_days}
         t={state.t}
         view_mode={state.view_mode}
       />
+
+      {state.view_mode === "agenda" && !is_searching && (
+        <CalendarScheduleRangeBar
+          custom_end={state.schedule_custom_end}
+          custom_start={state.schedule_custom_start}
+          language={language}
+          range={state.schedule_range}
+          range_end={state.period_end}
+          range_start={state.range_start}
+          t={state.t}
+          week_start_day={state.week_start_day}
+          on_change={state.set_schedule_range}
+        />
+      )}
 
       <div className="flex-1 min-h-0 flex flex-col relative">
         <div className="flex-1 min-w-0 min-h-0 flex flex-col">
@@ -1462,6 +1478,16 @@ export function CalendarContent({
               on_load_more={state.load_more_agenda}
               on_create_click={state.handle_create_click}
               on_event_click={state.handle_event_click}
+              range_end={
+                state.schedule_range === "upcoming"
+                  ? undefined
+                  : state.period_end
+              }
+              range_start={
+                state.schedule_range === "upcoming"
+                  ? undefined
+                  : state.range_start
+              }
               selected_event_id={
                 state.selected_event
                   ? event_occurrence_key(state.selected_event)

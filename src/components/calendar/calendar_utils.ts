@@ -312,6 +312,54 @@ export function events_for_day(
     .sort(compare_events_for_day);
 }
 
+export function bucket_events_by_day(
+  events: DecryptedCalendarEvent[],
+  first_day: Date,
+  last_day: Date,
+): Map<string, DecryptedCalendarEvent[]> {
+  const buckets = new Map<string, DecryptedCalendarEvent[]>();
+  const first = start_of_day(first_day);
+  const last = start_of_day(last_day);
+
+  for (const event of events) {
+    const starts_at = new Date(event.starts_at);
+    const ends_at = new Date(event.ends_at);
+
+    if (Number.isNaN(starts_at.getTime()) || Number.isNaN(ends_at.getTime())) {
+      continue;
+    }
+
+    const event_first = start_of_day(starts_at);
+    let day =
+      event_first.getTime() < first.getTime() ? new Date(first) : event_first;
+    const end_day = start_of_day(
+      ends_at.getTime() > starts_at.getTime() ? ends_at : starts_at,
+    );
+    const stop = end_day.getTime() < last.getTime() ? end_day : last;
+
+    while (day.getTime() <= stop.getTime()) {
+      if (event_occurs_on(event, day)) {
+        const key = build_day_key(day);
+        const bucket = buckets.get(key);
+
+        if (bucket) {
+          bucket.push(event);
+        } else {
+          buckets.set(key, [event]);
+        }
+      }
+
+      day = add_days(day, 1);
+    }
+  }
+
+  for (const bucket of buckets.values()) {
+    bucket.sort(compare_events_for_day);
+  }
+
+  return buckets;
+}
+
 export function get_event_day_bounds(
   event: DecryptedCalendarEvent,
   day: Date,

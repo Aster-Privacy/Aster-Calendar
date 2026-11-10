@@ -105,6 +105,7 @@ interface CalendarHeaderProps {
   on_insights: () => void;
   on_period_click?: () => void;
   is_phone?: boolean;
+  can_page?: boolean;
 }
 
 export function CalendarHeader({
@@ -122,6 +123,7 @@ export function CalendarHeader({
   on_view_mode_change,
   on_previous,
   on_next,
+  can_page = true,
   on_today,
 }: CalendarHeaderProps) {
   const view_label = (mode: CalendarViewMode, label: TranslationKey) =>
@@ -202,7 +204,9 @@ export function CalendarHeader({
 
         <CalendarOfflinePill />
 
-        <div className="-mx-0.5 flex flex-shrink-0 items-center">
+        <div
+          className={`-mx-0.5 flex-shrink-0 items-center ${can_page ? "flex" : "hidden"}`}
+        >
           <button
             aria-label={t("calendar.previous_period")}
             className={PHONE_ICON_BUTTON}
@@ -269,7 +273,9 @@ export function CalendarHeader({
           {t("calendar.today")}
         </PillButton>
 
-        <div className="flex flex-shrink-0 items-center">
+        <div
+          className={`flex-shrink-0 items-center ${can_page ? "flex" : "hidden"}`}
+        >
           <Tooltip tip={`${t("calendar.previous_period")} (K)`}>
             <button
               aria-label={t("calendar.previous_period")}
