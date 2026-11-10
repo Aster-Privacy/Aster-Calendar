@@ -25,6 +25,13 @@ export const zh_CN = {
     add_to_group: "添加到群组",
     added_to_group: "已添加到群组",
     app_lock_attempts_remaining_one: "还剩 {{count}} 次机会",
+    app_lock_server_unreachable: "Aster Calendar 暂时无法验证你的 PIN 码。请检查网络连接，或使用密码解锁。",
+    app_lock_unlock_with_password: "使用密码解锁",
+    app_lock_use_pin: "改用 PIN 码",
+    app_lock_enter_password: "输入你的密码",
+    app_lock_wrong_password: "密码错误，请重试。",
+    app_lock_try_again_later: "尝试次数过多。请稍候再试。",
+    app_lock_pin_reset: "此设备上的应用锁已关闭。如果系统要求你登录，请使用密码登录，然后在“设置”中设置新的 PIN 码。",
     birthdays_upcoming: "有 {{count}} 个生日即将到来",
     bulk_create_hint:
       "每行填写一个联系人。若要同时保存姓名和邮箱地址，请把地址放在尖括号中。",
