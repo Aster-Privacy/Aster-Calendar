@@ -37,6 +37,7 @@ import {
 } from "./billing/checkout_error_text";
 
 import { read_billing_interval } from "@/components/settings/billing/cancel_offer";
+import { is_desktop } from "@/native/invoke_bridge";
 import {
   consume_payment_method_request,
   OPEN_PAYMENT_METHODS_EVENT,
@@ -495,6 +496,7 @@ export function BillingSection() {
       set_stripe_load_failed(false);
       get_stripe_config()
         .then((r) => {
+          if (is_desktop()) return null;
           if (r.data?.publishable_key && r.data.is_enabled) {
             return loadStripe(r.data.publishable_key);
           }

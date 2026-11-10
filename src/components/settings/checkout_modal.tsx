@@ -52,6 +52,7 @@ import {
   build_stripe_appearance,
 } from "@/lib/stripe_appearance";
 import { stripe_locale } from "@/lib/stripe_locale";
+import { is_desktop } from "@/native/invoke_bridge";
 
 export type checkout_phase =
   "loading" | "ready" | "processing" | "success" | "error";
@@ -184,6 +185,13 @@ export function CheckoutModal({
 
     if (method === "tor" || method === "tor_snowflake") {
       set_error_message(t("settings.connection.tor_blocked"));
+      set_phase("error");
+
+      return;
+    }
+
+    if (is_desktop()) {
+      set_error_message(t("settings.failed_checkout"));
       set_phase("error");
 
       return;

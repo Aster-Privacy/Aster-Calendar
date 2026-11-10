@@ -1087,6 +1087,17 @@ export async function create_setup_intent() {
   );
 }
 
+export interface PortalSessionResponse {
+  url: string;
+}
+
+export async function create_portal_session() {
+  return api_client.post<PortalSessionResponse>(
+    "/payments/v1/portal-session",
+    {},
+  );
+}
+
 export interface PaymentMethodActionResponse {
   success: boolean;
   retry_attempted?: boolean;
