@@ -72,7 +72,7 @@ const GRID_WRAP_MAX_ROWS = 2;
 const GRID_CHAR_WIDTH_PX = 5.4;
 
 const SAFE_COLOR_PATTERN =
-  /^(#[0-9a-f]{3,8}|rgba?\(\s*[\d.]+%?(\s*[,\s/]\s*[\d.]+%?){2,3}\s*\))$/i;
+  /^(#[0-9a-f]{3,8}|rgba?\(\s*[\d.]+%?(?:(?:\s*[,/]\s*|\s+)[\d.]+%?){2,3}\s*\))$/i;
 const CSS_VARIABLE_PATTERN = /^var\(\s*(--[\w-]+)\s*(?:,[^)]*)?\)$/;
 const FALLBACK_COLOR = "#3b82f6";
 

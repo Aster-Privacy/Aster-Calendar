@@ -642,7 +642,7 @@ export function unfold(text: string): string {
 }
 
 export function parse_params(raw: string): Record<string, string> {
-  const params: Record<string, string> = {};
+  const params: Record<string, string> = Object.create(null);
 
   for (const chunk of split_outside_quotes(raw, ";")) {
     const equals = chunk.indexOf("=");
