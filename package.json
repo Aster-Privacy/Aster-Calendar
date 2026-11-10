@@ -21,20 +21,17 @@
     "postinstall": "patch-package",
     "dev": "vite",
     "build": "tsc && vite build",
-    "lint": "eslint --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:a11y": "playwright test --config=playwright.config.a11y.ts",
     "tauri": "tauri",
     "tauri:dev": "tauri dev -- --no-default-features",
     "tauri:build": "tauri build",
-    "tauri:dev:mac": "tauri dev -- --no-default-features",
     "tauri:build:mac": "tauri build --target aarch64-apple-darwin",
-    "sync-ui": "npm --prefix ../aster-ui run build && npm install --no-save ../aster-ui",
-    "tauri:build:universal": "tauri build --target universal-apple-darwin",
-    "e2e:calendar": "playwright test --config=playwright.config.calendar.ts"
+    "tauri:build:universal": "tauri build --target universal-apple-darwin"
   },
   "dependencies": {
     "@aster/ui": "npm:@aster-privacy/ui@0.2.2",
