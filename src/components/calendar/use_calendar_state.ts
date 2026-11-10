@@ -158,6 +158,10 @@ import { use_invite_senders } from "@/components/calendar/use_invite_senders";
 import { use_i18n } from "@/lib/i18n/context";
 import { use_auth } from "@/contexts/auth/use_auth_hook";
 import { use_preferences } from "@/contexts/preferences_context";
+import {
+  default_reminder_list,
+  reminder_fields,
+} from "@/services/calendar/event_reminders";
 
 let booking_feature_unavailable_for: string | null = null;
 const SEARCH_WINDOW_DAYS = 730;
@@ -1332,10 +1336,13 @@ export function use_calendar_state() {
         location: draft.location || preferences.calendar_default_event_location,
         recurrence: null,
         recurrence_exceptions: [],
-        reminder_minutes:
-          (draft.is_all_day
-            ? preferences.calendar_default_all_day_reminder_minutes
-            : preferences.calendar_default_reminder_minutes) ?? null,
+        ...reminder_fields(
+          default_reminder_list(
+            draft.is_all_day
+              ? preferences.calendar_default_all_day_reminder_minutes
+              : preferences.calendar_default_reminder_minutes,
+          ),
+        ),
         starts_at: draft.starts_at.toISOString(),
         status: "confirmed",
         tags: [],

@@ -134,6 +134,7 @@ export interface DecryptedCalendarEvent {
   attendees: CalendarAttendee[];
   tags: string[];
   reminder_minutes: number | null;
+  reminders?: number[] | null;
   color: string | null;
   availability: CalendarEventAvailability;
   visibility: CalendarEventVisibility;
@@ -170,6 +171,7 @@ export interface CalendarEventDraft {
   attendees: CalendarAttendee[];
   tags: string[];
   reminder_minutes: number | null;
+  reminders?: number[] | null;
   color: string | null;
   availability: CalendarEventAvailability;
   visibility: CalendarEventVisibility;
