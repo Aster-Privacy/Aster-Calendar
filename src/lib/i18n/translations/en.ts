@@ -11336,6 +11336,14 @@ export const en: Translations = {
     working_location_home: "Home",
     working_location_office: "Office",
     working_location_other: "Other",
+    working_location_none: "None",
+    working_location_for_day: "Working location: {{location}}",
+    working_location_usual_for_day:
+      "Working location: {{location}} (usual week)",
+    working_location_set: "Set working location",
+    working_location_use_usual: "Use usual ({{location}})",
+    working_location_clear: "Clear",
+    working_location_other_place: "Other place…",
     out_of_office_note: "Others will see you as unavailable for this period.",
     focus_time_note:
       "Focus time blocks your calendar so nobody schedules over it.",
@@ -11593,6 +11601,9 @@ export const en: Translations = {
     settings_show_declined_desc: "Keep events you declined visible in the grid",
     settings_dim_past_events: "Reduce the brightness of past events",
     settings_dim_past_events_desc: "Fade events that have already finished",
+    settings_working_week: "Usual working location",
+    settings_working_week_desc:
+      "Shown as an icon on each day. To change one day, use that day's icon.",
     settings_density: "Information density",
     settings_density_desc: "How much vertical space each hour takes",
     settings_density_responsive: "Responsive",

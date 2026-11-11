@@ -11369,6 +11369,13 @@ export const ja = {
     working_location_home: "自宅",
     working_location_office: "オフィス",
     working_location_other: "その他",
+    working_location_none: "なし",
+    working_location_for_day: "勤務場所: {{location}}",
+    working_location_usual_for_day: "勤務場所: {{location}}（通常の週）",
+    working_location_set: "勤務場所を設定",
+    working_location_use_usual: "通常に戻す（{{location}}）",
+    working_location_clear: "クリア",
+    working_location_other_place: "その他の場所…",
     out_of_office_note: "この期間は他のユーザーに不在として表示されます。",
     focus_time_note:
       "集中時間はカレンダーをブロックし、他の予定が入らないようにします。",
@@ -11616,6 +11623,9 @@ export const ja = {
     settings_show_declined_desc: "辞退した予定をグリッドに残す",
     settings_dim_past_events: "過去の予定を暗くする",
     settings_dim_past_events_desc: "終了した予定を薄く表示",
+    settings_working_week: "通常の勤務場所",
+    settings_working_week_desc:
+      "各日にアイコンで表示されます。特定の日だけ変更するには、その日のアイコンを使います。",
     settings_density: "表示密度",
     settings_density_desc: "1時間あたりの縦のスペース",
     settings_density_responsive: "自動",

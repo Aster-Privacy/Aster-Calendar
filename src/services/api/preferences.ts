@@ -22,6 +22,7 @@ import type { EncryptedVault } from "@/services/crypto/key_manager";
 import type { CustomCategoryRule } from "@/data/category_catalog";
 import type { LanguageCode } from "@/lib/i18n/types";
 import type { ScheduleRange } from "@/services/calendar/schedule_range";
+import type { WorkingWeek } from "@/services/calendar/working_location";
 
 import { api_client } from "./client";
 
@@ -45,6 +46,10 @@ import {
   DEFAULT_SCHEDULE_RANGE,
   resolve_schedule_range,
 } from "@/services/calendar/schedule_range";
+import {
+  EMPTY_WORKING_WEEK,
+  normalize_working_week,
+} from "@/services/calendar/working_location";
 import { locale_date_format, locale_time_format } from "@/utils/date_format";
 import {
   detect_browser_language,
@@ -249,6 +254,7 @@ export interface UserPreferences {
   calendar_timezone: string;
   calendar_show_declined_events: boolean;
   calendar_dim_past_events: boolean;
+  calendar_working_week: WorkingWeek;
   calendar_density: "responsive" | "compact";
   calendar_speedy_meetings: boolean;
   calendar_auto_add_invitations: "always" | "when_responding";
@@ -712,6 +718,7 @@ export const CACHEABLE_PREFERENCE_KEYS: readonly (keyof UserPreferences)[] = [
   "calendar_secondary_timezone",
   "calendar_show_declined_events",
   "calendar_dim_past_events",
+  "calendar_working_week",
   "calendar_density",
   "calendar_speedy_meetings",
   "calendar_auto_add_invitations",
@@ -1063,6 +1070,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   calendar_timezone: "",
   calendar_show_declined_events: true,
   calendar_dim_past_events: false,
+  calendar_working_week: EMPTY_WORKING_WEEK,
   calendar_density: "responsive",
   calendar_speedy_meetings: false,
   calendar_auto_add_invitations: "when_responding",
@@ -1378,6 +1386,10 @@ export function build_merged_preferences(
   if (typeof merged.calendar_schedule_custom_end !== "string") {
     merged.calendar_schedule_custom_end = "";
   }
+
+  merged.calendar_working_week = normalize_working_week(
+    merged.calendar_working_week,
+  );
 
   merged.calendar_schedule_range = resolve_schedule_range(
     merged.calendar_schedule_range,

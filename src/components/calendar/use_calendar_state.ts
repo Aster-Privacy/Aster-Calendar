@@ -171,6 +171,12 @@ import {
   type ScheduleRange,
   type UpcomingWindow,
 } from "@/services/calendar/schedule_range";
+import {
+  is_working_location_event,
+  normalize_working_week,
+  resolve_day_working_location,
+  type WorkingWeek,
+} from "@/services/calendar/working_location";
 
 let booking_feature_unavailable_for: string | null = null;
 const SEARCH_WINDOW_DAYS = 730;
@@ -2021,6 +2027,239 @@ export function use_calendar_state() {
     set_booking_to_cancel(null);
   }, [booking_to_cancel]);
 
+  const working_week = useMemo(
+    () => normalize_working_week(preferences.calendar_working_week),
+    [preferences.calendar_working_week],
+  );
+
+  const working_location_events = useMemo(
+    () =>
+      searchable_events.filter(
+        (event) =>
+          is_working_location_event(event) &&
+          is_event_shown(event, visible_calendar_ids, show_birthdays),
+      ),
+    [searchable_events, show_birthdays, visible_calendar_ids],
+  );
+
+  const resolve_working_location = useCallback(
+    (day: Date) =>
+      resolve_day_working_location(day, working_location_events, working_week),
+    [working_location_events, working_week],
+  );
+
+  const pending_working_days_ref = useRef(new Set<string>());
+
+  const can_reset_working_location = useCallback(
+    (day: Date) => {
+      const event = resolve_working_location(day)?.event;
+
+      return Boolean(event && !is_readonly_event(event));
+    },
+    [resolve_working_location],
+  );
+
+  const view_events = useMemo(
+    () =>
+      is_search_active
+        ? visible_events
+        : visible_events.filter((event) => !is_working_location_event(event)),
+    [is_search_active, visible_events],
+  );
+
+  const set_working_week = useCallback(
+    (week: WorkingWeek) => {
+      update_preference("calendar_working_week", week);
+    },
+    [update_preference],
+  );
+
+  const save_day_working_location = useCallback(
+    async (day: Date, location: "office" | "home") => {
+      const current = resolve_working_location(day);
+      const title = t(
+        location === "home"
+          ? "calendar.working_location_home"
+          : "calendar.working_location_office",
+      );
+
+      if (
+        current?.event &&
+        current.is_single_day &&
+        !is_readonly_event(current.event) &&
+        !has_recurrence(current.event)
+      ) {
+        const result = await update_event(
+          current.event.id,
+          unshift_draft_from_view({
+            ...event_to_draft(current.event),
+            title,
+            location: "",
+            working_location: location,
+          }),
+        );
+
+        if (!result.data) {
+          throw new Error("event_update_failed");
+        }
+
+        apply_saved_event(shift_event_to_view(result.data));
+
+        return;
+      }
+
+      const preferred = preferences.calendar_default_calendar_id;
+      const shown = calendars.filter((entry) => entry.is_visible);
+      const calendar_id =
+        shown.find((entry) => entry.id === preferred)?.id ??
+        shown.find((entry) => entry.is_default)?.id ??
+        shown[0]?.id ??
+        "";
+
+      if (!calendar_id) {
+        throw new Error("event_create_failed");
+      }
+
+      const result = await create_event(
+        stamp_draft_zone(
+          unshift_draft_from_view({
+            attendees: [],
+            availability: "free",
+            calendar_id,
+            color: null,
+            conference_url: "",
+            description: "",
+            ends_at: end_of_day(day).toISOString(),
+            event_kind: "working_location",
+            guests_can_invite: false,
+            guests_can_modify: false,
+            guests_can_see_guests: false,
+            is_all_day: true,
+            is_completed: false,
+            location: "",
+            recurrence: null,
+            recurrence_exceptions: [],
+            reminder_minutes: null,
+            starts_at: start_of_day(day).toISOString(),
+            status: "confirmed",
+            tags: [],
+            title,
+            visibility: preferences.calendar_default_event_visibility,
+            working_location: location,
+          }),
+        ),
+      );
+
+      if (!result.data) {
+        throw new Error("event_create_failed");
+      }
+
+      apply_saved_event(shift_event_to_view(result.data));
+    },
+    [
+      apply_saved_event,
+      calendars,
+      preferences.calendar_default_calendar_id,
+      preferences.calendar_default_event_visibility,
+      resolve_working_location,
+      t,
+    ],
+  );
+
+  const clear_day_working_location = useCallback(
+    async (day: Date) => {
+      const current = resolve_working_location(day);
+      const event = current?.event;
+
+      if (!event || is_readonly_event(event)) {
+        return;
+      }
+
+      if (!current.is_single_day || has_recurrence(event)) {
+        handle_edit_event(event);
+
+        return;
+      }
+
+      remove_saved_event(event.id, true);
+
+      let succeeded = false;
+
+      try {
+        succeeded = Boolean((await trash_event(event.id)).data);
+      } finally {
+        if (!succeeded) {
+          reload();
+        }
+      }
+
+      if (!succeeded) {
+        throw new Error("event_delete_failed");
+      }
+    },
+    [handle_edit_event, reload, remove_saved_event, resolve_working_location],
+  );
+
+  const set_day_working_location = useCallback(
+    async (day: Date, location: "office" | "home") => {
+      const day_key = start_of_day(day).toISOString();
+
+      if (pending_working_days_ref.current.has(day_key)) {
+        return;
+      }
+
+      pending_working_days_ref.current.add(day_key);
+
+      try {
+        await save_day_working_location(day, location);
+      } finally {
+        pending_working_days_ref.current.delete(day_key);
+      }
+    },
+    [save_day_working_location],
+  );
+
+  const reset_day_working_location = useCallback(
+    async (day: Date) => {
+      const day_key = start_of_day(day).toISOString();
+
+      if (pending_working_days_ref.current.has(day_key)) {
+        return;
+      }
+
+      pending_working_days_ref.current.add(day_key);
+
+      try {
+        await clear_day_working_location(day);
+      } finally {
+        pending_working_days_ref.current.delete(day_key);
+      }
+    },
+    [clear_day_working_location],
+  );
+
+  const open_other_working_location = useCallback(
+    (day: Date) => {
+      const current = resolve_working_location(day);
+
+      if (
+        current?.event &&
+        current.is_single_day &&
+        !is_readonly_event(current.event)
+      ) {
+        handle_edit_event(current.event);
+
+        return;
+      }
+
+      set_editing_event(null);
+      set_form_initial_date(day);
+      set_form_initial_kind("working_location");
+      set_is_form_open(true);
+    },
+    [handle_edit_event, resolve_working_location],
+  );
+
   const handle_form_close = useCallback(() => {
     set_is_form_open(false);
     set_editing_event(null);
@@ -2701,6 +2940,14 @@ export function use_calendar_state() {
     custom_view_days,
     week_start_day,
     events: visible_events,
+    view_events,
+    working_week,
+    set_working_week,
+    resolve_working_location,
+    set_day_working_location,
+    reset_day_working_location,
+    can_reset_working_location,
+    open_other_working_location,
     trash_entries,
     agenda_groups,
     calendars,

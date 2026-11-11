@@ -11826,6 +11826,14 @@ export const ru = {
     working_location_home: "Дом",
     working_location_office: "Офис",
     working_location_other: "Другое",
+    working_location_none: "Нет",
+    working_location_for_day: "Место работы: {{location}}",
+    working_location_usual_for_day:
+      "Место работы: {{location}} (обычная неделя)",
+    working_location_set: "Указать место работы",
+    working_location_use_usual: "Как обычно ({{location}})",
+    working_location_clear: "Очистить",
+    working_location_other_place: "Другое место…",
     out_of_office_note: "Другие увидят вас как недоступного в этот период.",
     focus_time_note:
       "Время фокусировки блокирует календарь, чтобы никто не назначал встречи.",
@@ -12095,6 +12103,9 @@ export const ru = {
       "Оставлять отклонённые события видимыми в сетке",
     settings_dim_past_events: "Приглушать прошедшие события",
     settings_dim_past_events_desc: "Затемнять уже завершившиеся события",
+    settings_working_week: "Обычное место работы",
+    settings_working_week_desc:
+      "Показывается значком у каждого дня. Чтобы изменить один день, нажмите на его значок.",
     settings_density: "Плотность информации",
     settings_density_desc: "Сколько места по вертикали занимает час",
     settings_density_responsive: "Адаптивная",

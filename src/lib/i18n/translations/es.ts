@@ -11635,6 +11635,14 @@ export const es = {
     working_location_home: "Casa",
     working_location_office: "Oficina",
     working_location_other: "Otro",
+    working_location_none: "Ninguno",
+    working_location_for_day: "Lugar de trabajo: {{location}}",
+    working_location_usual_for_day:
+      "Lugar de trabajo: {{location}} (semana habitual)",
+    working_location_set: "Definir lugar de trabajo",
+    working_location_use_usual: "Usar el habitual ({{location}})",
+    working_location_clear: "Borrar",
+    working_location_other_place: "Otro lugar…",
     out_of_office_note:
       "Los demás te verán como no disponible durante este periodo.",
     focus_time_note:
@@ -11904,6 +11912,9 @@ export const es = {
     settings_show_declined_desc: "Mantén visibles los eventos que rechazaste",
     settings_dim_past_events: "Reducir el brillo de eventos pasados",
     settings_dim_past_events_desc: "Atenúa los eventos que ya terminaron",
+    settings_working_week: "Lugar de trabajo habitual",
+    settings_working_week_desc:
+      "Se muestra como un icono en cada día. Para cambiar un solo día, usa su icono.",
     settings_density: "Densidad de información",
     settings_density_desc: "Cuánto espacio vertical ocupa cada hora",
     settings_density_responsive: "Adaptable",

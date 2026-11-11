@@ -11423,6 +11423,13 @@ export const hi = {
     working_location_home: "घर",
     working_location_office: "ऑफ़िस",
     working_location_other: "अन्य",
+    working_location_none: "कोई नहीं",
+    working_location_for_day: "काम की जगह: {{location}}",
+    working_location_usual_for_day: "काम की जगह: {{location}} (सामान्य सप्ताह)",
+    working_location_set: "काम की जगह सेट करें",
+    working_location_use_usual: "सामान्य वाली इस्तेमाल करें ({{location}})",
+    working_location_clear: "हटाएं",
+    working_location_other_place: "कोई और जगह…",
     out_of_office_note: "इस अवधि में दूसरे लोग आपको अनुपलब्ध देखेंगे।",
     focus_time_note:
       "फ़ोकस समय आपके कैलेंडर को ब्लॉक करता है ताकि कोई उस पर कुछ शेड्यूल न करे।",
@@ -11678,6 +11685,9 @@ export const hi = {
     settings_show_declined_desc: "आपके अस्वीकार किए इवेंट ग्रिड में दिखते रहें",
     settings_dim_past_events: "बीते इवेंट की चमक कम करें",
     settings_dim_past_events_desc: "खत्म हो चुके इवेंट फीके करें",
+    settings_working_week: "सामान्य काम की जगह",
+    settings_working_week_desc:
+      "हर दिन पर एक आइकन के रूप में दिखती है। किसी एक दिन को बदलने के लिए उस दिन का आइकन इस्तेमाल करें।",
     settings_density: "जानकारी का घनत्व",
     settings_density_desc: "हर घंटा कितनी लंबवत जगह लेता है",
     settings_density_responsive: "रिस्पॉन्सिव",
