@@ -52,7 +52,6 @@ const DEV_NAVIGATION_HOSTS: &[&str] = &["localhost", "127.0.0.1"];
 
 const APP_NAVIGATION_SUFFIXES: &[&str] = &[
     ".astermail.org",
-    ".astermail.com",
 ];
 
 const APP_ONION_HOSTS: &[&str] = &[
@@ -770,6 +769,32 @@ mod navigation_tests {
         assert!(!allowed("https://example.com/"));
         assert!(!allowed("https://js.stripe.com/v3"));
         assert!(!allowed("https://checkout.stripe.com/c/pay"));
+    }
+
+    #[test]
+    fn rejects_unowned_astermail_com_hosts() {
+        for url in [
+            "https://astermail.com/",
+            "https://app.astermail.com/calendar",
+            "https://evil.astermail.com/",
+            "https://APP.ASTERMAIL.COM/",
+            "http://app.astermail.com/",
+        ] {
+            assert!(!allowed(url), "{url}");
+            let parsed = Url::parse(url).expect("valid url");
+            assert!(!is_app_navigation_for_build(&parsed, true), "{url}");
+        }
+    }
+
+    #[test]
+    fn navigation_suffixes_and_csp_never_trust_astermail_com() {
+        for suffix in APP_NAVIGATION_SUFFIXES {
+            assert!(suffix.starts_with('.'), "{suffix}");
+            assert!(!suffix.ends_with("astermail.com"), "{suffix}");
+        }
+        let config = include_str!("../tauri.conf.json").to_ascii_lowercase();
+        assert!(config.contains("https://*.astermail.org"));
+        assert!(!config.contains("astermail.com"));
     }
 
     #[test]

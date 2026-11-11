@@ -38,7 +38,44 @@ vi.mock("./tauri_proxy_transport", () => ({
   should_use_tauri_proxy: vi.fn(() => false),
 }));
 
-import { cdn_relay_fetch } from "./cdn_relay_transport";
+import { cdn_relay_fetch, is_relay_host_allowed } from "./cdn_relay_transport";
+
+describe("is_relay_host_allowed", () => {
+  it("accepts owned relay hosts over https", () => {
+    for (const url of [
+      "https://astermail.org",
+      "https://relay.astermail.org",
+      "https://RELAY.ASTERMAIL.ORG",
+      "https://relay.astermail.org./",
+    ]) {
+      expect(is_relay_host_allowed(url), url).toBe(true);
+    }
+  });
+
+  it("rejects astermail.com hosts", () => {
+    for (const url of [
+      "https://astermail.com",
+      "https://relay.astermail.com",
+      "https://evil.astermail.com/path",
+      "https://RELAY.ASTERMAIL.COM",
+      "https://relay.astermail.com./",
+      "https://astermail.org.astermail.com",
+    ]) {
+      expect(is_relay_host_allowed(url), url).toBe(false);
+    }
+  });
+
+  it("rejects lookalike hosts and plain http", () => {
+    for (const url of [
+      "https://evilastermail.org",
+      "https://astermail.org.example.com",
+      "http://relay.astermail.org",
+      "not a url",
+    ]) {
+      expect(is_relay_host_allowed(url), url).toBe(false);
+    }
+  });
+});
 
 describe("cdn_relay_fetch", () => {
   const relay = "https://relay.astermail.org";
@@ -84,6 +121,19 @@ describe("cdn_relay_fetch", () => {
 
   it("fails closed when the relay url stays unavailable after bootstrap", async () => {
     get_relay_mock.mockReturnValue(null);
+    fetch_info_mock.mockResolvedValue(undefined);
+
+    await expect(
+      cdn_relay_fetch(
+        "https://app.astermail.org/api/core/v1/auth/device/code",
+        {},
+      ),
+    ).rejects.toThrow(/refusing to send request over clearnet/);
+    expect(fetch_spy).not.toHaveBeenCalled();
+  });
+
+  it("refuses to relay through an astermail.com host", async () => {
+    get_relay_mock.mockReturnValue("https://relay.astermail.com");
     fetch_info_mock.mockResolvedValue(undefined);
 
     await expect(

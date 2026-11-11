@@ -1068,8 +1068,8 @@ pub async fn send_device_http_request(
     body: Option<String>,
     headers: Option<HashMap<String, String>>,
 ) -> Result<ProxyResponse, String> {
-    const ALLOWED_HTTPS_SUFFIXES: &[&str] = &[".astermail.org", ".astermail.com"];
-    const ALLOWED_HTTPS_EXACT: &[&str] = &["astermail.org", "astermail.com"];
+    const ALLOWED_HTTPS_SUFFIXES: &[&str] = &[".astermail.org"];
+    const ALLOWED_HTTPS_EXACT: &[&str] = &["astermail.org"];
     const MAX_REQUEST_BODY_SIZE: usize = 100 * 1024 * 1024;
     const LARGE_BODY_THRESHOLD: usize = 1024 * 1024;
     const LARGE_BODY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(900);
@@ -1703,6 +1703,24 @@ mod tests {
         assert!(
             crypto_aes_gcm_decrypt(key, iv, sealed, Some(b"other header".to_vec())).is_err()
         );
+    }
+
+    #[tokio::test]
+    async fn device_http_request_refuses_astermail_com_before_connecting() {
+        for url in [
+            "https://astermail.com/api/health",
+            "https://app.astermail.com/api/health",
+            "https://evil.astermail.com/api/health",
+            "https://APP.ASTERMAIL.COM./api/health",
+        ] {
+            let result =
+                send_device_http_request(url.to_string(), "GET".to_string(), None, None).await;
+            assert_eq!(
+                result.err().as_deref(),
+                Some("host not in device_http_request allowlist"),
+                "{url}"
+            );
+        }
     }
 
     #[test]
