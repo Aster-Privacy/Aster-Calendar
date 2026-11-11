@@ -10972,6 +10972,7 @@ export const ar = {
     holiday_region_au: "أستراليا",
     holiday_region_pt: "البرتغال",
     holiday_region_br: "البرازيل",
+    holiday_region_in: "الهند",
     settings_day_split: "عرض اليوم جنبًا إلى جنب",
     settings_day_split_desc: "إظهار كل تقويم في عمود خاص به في عرض اليوم",
     settings_info_day_split:

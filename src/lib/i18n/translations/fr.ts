@@ -11369,6 +11369,7 @@ export const fr = {
     holiday_region_au: "Australie",
     holiday_region_pt: "Portugal",
     holiday_region_br: "Brésil",
+    holiday_region_in: "Inde",
     settings_day_split: "Vue jour côte à côte",
     settings_day_split_desc:
       "Afficher chaque agenda dans sa propre colonne en vue jour",

@@ -432,6 +432,7 @@ export interface CalendarTranslations {
   holiday_region_au: string;
   holiday_region_pt: string;
   holiday_region_br: string;
+  holiday_region_in: string;
   settings_day_split: string;
   settings_day_split_desc: string;
   settings_info_day_split: string;

@@ -11418,6 +11418,7 @@ export const ru = {
     holiday_region_au: "Австралия",
     holiday_region_pt: "Португалия",
     holiday_region_br: "Бразилия",
+    holiday_region_in: "Индия",
     settings_day_split: "День: календари рядом",
     settings_day_split_desc:
       "Показывать каждый календарь в отдельном столбце в режиме дня",

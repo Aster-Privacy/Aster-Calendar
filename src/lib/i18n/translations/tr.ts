@@ -11085,6 +11085,7 @@ export const tr = {
     holiday_region_au: "Avustralya",
     holiday_region_pt: "Portekiz",
     holiday_region_br: "Brezilya",
+    holiday_region_in: "Hindistan",
     settings_day_split: "Yan yana gün görünümü",
     settings_day_split_desc:
       "Gün görünümünde her takvimi kendi sütununda göster",

@@ -10762,6 +10762,7 @@ export const ko = {
     holiday_region_au: "호주",
     holiday_region_pt: "포르투갈",
     holiday_region_br: "브라질",
+    holiday_region_in: "인도",
     settings_day_split: "일간 보기 나란히 표시",
     settings_day_split_desc: "일간 보기에서 캘린더별로 열을 나누어 표시",
     settings_info_day_split:
