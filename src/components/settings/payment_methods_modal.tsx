@@ -53,6 +53,7 @@ import { ButtonSpinner, Spinner } from "@/components/ui/spinner";
 import {
   list_payment_methods,
   create_setup_intent,
+  create_portal_session,
   set_default_payment_method,
   detach_payment_method,
   get_stripe_config,
@@ -71,6 +72,8 @@ import {
 import { stripe_locale } from "@/lib/stripe_locale";
 import { LoadFailedNotice } from "@/components/settings/load_failed_notice";
 import { checkout_error_text } from "@/components/settings/billing/checkout_error_text";
+import { is_desktop } from "@/native/invoke_bridge";
+import { open_external } from "@/utils/open_link";
 
 function get_pm_icon(pm_type: string) {
   switch (pm_type) {
@@ -321,6 +324,7 @@ export function PaymentMethodsModal({
   const [client_secret, set_client_secret] = useState<string | null>(null);
   const [is_preparing, set_is_preparing] = useState(false);
   const [add_error, set_add_error] = useState<string | null>(null);
+  const [awaiting_portal_return, set_awaiting_portal_return] = useState(false);
 
   const stripe_appearance = useMemo(
     () => build_stripe_appearance(tokens),
@@ -430,6 +434,33 @@ export function PaymentMethodsModal({
 
     set_add_error(null);
     set_is_preparing(true);
+
+    if (is_desktop()) {
+      try {
+        const portal_response = await create_portal_session();
+        const portal_url = portal_response.data?.url;
+
+        if (!portal_url || !portal_url.startsWith("https://")) {
+          const message = checkout_error_text(t, portal_response.server_code);
+
+          set_add_error(message);
+          show_toast(message, "error");
+
+          return;
+        }
+
+        open_external(portal_url);
+        set_awaiting_portal_return(true);
+      } catch {
+        set_add_error(t("settings.payment_failed"));
+        show_toast(t("settings.payment_failed"), "error");
+      } finally {
+        set_is_preparing(false);
+      }
+
+      return;
+    }
+
     try {
       const config_response = await get_stripe_config();
 
@@ -480,7 +511,24 @@ export function PaymentMethodsModal({
   }, [t]);
 
   useEffect(() => {
+    if (!awaiting_portal_return) return;
+
+    const handle_focus = () => {
+      set_awaiting_portal_return(false);
+      void fetch_methods();
+      notify_billing_updated();
+    };
+
+    window.addEventListener("focus", handle_focus);
+
+    return () => {
+      window.removeEventListener("focus", handle_focus);
+    };
+  }, [awaiting_portal_return, fetch_methods]);
+
+  useEffect(() => {
     if (!open || !auto_add_card || is_loading) return;
+    if (is_desktop()) return;
     if (show_add_form || is_preparing || add_error) return;
     if (methods.length > 0) return;
 

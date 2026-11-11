@@ -46,12 +46,6 @@ const APP_NAVIGATION_HOSTS: &[&str] = &[
     "asset.localhost",
     "ipc.localhost",
     "challenges.cloudflare.com",
-    "js.stripe.com",
-    "hooks.stripe.com",
-    "api.stripe.com",
-    "m.stripe.network",
-    "r.stripe.com",
-    "q.stripe.com",
 ];
 
 const DEV_NAVIGATION_HOSTS: &[&str] = &["localhost", "127.0.0.1"];
@@ -59,8 +53,6 @@ const DEV_NAVIGATION_HOSTS: &[&str] = &["localhost", "127.0.0.1"];
 const APP_NAVIGATION_SUFFIXES: &[&str] = &[
     ".astermail.org",
     ".astermail.com",
-    ".stripe.com",
-    ".stripe.network",
 ];
 
 const APP_ONION_HOSTS: &[&str] = &[
@@ -435,7 +427,6 @@ fn reset_webkit_crypto_keychain() -> bool {
     false
 }
 
-#[cfg(all(unix, not(target_os = "macos")))]
 mod webkit_sandbox;
 
 fn main() {
@@ -451,11 +442,7 @@ fn main() {
             std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
             std::env::set_var("WEBKIT_DISABLE_THREADED_COMPOSITOR", "1");
         }
-        if std::env::var("WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS").is_err()
-            && !webkit_sandbox::can_start()
-        {
-            std::env::set_var("WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS", "1");
-        }
+        webkit_sandbox::apply_policy();
     }
 
     tauri::Builder::default()
@@ -489,6 +476,7 @@ fn main() {
             frontend_ready,
             frontend_painted,
             reset_webkit_crypto_keychain,
+            webkit_sandbox::webkit_sandbox_status,
             badge::set_unread_badge,
             set_tray_visible,
             set_close_to_tray,
@@ -753,7 +741,6 @@ mod navigation_tests {
         assert!(allowed("tauri://localhost/inbox"));
         assert!(allowed("http://tauri.localhost/inbox"));
         assert!(allowed("https://app.astermail.org/api"));
-        assert!(allowed("https://js.stripe.com/v3"));
         assert!(allowed("https://challenges.cloudflare.com/turnstile"));
         assert!(allowed("about:srcdoc"));
         assert!(allowed("blob:http://tauri.localhost/0f4c"));
@@ -781,6 +768,8 @@ mod navigation_tests {
         assert!(!allowed("http://exampleexampleexampleexampleexampleexampleexampleexam.onion/"));
         assert!(!allowed("https://astermail.org.example.com/"));
         assert!(!allowed("https://example.com/"));
+        assert!(!allowed("https://js.stripe.com/v3"));
+        assert!(!allowed("https://checkout.stripe.com/c/pay"));
     }
 
     #[test]
@@ -802,7 +791,6 @@ mod navigation_tests {
             "http://tauri.localhost/inbox",
             "http://ipc.localhost/plugin",
             "https://app.astermail.org/",
-            "https://js.stripe.com/v3",
         ] {
             let parsed = Url::parse(url).expect("valid url");
             assert!(is_app_navigation_for_build(&parsed, false), "{url}");

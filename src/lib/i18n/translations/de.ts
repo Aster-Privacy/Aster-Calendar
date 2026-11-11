@@ -494,6 +494,9 @@ export const de = {
       "Ihre Zahlung war nicht erfolgreich. Der Zugriff wird in {{days}} Tagen eingeschränkt.",
     billing_alert_action: "Bezahlen",
     dismiss: "Verwerfen",
+    web_sandbox_off_title: "Webinhalte laufen ohne die System-Sandbox",
+    web_sandbox_off_body:
+      "Auf diesem Computer kann Aster Calendar die bubblewrap-Sandbox nicht starten, daher laufen Webinhalte ohne sie. Um sie wieder zu aktivieren, installieren Sie das Paket bubblewrap, erlauben Sie unprivilegierte User-Namespaces und starten Sie Aster Calendar neu.",
     load_content: "Laden",
     open_link: "Link öffnen",
     no_icon: "Kein Symbol",

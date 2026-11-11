@@ -500,6 +500,9 @@ export const pt_br = {
       "Seu pagamento não foi concluído. O acesso será limitado em {{days}} dias.",
     billing_alert_action: "Pagar",
     dismiss: "Dispensar",
+    web_sandbox_off_title: "O conteúdo da web está sendo executado sem a sandbox do sistema",
+    web_sandbox_off_body:
+      "Neste computador, Aster Calendar não consegue iniciar a sandbox bubblewrap, então o conteúdo da web é executado sem ela. Para ativá-la de novo, instale o pacote bubblewrap, permita namespaces de usuário sem privilégios e reinicie Aster Calendar.",
     load_content: "Carregar",
     open_link: "Abrir link",
     no_icon: "Sem ícone",

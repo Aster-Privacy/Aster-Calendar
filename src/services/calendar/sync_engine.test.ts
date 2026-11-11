@@ -1185,6 +1185,161 @@ describe("calendar sync engine revision ledger", () => {
     expect(titles()).toEqual(["Legacy"]);
   });
 
+  function stamped_calendar(name: string, rev_at: number, version: number) {
+    return {
+      id: "cal-1",
+      encrypted_blob: JSON.stringify({
+        name,
+        color: "#123456",
+        description: "",
+        rev_at,
+      }),
+      blob_nonce: "nonce-cal-1",
+      is_visible: true,
+      is_default: false,
+      created_at: "2026-10-09T08:00:00.000Z",
+      updated_at: "2026-10-09T08:00:00.000Z",
+      version,
+    };
+  }
+
+  function serve_all(calendars: unknown[], events: unknown[]) {
+    get.mockImplementation(async (url: unknown) =>
+      String(url).includes("events")
+        ? ok({
+            events,
+            total: events.length,
+            server_time: "2026-10-09T12:00:00.000Z",
+            has_more: false,
+          })
+        : ok({
+            calendars,
+            total: calendars.length,
+            server_time: "2026-10-09T12:00:00.000Z",
+            has_more: false,
+          }),
+    );
+  }
+
+  function calendar_names() {
+    return calendar_sync_engine
+      .get_calendars()
+      .map((calendar) => calendar.name);
+  }
+
+  it("rejects the pre-delete copy of an event deleted on this device", async () => {
+    serve([stamped("Meeting", 2000, 2)]);
+    await calendar_sync_engine.initial_load();
+    await calendar_sync_engine.remove_event_local("evt-1");
+
+    expect((await read_sync_meta(ACCOUNT)).event_tombstones).toEqual({
+      "evt-1": 2000,
+    });
+
+    serve([stamped("Meeting", 2000, 2)]);
+    await calendar_sync_engine.pull_delta();
+
+    expect(titles()).toEqual([]);
+  });
+
+  it("rejects the pre-delete copy of an event deleted on another device", async () => {
+    serve([stamped("Meeting", 2000, 2)]);
+    await calendar_sync_engine.initial_load();
+    serve([{ ...stamped("Meeting", 2000, 3), deleted: true }]);
+    await calendar_sync_engine.pull_delta();
+
+    expect(titles()).toEqual([]);
+
+    serve([stamped("Meeting", 2000, 4)]);
+    await calendar_sync_engine.pull_delta();
+
+    expect(titles()).toEqual([]);
+  });
+
+  it("keeps rejecting a resurrected event after a reload", async () => {
+    serve([stamped("Meeting", 2000, 2)]);
+    await calendar_sync_engine.initial_load();
+    await calendar_sync_engine.remove_event_local("evt-1");
+    calendar_sync_engine.reset();
+    serve([stamped("Meeting", 2000, 2)]);
+    await calendar_sync_engine.initial_load();
+
+    expect(titles()).toEqual([]);
+
+    calendar_sync_engine.reset();
+    serve([stamped("Meeting", 2000, 2)]);
+    await calendar_sync_engine.initial_load();
+
+    expect(titles()).toEqual([]);
+  });
+
+  it("accepts a deleted event again at a higher revision", async () => {
+    serve([stamped("Meeting", 2000, 2)]);
+    await calendar_sync_engine.initial_load();
+    await calendar_sync_engine.remove_event_local("evt-1");
+    serve([stamped("Restored", 3000, 3)]);
+    await calendar_sync_engine.pull_delta();
+
+    expect(titles()).toEqual(["Restored"]);
+    expect((await read_sync_meta(ACCOUNT)).event_tombstones).toEqual({});
+  });
+
+  it("rejects a resurrected calendar and its events until a newer copy", async () => {
+    serve_all(
+      [stamped_calendar("Work", 2000, 2)],
+      [stamped("Meeting", 2000, 2)],
+    );
+    await calendar_sync_engine.initial_load();
+
+    expect(calendar_names()).toEqual(["Work"]);
+    expect(titles()).toEqual(["Meeting"]);
+
+    await calendar_sync_engine.remove_calendar_local("cal-1");
+
+    expect(calendar_names()).toEqual([]);
+    expect(titles()).toEqual([]);
+
+    serve_all(
+      [stamped_calendar("Work", 2000, 2)],
+      [stamped("Meeting", 2000, 2)],
+    );
+    await calendar_sync_engine.pull_delta();
+
+    expect(calendar_names()).toEqual([]);
+    expect(titles()).toEqual([]);
+
+    calendar_sync_engine.reset();
+    serve_all(
+      [stamped_calendar("Work", 2000, 2)],
+      [stamped("Meeting", 2000, 2)],
+    );
+    await calendar_sync_engine.initial_load();
+
+    expect(calendar_names()).toEqual([]);
+    expect(titles()).toEqual([]);
+
+    serve_all(
+      [stamped_calendar("Work again", 3000, 3)],
+      [stamped("Meeting", 2000, 2)],
+    );
+    await calendar_sync_engine.pull_delta();
+
+    expect(calendar_names()).toEqual(["Work again"]);
+    expect(titles()).toEqual(["Meeting"]);
+  });
+
+  it("forgets tombstones when the account is cleared", async () => {
+    serve([stamped("Meeting", 2000, 2)]);
+    await calendar_sync_engine.initial_load();
+    await calendar_sync_engine.remove_event_local("evt-1");
+    await calendar_sync_engine.clear_local();
+    calendar_sync_engine.reset();
+    serve([stamped("Meeting", 2000, 2)]);
+    await calendar_sync_engine.initial_load();
+
+    expect(titles()).toEqual(["Meeting"]);
+  });
+
   it("stamps each write above the newest revision it has seen", async () => {
     const { encrypt_event_draft } =
       await import("@/services/calendar/calendar_codec");
