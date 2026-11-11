@@ -107,6 +107,9 @@ export interface EmailParams {
   allow_non_post_quantum?: boolean;
   client_send_id?: string;
   is_plain_text?: boolean;
+  pgp_recipients?: string[];
+  pgp_recipient_keys?: Record<string, string>;
+  obscure_subject?: boolean;
 }
 
 export interface QueueCallbacks {
