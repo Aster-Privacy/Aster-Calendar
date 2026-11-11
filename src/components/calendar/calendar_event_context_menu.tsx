@@ -37,7 +37,10 @@ import {
   TrashIcon,
 } from "@heroicons/react/24/outline";
 
-import { EVENT_COLOR_OPTIONS } from "@/components/calendar/calendar_utils";
+import {
+  EVENT_COLOR_OPTIONS,
+  nearest_event_color,
+} from "@/components/calendar/calendar_utils";
 
 import {
   ContextMenu,
@@ -207,12 +210,13 @@ export function CalendarEventContextMenu({
                   style={{ backgroundColor: option.hex }}
                 />
                 <span className="truncate">{t(option.name_key)}</span>
-                {event.color === option.hex && (
-                  <CheckIcon
-                    aria-hidden="true"
-                    className="ms-auto text-[var(--calendar_accent_text,var(--accent-color))]"
-                  />
-                )}
+                {event.color !== null &&
+                  nearest_event_color(event.color).name === option.name && (
+                    <CheckIcon
+                      aria-hidden="true"
+                      className="ms-auto text-[var(--calendar_accent_text,var(--accent-color))]"
+                    />
+                  )}
               </ContextMenuItem>
             ))}
           </ContextMenuSubContent>

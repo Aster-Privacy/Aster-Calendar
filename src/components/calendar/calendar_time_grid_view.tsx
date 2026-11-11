@@ -72,6 +72,7 @@ import {
   resolve_event_color,
   build_event_block_style,
   event_color_token,
+  ink_on_fill,
   event_occurrence_key,
   start_of_day,
 } from "@/components/calendar/calendar_utils";
@@ -2222,6 +2223,11 @@ export const CalendarTimeGridView = memo(function CalendarTimeGridView({
                           backgroundColor: draft_range.color
                             ? event_color_token(draft_range.color)
                             : placeholder_color,
+                          color: ink_on_fill(
+                            draft_range.color
+                              ? event_color_token(draft_range.color)
+                              : placeholder_color,
+                          ),
                         }}
                       >
                         {is_same_day(draft_range.start, day) && (
@@ -2652,6 +2658,11 @@ export const CalendarTimeGridView = memo(function CalendarTimeGridView({
                           backgroundColor: draft_range.color
                             ? event_color_token(draft_range.color)
                             : placeholder_color,
+                          color: ink_on_fill(
+                            draft_range.color
+                              ? event_color_token(draft_range.color)
+                              : placeholder_color,
+                          ),
                           top:
                             (minutes_from_midnight(draft_range.start) / 60) *
                             HOUR_HEIGHT_PX,

@@ -11711,6 +11711,8 @@ export const nl = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "Bruin",
+    color_gray: "Grijs",
     event_color: "Kleur",
     year: "Jaar",
     custom_view: "Aangepaste weergave",

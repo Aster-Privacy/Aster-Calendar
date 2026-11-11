@@ -11231,6 +11231,8 @@ export const ko = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "갈색",
+    color_gray: "회색",
     event_color: "색상",
     year: "년",
     custom_view: "맞춤 보기",

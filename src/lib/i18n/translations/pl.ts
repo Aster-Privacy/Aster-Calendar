@@ -11959,6 +11959,8 @@ export const pl = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "Brązowy",
+    color_gray: "Szary",
     event_color: "Kolor",
     year: "Rok",
     custom_view: "Widok niestandardowy",

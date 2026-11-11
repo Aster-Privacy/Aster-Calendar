@@ -11872,6 +11872,8 @@ export const fr = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "Marron",
+    color_gray: "Gris",
     event_color: "Couleur",
     year: "Année",
     custom_view: "Vue personnalisée",

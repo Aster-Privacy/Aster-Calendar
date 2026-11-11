@@ -10415,6 +10415,8 @@ export const zh_CN = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "棕色",
+    color_gray: "灰色",
     event_color: "颜色",
     year: "年",
     custom_view: "自定义视图",

@@ -11789,6 +11789,8 @@ export const it = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "Marrone",
+    color_gray: "Grigio",
     event_color: "Colore",
     year: "Anno",
     custom_view: "Vista personalizzata",

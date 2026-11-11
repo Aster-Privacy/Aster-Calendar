@@ -72,6 +72,7 @@ import {
   event_color_token,
   EVENT_COLOR_OPTIONS,
   nearest_event_color,
+  ink_on_fill,
 } from "@/components/calendar/calendar_utils";
 import { calendar_now } from "@/services/calendar/view_zone";
 import {
@@ -830,7 +831,7 @@ export function CalendarSidebar({
       <svg
         className="h-[11px] w-[11px] transition-opacity duration-150 ease-out motion-reduce:transition-none"
         fill="none"
-        stroke="#ffffff"
+        stroke={ink_on_fill(event_color_token(color))}
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth={3}
@@ -982,7 +983,7 @@ export function CalendarSidebar({
           <ContextMenuSubContent className="w-44">
             {EVENT_COLOR_OPTIONS.map((option) => {
               const is_current =
-                option.hex.toLowerCase() === calendar.color.toLowerCase();
+                nearest_event_color(calendar.color).name === option.name;
 
               return (
                 <ContextMenuItem
