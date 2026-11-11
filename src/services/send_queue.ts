@@ -169,6 +169,10 @@ class SendQueue {
       in_reply_to: email.in_reply_to,
       force_pgp: email.force_pgp,
       allow_non_post_quantum: email.allow_non_post_quantum,
+      is_plain_text: email.is_plain_text,
+      pgp_recipients: email.pgp_recipients,
+      pgp_recipient_keys: email.pgp_recipient_keys,
+      obscure_subject: email.obscure_subject,
       scheduled_time,
       timeout_id,
       callbacks: {
