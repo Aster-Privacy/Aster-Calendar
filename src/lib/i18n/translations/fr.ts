@@ -11662,6 +11662,8 @@ export const fr = {
     tags: "Étiquettes",
     tags_placeholder: "Ajouter des étiquettes",
     remove_tag: "Supprimer l'étiquette",
+    tag_color: "Couleur de l'étiquette",
+    change_tag_color: "Changer la couleur de {{ tag }}",
     no_tags: "Aucune étiquette pour l'instant",
     details: "Détails",
     details_hint: "Sélectionnez un événement pour voir ses détails",

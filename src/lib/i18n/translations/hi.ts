@@ -11834,6 +11834,8 @@ export const hi = {
     tags: "टैग",
     tags_placeholder: "टैग जोड़ें",
     remove_tag: "टैग हटाएं",
+    tag_color: "टैग का रंग",
+    change_tag_color: "{{ tag }} का रंग बदलें",
     no_tags: "अभी कोई टैग नहीं",
     details: "विवरण",
     details_hint: "विवरण देखने के लिए कोई इवेंट चुनें",

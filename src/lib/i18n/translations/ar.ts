@@ -11246,6 +11246,8 @@ export const ar = {
     tags: "الوسوم",
     tags_placeholder: "أضف وسوماً",
     remove_tag: "إزالة الوسم",
+    tag_color: "لون الوسم",
+    change_tag_color: "تغيير لون {{ tag }}",
     no_tags: "لا توجد وسوم بعد",
     details: "التفاصيل",
     details_hint: "اختر حدثاً لعرض تفاصيله",

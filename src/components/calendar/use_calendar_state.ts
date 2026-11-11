@@ -1243,8 +1243,14 @@ export function use_calendar_state() {
         events.filter((event) =>
           is_event_shown(event, visible_calendar_ids, show_birthdays),
         ),
+        preferences.calendar_tag_colors,
       ),
-    [events, visible_calendar_ids, show_birthdays],
+    [
+      events,
+      visible_calendar_ids,
+      show_birthdays,
+      preferences.calendar_tag_colors,
+    ],
   );
 
   const handle_toggle_tag = useCallback((tag: string) => {

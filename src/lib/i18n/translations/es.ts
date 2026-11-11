@@ -11518,6 +11518,8 @@ export const es = {
     tags: "Etiquetas",
     tags_placeholder: "Añadir etiquetas",
     remove_tag: "Quitar etiqueta",
+    tag_color: "Color de la etiqueta",
+    change_tag_color: "Cambiar el color de {{ tag }}",
     no_tags: "Aún no hay etiquetas",
     details: "Detalles",
     details_hint: "Selecciona un evento para ver sus detalles",

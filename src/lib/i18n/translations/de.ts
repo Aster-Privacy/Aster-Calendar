@@ -11675,6 +11675,8 @@ export const de = {
     tags: "Tags",
     tags_placeholder: "Tags hinzufügen",
     remove_tag: "Tag entfernen",
+    tag_color: "Tag-Farbe",
+    change_tag_color: "Farbe für {{ tag }} ändern",
     no_tags: "Noch keine Tags",
     details: "Details",
     details_hint: "Wähle einen Termin, um Details zu sehen",

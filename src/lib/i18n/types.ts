@@ -707,6 +707,8 @@ export interface CalendarTranslations {
   tags: string;
   tags_placeholder: string;
   remove_tag: string;
+  tag_color: string;
+  change_tag_color: string;
   no_tags: string;
   details: string;
   details_hint: string;

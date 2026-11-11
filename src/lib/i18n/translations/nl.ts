@@ -11504,6 +11504,8 @@ export const nl = {
     tags: "Labels",
     tags_placeholder: "Tags toevoegen",
     remove_tag: "Tag verwijderen",
+    tag_color: "Labelkleur",
+    change_tag_color: "Kleur van {{ tag }} wijzigen",
     no_tags: "Nog geen tags",
     details: "Details",
     details_hint: "Selecteer een afspraak om details te zien",

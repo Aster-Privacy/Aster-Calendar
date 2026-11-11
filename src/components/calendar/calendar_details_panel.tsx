@@ -53,8 +53,8 @@ import {
   is_same_day,
   resolve_event_color,
   start_of_day,
-  tag_color,
 } from "@/components/calendar/calendar_utils";
+import { use_tag_colors } from "@/components/calendar/use_tag_colors";
 import { relative_day_label } from "@/components/calendar/calendar_agenda_view";
 import { describe_recurrence } from "@/components/calendar/recurrence_field";
 import { ProfileAvatar } from "@/components/ui/profile_avatar";
@@ -202,6 +202,7 @@ export function CalendarDetailsPanel({
   on_respond,
 }: CalendarDetailsPanelProps) {
   const { language } = use_i18n();
+  const { color_for: tag_color_for } = use_tag_colors();
   const { guard_link_click } = use_guarded_link();
 
   const handle_response_key = (pressed: ReactKeyboardEvent<HTMLElement>) => {
@@ -608,7 +609,7 @@ export function CalendarDetailsPanel({
                 key={tag}
                 className="rounded-[var(--aster-radius-item)] px-2 py-0.5 text-xs font-medium text-txt-primary"
                 style={{
-                  backgroundColor: `color-mix(in srgb, ${tag_color(tag)} 18%, var(--aster-field-bg))`,
+                  backgroundColor: `color-mix(in srgb, ${tag_color_for(tag)} 18%, var(--aster-field-bg))`,
                 }}
               >
                 {tag}

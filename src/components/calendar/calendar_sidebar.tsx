@@ -45,6 +45,7 @@ import {
   PencilIcon,
   StarIcon,
   PlusIcon,
+  SwatchIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline";
 import {
@@ -102,6 +103,8 @@ import { CalendarWorldClock } from "@/components/calendar/calendar_world_clock";
 import { RailTipLayer } from "@/components/layout/sidebar/rail_tip_layer";
 import { SidebarAccountSwitcher } from "@/components/layout/sidebar/sidebar_account_switcher";
 import { UpNextCard } from "@/components/calendar/up_next_card";
+import { TagColorPicker } from "@/components/calendar/tag_color_picker";
+import { use_tag_colors } from "@/components/calendar/use_tag_colors";
 import { use_preferences } from "@/contexts/preferences_context";
 import { BIRTHDAY_COLOR } from "@/services/calendar/birthdays";
 import { subscription_color } from "@/services/calendar/subscriptions";
@@ -191,6 +194,7 @@ export function CalendarSidebar({
     get_cached_sidebar_state(SUBSCRIPTIONS_COLLAPSED_KEY),
   );
   const { preferences, update_preference } = use_preferences();
+  const { set_tag_color } = use_tag_colors();
 
   useEffect(() => {
     const check_breakpoints = () => {
@@ -1309,15 +1313,40 @@ export function CalendarSidebar({
                   );
 
                   return (
-                    <SidebarTagRow
-                      key={tag.name}
-                      rail_tip
-                      color={tag.color}
-                      is_collapsed={is_collapsed}
-                      label={tag.name}
-                      selected={is_selected}
-                      on_click={() => on_toggle_tag(tag.name)}
-                    />
+                    <div key={tag.name} className="group relative">
+                      <SidebarTagRow
+                        rail_tip
+                        color={tag.color}
+                        is_collapsed={is_collapsed}
+                        label={tag.name}
+                        selected={is_selected}
+                        on_click={() => on_toggle_tag(tag.name)}
+                        trailing={
+                          !is_collapsed ? <span className="w-5" /> : undefined
+                        }
+                      />
+                      {!is_collapsed && (
+                        <TagColorPicker
+                          align="end"
+                          color={tag.color}
+                          tag={tag.name}
+                          on_select={(color) => set_tag_color(tag.name, color)}
+                        >
+                          <button
+                            aria-label={t("calendar.change_tag_color", {
+                              tag: tag.name,
+                            })}
+                            className={`absolute end-1.5 top-1/2 z-[2] inline-flex h-6 w-6 -translate-y-1/2 touch-manipulation items-center justify-center rounded-[8px] text-[var(--icon-muted)] transition-[opacity,background-color,color] duration-150 hover:bg-[var(--aster-hover)] hover:text-[var(--icon-active)] group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:bg-[var(--aster-hover)] data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100 ${
+                              is_mobile ? "opacity-100" : "opacity-0"
+                            } ${focus_ring}`}
+                            data-testid="sidebar-tag-color"
+                            type="button"
+                          >
+                            <SwatchIcon className="h-4 w-4" />
+                          </button>
+                        </TagColorPicker>
+                      )}
+                    </div>
                   );
                 })}
               </div>
