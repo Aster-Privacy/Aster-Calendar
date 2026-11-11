@@ -11228,6 +11228,7 @@ export const es = {
     holiday_region_au: "Australia",
     holiday_region_pt: "Portugal",
     holiday_region_br: "Brasil",
+    holiday_region_in: "India",
     settings_day_split: "Vista de día en paralelo",
     settings_day_split_desc:
       "Mostrar cada calendario en su propia columna en la vista de día",

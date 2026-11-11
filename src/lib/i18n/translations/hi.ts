@@ -11022,6 +11022,7 @@ export const hi = {
     holiday_region_au: "ऑस्ट्रेलिया",
     holiday_region_pt: "पुर्तगाल",
     holiday_region_br: "ब्राज़ील",
+    holiday_region_in: "भारत",
     settings_day_split: "साथ-साथ दिन व्यू",
     settings_day_split_desc: "दिन व्यू में हर कैलेंडर को अपने कॉलम में दिखाएं",
     settings_info_day_split:

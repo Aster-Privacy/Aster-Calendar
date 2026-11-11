@@ -11311,6 +11311,7 @@ export const pt_br = {
     holiday_region_au: "Austrália",
     holiday_region_pt: "Portugal",
     holiday_region_br: "Brasil",
+    holiday_region_in: "Índia",
     settings_day_split: "Visualização de dia lado a lado",
     settings_day_split_desc:
       "Mostra cada calendário em uma coluna própria na visualização de dia",

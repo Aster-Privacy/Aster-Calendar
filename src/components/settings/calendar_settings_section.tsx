@@ -495,6 +495,7 @@ export function CalendarViewsSection() {
             { value: "au", label: t("calendar.holiday_region_au") },
             { value: "pt", label: t("calendar.holiday_region_pt") },
             { value: "br", label: t("calendar.holiday_region_br") },
+            { value: "in", label: t("calendar.holiday_region_in") },
           ]}
           value={preferences.calendar_holiday_region ?? "none"}
           on_change={(value) =>

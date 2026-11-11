@@ -10940,6 +10940,7 @@ export const en: Translations = {
     holiday_region_au: "Australia",
     holiday_region_pt: "Portugal",
     holiday_region_br: "Brazil",
+    holiday_region_in: "India",
     settings_day_split: "Side-by-side day view",
     settings_day_split_desc: "Show each calendar in its own column in day view",
     settings_info_day_split:

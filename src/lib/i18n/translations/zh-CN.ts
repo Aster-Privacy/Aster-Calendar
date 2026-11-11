@@ -9960,6 +9960,7 @@ export const zh_CN = {
     holiday_region_au: "澳大利亚",
     holiday_region_pt: "葡萄牙",
     holiday_region_br: "巴西",
+    holiday_region_in: "印度",
     settings_day_split: "日视图并排显示",
     settings_day_split_desc: "在日视图中为每个日历单独显示一列",
     settings_info_day_split:

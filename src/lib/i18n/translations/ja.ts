@@ -10979,6 +10979,7 @@ export const ja = {
     holiday_region_au: "オーストラリア",
     holiday_region_pt: "ポルトガル",
     holiday_region_br: "ブラジル",
+    holiday_region_in: "インド",
     settings_day_split: "日ビューを並べて表示",
     settings_day_split_desc: "日ビューでカレンダーごとに列を分けて表示します",
     settings_info_day_split:

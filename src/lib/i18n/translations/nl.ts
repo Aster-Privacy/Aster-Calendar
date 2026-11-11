@@ -11213,6 +11213,7 @@ export const nl = {
     holiday_region_au: "Australië",
     holiday_region_pt: "Portugal",
     holiday_region_br: "Brazilië",
+    holiday_region_in: "India",
     settings_day_split: "Dagweergave naast elkaar",
     settings_day_split_desc:
       "Toon elke agenda in een eigen kolom in de dagweergave",

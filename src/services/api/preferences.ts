@@ -274,7 +274,7 @@ export interface UserPreferences {
   calendar_notification_sound: boolean;
   calendar_notify_only_accepted: boolean;
   calendar_holiday_region:
-    "none" | "us" | "uk" | "de" | "fr" | "ca" | "au" | "pt" | "br";
+    "none" | "us" | "uk" | "de" | "fr" | "ca" | "au" | "pt" | "br" | "in";
   calendar_day_split_by_calendar: boolean;
   calendar_show_birthdays: boolean;
   calendar_birthdays_hidden: boolean;
