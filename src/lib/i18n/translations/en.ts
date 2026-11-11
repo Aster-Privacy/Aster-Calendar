@@ -11425,6 +11425,8 @@ export const en: Translations = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "Brown",
+    color_gray: "Gray",
     event_color: "Event color",
     year: "Year",
     custom_view: "Custom view",

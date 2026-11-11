@@ -82,6 +82,7 @@ import {
   clamp_custom_view_days,
   CUSTOM_VIEW_DAY_OPTIONS,
   EVENT_COLOR_OPTIONS,
+  find_event_color_option,
   week_start_day_index,
 } from "@/components/calendar/calendar_utils";
 import {
@@ -1056,7 +1057,13 @@ export function CalendarEventsSection() {
               label: t(option.name_key),
             })),
           ]}
-          value={preferences.calendar_default_event_color || "calendar"}
+          value={
+            preferences.calendar_default_event_color
+              ? (find_event_color_option(
+                  preferences.calendar_default_event_color,
+                )?.hex ?? preferences.calendar_default_event_color)
+              : "calendar"
+          }
           on_change={(value) =>
             update_preference(
               "calendar_default_event_color",

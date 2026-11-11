@@ -11454,6 +11454,8 @@ export const ja = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "茶色",
+    color_gray: "グレー",
     event_color: "色",
     year: "年",
     custom_view: "カスタム表示",

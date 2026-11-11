@@ -11836,6 +11836,8 @@ export const pt = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "Castanho",
+    color_gray: "Cinzento",
     event_color: "Cor",
     year: "Ano",
     custom_view: "Vista personalizada",

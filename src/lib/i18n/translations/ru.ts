@@ -11921,6 +11921,8 @@ export const ru = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "Коричневый",
+    color_gray: "Серый",
     event_color: "Цвет",
     year: "Год",
     custom_view: "Настраиваемый вид",

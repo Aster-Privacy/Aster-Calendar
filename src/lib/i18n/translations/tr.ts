@@ -11574,6 +11574,8 @@ export const tr = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "Kahverengi",
+    color_gray: "Gri",
     event_color: "Renk",
     year: "Yıl",
     custom_view: "Özel görünüm",

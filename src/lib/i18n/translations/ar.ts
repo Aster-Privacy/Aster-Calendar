@@ -11459,6 +11459,8 @@ export const ar = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "بني",
+    color_gray: "رمادي",
     event_color: "اللون",
     year: "سنة",
     custom_view: "عرض مخصص",

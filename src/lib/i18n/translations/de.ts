@@ -11884,6 +11884,8 @@ export const de = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "Braun",
+    color_gray: "Grau",
     event_color: "Farbe",
     year: "Jahr",
     custom_view: "Benutzerdefinierte Ansicht",

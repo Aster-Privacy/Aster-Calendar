@@ -11513,6 +11513,8 @@ export const hi = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "भूरा",
+    color_gray: "धूसर",
     event_color: "इवेंट का रंग",
     year: "साल",
     custom_view: "कस्टम व्यू",

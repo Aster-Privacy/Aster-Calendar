@@ -909,6 +909,8 @@ export interface CalendarTranslations {
   color_rose: string;
   color_pink: string;
   color_slate: string;
+  color_brown: string;
+  color_gray: string;
   event_color: string;
   year: string;
   custom_view: string;

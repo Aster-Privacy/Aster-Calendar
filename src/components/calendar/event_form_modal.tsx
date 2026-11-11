@@ -1800,9 +1800,7 @@ export function EventFormModal({
                                   {is_selected && (
                                     <CheckIcon
                                       className="h-3 w-3"
-                                      style={{
-                                        color: "var(--calendar_event_text, #ffffff)",
-                                      }}
+                                      style={{ color: option.ink }}
                                     />
                                   )}
                                 </button>

@@ -11810,6 +11810,8 @@ export const pt_br = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "Marrom",
+    color_gray: "Cinza",
     event_color: "Cor do evento",
     year: "Ano",
     custom_view: "Visualização personalizada",
