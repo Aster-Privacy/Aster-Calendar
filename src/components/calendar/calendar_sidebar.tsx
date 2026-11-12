@@ -18,6 +18,7 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
+import type { ShowOnlyTarget } from "@/services/calendar/local_visibility";
 import type { SettingsSection } from "@/components/settings/settings_content";
 import type { IcsSubscription } from "@/services/calendar/subscriptions";
 import type {
@@ -104,6 +105,16 @@ import { SidebarAccountSwitcher } from "@/components/layout/sidebar/sidebar_acco
 import { UpNextCard } from "@/components/calendar/up_next_card";
 import { use_preferences } from "@/contexts/preferences_context";
 import { BIRTHDAY_COLOR } from "@/services/calendar/birthdays";
+import {
+  HOLIDAY_CALENDAR_ID,
+  HOLIDAY_COLOR,
+} from "@/services/calendar/holidays";
+import {
+  apply_subscription_visibility,
+  set_subscription_hidden,
+  show_only_visibility,
+} from "@/services/calendar/local_visibility";
+import { use_local_calendar_visibility } from "@/hooks/use_local_calendar_visibility";
 import { subscription_color } from "@/services/calendar/subscriptions";
 import { use_i18n } from "@/lib/i18n/context";
 import { use_should_reduce_motion } from "@/provider";
@@ -118,11 +129,6 @@ const SIDEBAR_DEFAULT_WIDTH = 256;
 const CALENDARS_COLLAPSED_KEY = "calendar_sidebar_calendars_collapsed";
 const LABELS_COLLAPSED_KEY = "calendar_sidebar_labels_collapsed";
 const SUBSCRIPTIONS_COLLAPSED_KEY = "calendar_sidebar_subscriptions_collapsed";
-
-type ShowOnlyTarget =
-  | { kind: "calendar"; id: string }
-  | { kind: "subscription"; id: string }
-  | { kind: "birthdays" };
 
 const DESTRUCTIVE_MENU_CLASS =
   "text-[var(--color-danger)] focus:!bg-[color-mix(in_srgb,var(--color-danger)_10%,transparent)] focus:text-[var(--color-danger)]";
@@ -455,8 +461,20 @@ export function CalendarSidebar({
 
   const today = calendar_now();
 
-  const subscriptions: IcsSubscription[] =
+  const synced_subscriptions: IcsSubscription[] =
     preferences.calendar_ics_subscriptions ?? [];
+  const { visibility, update: update_visibility } =
+    use_local_calendar_visibility({
+      calendars,
+      subscriptions: synced_subscriptions,
+      birthdays_hidden: preferences.calendar_birthdays_hidden === true,
+    });
+  const subscriptions = apply_subscription_visibility(
+    synced_subscriptions,
+    visibility,
+  );
+  const has_holidays =
+    (preferences.calendar_holiday_region ?? "none") !== "none";
 
   const update_subscription = (
     subscription: IcsSubscription,
@@ -464,7 +482,7 @@ export function CalendarSidebar({
   ) => {
     update_preference(
       "calendar_ics_subscriptions",
-      subscriptions.map((entry) =>
+      synced_subscriptions.map((entry) =>
         entry.id === subscription.id ? { ...entry, ...patch } : entry,
       ),
     );
@@ -473,7 +491,10 @@ export function CalendarSidebar({
   const set_subscription_visible = (
     subscription: IcsSubscription,
     is_visible: boolean,
-  ) => update_subscription(subscription, { hidden: !is_visible });
+  ) =>
+    update_visibility((current) =>
+      set_subscription_hidden(current, subscription.id, !is_visible),
+    );
 
   const change_subscription_color = (
     subscription: IcsSubscription,
@@ -489,7 +510,7 @@ export function CalendarSidebar({
   const unsubscribe = (subscription: IcsSubscription) => {
     update_preference(
       "calendar_ics_subscriptions",
-      subscriptions.filter((entry) => entry.id !== subscription.id),
+      synced_subscriptions.filter((entry) => entry.id !== subscription.id),
     );
     show_toast(
       t("calendar.ie_sub_removed", { name: subscription.name }),
@@ -498,38 +519,13 @@ export function CalendarSidebar({
   };
 
   const show_only = (target: ShowOnlyTarget) => {
-    for (const calendar of calendars) {
-      const next_visible =
-        target.kind === "calendar" && calendar.id === target.id;
-
-      if (calendar.is_visible !== next_visible) {
-        on_toggle_calendar(calendar.id, next_visible);
-      }
-    }
-
-    const birthdays_hidden = target.kind !== "birthdays";
-
-    if ((preferences.calendar_birthdays_hidden === true) !== birthdays_hidden) {
-      update_preference("calendar_birthdays_hidden", birthdays_hidden);
-    }
-
-    const is_target = (subscription: IcsSubscription) =>
-      target.kind === "subscription" && subscription.id === target.id;
-
-    if (
-      subscriptions.some(
-        (subscription) =>
-          (subscription.hidden === true) === is_target(subscription),
-      )
-    ) {
-      update_preference(
-        "calendar_ics_subscriptions",
-        subscriptions.map((subscription) => ({
-          ...subscription,
-          hidden: !is_target(subscription),
-        })),
-      );
-    }
+    update_visibility(() =>
+      show_only_visibility(
+        target,
+        calendars.map((calendar) => calendar.id),
+        synced_subscriptions.map((subscription) => subscription.id),
+      ),
+    );
   };
 
   const go_to_today = () => {
@@ -851,7 +847,20 @@ export function CalendarSidebar({
     calendars[0]?.id ??
     "";
 
-  const birthdays_visible = preferences.calendar_birthdays_hidden !== true;
+  const birthdays_visible = !visibility.birthdays_hidden;
+  const holidays_visible = !visibility.holidays_hidden;
+
+  const toggle_birthdays = () =>
+    update_visibility((current) => ({
+      ...current,
+      birthdays_hidden: birthdays_visible,
+    }));
+
+  const toggle_holidays = () =>
+    update_visibility((current) => ({
+      ...current,
+      holidays_hidden: holidays_visible,
+    }));
 
   const birthday_row = (
     <ContextMenu>
@@ -860,6 +869,7 @@ export function CalendarSidebar({
           className={`group relative rounded-[var(--aster-radius-item,8px)] data-[state=open]:[&>button]:bg-[var(--aster-hover)] ${
             birthdays_visible ? "" : "[&>button_span.flex-1]:opacity-55"
           }`}
+          data-visibility-row="birthdays"
         >
           <SidebarTagRow
             rail_tip
@@ -868,9 +878,7 @@ export function CalendarSidebar({
             icon_slot={visibility_box(BIRTHDAY_COLOR, birthdays_visible)}
             is_collapsed={is_collapsed}
             label={t("calendar.settings_birthdays")}
-            on_click={() =>
-              update_preference("calendar_birthdays_hidden", birthdays_visible)
-            }
+            on_click={toggle_birthdays}
             trailing={!is_collapsed ? <span className="w-5" /> : undefined}
           />
           {!is_collapsed && (
@@ -891,17 +899,64 @@ export function CalendarSidebar({
           <EyeIcon className="me-2 h-4 w-4" />
           {t("calendar.show_only_this_calendar")}
         </ContextMenuItem>
-        <ContextMenuItem
-          onClick={() =>
-            update_preference("calendar_birthdays_hidden", birthdays_visible)
-          }
-        >
+        <ContextMenuItem onClick={toggle_birthdays}>
           {birthdays_visible ? (
             <EyeSlashIcon className="me-2 h-4 w-4" />
           ) : (
             <EyeIcon className="me-2 h-4 w-4" />
           )}
           {birthdays_visible
+            ? t("calendar.hide_this_calendar")
+            : t("calendar.show_this_calendar")}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+
+  const holiday_row = (
+    <ContextMenu key={HOLIDAY_CALENDAR_ID}>
+      <ContextMenuTrigger asChild>
+        <div
+          className={`group relative rounded-[var(--aster-radius-item,8px)] data-[state=open]:[&>button]:bg-[var(--aster-hover)] ${
+            holidays_visible ? "" : "[&>button_span.flex-1]:opacity-55"
+          }`}
+          data-visibility-row="holidays"
+        >
+          <SidebarTagRow
+            rail_tip
+            aria-pressed={holidays_visible}
+            color={HOLIDAY_COLOR}
+            icon_slot={visibility_box(HOLIDAY_COLOR, holidays_visible)}
+            is_collapsed={is_collapsed}
+            label={t("calendar.settings_holidays")}
+            on_click={toggle_holidays}
+            trailing={!is_collapsed ? <span className="w-5" /> : undefined}
+          />
+          {!is_collapsed && (
+            <button
+              aria-haspopup="menu"
+              aria-label={t("calendar.calendar_options")}
+              className={`absolute end-1.5 top-1/2 z-[2] inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-[8px] text-[var(--icon-muted)] opacity-0 transition-[opacity,background-color,color] duration-150 hover:bg-[var(--aster-hover)] hover:text-[var(--icon-active)] group-hover:opacity-100 group-data-[state=open]:opacity-100 focus-visible:opacity-100 ${focus_ring}`}
+              type="button"
+              onClick={open_calendar_menu}
+            >
+              <EllipsisHorizontalIcon className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-52">
+        <ContextMenuItem onClick={() => show_only({ kind: "holidays" })}>
+          <EyeIcon className="me-2 h-4 w-4" />
+          {t("calendar.show_only_this_calendar")}
+        </ContextMenuItem>
+        <ContextMenuItem onClick={toggle_holidays}>
+          {holidays_visible ? (
+            <EyeSlashIcon className="me-2 h-4 w-4" />
+          ) : (
+            <EyeIcon className="me-2 h-4 w-4" />
+          )}
+          {holidays_visible
             ? t("calendar.hide_this_calendar")
             : t("calendar.show_this_calendar")}
         </ContextMenuItem>
@@ -1243,6 +1298,7 @@ export function CalendarSidebar({
             <div className={is_collapsed ? undefined : "py-1"}>
               {calendar_rows}
               {calendars.length > 0 && birthday_row}
+              {has_holidays && holiday_row}
               {calendars.length === 0 && !is_collapsed && (
                 <CalendarEmptyState
                   action={

@@ -74,10 +74,12 @@ import { TimeZonePicker } from "@/components/settings/appearance/time_zone_picke
 import { InviteSenderSettingRow } from "@/components/settings/invite_sender_setting_row";
 import { use_preferences } from "@/contexts/preferences_context";
 import { use_i18n } from "@/lib/i18n/context";
+import { list_calendars } from "@/services/api/calendar";
 import {
-  list_calendars,
-  set_calendar_visibility,
-} from "@/services/api/calendar";
+  apply_calendar_visibility,
+  set_calendar_hidden,
+} from "@/services/calendar/local_visibility";
+import { use_local_calendar_visibility } from "@/hooks/use_local_calendar_visibility";
 import {
   clamp_custom_view_days,
   CUSTOM_VIEW_DAY_OPTIONS,
@@ -1329,7 +1331,17 @@ export { CalendarImportExportSection } from "./calendar_import_export_section";
 export function CalendarListSection() {
   const { t } = use_i18n();
   const { preferences, update_preference } = use_preferences();
-  const [calendars, set_calendars] = useState<DecryptedCalendar[]>([]);
+  const [server_calendars, set_calendars] = useState<DecryptedCalendar[]>([]);
+  const { visibility, update: update_visibility } =
+    use_local_calendar_visibility({
+      calendars: server_calendars,
+      subscriptions: preferences.calendar_ics_subscriptions ?? [],
+      birthdays_hidden: preferences.calendar_birthdays_hidden === true,
+    });
+  const calendars = useMemo(
+    () => apply_calendar_visibility(server_calendars, visibility),
+    [server_calendars, visibility],
+  );
   const [is_loading, set_is_loading] = useState(true);
   const [editor, set_editor] = useState<{
     is_open: boolean;
@@ -1378,29 +1390,10 @@ export function CalendarListSection() {
     calendars[0]?.id ??
     "";
 
-  const toggle_visibility = (calendar: DecryptedCalendar, next: boolean) => {
-    set_calendars((current) =>
-      current.map((entry) =>
-        entry.id === calendar.id ? { ...entry, is_visible: next } : entry,
-      ),
+  const toggle_visibility = (calendar: DecryptedCalendar, next: boolean) =>
+    update_visibility((current) =>
+      set_calendar_hidden(current, calendar.id, !next),
     );
-    const revert = () => {
-      set_calendars((current) =>
-        current.map((entry) =>
-          entry.id === calendar.id ? { ...entry, is_visible: !next } : entry,
-        ),
-      );
-      show_toast(t("calendar.settings_calendar_save_failed"), "error");
-    };
-
-    set_calendar_visibility(calendar.id, next)
-      .then((result) => {
-        if (!result.success) {
-          revert();
-        }
-      })
-      .catch(revert);
-  };
 
   const set_as_default = (calendar: DecryptedCalendar) => {
     void update_preference("calendar_default_calendar_id", calendar.id);
