@@ -23,10 +23,11 @@ import type {
   SyncedVisibility,
 } from "@/services/calendar/local_visibility";
 
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 
 import { use_auth } from "@/contexts/auth/use_auth_hook";
 import {
+  load_local_visibility,
   parse_local_visibility,
   read_local_visibility,
   subscribe_local_visibility,
@@ -52,6 +53,10 @@ export function use_local_calendar_visibility(
     [account_id],
   );
   const stored = useSyncExternalStore(subscribe_local_visibility, read, read);
+
+  useEffect(() => {
+    void load_local_visibility(account_id);
+  }, [account_id]);
 
   const synced_key = JSON.stringify(visibility_from_synced(synced));
   const fallback = useMemo(

@@ -725,7 +725,7 @@ export function use_calendar_state() {
       return;
     }
 
-    seed_local_visibility(visibility_account_id, {
+    void seed_local_visibility(visibility_account_id, {
       calendars: server_calendars,
       subscriptions: preferences.calendar_ics_subscriptions ?? [],
       birthdays_hidden: preferences.calendar_birthdays_hidden === true,

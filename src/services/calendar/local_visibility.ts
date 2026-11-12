@@ -21,6 +21,14 @@
 import type { DecryptedCalendar } from "@/types/calendar";
 import type { IcsSubscription } from "@/services/calendar/subscriptions";
 
+import { get_derived_encryption_key } from "@/services/crypto/memory_key_store";
+import { zero_uint8_array } from "@/services/crypto/secure_memory";
+import {
+  CALENDAR_VISIBILITY_PREFIX,
+  scoped_get,
+  scoped_set,
+} from "@/services/crypto/storage_key_names";
+
 export interface LocalVisibility {
   hidden_calendar_ids: string[];
   hidden_subscription_ids: string[];
@@ -40,14 +48,15 @@ export type ShowOnlyTarget =
   | { kind: "birthdays" }
   | { kind: "holidays" };
 
-const STORAGE_PREFIX = "aster_calendar_visibility:";
+const STORAGE_PREFIX = CALENDAR_VISIBILITY_PREFIX;
+const LEGACY_PLAIN_PREFIX = "aster_calendar_visibility:";
+const STORAGE_NAME = "sidebar";
 
 const memory = new Map<string, LocalVisibility>();
+const loaded = new Set<string>();
+const loading = new Map<string, Promise<void>>();
 const listeners = new Set<() => void>();
-
-export function visibility_storage_key(account_id: string): string {
-  return `${STORAGE_PREFIX}${account_id}`;
-}
+let cache_generation = 0;
 
 function string_list(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -90,28 +99,137 @@ function notify(): void {
   }
 }
 
+async function visibility_storage_key(): Promise<CryptoKey | null> {
+  const key_bytes = get_derived_encryption_key();
+
+  if (!key_bytes) return null;
+
+  try {
+    return await crypto.subtle.importKey(
+      "raw",
+      key_bytes,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"],
+    );
+  } finally {
+    zero_uint8_array(key_bytes);
+  }
+}
+
+async function persist_visibility(
+  account_id: string,
+  visibility: LocalVisibility,
+): Promise<void> {
+  try {
+    const storage_key = await visibility_storage_key();
+
+    if (!storage_key) return;
+
+    await scoped_set(
+      STORAGE_PREFIX,
+      account_id,
+      STORAGE_NAME,
+      JSON.stringify(visibility),
+      storage_key,
+    );
+  } catch {
+    void 0;
+  }
+}
+
+function take_legacy_plain(account_id: string): LocalVisibility | null {
+  try {
+    const name = `${LEGACY_PLAIN_PREFIX}${account_id}`;
+    const parsed = parse_local_visibility(window.localStorage.getItem(name));
+
+    window.localStorage.removeItem(name);
+
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function remove_legacy_plain_visibility(): void {
+  try {
+    const names: string[] = [];
+
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const name = window.localStorage.key(index);
+
+      if (name?.startsWith(LEGACY_PLAIN_PREFIX)) names.push(name);
+    }
+
+    for (const name of names) window.localStorage.removeItem(name);
+  } catch {
+    void 0;
+  }
+}
+
+async function fetch_visibility(account_id: string): Promise<void> {
+  const generation = cache_generation;
+  let stored: LocalVisibility | null = null;
+
+  try {
+    const storage_key = await visibility_storage_key();
+
+    if (storage_key) {
+      const raw = await scoped_get<string>(
+        STORAGE_PREFIX,
+        account_id,
+        STORAGE_NAME,
+        storage_key,
+      );
+
+      stored = parse_local_visibility(typeof raw === "string" ? raw : null);
+    }
+  } catch {
+    stored = null;
+  }
+
+  const legacy = take_legacy_plain(account_id);
+
+  if (generation !== cache_generation || loaded.has(account_id)) return;
+
+  if (!stored && legacy) {
+    stored = legacy;
+    void persist_visibility(account_id, legacy);
+  }
+
+  if (stored) memory.set(account_id, stored);
+  loaded.add(account_id);
+  notify();
+}
+
+export function load_local_visibility(
+  account_id: string | null,
+): Promise<void> {
+  if (!account_id || loaded.has(account_id)) return Promise.resolve();
+
+  const pending = loading.get(account_id);
+
+  if (pending) return pending;
+
+  const started = fetch_visibility(account_id).finally(() => {
+    if (loading.get(account_id) === started) loading.delete(account_id);
+  });
+
+  loading.set(account_id, started);
+
+  return started;
+}
+
+export function is_local_visibility_loaded(account_id: string | null): boolean {
+  return Boolean(account_id) && loaded.has(account_id as string);
+}
+
 export function read_local_visibility(
   account_id: string | null,
 ): LocalVisibility | null {
   if (!account_id) return null;
 
-  const cached = memory.get(account_id);
-
-  if (cached) return cached;
-
-  let raw: string | null = null;
-
-  try {
-    raw = window.localStorage.getItem(visibility_storage_key(account_id));
-  } catch {
-    raw = null;
-  }
-
-  const parsed = parse_local_visibility(raw);
-
-  if (parsed) memory.set(account_id, parsed);
-
-  return parsed;
+  return memory.get(account_id) ?? null;
 }
 
 export function write_local_visibility(
@@ -121,16 +239,8 @@ export function write_local_visibility(
   if (!account_id) return;
 
   memory.set(account_id, visibility);
-
-  try {
-    window.localStorage.setItem(
-      visibility_storage_key(account_id),
-      JSON.stringify(visibility),
-    );
-  } catch {
-    void 0;
-  }
-
+  loaded.add(account_id);
+  void persist_visibility(account_id, visibility);
   notify();
 }
 
@@ -149,11 +259,13 @@ export function visibility_from_synced(
   };
 }
 
-export function seed_local_visibility(
+export async function seed_local_visibility(
   account_id: string | null,
   synced: SyncedVisibility,
-): LocalVisibility | null {
+): Promise<LocalVisibility | null> {
   if (!account_id) return null;
+
+  await load_local_visibility(account_id);
 
   const existing = read_local_visibility(account_id);
 
@@ -188,7 +300,10 @@ export function subscribe_local_visibility(listener: () => void): () => void {
 }
 
 export function forget_local_visibility_cache(): void {
+  cache_generation += 1;
   memory.clear();
+  loaded.clear();
+  loading.clear();
   notify();
 }
 
