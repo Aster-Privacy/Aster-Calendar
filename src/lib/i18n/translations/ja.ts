@@ -11254,6 +11254,8 @@ export const ja = {
     tags: "タグ",
     tags_placeholder: "タグを追加",
     remove_tag: "タグを削除",
+    tag_color: "タグの色",
+    change_tag_color: "{{ tag }} の色を変更",
     no_tags: "タグはまだありません",
     details: "詳細",
     details_hint: "予定を選択すると詳細が表示されます",

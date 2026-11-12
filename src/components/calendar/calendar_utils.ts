@@ -27,6 +27,11 @@ import type { CSSProperties } from "react";
 
 import type { TranslationKey } from "@/lib/i18n/types";
 
+import {
+  default_tag_color,
+  resolve_tag_color,
+  type TagColorMap,
+} from "@/services/calendar/tag_colors";
 import { BIRTHDAY_COLOR } from "@/services/calendar/birthdays";
 
 export const MINUTES_PER_DAY = 24 * 60;
@@ -1216,8 +1221,6 @@ export function resolve_event_color(
     : "var(--accent-color)";
 }
 
-const TAG_PALETTE = EVENT_COLOR_OPTIONS.map((option) => option.hex);
-
 export function is_offset_in_view(
   offset: number,
   scroll_top: number,
@@ -1235,17 +1238,13 @@ export function grid_contains_day(grid: Date[], day: Date): boolean {
 }
 
 export function tag_color(name: string): string {
-  const key = name.trim().toLowerCase();
-  let hash = 0;
-
-  for (let index = 0; index < key.length; index += 1) {
-    hash = (hash * 31 + key.charCodeAt(index)) >>> 0;
-  }
-
-  return TAG_PALETTE[hash % TAG_PALETTE.length];
+  return default_tag_color(name);
 }
 
-export function collect_tags(events: DecryptedCalendarEvent[]): CalendarTag[] {
+export function collect_tags(
+  events: DecryptedCalendarEvent[],
+  colors?: TagColorMap | null,
+): CalendarTag[] {
   const seen = new Map<string, string>();
 
   for (const event of events) {
@@ -1260,7 +1259,7 @@ export function collect_tags(events: DecryptedCalendarEvent[]): CalendarTag[] {
 
   return [...seen.values()]
     .sort((left, right) => left.localeCompare(right))
-    .map((name) => ({ name, color: tag_color(name) }));
+    .map((name) => ({ name, color: resolve_tag_color(name, colors) }));
 }
 
 export function event_has_any_tag(

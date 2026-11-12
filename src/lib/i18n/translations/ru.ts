@@ -11708,6 +11708,8 @@ export const ru = {
     tags: "Теги",
     tags_placeholder: "Добавить теги",
     remove_tag: "Удалить тег",
+    tag_color: "Цвет тега",
+    change_tag_color: "Изменить цвет тега {{ tag }}",
     no_tags: "Тегов пока нет",
     details: "Подробности",
     details_hint: "Выберите событие, чтобы увидеть подробности",

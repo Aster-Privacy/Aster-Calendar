@@ -11367,6 +11367,8 @@ export const tr = {
     tags: "Etiketler",
     tags_placeholder: "Etiket ekle",
     remove_tag: "Etiketi kaldır",
+    tag_color: "Etiket rengi",
+    change_tag_color: "{{ tag }} rengini değiştir",
     no_tags: "Henüz etiket yok",
     details: "Ayrıntılar",
     details_hint: "Ayrıntıları görmek için bir etkinlik seçin",

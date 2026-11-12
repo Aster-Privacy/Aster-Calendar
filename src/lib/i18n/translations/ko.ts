@@ -11031,6 +11031,8 @@ export const ko = {
     tags: "태그",
     tags_placeholder: "태그 추가",
     remove_tag: "태그 제거",
+    tag_color: "태그 색상",
+    change_tag_color: "{{ tag }} 색상 변경",
     no_tags: "아직 태그가 없습니다",
     details: "세부 정보",
     details_hint: "일정을 선택하면 세부 정보가 표시됩니다",

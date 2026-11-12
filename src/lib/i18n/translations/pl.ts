@@ -11748,6 +11748,8 @@ export const pl = {
     tags: "Tagi",
     tags_placeholder: "Dodaj tagi",
     remove_tag: "Usuń tag",
+    tag_color: "Kolor tagu",
+    change_tag_color: "Zmień kolor tagu {{ tag }}",
     no_tags: "Brak tagów",
     details: "Szczegóły",
     details_hint: "Wybierz wydarzenie, aby zobaczyć szczegóły",

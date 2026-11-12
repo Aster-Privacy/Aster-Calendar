@@ -11219,6 +11219,8 @@ export const en: Translations = {
     tags: "Tags",
     tags_placeholder: "Add tags",
     remove_tag: "Remove tag",
+    tag_color: "Tag color",
+    change_tag_color: "Change color for {{ tag }}",
     no_tags: "No tags yet",
     details: "Details",
     details_hint: "Select an event to see its details",

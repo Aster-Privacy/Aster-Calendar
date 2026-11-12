@@ -11580,6 +11580,8 @@ export const it = {
     tags: "Tag",
     tags_placeholder: "Aggiungi tag",
     remove_tag: "Rimuovi tag",
+    tag_color: "Colore del tag",
+    change_tag_color: "Cambia il colore di {{ tag }}",
     no_tags: "Nessun tag",
     details: "Dettagli",
     details_hint: "Seleziona un evento per vederne i dettagli",

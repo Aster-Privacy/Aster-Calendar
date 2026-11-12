@@ -11629,6 +11629,8 @@ export const pt = {
     tags: "Etiquetas",
     tags_placeholder: "Adicionar etiquetas",
     remove_tag: "Remover etiqueta",
+    tag_color: "Cor da etiqueta",
+    change_tag_color: "Alterar a cor de {{ tag }}",
     no_tags: "Ainda sem etiquetas",
     details: "Detalhes",
     details_hint: "Selecione um evento para ver os detalhes",

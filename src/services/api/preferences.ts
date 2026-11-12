@@ -45,6 +45,7 @@ import {
   DEFAULT_SCHEDULE_RANGE,
   resolve_schedule_range,
 } from "@/services/calendar/schedule_range";
+import { sanitize_tag_colors } from "@/services/calendar/tag_colors";
 import { locale_date_format, locale_time_format } from "@/utils/date_format";
 import {
   detect_browser_language,
@@ -286,6 +287,7 @@ export interface UserPreferences {
     color: string;
     hidden?: boolean;
   }[];
+  calendar_tag_colors: Record<string, string>;
   task_lists?: { id: string; name: string; sort: "my_order" | "date" }[];
   notification_banner_snooze_until: string;
   storage_format: "aster" | "ipfs";
@@ -1093,6 +1095,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   calendar_birthdays_hidden: false,
   calendar_tour_completed: false,
   calendar_ics_subscriptions: [],
+  calendar_tag_colors: {},
   encrypt_emails: false,
   warn_external_recipients: true,
   auto_discover_keys: false,
@@ -1384,6 +1387,8 @@ export function build_merged_preferences(
     merged.calendar_schedule_custom_start,
     merged.calendar_schedule_custom_end,
   );
+
+  merged.calendar_tag_colors = sanitize_tag_colors(merged.calendar_tag_colors);
 
   merged.custom_categories = sanitize_custom_categories(
     merged.custom_categories,

@@ -12140,6 +12140,8 @@ export const pt_br = {
     tags: "Tags",
     tags_placeholder: "Adicionar tags",
     remove_tag: "Remover tag",
+    tag_color: "Cor da tag",
+    change_tag_color: "Alterar a cor de {{ tag }}",
     no_tags: "Nenhuma tag ainda",
     details: "Detalhes",
     details_hint: "Selecione um evento para ver os detalhes",

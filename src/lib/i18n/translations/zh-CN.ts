@@ -10218,6 +10218,8 @@ export const zh_CN = {
     tags: "标签",
     tags_placeholder: "添加标签",
     remove_tag: "移除标签",
+    tag_color: "标签颜色",
+    change_tag_color: "更改 {{ tag }} 的颜色",
     no_tags: "暂无标签",
     details: "详情",
     details_hint: "选择一个事件以查看详情",
