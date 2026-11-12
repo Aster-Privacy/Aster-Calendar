@@ -37,6 +37,8 @@ import {
   CALENDAR_CHANGED_EVENT,
 } from "@/services/calendar/sync_engine";
 import { is_own_address } from "@/services/calendar/own_addresses";
+import { apply_calendar_visibility } from "@/services/calendar/local_visibility";
+import { use_local_calendar_visibility } from "@/hooks/use_local_calendar_visibility";
 import {
   calendar_now,
   resolve_view_zone,
@@ -284,6 +286,17 @@ export const UpNextCard = memo(function UpNextCard({
   const { user, current_account_id } = use_auth();
   const { data, failed } = use_up_next_data(current_account_id ?? null);
   const now_ms = use_now_ms();
+  const { visibility } = use_local_calendar_visibility({
+    calendars: data?.calendars ?? [],
+    subscriptions: preferences.calendar_ics_subscriptions ?? [],
+    birthdays_hidden: preferences.calendar_birthdays_hidden === true,
+  });
+  const shown_calendars = useMemo(
+    () =>
+      calendars ??
+      (data ? apply_calendar_visibility(data.calendars, visibility) : null),
+    [calendars, data, visibility],
+  );
 
   const zone = resolve_view_zone(preferences.calendar_timezone);
   const use_12h = preferences.time_format === "12h";
@@ -295,13 +308,13 @@ export const UpNextCard = memo(function UpNextCard({
     if (!data) return null;
 
     return pick_next(
-      calendars ? { ...data, calendars } : data,
+      shown_calendars ? { ...data, calendars: shown_calendars } : data,
       now_ms,
       new Date(view_today_ms),
       zone,
       self_email,
     );
-  }, [data, calendars, now_ms, view_today_ms, zone, self_email]);
+  }, [data, shown_calendars, now_ms, view_today_ms, zone, self_email]);
 
   const formatters = useMemo(
     () => ({

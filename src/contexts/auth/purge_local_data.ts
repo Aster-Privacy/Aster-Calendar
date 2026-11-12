@@ -118,6 +118,12 @@ export async function purge_all_local_data(): Promise<boolean> {
   await import("@/services/calendar/sync_engine")
     .then((module) => module.clear_calendar_sync_state())
     .catch(() => undefined);
+  await import("@/services/calendar/local_visibility")
+    .then((module) => {
+      module.forget_local_visibility_cache();
+      module.remove_legacy_plain_visibility();
+    })
+    .catch(() => undefined);
   await import("@/services/calendar/sync_store")
     .then((module) => module.clear_calendar_sync_cache())
     .catch(() => undefined);
