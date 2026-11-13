@@ -19,7 +19,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 export type HolidayRegion =
-  "none" | "us" | "uk" | "de" | "fr" | "ca" | "au" | "pt" | "br";
+  "none" | "us" | "uk" | "de" | "fr" | "ca" | "au" | "pt" | "br" | "in";
 
 export interface Holiday {
   date: Date;
@@ -86,6 +86,70 @@ function weekday_before(
   const shift = (anchor.getDay() - weekday + 7) % 7 || 7;
 
   return new Date(year, month, day - shift);
+}
+
+type DatedHoliday = [month: number, day: number, title: string];
+
+const INDIA_GAZETTED_LUNAR_HOLIDAYS: Readonly<
+  Record<number, readonly DatedHoliday[]>
+> = {
+  2025: [
+    [1, 26, "Maha Shivaratri"],
+    [2, 14, "Holi"],
+    [2, 31, "Id-ul-Fitr"],
+    [3, 10, "Mahavir Jayanti"],
+    [4, 12, "Buddha Purnima"],
+    [5, 7, "Id-ul-Zuha (Bakrid)"],
+    [6, 6, "Muharram"],
+    [7, 16, "Janmashtami"],
+    [8, 5, "Milad-un-Nabi"],
+    [9, 2, "Dussehra"],
+    [9, 20, "Diwali (Deepavali)"],
+    [10, 5, "Guru Nanak Jayanti"],
+  ],
+  2026: [
+    [2, 4, "Holi"],
+    [2, 21, "Id-ul-Fitr"],
+    [2, 26, "Ram Navami"],
+    [2, 31, "Mahavir Jayanti"],
+    [4, 1, "Buddha Purnima"],
+    [4, 27, "Id-ul-Zuha (Bakrid)"],
+    [5, 26, "Muharram"],
+    [7, 26, "Milad-un-Nabi"],
+    [8, 4, "Janmashtami"],
+    [9, 20, "Dussehra"],
+    [10, 8, "Diwali (Deepavali)"],
+    [10, 24, "Guru Nanak Jayanti"],
+  ],
+  2027: [
+    [2, 10, "Id-ul-Fitr"],
+    [2, 23, "Holi"],
+    [3, 15, "Ram Navami"],
+    [3, 19, "Mahavir Jayanti"],
+    [4, 17, "Id-ul-Zuha (Bakrid)"],
+    [4, 20, "Buddha Purnima"],
+    [5, 16, "Muharram"],
+    [7, 15, "Milad-un-Nabi"],
+    [7, 25, "Janmashtami"],
+    [9, 9, "Dussehra"],
+    [9, 29, "Diwali (Deepavali)"],
+    [10, 14, "Guru Nanak Jayanti"],
+  ],
+};
+
+function india_holidays(year: number, easter: Date): Holiday[] {
+  const dated = (INDIA_GAZETTED_LUNAR_HOLIDAYS[year] ?? []).map(
+    ([month, day, title]) => ({ date: new Date(year, month, day), title }),
+  );
+
+  return [
+    { date: new Date(year, 0, 26), title: "Republic Day" },
+    { date: offset(easter, -2), title: "Good Friday" },
+    { date: new Date(year, 7, 15), title: "Independence Day" },
+    { date: new Date(year, 9, 2), title: "Gandhi Jayanti" },
+    { date: new Date(year, 11, 25), title: "Christmas Day" },
+    ...dated,
+  ].sort((first, second) => first.date.getTime() - second.date.getTime());
 }
 
 function holidays_for_year(region: HolidayRegion, year: number): Holiday[] {
@@ -196,6 +260,8 @@ function holidays_for_year(region: HolidayRegion, year: number): Holiday[] {
         { date: new Date(year, 10, 20), title: "Consciência Negra" },
         { date: new Date(year, 11, 25), title: "Natal" },
       ];
+    case "in":
+      return india_holidays(year, easter);
     default:
       return [];
   }

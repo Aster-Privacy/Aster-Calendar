@@ -569,6 +569,9 @@ export const ru = {
       "Платёж не прошёл. Доступ будет ограничен через {{days}} дн.",
     billing_alert_action: "Оплатить",
     dismiss: "Отклонить",
+    web_sandbox_off_title: "Веб-контент работает без системной песочницы",
+    web_sandbox_off_body:
+      "На этом компьютере Aster Calendar не может запустить песочницу bubblewrap, поэтому веб-контент работает без нее. Чтобы снова включить ее, установите пакет bubblewrap, разрешите непривилегированные пространства имен пользователей и перезапустите Aster Calendar.",
     load_content: "Загрузить",
     open_link: "Открыть ссылку",
     no_icon: "Без значка",
@@ -10187,45 +10190,19 @@ export const ru = {
     email_copied: "Адрес скопирован",
     last_updated: "Последнее обновление: {{date}}",
     link_device_cancel: "Отмена",
-    link_device_code_placeholder: "XXXX-XXXX",
-    link_device_confirm_button: "Привязать устройство",
-    link_device_confirm_prompt:
-      "Хотите привязать это устройство к своему аккаунту?",
-    link_device_confirming: "Привязка устройства...",
-    link_device_desktop: "Десктопное приложение",
-    device_fingerprint: "Код проверки",
-    device_code_verify_toggle: "Проверить это устройство",
-    link_device_fingerprint_hint:
-      "Если настольное приложение показывает код проверки, перед привязкой убедитесь, что он совпадает с этим.",
-    device_code_fingerprint_hint:
-      "Перед привязкой устройства браузер показывает такой же код проверки. Если коды не совпадают, не привязывайте устройство.",
-    link_device_change_account: "Сменить аккаунт",
+    device_fingerprint: "Отпечаток устройства",
+    device_fingerprint_copy: "Скопировать отпечаток устройства",
+    device_code_fingerprint_required_hint:
+      "Браузер запрашивает этот отпечаток устройства, прежде чем привязать устройство.",
     link_device_choose_account: "Выберите аккаунт",
-    link_device_choose_account_description:
-      "Чтобы привязать приложение для компьютера",
-    link_device_choose_account_note:
-      "Ваши ключи шифрования остаются зашифрованными при передаче между вашими устройствами.",
-    link_device_use_another_account: "Использовать другой аккаунт",
-    link_device_use_this_account: "Использовать этот аккаунт",
-    link_device_other_accounts: "Перейти в другой аккаунт",
-    link_device_enter_code:
-      "Введите код, показанный в вашем десктопном приложении.",
-    link_device_expired_code:
-      "Срок действия кода истёк или он не совпал. В вашем десктопном приложении есть актуальный код.",
     link_device_failed:
       "Привязка не завершена. Обычно помогает начать заново. Ваш аккаунт не изменился.",
-    link_device_invalid_code:
-      "Код привязки состоит из 8 символов. Проверьте код и попробуйте снова.",
     hub_accounts_or_password: "Или войдите с паролем",
     hub_account_password_required: "Требуется пароль",
     hub_account_link_failed:
       "Чтобы продолжить с этим аккаунтом, введите его пароль.",
-    link_device_success: "Устройство привязано",
-    link_device_success_description:
-      "Ваше десктопное приложение теперь привязано. Можете закрыть эту вкладку.",
     link_device_title: "Привязать устройство",
     link_device_try_again: "Не получилось. Обычно помогает начать заново.",
-    link_device_verify_button: "Продолжить",
     pair_device_cancel: "Отмена",
     pair_device_failed:
       "Связывание не завершено. Обычно помогает начать заново из десктопного приложения. Ваш аккаунт не изменился.",
@@ -10287,18 +10264,6 @@ export const ru = {
       "Статус студента подтверждён. Войдите, и скидка 30 % применится при оплате.",
     academic_failed_signin_note:
       "Эта ссылка для подтверждения истекла или уже использована. Войдите и запросите новую в настройках оплаты.",
-    link_device_upgrade_required_toast:
-      "Для подключения устройства Bridge нужен тариф Star или выше. Перейдите на более высокий тариф, чтобы продолжить.",
-    link_device_upgrade_title:
-      "Повысьте тариф, чтобы подключить это устройство",
-    link_device_upgrade_description:
-      "Для подключения настольного Bridge к аккаунту нужен тариф Star или выше. Выберите тариф ниже, и устройство подключится сразу после оплаты.",
-    link_device_already_linked:
-      "Это устройство уже подключено к другому аккаунту. Сначала отключите его там и повторите попытку.",
-    link_device_rate_limited:
-      "Слишком много попыток. Подождите около минуты и повторите.",
-    link_device_account_suspended:
-      "Аккаунт заблокирован, поэтому сейчас нельзя подключать новые устройства. Обратитесь в поддержку.",
     plan_academic_discount_note:
       "Скидка 30 % применится при оплате автоматически, как только вы подтвердите адрес почты.",
     plan_referral_discount_note:
@@ -10374,6 +10339,10 @@ export const ru = {
   errors: {
     auth_salt_collision:
       "Вход остановлен, потому что сервер отправил небезопасное значение, поэтому ничего не было разблокировано. Свяжитесь с поддержкой, прежде чем повторить попытку.",
+    legacy_login_salt_new_device:
+      "Чтобы завершить обновление безопасности аккаунта, войдите на устройстве, на котором вы уже пользовались Aster. Если это невозможно, сбросьте пароль с помощью ключа восстановления.",
+    legacy_login_salt_sign_in_again:
+      "Чтобы завершить обновление безопасности аккаунта, выйдите и войдите снова.",
     upload_too_large:
       "Загрузка слишком велика. Чтобы продолжить, удалите файл или уменьшите его размер и повторите попытку.",
     failed_remove_reaction: "Не удалось удалить реакцию. Попробуйте ещё раз.",
@@ -11415,6 +11384,7 @@ export const ru = {
     holiday_region_au: "Австралия",
     holiday_region_pt: "Португалия",
     holiday_region_br: "Бразилия",
+    holiday_region_in: "Индия",
     settings_day_split: "День: календари рядом",
     settings_day_split_desc:
       "Показывать каждый календарь в отдельном столбце в режиме дня",
@@ -11704,6 +11674,8 @@ export const ru = {
     tags: "Теги",
     tags_placeholder: "Добавить теги",
     remove_tag: "Удалить тег",
+    tag_color: "Цвет тега",
+    change_tag_color: "Изменить цвет тега {{ tag }}",
     no_tags: "Тегов пока нет",
     details: "Подробности",
     details_hint: "Выберите событие, чтобы увидеть подробности",
@@ -11925,6 +11897,8 @@ export const ru = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "Коричневый",
+    color_gray: "Серый",
     event_color: "Цвет",
     year: "Год",
     custom_view: "Настраиваемый вид",

@@ -63,10 +63,11 @@ import {
 import { TimeField } from "@/components/calendar/time_field";
 import { use_calendar_breakpoint } from "@/components/calendar/use_calendar_breakpoint";
 import { use_visible_viewport } from "@/components/calendar/use_visible_viewport";
+import { TagColorPicker } from "@/components/calendar/tag_color_picker";
+import { use_tag_colors } from "@/components/calendar/use_tag_colors";
 import {
   EVENT_COLOR_OPTIONS,
   nearest_event_color,
-  tag_color,
   ink_on_fill,
 } from "@/components/calendar/calendar_utils";
 import { calendar_now } from "@/services/calendar/view_zone";
@@ -299,6 +300,7 @@ export function EventFormModal({
 }: EventFormModalProps) {
   const { t, language } = use_i18n();
   const { preferences } = use_preferences();
+  const { color_for: tag_color_for, set_tag_color } = use_tag_colors();
   const reduce_motion = use_should_reduce_motion();
   const { is_phone } = use_calendar_breakpoint();
   const visible_viewport = use_visible_viewport(is_open);
@@ -340,8 +342,7 @@ export function EventFormModal({
   const [working_location, set_working_location] =
     useState<CalendarWorkingLocation>("office");
   const [conference_url, set_conference_url] = useState("");
-  const [conference_url_touched, set_conference_url_touched] =
-    useState(false);
+  const [conference_url_touched, set_conference_url_touched] = useState(false);
   const [attendees, set_attendees] = useState<string[]>([]);
   const [guests_can_modify, set_guests_can_modify] = useState(false);
   const [guests_can_invite, set_guests_can_invite] = useState(true);
@@ -1551,7 +1552,6 @@ export function EventFormModal({
                 </FieldRow>
               )}
 
-
               {(!is_working_location || working_location === "other") && (
                 <FieldRow
                   icon={<MapPinIcon className="h-4 w-4" strokeWidth={1.75} />}
@@ -1614,7 +1614,6 @@ export function EventFormModal({
                 </FieldRow>
               )}
 
-
               <FieldRow
                 icon={<BellIcon className="h-4 w-4" strokeWidth={1.75} />}
               >
@@ -1672,7 +1671,6 @@ export function EventFormModal({
                 />
               </FieldRow>
 
-
               <div className="-ms-2 ps-9">
                 <button
                   aria-expanded={show_more}
@@ -1706,7 +1704,9 @@ export function EventFormModal({
                       <motion.div variants={more_option_row_variants}>
                         <FieldRow
                           align_top
-                          icon={<TagIcon className="h-4 w-4" strokeWidth={1.75} />}
+                          icon={
+                            <TagIcon className="h-4 w-4" strokeWidth={1.75} />
+                          }
                         >
                           <div className="aster_input aster_input_tonal !h-auto min-h-9 flex-wrap items-center gap-1.5 !px-2 py-[3px] focus-within:!bg-[var(--aster-field-hover)]">
                             {tags.map((tag) => (
@@ -1714,11 +1714,35 @@ export function EventFormModal({
                                 key={tag}
                                 className="inline-flex max-w-full items-center gap-1.5 rounded-[var(--aster-radius-item)] py-0.5 ps-2 pe-1 text-xs font-medium"
                                 style={{
-                                  backgroundColor: `color-mix(in srgb, ${tag_color(tag)} 18%, var(--bg-primary))`,
+                                  backgroundColor: `color-mix(in srgb, ${tag_color_for(tag)} 18%, var(--bg-primary))`,
                                   color: "var(--text-primary)",
                                 }}
                               >
-                                <span className="truncate">{tag}</span>
+                                <TagColorPicker
+                                  color={tag_color_for(tag)}
+                                  tag={tag}
+                                  on_select={(color) =>
+                                    set_tag_color(tag, color)
+                                  }
+                                >
+                                  <button
+                                    aria-label={t("calendar.change_tag_color", {
+                                      tag,
+                                    })}
+                                    className="-my-0.5 -ms-1 inline-flex min-w-0 touch-manipulation items-center gap-1.5 rounded-[var(--aster-radius-item)] py-0.5 ps-1 pe-0.5 text-start transition-colors duration-150 hover:bg-[var(--aster-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)]"
+                                    data-testid="event-form-tag-color"
+                                    type="button"
+                                  >
+                                    <span
+                                      aria-hidden="true"
+                                      className="h-2 w-2 shrink-0 rounded-full"
+                                      style={{
+                                        backgroundColor: tag_color_for(tag),
+                                      }}
+                                    />
+                                    <span className="truncate">{tag}</span>
+                                  </button>
+                                </TagColorPicker>
                                 <button
                                   aria-label={t("calendar.remove_tag")}
                                   className="rounded-[var(--aster-radius-item)] p-0.5 text-txt-muted transition-colors duration-150 hover:bg-[var(--aster-hover)] hover:text-txt-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)]"
@@ -1729,7 +1753,10 @@ export function EventFormModal({
                                     )
                                   }
                                 >
-                                  <XMarkIcon className="h-3 w-3" strokeWidth={1.75} />
+                                  <XMarkIcon
+                                    className="h-3 w-3"
+                                    strokeWidth={1.75}
+                                  />
                                 </button>
                               </span>
                             ))}
@@ -1751,7 +1778,12 @@ export function EventFormModal({
                       <motion.div variants={more_option_row_variants}>
                         <FieldRow
                           align_top
-                          icon={<SwatchIcon className="h-4 w-4" strokeWidth={1.75} />}
+                          icon={
+                            <SwatchIcon
+                              className="h-4 w-4"
+                              strokeWidth={1.75}
+                            />
+                          }
                         >
                           <div className="flex flex-wrap items-center gap-2.5 py-1 ps-1">
                             <button
@@ -1800,9 +1832,7 @@ export function EventFormModal({
                                   {is_selected && (
                                     <CheckIcon
                                       className="h-3 w-3"
-                                      style={{
-                                        color: "var(--calendar_event_text, #ffffff)",
-                                      }}
+                                      style={{ color: option.ink }}
                                     />
                                   )}
                                 </button>
@@ -1813,7 +1843,9 @@ export function EventFormModal({
                       </motion.div>
                       <motion.div variants={more_option_row_variants}>
                         <FieldRow
-                          icon={<EyeIcon className="h-4 w-4" strokeWidth={1.75} />}
+                          icon={
+                            <EyeIcon className="h-4 w-4" strokeWidth={1.75} />
+                          }
                         >
                           <div className="flex flex-wrap items-center gap-2">
                             <CalendarSelect
@@ -1831,7 +1863,9 @@ export function EventFormModal({
                               ]}
                               value={availability}
                               on_change={(value) =>
-                                set_availability(value as CalendarEventAvailability)
+                                set_availability(
+                                  value as CalendarEventAvailability,
+                                )
                               }
                             />
                             <CalendarSelect

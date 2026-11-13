@@ -532,6 +532,9 @@ export const zh_CN = {
     billing_alert_body_days: "付款未成功。访问权限将在 {{days}} 天后受限。",
     billing_alert_action: "付款",
     dismiss: "忽略",
+    web_sandbox_off_title: "网页内容正在没有系统沙盒的情况下运行",
+    web_sandbox_off_body:
+      "在这台电脑上，Aster Calendar 无法启动 bubblewrap 沙盒，因此网页内容在没有沙盒的情况下运行。要重新启用沙盒，请安装 bubblewrap 软件包并允许非特权用户命名空间，然后重新启动 Aster Calendar。",
     load_content: "加载",
     open_link: "打开链接",
     no_icon: "无图标",
@@ -8892,36 +8895,15 @@ export const zh_CN = {
     device_code_waiting: "等待确认中",
     device_code_expires_in: "过期时间",
     link_device_title: "关联设备",
-    link_device_enter_code: "输入桌面应用上显示的验证码。",
-    link_device_code_placeholder: "XXXX-XXXX",
-    link_device_verify_button: "继续",
-    link_device_confirm_prompt: "您要将此设备关联到您的账户吗？",
-    link_device_confirm_button: "关联设备",
-    link_device_confirming: "正在关联设备...",
     link_device_cancel: "取消",
-    link_device_desktop: "桌面应用",
-    device_fingerprint: "验证码",
-    device_code_verify_toggle: "验证此设备",
-    link_device_fingerprint_hint:
-      "如果桌面应用显示了验证码，请在关联设备之前确认它与此验证码一致。",
-    device_code_fingerprint_hint:
-      "关联设备之前，浏览器会显示相同的验证码。如果两个验证码不一致，请不要关联设备。",
-    link_device_change_account: "切换账号",
+    device_fingerprint: "设备指纹",
+    device_fingerprint_copy: "复制设备指纹",
+    device_code_fingerprint_required_hint:
+      "浏览器在关联设备之前会要求输入此设备指纹。",
     link_device_choose_account: "选择账号",
-    link_device_choose_account_description: "以关联桌面应用",
-    link_device_choose_account_note:
-      "您的加密密钥在设备之间传输时始终保持加密状态。",
-    link_device_use_another_account: "使用其他账号",
-    link_device_use_this_account: "使用此账号",
-    link_device_other_accounts: "切换到其他账号",
     hub_accounts_or_password: "或使用密码登录",
     hub_account_password_required: "需要密码",
     hub_account_link_failed: "要继续使用此账户，请输入其密码。",
-    link_device_success: "设备已关联",
-    link_device_success_description: "您的桌面应用已关联。您可以关闭此标签页。",
-    link_device_invalid_code: "关联码为 8 个字符。请检查关联码后重试。",
-    link_device_expired_code:
-      "此验证码已过期或不匹配。桌面应用上有最新的验证码。",
     link_device_failed:
       "关联未能完成。重新开始通常可以解决。您的账户未发生变化。",
     link_device_try_again: "未能成功。重新开始通常可以解决。",
@@ -8978,16 +8960,6 @@ export const zh_CN = {
       "学生身份已验证。登录后，结账时会自动应用 30% 折扣。",
     academic_failed_signin_note:
       "该验证链接已过期或已被使用。请登录后在“账单”设置中重新申请。",
-    link_device_upgrade_required_toast:
-      "关联 Bridge 设备需要 Star 或更高套餐。请升级后继续。",
-    link_device_upgrade_title: "升级后即可关联此设备",
-    link_device_upgrade_description:
-      "将桌面版 Bridge 连接到账户需要 Star 或更高套餐。请在下方选择套餐，结账后设备会立即关联。",
-    link_device_already_linked:
-      "此设备已关联到另一个账户。请先在那里解除关联，然后重试。",
-    link_device_rate_limited: "尝试次数过多。请等待约一分钟后重试。",
-    link_device_account_suspended:
-      "此账户已被暂停，目前无法关联新设备。请联系支持人员处理。",
     plan_academic_discount_note: "验证邮箱后，30% 折扣会在结账时自动应用。",
     plan_referral_discount_note: "结算时会自动应用您的推荐折扣。",
     plan_referral_discount_percent_note:
@@ -9057,6 +9029,10 @@ export const zh_CN = {
   errors: {
     auth_salt_collision:
       "由于服务器发送了不安全的值，登录已停止，没有解锁任何内容。请先联系支持团队，然后再重试。",
+    legacy_login_salt_new_device:
+      "要完成账户的安全更新，请在以前使用过 Aster 的设备上登录。如果无法做到，请使用恢复密钥重置密码。",
+    legacy_login_salt_sign_in_again:
+      "要完成账户的安全更新，请退出登录后重新登录。",
     upload_too_large: "上传内容过大。请移除或压缩一个文件后重试。",
     failed_remove_reaction: "回应删除失败，请重试。",
     cannot_react_own_message: "无法对自己的邮件添加回应。",
@@ -9957,6 +9933,7 @@ export const zh_CN = {
     holiday_region_au: "澳大利亚",
     holiday_region_pt: "葡萄牙",
     holiday_region_br: "巴西",
+    holiday_region_in: "印度",
     settings_day_split: "日视图并排显示",
     settings_day_split_desc: "在日视图中为每个日历单独显示一列",
     settings_info_day_split:
@@ -10214,6 +10191,8 @@ export const zh_CN = {
     tags: "标签",
     tags_placeholder: "添加标签",
     remove_tag: "移除标签",
+    tag_color: "标签颜色",
+    change_tag_color: "更改 {{ tag }} 的颜色",
     no_tags: "暂无标签",
     details: "详情",
     details_hint: "选择一个事件以查看详情",
@@ -10418,6 +10397,8 @@ export const zh_CN = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "棕色",
+    color_gray: "灰色",
     event_color: "颜色",
     year: "年",
     custom_view: "自定义视图",

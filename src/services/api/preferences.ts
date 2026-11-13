@@ -46,6 +46,7 @@ import {
   DEFAULT_SCHEDULE_RANGE,
   resolve_schedule_range,
 } from "@/services/calendar/schedule_range";
+import { sanitize_tag_colors } from "@/services/calendar/tag_colors";
 import {
   EMPTY_WORKING_WEEK,
   normalize_working_week,
@@ -280,7 +281,7 @@ export interface UserPreferences {
   calendar_notification_sound: boolean;
   calendar_notify_only_accepted: boolean;
   calendar_holiday_region:
-    "none" | "us" | "uk" | "de" | "fr" | "ca" | "au" | "pt" | "br";
+    "none" | "us" | "uk" | "de" | "fr" | "ca" | "au" | "pt" | "br" | "in";
   calendar_day_split_by_calendar: boolean;
   calendar_show_birthdays: boolean;
   calendar_birthdays_hidden: boolean;
@@ -292,6 +293,7 @@ export interface UserPreferences {
     color: string;
     hidden?: boolean;
   }[];
+  calendar_tag_colors: Record<string, string>;
   task_lists?: { id: string; name: string; sort: "my_order" | "date" }[];
   notification_banner_snooze_until: string;
   storage_format: "aster" | "ipfs";
@@ -1101,6 +1103,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   calendar_birthdays_hidden: false,
   calendar_tour_completed: false,
   calendar_ics_subscriptions: [],
+  calendar_tag_colors: {},
   encrypt_emails: false,
   warn_external_recipients: true,
   auto_discover_keys: false,
@@ -1396,6 +1399,8 @@ export function build_merged_preferences(
     merged.calendar_schedule_custom_start,
     merged.calendar_schedule_custom_end,
   );
+
+  merged.calendar_tag_colors = sanitize_tag_colors(merged.calendar_tag_colors);
 
   merged.custom_categories = sanitize_custom_categories(
     merged.custom_categories,

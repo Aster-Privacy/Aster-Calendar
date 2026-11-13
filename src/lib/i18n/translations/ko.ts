@@ -638,6 +638,9 @@ export const ko = {
       "결제가 완료되지 않았습니다. {{days}}일 후에 액세스가 제한됩니다.",
     billing_alert_action: "결제하기",
     dismiss: "닫기",
+    web_sandbox_off_title: "웹 콘텐츠가 시스템 샌드박스 없이 실행되고 있습니다",
+    web_sandbox_off_body:
+      "이 컴퓨터에서는 Aster Calendar이(가) bubblewrap 샌드박스를 시작할 수 없어 웹 콘텐츠가 샌드박스 없이 실행됩니다. 다시 켜려면 bubblewrap 패키지를 설치하고 권한 없는 사용자 네임스페이스를 허용한 다음 Aster Calendar을(를) 다시 시작하세요.",
     load_content: "로드",
     open_link: "링크 열기",
     no_icon: "아이콘 없음",
@@ -9595,38 +9598,15 @@ export const ko = {
     device_code_waiting: "페어링 대기 중...",
     device_code_expires_in: "만료까지",
     link_device_title: "기기 연결",
-    link_device_enter_code: "기기에 표시된 코드를 입력하세요",
-    link_device_code_placeholder: "코드 입력",
-    link_device_verify_button: "확인",
-    link_device_confirm_prompt: "이 기기를 계정과 연결하시겠습니까?",
-    link_device_confirm_button: "연결",
-    link_device_confirming: "연결 중...",
     link_device_cancel: "취소",
-    link_device_desktop: "데스크톱 앱",
-    device_fingerprint: "확인 코드",
-    device_code_verify_toggle: "이 기기 확인",
-    link_device_fingerprint_hint:
-      "데스크톱 앱에 확인 코드가 표시되면 기기를 연결하기 전에 이 코드와 일치하는지 확인하세요.",
-    device_code_fingerprint_hint:
-      "기기를 연결하기 전에 브라우저에 같은 확인 코드가 표시됩니다. 두 코드가 일치하지 않으면 기기를 연결하지 마세요.",
-    link_device_change_account: "계정 변경",
+    device_fingerprint: "기기 지문",
+    device_fingerprint_copy: "기기 지문 복사",
+    device_code_fingerprint_required_hint:
+      "기기를 연결하기 전에 브라우저에서 이 기기 지문을 요청합니다.",
     link_device_choose_account: "계정 선택",
-    link_device_choose_account_description: "데스크톱 앱을 연결합니다",
-    link_device_choose_account_note:
-      "암호화 키는 기기 간에 전송되는 동안에도 암호화된 상태로 유지됩니다.",
-    link_device_use_another_account: "다른 계정 사용",
-    link_device_use_this_account: "이 계정 사용",
-    link_device_other_accounts: "다른 계정으로 전환",
     hub_accounts_or_password: "또는 비밀번호로 로그인",
     hub_account_password_required: "비밀번호 필요",
     hub_account_link_failed: "이 계정으로 계속하려면 비밀번호를 입력하세요.",
-    link_device_success: "기기가 연결되었습니다",
-    link_device_success_description:
-      "기기가 성공적으로 연결되어 메일에 접근할 수 있습니다.",
-    link_device_invalid_code:
-      "연결 코드는 8자입니다. 코드를 확인하고 다시 시도하세요.",
-    link_device_expired_code:
-      "이 코드는 만료되었습니다. 기기에서 새 코드를 생성하세요.",
     link_device_failed: "기기 연결에 실패했습니다. 다시 시도하면 됩니다.",
     link_device_try_again:
       "작동하지 않았습니다. 처음부터 다시 시작하면 대부분 해결됩니다.",
@@ -9689,17 +9669,6 @@ export const ko = {
       "학생 인증이 완료되었습니다. 로그인하면 결제 시 30% 할인이 적용됩니다.",
     academic_failed_signin_note:
       "이 인증 링크는 만료되었거나 이미 사용되었습니다. 로그인한 뒤 결제 설정에서 새 링크를 요청하세요.",
-    link_device_upgrade_required_toast:
-      "Bridge 기기를 연결하려면 Star 이상 요금제가 필요합니다. 업그레이드한 뒤 계속하세요.",
-    link_device_upgrade_title: "이 기기를 연결하려면 업그레이드하세요",
-    link_device_upgrade_description:
-      "데스크톱 Bridge를 계정에 연결하려면 Star 이상 요금제가 필요합니다. 아래에서 요금제를 고르면 결제 직후 기기가 연결됩니다.",
-    link_device_already_linked:
-      "이 기기는 다른 계정에 이미 연결되어 있습니다. 해당 계정에서 연결을 해제한 뒤 다시 시도하세요.",
-    link_device_rate_limited:
-      "시도 횟수가 너무 많습니다. 1분 정도 기다린 뒤 다시 시도하세요.",
-    link_device_account_suspended:
-      "이 계정은 정지된 상태여서 지금은 새 기기를 연결할 수 없습니다. 지원팀에 문의해 해결하세요.",
     plan_academic_discount_note:
       "이메일 인증이 끝나면 결제 시 30% 할인이 자동으로 적용됩니다.",
     plan_referral_discount_note: "추천 할인은 결제 시 자동으로 적용됩니다.",
@@ -9774,6 +9743,10 @@ export const ko = {
   errors: {
     auth_salt_collision:
       "서버가 안전하지 않은 값을 보내 로그인이 중단되었으며 아무것도 잠금 해제되지 않았습니다. 다시 시도하기 전에 지원팀에 문의하세요.",
+    legacy_login_salt_new_device:
+      "계정의 보안 업데이트를 완료하려면 이전에 Aster를 사용한 기기에서 로그인하세요. 그럴 수 없다면 복구 키로 비밀번호를 재설정하세요.",
+    legacy_login_salt_sign_in_again:
+      "계정의 보안 업데이트를 완료하려면 로그아웃한 후 다시 로그인하세요.",
     upload_too_large:
       "업로드 용량이 너무 큽니다. 계속하려면 파일을 삭제하거나 크기를 줄인 다음 다시 시도하세요.",
     failed_remove_reaction: "반응을 삭제하지 못했습니다. 다시 시도해 주세요.",
@@ -10759,6 +10732,7 @@ export const ko = {
     holiday_region_au: "호주",
     holiday_region_pt: "포르투갈",
     holiday_region_br: "브라질",
+    holiday_region_in: "인도",
     settings_day_split: "일간 보기 나란히 표시",
     settings_day_split_desc: "일간 보기에서 캘린더별로 열을 나누어 표시",
     settings_info_day_split:
@@ -11027,6 +11001,8 @@ export const ko = {
     tags: "태그",
     tags_placeholder: "태그 추가",
     remove_tag: "태그 제거",
+    tag_color: "태그 색상",
+    change_tag_color: "{{ tag }} 색상 변경",
     no_tags: "아직 태그가 없습니다",
     details: "세부 정보",
     details_hint: "일정을 선택하면 세부 정보가 표시됩니다",
@@ -11234,6 +11210,8 @@ export const ko = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "갈색",
+    color_gray: "회색",
     event_color: "색상",
     year: "년",
     custom_view: "맞춤 보기",

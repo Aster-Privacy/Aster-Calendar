@@ -105,7 +105,11 @@ import { release_app_lock } from "@/services/app_lock_unlock";
 import { use_i18n } from "@/lib/i18n/context";
 import { ignore_error } from "@/lib/ignore_error";
 import { remember_current_user } from "@/services/current_identity";
-import { flush_pending_login_enrollment } from "@/services/crypto/login_proof";
+import {
+  flush_pending_login_enrollment,
+  remember_saved_login_accounts,
+  seed_session_login_salt,
+} from "@/services/crypto/login_proof";
 
 export function use_auth_account_state() {
   const { t } = use_i18n();
@@ -289,6 +293,8 @@ export function use_auth_account_state() {
     const init = async () => {
       try {
         const data = await initialize_accounts();
+
+        void remember_saved_login_accounts();
         const current = await get_current_account();
 
         if (!current) {
@@ -473,6 +479,9 @@ export function use_auth_account_state() {
             safe_log_error(e);
           });
           backfill_user_profile(user);
+          seed_session_login_salt(user.id, user.email).catch((caught) =>
+            ignore_error("contexts/auth/use_auth_account_state:init", caught),
+          );
           sync_shared_mailbox_grants()
             .then(async () => {
               const refreshed = await get_all_accounts();

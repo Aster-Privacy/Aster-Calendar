@@ -5255,24 +5255,26 @@ html[data-input-modality="keyboard"]
 :root,
 .calendar_surface,
 [data-calendar-surface] {
-  --cal_color_red: #c4392f;
-  --cal_color_orange: #b4521f;
-  --cal_color_amber: #9a5d10;
-  --cal_color_yellow: #836a12;
-  --cal_color_lime: #5a7a22;
+  --cal_color_red: #c62f2f;
+  --cal_color_orange: #f08a24;
+  --cal_color_yellow: #f2c218;
   --cal_color_green: #2e7d43;
-  --cal_color_emerald: #14775c;
-  --cal_color_teal: #14737c;
-  --cal_color_cyan: #13708f;
-  --cal_color_sky: #2b69ad;
+  --cal_color_teal: #0b7a8c;
   --cal_color_blue: #3c62d6;
-  --cal_color_indigo: #5249c4;
-  --cal_color_violet: #6d4bc4;
   --cal_color_purple: #8642ad;
-  --cal_color_fuchsia: #a33d9a;
-  --cal_color_pink: #b53a70;
-  --cal_color_rose: #b23651;
-  --cal_color_slate: #56606e;
+  --cal_color_pink: #b8237a;
+  --cal_color_brown: #86501f;
+  --cal_color_gray: #9aa0a6;
+  --cal_color_rose: var(--cal_color_red);
+  --cal_color_amber: var(--cal_color_orange);
+  --cal_color_lime: var(--cal_color_green);
+  --cal_color_emerald: var(--cal_color_green);
+  --cal_color_cyan: var(--cal_color_teal);
+  --cal_color_sky: var(--cal_color_blue);
+  --cal_color_indigo: var(--cal_color_blue);
+  --cal_color_violet: var(--cal_color_purple);
+  --cal_color_fuchsia: var(--cal_color_purple);
+  --cal_color_slate: var(--cal_color_gray);
 }
 
 :is(.calendar_surface, [data-calendar-surface]) [data-event-block] {

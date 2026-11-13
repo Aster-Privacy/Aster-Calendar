@@ -563,6 +563,9 @@ export const en: Translations = {
       "Your payment did not go through. Access limited in {{days}} days.",
     billing_alert_action: "Pay",
     dismiss: "Dismiss",
+    web_sandbox_off_title: "Web content runs without the system sandbox",
+    web_sandbox_off_body:
+      "On this computer, Aster Calendar can't start the bubblewrap sandbox, so web content runs without it. To turn it back on, install the bubblewrap package and allow unprivileged user namespaces, then restart Aster Calendar.",
     load_content: "Load",
     open_link: "Open link",
     no_icon: "No icon",
@@ -9354,54 +9357,19 @@ export const en: Translations = {
     device_code_waiting: "Listening for confirmation",
     device_code_expires_in: "Expires in",
     link_device_title: "Link device",
-    link_device_enter_code: "Enter the code shown on your desktop app.",
-    link_device_code_placeholder: "XXXX-XXXX",
-    link_device_verify_button: "Continue",
-    link_device_confirm_prompt:
-      "Do you want to link this device to your account?",
-    link_device_confirm_button: "Link device",
-    link_device_confirming: "Linking device...",
     link_device_cancel: "Cancel",
-    link_device_desktop: "Desktop app",
-    device_fingerprint: "Verification code",
-    device_code_verify_toggle: "Verify this device",
-    link_device_fingerprint_hint:
-      "If your desktop app shows a verification code, make sure that it matches this one before you link the device.",
-    device_code_fingerprint_hint:
-      "Your browser shows the same verification code before you link the device. If the two codes don't match, don't link the device.",
-    link_device_change_account: "Change account",
+    device_fingerprint: "Device fingerprint",
+    device_fingerprint_copy: "Copy device fingerprint",
+    device_code_fingerprint_required_hint:
+      "Your browser asks for this device fingerprint before it links the device.",
     link_device_choose_account: "Choose an account",
-    link_device_choose_account_description: "To link your desktop app",
-    link_device_choose_account_note:
-      "Your encryption keys stay encrypted as they move between your devices.",
-    link_device_use_another_account: "Use another account",
-    link_device_use_this_account: "Use this account",
-    link_device_other_accounts: "Switch to another account",
     hub_accounts_or_password: "Or sign in with your password",
     hub_account_password_required: "Password required",
     hub_account_link_failed:
       "To continue with this account, enter its password.",
-    link_device_success: "Device linked",
-    link_device_success_description:
-      "Your desktop app is now linked. You can close this tab.",
-    link_device_invalid_code:
-      "A linking code is 8 characters long. Check the code and try again.",
-    link_device_expired_code:
-      "This code expired or did not match. Your desktop app has the current one.",
     link_device_failed:
       "Linking did not finish. Starting over usually does it. Your account is unchanged.",
     link_device_try_again: "That did not work. Starting over usually does it.",
-    link_device_upgrade_required_toast:
-      "Linking a Bridge device needs a Star plan or higher. Upgrade to continue.",
-    link_device_upgrade_title: "Upgrade to link this device",
-    link_device_upgrade_description:
-      "Connecting a desktop Bridge to your account needs a Star plan or higher. Pick a plan below and your device links right after checkout.",
-    link_device_already_linked:
-      "This device is already linked to another account. Unlink it there first, then try again.",
-    link_device_rate_limited:
-      "Too many attempts. Wait about a minute, then try again.",
-    link_device_account_suspended:
-      "This account is suspended, so new devices can't be linked right now. Contact support to sort it out.",
     keep_signed_in: "Keep me signed in",
     secure_devices_only: "only on secure devices",
     back_to_inbox: "Back to inbox",
@@ -9920,6 +9888,10 @@ export const en: Translations = {
   errors: {
     auth_salt_collision:
       "Sign-in stopped because the server sent an unsafe value, so nothing was unlocked. Contact support before you try again.",
+    legacy_login_salt_new_device:
+      "To finish a security update to your account, sign in on a device you've used with Aster before. If you can't, reset your password with your recovery key.",
+    legacy_login_salt_sign_in_again:
+      "To finish a security update to your account, sign out and sign in again.",
     upload_too_large:
       "The upload is too large. To continue, remove or shrink a file and try again.",
     generic: "That did not work. Try again.",
@@ -10937,6 +10909,7 @@ export const en: Translations = {
     holiday_region_au: "Australia",
     holiday_region_pt: "Portugal",
     holiday_region_br: "Brazil",
+    holiday_region_in: "India",
     settings_day_split: "Side-by-side day view",
     settings_day_split_desc: "Show each calendar in its own column in day view",
     settings_info_day_split:
@@ -11215,6 +11188,8 @@ export const en: Translations = {
     tags: "Tags",
     tags_placeholder: "Add tags",
     remove_tag: "Remove tag",
+    tag_color: "Tag color",
+    change_tag_color: "Change color for {{ tag }}",
     no_tags: "No tags yet",
     details: "Details",
     details_hint: "Select an event to see its details",
@@ -11429,6 +11404,8 @@ export const en: Translations = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "Brown",
+    color_gray: "Gray",
     event_color: "Event color",
     year: "Year",
     custom_view: "Custom view",

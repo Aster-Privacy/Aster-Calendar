@@ -826,7 +826,7 @@ function SubscriptionColorButton({
                   <CheckIcon
                     className="h-4 w-4"
                     strokeWidth={2.5}
-                    style={{ color: "var(--calendar_event_text, #ffffff)" }}
+                    style={{ color: option.ink }}
                   />
                 )}
               </button>

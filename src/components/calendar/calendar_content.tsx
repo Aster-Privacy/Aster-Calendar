@@ -1740,6 +1740,26 @@ export function CalendarContent({
         variant="danger"
       />
 
+      <ConfirmationModal
+        cancel_text={state.t("common.cancel")}
+        confirm_text={state.t("mail.send")}
+        extra_content={
+          <p className="mt-3 text-[14px] leading-normal font-medium [overflow-wrap:anywhere]">
+            {state.t("calendar.invite_card_reply_to", {
+              email: state.pending_rsvp_reply?.organizer_email ?? "",
+            })}
+          </p>
+        }
+        is_open={!!state.pending_rsvp_reply}
+        message={state.t("calendar.invite_card_reply_target_unverified")}
+        on_cancel={state.cancel_rsvp_reply}
+        on_confirm={() => {
+          void state.confirm_rsvp_reply();
+        }}
+        title={state.t("calendar.invite_your_response")}
+        variant="warning"
+      />
+
       <RecurrenceScopeDialog
         is_open={is_recurring_delete}
         mode="delete"

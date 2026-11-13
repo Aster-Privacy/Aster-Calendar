@@ -500,6 +500,9 @@ export const pt_br = {
       "Seu pagamento não foi concluído. O acesso será limitado em {{days}} dias.",
     billing_alert_action: "Pagar",
     dismiss: "Dispensar",
+    web_sandbox_off_title: "O conteúdo da web está sendo executado sem a sandbox do sistema",
+    web_sandbox_off_body:
+      "Neste computador, Aster Calendar não consegue iniciar a sandbox bubblewrap, então o conteúdo da web é executado sem ela. Para ativá-la de novo, instale o pacote bubblewrap, permita namespaces de usuário sem privilégios e reinicie Aster Calendar.",
     load_content: "Carregar",
     open_link: "Abrir link",
     no_icon: "Sem ícone",
@@ -9984,44 +9987,19 @@ export const pt_br = {
     device_code_waiting: "Aguardando confirmação",
     last_updated: "Última atualização: {{date}}",
     link_device_cancel: "Cancelar",
-    link_device_code_placeholder: "XXXX-XXXX",
-    link_device_confirm_button: "Vincular dispositivo",
-    link_device_confirm_prompt: "Deseja vincular este dispositivo à sua conta?",
-    link_device_confirming: "Vinculando dispositivo...",
-    link_device_desktop: "Aplicativo desktop",
-    device_fingerprint: "Código de verificação",
-    device_code_verify_toggle: "Verificar este dispositivo",
-    link_device_fingerprint_hint:
-      "Se o app para computador mostrar um código de verificação, confira se ele corresponde a este antes de vincular o dispositivo.",
-    device_code_fingerprint_hint:
-      "O navegador mostra o mesmo código de verificação antes de vincular o dispositivo. Se os dois códigos não corresponderem, não vincule o dispositivo.",
-    link_device_change_account: "Mudar de conta",
+    device_fingerprint: "Impressão digital do dispositivo",
+    device_fingerprint_copy: "Copiar impressão digital do dispositivo",
+    device_code_fingerprint_required_hint:
+      "Seu navegador pede esta impressão digital do dispositivo antes de vincular o dispositivo.",
     link_device_choose_account: "Escolha uma conta",
-    link_device_choose_account_description:
-      "Para vincular seu aplicativo desktop",
-    link_device_choose_account_note:
-      "Suas chaves de criptografia continuam criptografadas enquanto passam entre seus dispositivos.",
-    link_device_use_another_account: "Usar outra conta",
-    link_device_use_this_account: "Usar esta conta",
-    link_device_other_accounts: "Mudar para outra conta",
-    link_device_enter_code:
-      "Digite o código mostrado no seu aplicativo desktop.",
-    link_device_expired_code:
-      "Este código expirou ou não corresponde. Use o código atual do seu aplicativo desktop.",
     link_device_failed:
       "A vinculação não foi concluída. Recomeçar geralmente resolve. Sua conta está inalterada.",
-    link_device_invalid_code:
-      "Um código de vinculação tem 8 caracteres. Confira o código e tente novamente.",
     hub_accounts_or_password: "Ou entre com sua senha",
     hub_account_password_required: "Senha obrigatória",
     hub_account_link_failed:
       "Para continuar com esta conta, insira a senha dela.",
-    link_device_success: "Dispositivo vinculado",
-    link_device_success_description:
-      "Seu aplicativo desktop está agora vinculado. Você pode fechar esta aba.",
     link_device_title: "Vincular dispositivo",
     link_device_try_again: "Isso não funcionou. Recomeçar geralmente resolve.",
-    link_device_verify_button: "Continuar",
     pair_device_cancel: "Cancelar",
     pair_device_failed:
       "O pareamento não foi concluído. Recomeçar no seu aplicativo desktop geralmente resolve. Sua conta está inalterada.",
@@ -10086,17 +10064,6 @@ export const pt_br = {
       "Status de estudante verificado. Entre e seu desconto de 30% será aplicado na finalização da compra.",
     academic_failed_signin_note:
       "Esse link de verificação expirou ou já foi usado. Entre e peça um novo em Configurações, em Cobrança.",
-    link_device_upgrade_required_toast:
-      "Vincular um dispositivo com o Bridge exige o plano Star ou superior. Faça upgrade para continuar.",
-    link_device_upgrade_title: "Faça upgrade para vincular este dispositivo",
-    link_device_upgrade_description:
-      "Conectar um Bridge de computador à sua conta exige o plano Star ou superior. Escolha um plano abaixo e seu dispositivo será vinculado logo após o pagamento.",
-    link_device_already_linked:
-      "Este dispositivo já está vinculado a outra conta. Desvincule-o lá primeiro e tente de novo.",
-    link_device_rate_limited:
-      "Muitas tentativas. Espere cerca de um minuto e tente de novo.",
-    link_device_account_suspended:
-      "Esta conta está suspensa, então não é possível vincular novos dispositivos agora. Fale com o suporte para resolver.",
     plan_academic_discount_note:
       "Seu desconto de 30% é aplicado automaticamente na finalização da compra assim que seu e-mail for verificado.",
     plan_referral_discount_note:
@@ -10227,6 +10194,10 @@ export const pt_br = {
   errors: {
     auth_salt_collision:
       "O login foi interrompido porque o servidor enviou um valor inseguro, então nada foi desbloqueado. Entre em contato com o suporte antes de tentar novamente.",
+    legacy_login_salt_new_device:
+      "Para concluir uma atualização de segurança da sua conta, entre em um dispositivo que você já usou com o Aster. Se não for possível, redefina sua senha com sua chave de recuperação.",
+    legacy_login_salt_sign_in_again:
+      "Para concluir uma atualização de segurança da sua conta, saia e entre novamente.",
     upload_too_large:
       "O envio é grande demais. Para continuar, remova ou reduza um arquivo e tente novamente.",
     failed_remove_reaction:
@@ -11308,6 +11279,7 @@ export const pt_br = {
     holiday_region_au: "Austrália",
     holiday_region_pt: "Portugal",
     holiday_region_br: "Brasil",
+    holiday_region_in: "Índia",
     settings_day_split: "Visualização de dia lado a lado",
     settings_day_split_desc:
       "Mostra cada calendário em uma coluna própria na visualização de dia",
@@ -11814,6 +11786,8 @@ export const pt_br = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "Marrom",
+    color_gray: "Cinza",
     event_color: "Cor do evento",
     year: "Ano",
     custom_view: "Visualização personalizada",
@@ -12145,6 +12119,8 @@ export const pt_br = {
     tags: "Tags",
     tags_placeholder: "Adicionar tags",
     remove_tag: "Remover tag",
+    tag_color: "Cor da tag",
+    change_tag_color: "Alterar a cor de {{ tag }}",
     no_tags: "Nenhuma tag ainda",
     details: "Detalhes",
     details_hint: "Selecione um evento para ver os detalhes",

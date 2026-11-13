@@ -26,10 +26,13 @@ import {
   accept_revision,
   confirmed_revision,
   is_rolled_back,
+  is_tombstoned,
   known_revision,
+  lift_tombstone,
   load_revisions,
   next_revision,
   observe_revision,
+  record_tombstone,
   release_revision,
   reset_revisions,
   settle_revision,
@@ -140,5 +143,120 @@ describe("revision_ledger", () => {
 
     observe_revision("event", "e1", 90);
     expect(confirmed_revision("event", "e1")).toBe(100);
+  });
+
+  it("rejects a deleted row served again at or below its tombstone", () => {
+    observe_revision("event", "e1", 100);
+    observe_revision("calendar", "c1", 200);
+    record_tombstone("event", "e1");
+    record_tombstone("calendar", "c1");
+
+    expect(is_rolled_back("event", "e1", 100)).toBe(true);
+    expect(is_rolled_back("event", "e1", 99)).toBe(true);
+    expect(is_rolled_back("calendar", "c1", 200)).toBe(true);
+    expect(is_rolled_back("calendar", "c1", 150)).toBe(true);
+    expect(is_rolled_back("event", "other", 100)).toBe(false);
+  });
+
+  it("accepts a higher revision and clears the tombstone", () => {
+    observe_revision("event", "e1", 100);
+    observe_revision("calendar", "c1", 200);
+    record_tombstone("event", "e1");
+    record_tombstone("calendar", "c1");
+
+    expect(is_rolled_back("event", "e1", 101)).toBe(false);
+    expect(is_rolled_back("calendar", "c1", 201)).toBe(false);
+
+    observe_revision("event", "e1", 101);
+    observe_revision("calendar", "c1", 201);
+
+    expect(is_tombstoned("event", "e1")).toBe(false);
+    expect(is_tombstoned("calendar", "c1")).toBe(false);
+    expect(is_rolled_back("event", "e1", 101)).toBe(false);
+    expect(is_rolled_back("event", "e1", 100)).toBe(true);
+  });
+
+  it("keeps tombstones across a ledger reload", () => {
+    observe_revision("event", "e1", 100);
+    record_tombstone("event", "e1");
+    record_tombstone("event", "e0");
+    record_tombstone("calendar", "c1");
+    const snapshot = take_revision_snapshot();
+
+    expect(snapshot?.event_tombstones).toEqual({ e1: 100, e0: 0 });
+    expect(snapshot?.calendar_tombstones).toEqual({ c1: 0 });
+
+    reset_revisions();
+
+    expect(is_tombstoned("event", "e1")).toBe(false);
+
+    load_revisions(snapshot ?? {});
+
+    expect(is_rolled_back("event", "e1", 100)).toBe(true);
+    expect(is_rolled_back("event", "e0", 0)).toBe(true);
+    expect(is_rolled_back("calendar", "c1", 0)).toBe(true);
+    expect(is_rolled_back("event", "e1", 101)).toBe(false);
+  });
+
+  it("never lowers a tombstone", () => {
+    observe_revision("event", "e1", 100);
+    record_tombstone("event", "e1");
+    load_revisions({
+      event_revisions: {},
+      calendar_revisions: {},
+      event_tombstones: { e1: 50 },
+    });
+
+    expect(is_rolled_back("event", "e1", 80)).toBe(true);
+  });
+
+  it("clears the tombstone on a released delete or a newer accepted copy", () => {
+    observe_revision("event", "e1", 100);
+    record_tombstone("event", "e1");
+    release_revision("event", "e1");
+
+    expect(is_rolled_back("event", "e1", 100)).toBe(false);
+
+    observe_revision("calendar", "c1", 200);
+    record_tombstone("calendar", "c1");
+    accept_revision("calendar", "c1", 200);
+
+    expect(is_tombstoned("calendar", "c1")).toBe(true);
+
+    accept_revision("calendar", "c1", 250);
+
+    expect(is_tombstoned("calendar", "c1")).toBe(false);
+  });
+
+  it("does not record a tombstone for an empty id", () => {
+    record_tombstone("event", "");
+
+    expect(take_revision_snapshot()).toBeNull();
+  });
+
+  it("lifts the tombstone for one id only", () => {
+    observe_revision("event", "e1", 100);
+    observe_revision("event", "e2", 100);
+    record_tombstone("event", "e1");
+    record_tombstone("event", "e2");
+    lift_tombstone("event", "e1");
+
+    expect(is_tombstoned("event", "e1")).toBe(false);
+    expect(is_rolled_back("event", "e1", 100)).toBe(false);
+    expect(is_rolled_back("event", "e2", 100)).toBe(true);
+  });
+
+  it("keeps the tombstone store bounded by dropping the oldest entries", () => {
+    for (let index = 0; index < 5010; index += 1) {
+      record_tombstone("event", `e${index}`);
+    }
+
+    expect(is_tombstoned("event", "e0")).toBe(false);
+    expect(is_tombstoned("event", "e9")).toBe(false);
+    expect(is_tombstoned("event", "e10")).toBe(true);
+    expect(is_tombstoned("event", "e5009")).toBe(true);
+    expect(
+      Object.keys(take_revision_snapshot()?.event_tombstones ?? {}),
+    ).toHaveLength(5000);
   });
 });

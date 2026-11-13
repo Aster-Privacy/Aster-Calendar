@@ -580,6 +580,9 @@ export const pl = {
       "Twoja płatność się nie powiodła. Dostęp zostanie ograniczony za {{days}} dni.",
     billing_alert_action: "Zapłać",
     dismiss: "Odrzuć",
+    web_sandbox_off_title: "Treści internetowe działają bez piaskownicy systemowej",
+    web_sandbox_off_body:
+      "Na tym komputerze Aster Calendar nie może uruchomić piaskownicy bubblewrap, więc treści internetowe działają bez niej. Aby ją ponownie włączyć, zainstaluj pakiet bubblewrap, zezwól na nieuprzywilejowane przestrzenie nazw użytkowników i uruchom ponownie Aster Calendar.",
     load_content: "Załaduj",
     open_link: "Otwórz link",
     no_icon: "Brak ikony",
@@ -10213,40 +10216,16 @@ export const pl = {
     device_code_waiting: "Oczekiwanie na potwierdzenie",
     device_code_expires_in: "Wygasa za",
     link_device_title: "Połącz urządzenie",
-    link_device_enter_code: "Wprowadź kod wyświetlony w aplikacji desktopowej.",
-    link_device_code_placeholder: "XXXX-XXXX",
-    link_device_verify_button: "Kontynuuj",
-    link_device_confirm_prompt: "Czy chcesz połączyć to urządzenie z kontem?",
-    link_device_confirm_button: "Połącz urządzenie",
-    link_device_confirming: "Łączenie urządzenia...",
     link_device_cancel: "Anuluj",
-    link_device_desktop: "Aplikacja desktopowa",
-    device_fingerprint: "Kod weryfikacyjny",
-    device_code_verify_toggle: "Zweryfikuj to urządzenie",
-    link_device_fingerprint_hint:
-      "Jeśli aplikacja na komputer pokazuje kod weryfikacyjny, przed połączeniem urządzenia upewnij się, że jest zgodny z tym kodem.",
-    device_code_fingerprint_hint:
-      "Przeglądarka pokazuje ten sam kod weryfikacyjny przed połączeniem urządzenia. Jeśli oba kody się różnią, nie łącz urządzenia.",
-    link_device_change_account: "Zmień konto",
+    device_fingerprint: "Odcisk urządzenia",
+    device_fingerprint_copy: "Kopiuj odcisk urządzenia",
+    device_code_fingerprint_required_hint:
+      "Przeglądarka prosi o ten odcisk urządzenia, zanim połączy urządzenie.",
     link_device_choose_account: "Wybierz konto",
-    link_device_choose_account_description:
-      "Aby połączyć aplikację na komputer",
-    link_device_choose_account_note:
-      "Twoje klucze szyfrowania pozostają zaszyfrowane podczas przesyłania między Twoimi urządzeniami.",
-    link_device_use_another_account: "Użyj innego konta",
-    link_device_use_this_account: "Użyj tego konta",
-    link_device_other_accounts: "Przełącz na inne konto",
     hub_accounts_or_password: "Lub zaloguj się hasłem",
     hub_account_password_required: "Wymagane hasło",
     hub_account_link_failed:
       "Aby kontynuować na tym koncie, wprowadź jego hasło.",
-    link_device_success: "Urządzenie połączone",
-    link_device_success_description:
-      "Twoja aplikacja desktopowa jest teraz połączona. Możesz zamknąć tę kartę.",
-    link_device_invalid_code:
-      "Kod połączenia ma 8 znaków. Sprawdź kod i spróbuj ponownie.",
-    link_device_expired_code:
-      "Ten kod wygasł lub nie pasuje. Twoja aplikacja desktopowa ma aktualny.",
     link_device_failed:
       "Połączenie nie zostało ukończone. Zacznij od nowa. Twoje konto nie zostało zmienione.",
     link_device_try_again: "To nie zadziałało. Zacznij od nowa.",
@@ -10313,17 +10292,6 @@ export const pl = {
       "Status studenta zweryfikowany. Zaloguj się, a zniżka 30% zostanie zastosowana przy płatności.",
     academic_failed_signin_note:
       "Ten link weryfikacyjny wygasł lub został już użyty. Zaloguj się i poproś o nowy w ustawieniach Płatności.",
-    link_device_upgrade_required_toast:
-      "Powiązanie urządzenia Bridge wymaga planu Star lub wyższego. Ulepsz plan, aby kontynuować.",
-    link_device_upgrade_title: "Ulepsz plan, aby powiązać to urządzenie",
-    link_device_upgrade_description:
-      "Połączenie Bridge na komputerze z Twoim kontem wymaga planu Star lub wyższego. Wybierz plan poniżej, a urządzenie zostanie powiązane zaraz po płatności.",
-    link_device_already_linked:
-      "To urządzenie jest już powiązane z innym kontem. Najpierw usuń tam powiązanie i spróbuj ponownie.",
-    link_device_rate_limited:
-      "Zbyt wiele prób. Odczekaj około minuty i spróbuj ponownie.",
-    link_device_account_suspended:
-      "To konto jest zawieszone, więc nie można teraz powiązać nowych urządzeń. Skontaktuj się z pomocą techniczną.",
     plan_academic_discount_note:
       "Zniżka 30% zostanie zastosowana automatycznie przy płatności, gdy Twój e-mail zostanie zweryfikowany.",
     plan_referral_discount_note:
@@ -10399,6 +10367,10 @@ export const pl = {
   errors: {
     auth_salt_collision:
       "Logowanie zostało przerwane, ponieważ serwer wysłał niebezpieczną wartość, więc nic nie zostało odblokowane. Skontaktuj się z pomocą, zanim spróbujesz ponownie.",
+    legacy_login_salt_new_device:
+      "Aby dokończyć aktualizację zabezpieczeń konta, zaloguj się na urządzeniu, na którym używasz już Aster. Jeśli to niemożliwe, zresetuj hasło za pomocą klucza odzyskiwania.",
+    legacy_login_salt_sign_in_again:
+      "Aby dokończyć aktualizację zabezpieczeń konta, wyloguj się i zaloguj ponownie.",
     upload_too_large:
       "Przesyłane dane są za duże. Aby kontynuować, usuń plik lub zmniejsz jego rozmiar i spróbuj ponownie.",
     failed_remove_reaction: "Nie udało się usunąć reakcji. Spróbuj ponownie.",
@@ -11447,6 +11419,7 @@ export const pl = {
     holiday_region_au: "Australia",
     holiday_region_pt: "Portugalia",
     holiday_region_br: "Brazylia",
+    holiday_region_in: "Indie",
     settings_day_split: "Widok dnia obok siebie",
     settings_day_split_desc:
       "Pokaż każdy kalendarz w osobnej kolumnie w widoku dnia",
@@ -11744,6 +11717,8 @@ export const pl = {
     tags: "Tagi",
     tags_placeholder: "Dodaj tagi",
     remove_tag: "Usuń tag",
+    tag_color: "Kolor tagu",
+    change_tag_color: "Zmień kolor tagu {{ tag }}",
     no_tags: "Brak tagów",
     details: "Szczegóły",
     details_hint: "Wybierz wydarzenie, aby zobaczyć szczegóły",
@@ -11963,6 +11938,8 @@ export const pl = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "Brązowy",
+    color_gray: "Szary",
     event_color: "Kolor",
     year: "Rok",
     custom_view: "Widok niestandardowy",

@@ -39,6 +39,7 @@ export const SCHEDULE_CUSTOM_MAX_DAYS = 731;
 export const UPCOMING_PAST_DAYS = 30;
 export const UPCOMING_FUTURE_DAYS = 90;
 export const UPCOMING_STEP_DAYS = 90;
+export const UPCOMING_MAX_JUMP_DAYS = 365;
 
 export interface UpcomingWindow {
   start: Date;
@@ -278,6 +279,23 @@ export function include_in_upcoming_window(
     start: start.getTime() < window.start.getTime() ? start : window.start,
     end: end.getTime() > window.end.getTime() ? end : window.end,
   };
+}
+
+export function jump_upcoming_window(
+  window: UpcomingWindow,
+  target: Date,
+): UpcomingWindow {
+  const start = day_start(target).getTime();
+  const gap = Math.max(
+    window.start.getTime() - start,
+    start - window.end.getTime(),
+  );
+
+  if (gap > UPCOMING_MAX_JUMP_DAYS * DAY_MS) {
+    return initial_upcoming_window(target);
+  }
+
+  return include_in_upcoming_window(window, target, target);
 }
 
 export function month_start_offset(day: Date, delta: number): Date {

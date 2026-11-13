@@ -45,6 +45,7 @@ import { get_vault_from_memory } from "@/services/crypto/memory_key_store";
 import {
   confirmed_revision,
   known_revision,
+  lift_tombstone,
   next_revision,
   observe_revision,
   release_revision,
@@ -1000,6 +1001,7 @@ export class CalendarMutationQueue {
       if (this.create_may_have_landed(op.event_id)) return op;
       void this.remove_target(op.event_id);
       void calendar_sync_engine.remove_event_local(op.event_id);
+      lift_tombstone("event", this.bound_id(op.event_id));
 
       return null;
     }
@@ -1007,6 +1009,7 @@ export class CalendarMutationQueue {
       if (this.create_may_have_landed(op.calendar_id)) return op;
       void this.remove_target(op.calendar_id);
       void calendar_sync_engine.remove_calendar_local(op.calendar_id);
+      lift_tombstone("calendar", this.bound_id(op.calendar_id));
 
       return null;
     }
@@ -1902,8 +1905,6 @@ export class CalendarMutationQueue {
     const target = conflict_target(entry.op);
     const ids = operation_ids(entry.op);
 
-    this.finish_revisions(entry, true);
-
     for (const id of ids) {
       if (is_temp_id(id)) {
         if (target === "calendar")
@@ -1911,6 +1912,7 @@ export class CalendarMutationQueue {
         else await calendar_sync_engine.remove_event_local(id);
       }
     }
+    this.finish_revisions(entry, true);
     this.unreadable_attempts.delete(entry.id);
     this.foreign_conflict_attempts.delete(entry.id);
     this.stale_conflict_attempts.delete(entry.id);

@@ -23,7 +23,6 @@ import { x25519 } from "@noble/curves/ed25519";
 import { xchacha20poly1305 } from "@noble/ciphers/chacha";
 import { hkdf } from "@noble/hashes/hkdf";
 import { sha256 } from "@noble/hashes/sha256";
-import { randomBytes } from "@noble/hashes/utils";
 
 const ENROLL_INFO = "astermail-device-enroll-v1";
 
@@ -40,37 +39,6 @@ function concat_bytes(...parts: Uint8Array[]): Uint8Array {
   }
 
   return out;
-}
-
-export async function seal_vault_key_for_device(
-  vault_key_bytes: Uint8Array,
-  _device_ed25519_pk: Uint8Array,
-  device_mlkem_pk: Uint8Array,
-  device_x25519_pk: Uint8Array,
-): Promise<Uint8Array> {
-  const { cipherText: mlkem_ct, sharedSecret: ss_pq } =
-    ml_kem768.encapsulate(device_mlkem_pk);
-
-  const eph_sk = randomBytes(32);
-  const eph_pk = x25519.getPublicKey(eph_sk);
-  const ss_cl = x25519.getSharedSecret(eph_sk, device_x25519_pk);
-
-  const nonce = randomBytes(24);
-  const ikm = concat_bytes(ss_pq, ss_cl);
-  const info = new TextEncoder().encode(ENROLL_INFO);
-  const shared = hkdf(sha256, ikm, nonce, info, 32);
-
-  const ct = xchacha20poly1305(shared, nonce).encrypt(vault_key_bytes);
-
-  const sealed = concat_bytes(eph_pk, mlkem_ct, nonce, ct);
-
-  eph_sk.fill(0);
-  ss_cl.fill(0);
-  ss_pq.fill(0);
-  ikm.fill(0);
-  shared.fill(0);
-
-  return sealed;
 }
 
 export function open_vault_key_envelope(

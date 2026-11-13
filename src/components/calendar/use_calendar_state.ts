@@ -66,7 +66,6 @@ import {
   list_events,
   list_trashed_events,
   restore_trashed_event,
-  set_calendar_visibility,
   set_default_calendar_names,
   subscribe_calendar_changes,
   trash_event,
@@ -119,6 +118,13 @@ import {
   without_hidden_subscriptions,
 } from "@/services/calendar/subscriptions";
 import {
+  apply_calendar_visibility,
+  apply_subscription_visibility,
+  seed_local_visibility,
+  set_calendar_hidden,
+} from "@/services/calendar/local_visibility";
+import { use_local_calendar_visibility } from "@/hooks/use_local_calendar_visibility";
+import {
   BOOKING_CALENDAR_ID,
   BOOKING_COLOR,
   BOOKING_EVENT_PREFIX,
@@ -143,9 +149,15 @@ import {
 import { show_toast } from "@/components/toast/simple_toast";
 import { register_event_render_alias } from "@/services/calendar/event_render_key";
 import { use_calendar_now_tick } from "@/components/calendar/use_calendar_now_tick";
-import { send_reply } from "@/services/calendar/invite_mail";
+import {
+  deliver_rsvp_reply,
+  rsvp_confirmation_key,
+  type RsvpReplyOutcome,
+  type RsvpReplyRequest,
+} from "@/services/calendar/rsvp_reply";
+import { sanitize_calendar_email } from "@/services/calendar/sanitize";
 import { set_own_response } from "@/services/calendar/invite_store";
-import { event_organizer_email, same_address } from "@/services/calendar/itip";
+import { event_organizer_email } from "@/services/calendar/itip";
 import { reply_identity } from "@/services/calendar/invite_sender";
 import {
   is_own_address,
@@ -164,6 +176,7 @@ import {
   include_in_upcoming_window,
   initial_upcoming_window,
   extend_upcoming_window,
+  jump_upcoming_window,
   is_schedule_range_pageable,
   month_start_offset,
   resolve_schedule_range,
@@ -284,7 +297,23 @@ export function use_calendar_state() {
   const [trashed_events, set_trashed_events] = useState<
     DecryptedCalendarEvent[]
   >([]);
-  const [calendars, set_calendars] = useState<DecryptedCalendar[]>([]);
+  const [server_calendars, set_calendars] = useState<DecryptedCalendar[]>(
+    [],
+  );
+  const local_visibility = use_local_calendar_visibility({
+    calendars: server_calendars,
+    subscriptions: preferences.calendar_ics_subscriptions ?? [],
+    birthdays_hidden: preferences.calendar_birthdays_hidden === true,
+  });
+  const {
+    account_id: visibility_account_id,
+    visibility,
+    update: update_visibility,
+  } = local_visibility;
+  const calendars = useMemo(
+    () => apply_calendar_visibility(server_calendars, visibility),
+    [server_calendars, visibility],
+  );
   const [is_loading, set_is_loading] = useState(true);
   const [load_failed, set_load_failed] = useState(false);
   const [is_shortcuts_open, set_is_shortcuts_open] = useState(false);
@@ -439,7 +468,7 @@ export function use_calendar_state() {
     }
 
     set_upcoming_window((current) =>
-      include_in_upcoming_window(current, anchor_date, anchor_date),
+      jump_upcoming_window(current, anchor_date),
     );
     set_agenda_visible_month(anchor_date);
     request_agenda_scroll(anchor_date);
@@ -693,6 +722,32 @@ export function use_calendar_state() {
   ]);
 
   useEffect(() => {
+    if (
+      !has_loaded_from_server ||
+      is_loading ||
+      load_failed ||
+      local_visibility.is_stored
+    ) {
+      return;
+    }
+
+    void seed_local_visibility(visibility_account_id, {
+      calendars: server_calendars,
+      subscriptions: preferences.calendar_ics_subscriptions ?? [],
+      birthdays_hidden: preferences.calendar_birthdays_hidden === true,
+    });
+  }, [
+    has_loaded_from_server,
+    is_loading,
+    load_failed,
+    local_visibility.is_stored,
+    visibility_account_id,
+    server_calendars,
+    preferences.calendar_ics_subscriptions,
+    preferences.calendar_birthdays_hidden,
+  ]);
+
+  useEffect(() => {
     if (!has_loaded_from_server || is_loading || load_failed) {
       return;
     }
@@ -832,7 +887,7 @@ export function use_calendar_state() {
   );
 
   const holiday_region = preferences.calendar_holiday_region ?? "none";
-  const show_birthdays = preferences.calendar_birthdays_hidden !== true;
+  const show_birthdays = !visibility.birthdays_hidden;
   const [birthday_sources, set_birthday_sources] = useState<BirthdaySource[]>(
     [],
   );
@@ -987,8 +1042,12 @@ export function use_calendar_state() {
     };
   }, [subscriptions_key]);
 
+  const displayed_subscriptions = useMemo(
+    () => apply_subscription_visibility(ics_subscriptions, visibility),
+    [ics_subscriptions, visibility],
+  );
   const subscription_colors_key = JSON.stringify(
-    ics_subscriptions.map((subscription) => [
+    displayed_subscriptions.map((subscription) => [
       subscription.id,
       subscription.color,
       subscription.hidden === true,
@@ -997,8 +1056,11 @@ export function use_calendar_state() {
   const colored_subscription_events = useMemo(
     () =>
       with_subscription_colors(
-        without_hidden_subscriptions(subscription_events, ics_subscriptions),
-        ics_subscriptions,
+        without_hidden_subscriptions(
+          subscription_events,
+          displayed_subscriptions,
+        ),
+        displayed_subscriptions,
       ),
     [subscription_events, subscription_colors_key],
   );
@@ -1164,7 +1226,7 @@ export function use_calendar_state() {
   }, [booking_account_id, range_start, range_end, reload_token, t, view_zone]);
 
   const holiday_events = useMemo(() => {
-    if (holiday_region === "none") {
+    if (holiday_region === "none" || visibility.holidays_hidden) {
       return [] as DecryptedCalendarEvent[];
     }
 
@@ -1205,7 +1267,7 @@ export function use_calendar_state() {
         } as DecryptedCalendarEvent;
       },
     );
-  }, [holiday_region, range_start, range_end]);
+  }, [holiday_region, visibility.holidays_hidden, range_start, range_end]);
 
   const calendar_filtered_events = useMemo(
     () =>
@@ -1242,8 +1304,14 @@ export function use_calendar_state() {
         events.filter((event) =>
           is_event_shown(event, visible_calendar_ids, show_birthdays),
         ),
+        preferences.calendar_tag_colors,
       ),
-    [events, visible_calendar_ids, show_birthdays],
+    [
+      events,
+      visible_calendar_ids,
+      show_birthdays,
+      preferences.calendar_tag_colors,
+    ],
   );
 
   const handle_toggle_tag = useCallback((tag: string) => {
@@ -1895,6 +1963,26 @@ export function use_calendar_state() {
     );
   }, [events, handle_event_click]);
 
+  const [pending_rsvp_reply, set_pending_rsvp_reply] =
+    useState<RsvpReplyRequest | null>(null);
+  const confirmed_rsvp_organizers_ref = useRef<Set<string>>(new Set());
+
+  const show_rsvp_outcome = useCallback(
+    (outcome: RsvpReplyOutcome) => {
+      const sent = outcome === "sent";
+
+      show_toast(
+        t(
+          sent
+            ? "calendar.invite_card_reply_sent"
+            : "calendar.invite_card_reply_send_failed",
+        ),
+        sent ? "success" : "error",
+      );
+    },
+    [t],
+  );
+
   const handle_event_respond = useCallback(
     async (
       event: DecryptedCalendarEvent,
@@ -1944,39 +2032,71 @@ export function use_calendar_state() {
           return;
         }
 
-        const organizer_party = updated.attendees.find((attendee) =>
-          same_address(attendee.email, organizer),
-        );
-        const sent = await send_reply({
+        const request: RsvpReplyRequest = {
           event: updated,
-          organizer: {
-            email: organizer,
-            display_name: organizer_party?.display_name ?? null,
-          },
-          attendee: {
-            email: identity.reply_email,
-            display_name: identity.display_name,
-          },
-          sender: identity.sender,
+          organizer_email: sanitize_calendar_email(organizer),
+          identity,
           response,
+          authenticated_sender: null,
+          confirmed_organizer: confirmed_rsvp_organizers_ref.current.has(
+            rsvp_confirmation_key(updated, sanitize_calendar_email(organizer)),
+          ),
           t,
           language,
-        });
+        };
+        const outcome = await deliver_rsvp_reply(request);
 
-        show_toast(
-          t(
-            sent
-              ? "calendar.invite_card_reply_sent"
-              : "calendar.invite_card_reply_send_failed",
-          ),
-          sent ? "success" : "error",
-        );
+        if (outcome === "needs_confirmation") {
+          set_pending_rsvp_reply(request);
+
+          return;
+        }
+
+        show_rsvp_outcome(outcome);
       } catch {
         show_toast(t("calendar.invite_save_failed"), "error");
       }
     },
-    [apply_saved_event, language, reload, self_email, t, user?.display_name],
+    [
+      apply_saved_event,
+      language,
+      reload,
+      self_email,
+      show_rsvp_outcome,
+      t,
+      user?.display_name,
+    ],
   );
+
+  const confirm_rsvp_reply = useCallback(async () => {
+    const request = pending_rsvp_reply;
+
+    set_pending_rsvp_reply(null);
+
+    if (!request) {
+      return;
+    }
+
+    confirmed_rsvp_organizers_ref.current.add(
+      rsvp_confirmation_key(request.event, request.organizer_email),
+    );
+
+    try {
+      const outcome = await deliver_rsvp_reply({
+        ...request,
+        confirmed_organizer: true,
+      });
+
+      show_rsvp_outcome(outcome === "sent" ? "sent" : "failed");
+    } catch {
+      show_rsvp_outcome("failed");
+    }
+  }, [pending_rsvp_reply, show_rsvp_outcome]);
+
+  const cancel_rsvp_reply = useCallback(() => {
+    set_pending_rsvp_reply(null);
+    show_toast(t("calendar.event_updated"), "success");
+  }, [t]);
 
   const handle_edit_event = useCallback((event: DecryptedCalendarEvent) => {
     if (is_readonly_event(event)) {
@@ -2308,7 +2428,10 @@ export function use_calendar_state() {
       }
 
       if (draft.event_kind === "birthday" && !show_birthdays) {
-        update_preference("calendar_birthdays_hidden", false);
+        update_visibility((current) => ({
+          ...current,
+          birthdays_hidden: false,
+        }));
       }
 
       handle_form_close();
@@ -2320,7 +2443,7 @@ export function use_calendar_state() {
       handle_form_close,
       reload,
       show_birthdays,
-      update_preference,
+      update_visibility,
     ],
   );
 
@@ -2640,42 +2763,12 @@ export function use_calendar_state() {
   );
 
   const handle_toggle_calendar = useCallback(
-    async (calendar_id: string, is_visible: boolean) => {
-      const revert = () => {
-        set_calendars((current) =>
-          current.map((calendar) =>
-            calendar.id === calendar_id
-              ? { ...calendar, is_visible: !is_visible }
-              : calendar,
-          ),
-        );
-      };
-
-      set_calendars((current) =>
-        current.map((calendar) =>
-          calendar.id === calendar_id ? { ...calendar, is_visible } : calendar,
-        ),
+    (calendar_id: string, is_visible: boolean) => {
+      update_visibility((current) =>
+        set_calendar_hidden(current, calendar_id, !is_visible),
       );
-
-      try {
-        const result = await set_calendar_visibility(calendar_id, is_visible);
-
-        if (!result.success) {
-          revert();
-          show_toast(t("calendar.calendar_update_failed"), "error");
-
-          return;
-        }
-      } catch {
-        revert();
-        show_toast(t("calendar.calendar_update_failed"), "error");
-
-        return;
-      }
-
-      reload();
     },
-    [reload, t],
+    [update_visibility],
   );
 
   const now_tick = use_calendar_now_tick();
@@ -3015,6 +3108,9 @@ export function use_calendar_state() {
     handle_create_all_day_click,
     handle_event_click,
     handle_event_respond,
+    pending_rsvp_reply,
+    confirm_rsvp_reply,
+    cancel_rsvp_reply,
     handle_edit_event,
     form_initial_draft,
     form_initial_kind,

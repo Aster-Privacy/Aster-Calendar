@@ -62,10 +62,13 @@ import {
   accept_revision,
   confirmed_revision,
   is_rolled_back,
+  is_tombstoned,
   load_revisions,
   observe_revision,
+  record_tombstone,
   reset_revisions,
   take_revision_snapshot,
+  type RevisionKind,
 } from "@/services/calendar/revision_ledger";
 
 export const CALENDARS_ENDPOINT = "/calendar/v1/calendars";
@@ -286,6 +289,18 @@ export class CalendarSyncEngine {
 
   set_id_binder(binder: IdBinder): void {
     this.id_binder = binder;
+  }
+
+  private record_tombstones(kind: RevisionKind, ids: string[]): void {
+    for (const id of ids) {
+      const bound_id = this.id_binder(id);
+
+      if (!is_temp_row(bound_id)) record_tombstone(kind, bound_id);
+    }
+  }
+
+  private in_deleted_calendar(row: CachedEventRow): boolean {
+    return is_tombstoned("calendar", this.id_binder(row.calendar_id));
   }
 
   private bound_event_row(row: CachedEventRow): CachedEventRow {
@@ -568,6 +583,7 @@ export class CalendarSyncEngine {
     const account_id = this.account_id;
     const generation = this.generation;
 
+    this.record_tombstones("event", [id]);
     this.event_rows.delete(id);
     this.events.delete(id);
     this.failed_event_ids.delete(id);
@@ -646,6 +662,7 @@ export class CalendarSyncEngine {
     const account_id = this.account_id;
     const generation = this.generation;
 
+    this.record_tombstones("calendar", [id]);
     this.calendar_rows.delete(id);
     this.calendars.delete(id);
     this.failed_calendar_ids.delete(id);
@@ -767,7 +784,8 @@ export class CalendarSyncEngine {
           this.v3_event_ids.has(cached.id))) ||
       (level < 2 && this.bound_event_ids.has(cached.id)) ||
       (!allow_older_revision &&
-        is_rolled_back("event", this.id_binder(cached.id), decoded.revision))
+        (is_rolled_back("event", this.id_binder(cached.id), decoded.revision) ||
+          this.in_deleted_calendar(cached)))
     ) {
       return null;
     }
@@ -1287,6 +1305,7 @@ export class CalendarSyncEngine {
       meta: cursor ? { calendars_cursor: cursor } : undefined,
     });
     if (!this.is_current(account_id, generation)) return;
+    this.record_tombstones("calendar", deletes);
     for (const id of deletes) {
       this.calendar_rows.delete(id);
       this.calendars.delete(id);
@@ -1328,6 +1347,7 @@ export class CalendarSyncEngine {
       meta: cursor ? { events_cursor: cursor } : undefined,
     });
     if (!this.is_current(account_id, generation)) return;
+    this.record_tombstones("event", deletes);
     for (const id of deletes) {
       this.event_rows.delete(id);
       this.events.delete(id);
@@ -1398,7 +1418,8 @@ export class CalendarSyncEngine {
       !is_trusted &&
       ((level < 3 && (calendar_v3_floor(this.account_id) || this.v3_event_ids.has(row.id))) ||
         (level < 2 && this.bound_event_ids.has(row.id)) ||
-        is_rolled_back("event", revision_id, decoded.revision));
+        is_rolled_back("event", revision_id, decoded.revision) ||
+        this.in_deleted_calendar(row));
 
     if (!decoded || is_downgraded) {
       this.events.delete(row.id);

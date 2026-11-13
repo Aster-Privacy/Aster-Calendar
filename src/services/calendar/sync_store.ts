@@ -68,6 +68,8 @@ export interface SyncMeta {
   calendar_confirmed?: Record<string, number>;
   event_pending?: Record<string, number>;
   calendar_pending?: Record<string, number>;
+  event_tombstones?: Record<string, number>;
+  calendar_tombstones?: Record<string, number>;
 }
 
 export interface QueueRecord {

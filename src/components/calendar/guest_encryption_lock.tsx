@@ -24,6 +24,7 @@ import { LockIcon } from "@/components/common/icons";
 import { use_preferences } from "@/contexts/preferences_context";
 import { use_i18n } from "@/lib/i18n/context";
 import { discover_external_keys_batch } from "@/services/api/keys";
+import { pin_guest_key, unpin_guest_key } from "@/services/guest_key_pins";
 import { is_internal_recipient } from "@/services/recipient_classification";
 
 export type GuestEncryptionStatus =
@@ -85,7 +86,18 @@ export function use_guest_encryption(
         const found = new Map<string, boolean>();
 
         for (const info of result.data ?? []) {
-          found.set(info.email.toLowerCase(), info.will_encrypt);
+          const address = info.email.toLowerCase();
+          const client_can_encrypt = Boolean(
+            info.will_encrypt && info.found && info.public_key,
+          );
+
+          found.set(address, client_can_encrypt);
+
+          if (client_can_encrypt && info.public_key) {
+            pin_guest_key(address, info.public_key);
+          } else {
+            unpin_guest_key(address);
+          }
         }
 
         set_statuses((previous) => {

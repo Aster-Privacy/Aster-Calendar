@@ -92,7 +92,8 @@ const { calendar_mutation_queue, generate_temp_id, subscribe_calendar_queue } =
   await import("@/services/calendar/mutation_queue");
 const { MemorySyncStore, set_sync_store_adapter } =
   await import("@/services/calendar/sync_store");
-const { next_revision } = await import("@/services/calendar/revision_ledger");
+const { is_tombstoned, next_revision } =
+  await import("@/services/calendar/revision_ledger");
 
 const ACCOUNT = "acct-1";
 
@@ -463,6 +464,99 @@ describe("calendar mutation queue", () => {
 
     expect(post).not.toHaveBeenCalled();
     expect(del).not.toHaveBeenCalled();
+  });
+
+  it("leaves no tombstone on the chosen id of a create canceled offline", async () => {
+    set_online(false);
+    const op = { ...create_op("Never sent"), server_id: "7d2c7f84-e071-4293-9e65-708192a3b4c5" };
+
+    await calendar_mutation_queue.submit(op);
+    await calendar_mutation_queue.submit({
+      kind: "event_delete",
+      event_id: op.temp_id,
+      expected_version: null,
+    });
+    await wait(0);
+
+    expect(calendar_mutation_queue.pending_count()).toBe(0);
+    expect(is_tombstoned("event", "7d2c7f84-e071-4293-9e65-708192a3b4c5")).toBe(false);
+    expect(is_tombstoned("event", op.temp_id)).toBe(false);
+  });
+
+  it("clears the tombstone when the server rejects a delete", async () => {
+    await seed_event("evt-1", "Kept", 2);
+    get.mockImplementation(async (url: string) =>
+      String(url).includes("/calendars")
+        ? empty_page("calendars")
+        : ok({
+            events: [cached_event("evt-1", "Kept", 2)],
+            total: 1,
+            server_time: "2026-10-09T12:00:00.000Z",
+            has_more: false,
+          }),
+    );
+    del.mockResolvedValueOnce({
+      data: null,
+      error: "invalid",
+      status: 422,
+    });
+
+    const result = await calendar_mutation_queue.submit({
+      kind: "event_delete",
+      event_id: "evt-1",
+      expected_version: 2,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(events).toContainEqual({
+      type: "dropped",
+      target: "event",
+      reason: "rejected",
+    });
+    expect(is_tombstoned("event", "evt-1")).toBe(false);
+
+    await calendar_sync_engine.pull_delta();
+
+    expect(calendar_sync_engine.get_event("evt-1")?.title).toBe("Kept");
+  });
+
+  it("shows an event again after it is trashed and restored on this device", async () => {
+    await seed_event("evt-1", "Trashed", 1);
+    put
+      .mockResolvedValueOnce(
+        ok({
+          id: "evt-1",
+          success: true,
+          updated_at: "2026-10-09T12:00:00.000Z",
+          version: 2,
+        }),
+      )
+      .mockResolvedValueOnce(
+        ok({
+          id: "evt-1",
+          success: true,
+          updated_at: "2026-10-09T12:01:00.000Z",
+          version: 3,
+        }),
+      );
+
+    const trashed_blob = JSON.stringify({
+      ...JSON.parse(event_blob("Trashed")),
+      trashed_at: "2026-10-09T12:00:00.000Z",
+    });
+
+    await calendar_mutation_queue.submit({
+      ...update_op("evt-1", "Trashed", 1),
+      encrypted_blob: trashed_blob,
+    });
+
+    expect(calendar_sync_engine.get_event("evt-1")?.trashed_at).toBeTruthy();
+    expect(is_tombstoned("event", "evt-1")).toBe(false);
+
+    await calendar_mutation_queue.submit(update_op("evt-1", "Trashed", 2));
+
+    expect(calendar_sync_engine.get_event("evt-1")?.trashed_at).toBeFalsy();
+    expect(is_tombstoned("event", "evt-1")).toBe(false);
   });
 
   it("deletes a create that may have reached the server instead of dropping it", async () => {

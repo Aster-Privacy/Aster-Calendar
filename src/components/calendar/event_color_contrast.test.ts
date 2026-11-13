@@ -26,29 +26,98 @@ import { TAG_COLOR_PRESETS } from "@/components/ui/email_tag";
 import {
   EVENT_COLOR_OPTIONS,
   NEUTRAL_EVENT_COLOR,
+  READABLE_INK_DARK,
+  READABLE_INK_LIGHT,
+  build_event_block_style,
   contrast_ratio,
+  find_event_color_option,
+  ink_on_fill,
+  parse_color_channels,
 } from "./calendar_utils";
 
-const CHIP_TEXT_COLOR = "#ffffff";
 const WCAG_AA_TEXT_RATIO = 4.5;
+const HOVER_FILL_SHARE = 0.94;
+const LEGACY_TOKEN_NAMES = [
+  "rose",
+  "amber",
+  "lime",
+  "emerald",
+  "cyan",
+  "sky",
+  "indigo",
+  "violet",
+  "fuchsia",
+  "slate",
+];
+
+function hover_fill(fill: string): string {
+  const channels = parse_color_channels(fill);
+
+  if (!channels) {
+    throw new Error(`unparsable fill ${fill}`);
+  }
+
+  const darken = (channel: number) =>
+    Math.round(channel * HOVER_FILL_SHARE)
+      .toString(16)
+      .padStart(2, "0");
+
+  return `#${darken(channels.red)}${darken(channels.green)}${darken(channels.blue)}`;
+}
 
 describe("event chip text contrast", () => {
-  it("offers the same colors as mail tags", () => {
-    expect(EVENT_COLOR_OPTIONS.map((option) => option.hex)).toEqual(
-      TAG_COLOR_PRESETS.map((preset) => preset.hex),
+  it("keeps its own list apart from the mail tag presets", () => {
+    expect(TAG_COLOR_PRESETS).toHaveLength(17);
+    expect(EVENT_COLOR_OPTIONS).toHaveLength(10);
+    expect(new Set(EVENT_COLOR_OPTIONS.map((option) => option.hex)).size).toBe(
+      EVENT_COLOR_OPTIONS.length,
     );
+    expect(new Set(EVENT_COLOR_OPTIONS.map((option) => option.fill)).size).toBe(
+      EVENT_COLOR_OPTIONS.length,
+    );
+    expect(EVENT_COLOR_OPTIONS).toContain(NEUTRAL_EVENT_COLOR);
   });
 
-  it.each([...EVENT_COLOR_OPTIONS, NEUTRAL_EVENT_COLOR].map((option) => [option.name, option]))(
-    "%s keeps white chip text at 4.5:1 in light and dark",
+  it.each(EVENT_COLOR_OPTIONS.map((option) => [option.name, option]))(
+    "%s title ink reaches 4.5:1 in light, dark, and hover",
     (_name, option) => {
-      const light = contrast_ratio(CHIP_TEXT_COLOR, option.fill);
-      const dark = contrast_ratio(CHIP_TEXT_COLOR, option.dark_fill);
+      const ink = ink_on_fill(option.token);
 
-      expect(light).not.toBeNull();
-      expect(dark).not.toBeNull();
-      expect(light ?? 0).toBeGreaterThanOrEqual(WCAG_AA_TEXT_RATIO);
-      expect(dark ?? 0).toBeGreaterThanOrEqual(WCAG_AA_TEXT_RATIO);
+      expect([READABLE_INK_LIGHT, READABLE_INK_DARK]).toContain(ink);
+      expect(ink).toBe(option.ink);
+      expect(build_event_block_style(option.hex).color).toBe(ink);
+
+      for (const fill of [
+        option.fill,
+        option.dark_fill,
+        hover_fill(option.fill),
+      ]) {
+        expect(contrast_ratio(ink, fill) ?? 0).toBeGreaterThanOrEqual(
+          WCAG_AA_TEXT_RATIO,
+        );
+      }
+    },
+  );
+
+  it("uses dark ink on yellow and orange", () => {
+    expect(ink_on_fill("var(--cal_color_yellow)")).toBe(READABLE_INK_DARK);
+    expect(ink_on_fill("var(--cal_color_orange)")).toBe(READABLE_INK_DARK);
+  });
+
+  it.each(LEGACY_TOKEN_NAMES)(
+    "earlier token %s resolves to a swatch ink that reaches 4.5:1",
+    (name) => {
+      const token = `var(--cal_color_${name})`;
+      const style = build_event_block_style(token);
+      const option = find_event_color_option(token);
+
+      expect(option).not.toBeNull();
+      expect(EVENT_COLOR_OPTIONS).toContain(option);
+      expect(style["--cal_color"]).toBe(token);
+      expect(style.color).toBe(option?.ink);
+      expect(
+        contrast_ratio(style.color ?? "", option?.fill ?? "") ?? 0,
+      ).toBeGreaterThanOrEqual(WCAG_AA_TEXT_RATIO);
     },
   );
 });

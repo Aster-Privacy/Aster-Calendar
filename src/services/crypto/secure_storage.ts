@@ -42,6 +42,7 @@ import { HASH_ALG } from "@/services/crypto/constants";
 import { stop_session_timeout } from "@/services/session_timeout_service";
 import { sync_client } from "@/services/sync_client";
 import { clear_external_key_cache } from "@/services/api/keys";
+import { clear_guest_key_pins } from "@/services/guest_key_pins";
 import { clear_csrf_cache } from "@/services/api/csrf";
 import { ignore_error } from "@/lib/ignore_error";
 import {
@@ -527,6 +528,7 @@ export async function wipe_all_storage(): Promise<void> {
 
   clear_key_manager_state();
   clear_external_key_cache();
+  clear_guest_key_pins();
   clear_csrf_cache();
 
   stop_session_timeout();
@@ -536,6 +538,10 @@ export async function wipe_all_storage(): Promise<void> {
     const { Capacitor } = await import("@capacitor/core");
 
     if (Capacitor.isNativePlatform()) {
+      const { native_token_store } =
+        await import("@/services/api/client/native_token_store");
+
+      await native_token_store.clear_all();
       const { Preferences } = await import("@capacitor/preferences");
 
       await Preferences.clear();
