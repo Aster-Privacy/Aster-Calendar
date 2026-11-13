@@ -245,4 +245,59 @@ describe("carry_vault_through_reset", () => {
       expect(carried.legacy_identity_keys).toContain(stranger);
     },
   );
+
+  it(
+    "marks the storage key as random only when it really is",
+    LONG_TEST,
+    async () => {
+      const base: EncryptedVault = {
+        identity_key: await identity_for(OLD_PASSWORD),
+        signed_prekey: "old-spk",
+        signed_prekey_private: "old-spk-private",
+        recovery_codes: [],
+        data_kek: array_to_base64(crypto.getRandomValues(new Uint8Array(32))),
+        vault_format: MASTER_KEY_VAULT_FORMAT,
+      };
+      const rekey = {
+        started_at: "2026-11-01T00:00:00.000Z",
+        prior_keys: ["prior-key"],
+      } as unknown as NonNullable<EncryptedVault["storage_rekey"]>;
+      const fresh = {
+        ...(await fresh_vault_for(NEW_PASSWORD)),
+        data_kek_random: true,
+      };
+
+      const kept_random = await carry_vault_through_reset(
+        { ...base, data_kek_random: true, storage_rekey: rekey },
+        OLD_PASSWORD,
+        fresh,
+        NEW_PASSWORD,
+      );
+
+      expect(kept_random.data_kek).toBe(base.data_kek);
+      expect(kept_random.data_kek_random).toBe(true);
+      expect(kept_random.storage_rekey).toEqual(rekey);
+
+      const kept_derived = await carry_vault_through_reset(
+        base,
+        OLD_PASSWORD,
+        fresh,
+        NEW_PASSWORD,
+      );
+
+      expect(kept_derived.data_kek).toBe(base.data_kek);
+      expect(kept_derived.data_kek_random).toBeUndefined();
+      expect(kept_derived.storage_rekey).toBeUndefined();
+
+      const replaced = await carry_vault_through_reset(
+        { ...base, data_kek: undefined, vault_format: 1 },
+        OLD_PASSWORD,
+        fresh,
+        NEW_PASSWORD,
+      );
+
+      expect(replaced.data_kek).toBe(fresh.data_kek);
+      expect(replaced.data_kek_random).toBe(true);
+    },
+  );
 });

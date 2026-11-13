@@ -88,6 +88,9 @@ export function detect_client_platform(): string {
 
 export const CLIENT_PLATFORM_HEADER = detect_client_platform();
 
+export const VAULT_LEVEL_HEADER = "X-Aster-Vault-Level";
+export const CLIENT_VAULT_LEVEL = "2";
+
 export function is_local_hostname(): boolean {
   if (typeof window === "undefined") return false;
   const host = window.location?.hostname || "";

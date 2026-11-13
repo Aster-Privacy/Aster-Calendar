@@ -31,6 +31,7 @@ import {
 import {
   encrypt_message,
   decrypt_message_verified_with_any_key,
+  derive_public_keys_from_private,
   has_usable_signing_key,
   reprotect_pgp_key,
   type sender_signing_key,
@@ -104,6 +105,7 @@ export async function generate_shared_mailbox_material(
     signed_prekey_private: signed_prekey.secret_key,
     recovery_codes: [],
     data_kek: array_to_base64(master_key),
+    data_kek_random: true,
     vault_format: MASTER_KEY_VAULT_FORMAT,
     mk_created_at: new Date().toISOString(),
   };
@@ -149,6 +151,22 @@ export function get_grant_signing_keys(): sender_signing_key[] {
   return [vault.identity_key, ...(vault.previous_keys ?? [])].map(
     (armored_secret_key) => ({ armored_secret_key, passphrase }),
   );
+}
+
+export async function get_own_grant_public_key(): Promise<string> {
+  const vault = get_vault_from_memory();
+
+  if (!vault?.identity_key) {
+    throw new Error("your account must be unlocked to manage shared mailboxes");
+  }
+
+  const [public_key] = await derive_public_keys_from_private([
+    vault.identity_key,
+  ]);
+
+  if (!public_key) throw new Error("own public key unavailable");
+
+  return public_key;
 }
 
 export async function fetch_member_public_key(
@@ -262,6 +280,7 @@ export async function generate_rotated_credential(
 
   const rotated_vault: EncryptedVault = {
     ...vault_data,
+    identity_rotation_pending: true,
     identity_key: await reprotect_pgp_key(
       vault_data.identity_key,
       old_login_secret,

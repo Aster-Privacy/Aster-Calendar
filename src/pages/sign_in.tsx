@@ -46,6 +46,7 @@ import {
   timing_safe_delay,
   clamp_password,
 } from "@/services/sanitize";
+import { try_password_forms } from "@/services/sign_in_password_forms";
 import { EyeIcon, EyeSlashIcon } from "@/components/auth/auth_styles";
 import {
   TurnstileWidget,
@@ -80,7 +81,7 @@ import { ignore_error } from "@/lib/ignore_error";
 import { set_post_switch_path } from "@/lib/post_switch_path";
 import { user_facing_error } from "@/utils/user_facing_error";
 import { is_crypto_module_load_error } from "@/services/crypto/openpgp_loader";
-import { is_auth_salt_collision } from "@/services/crypto/auth_salt_guard";
+import { login_safety_error_key } from "@/services/crypto/auth_salt_guard";
 import { api_client } from "@/services/api/client";
 import { same_address_ignoring_dots } from "@/utils/address_dots";
 import { DatedCalendarLogo } from "@/components/calendar/dated_calendar_logo";
@@ -396,6 +397,7 @@ export default function SignInPage() {
       let response: Awaited<ReturnType<typeof login_user>> | null = null;
       let attempt_token = captcha_token;
       let captcha_refresh_failed = false;
+      let signed_in_password = password;
       let skipped_domain_probe = false;
       const is_native_client = declared_native_platform() !== null;
 
@@ -432,24 +434,43 @@ export default function SignInPage() {
           return;
         }
 
-        const salt = base64_to_array(salt_response.data.salt);
-        const password_hash = await derive_sign_in_proof(
+        const salt_data = salt_response.data;
+        const salt = base64_to_array(salt_data.salt);
+        const outcome = await try_password_forms(
           password,
-          salt,
-          salt_response.data.kdf_version,
-          user_hash,
+          async (form) => {
+            const password_hash = await derive_sign_in_proof(
+              form,
+              salt,
+              salt_data.kdf_version,
+              user_hash,
+              salt_data,
+            );
+
+            set_status(t("auth.verifying_credentials"));
+            const result = await login_user({
+              user_hash,
+              password_hash,
+              remember_me,
+              captcha_token: attempt_token || undefined,
+              client_platform: import.meta.env.DEV ? "desktop" : undefined,
+              is_adding_account,
+            });
+
+            if (result.error) clear_pending_login_enrollment();
+
+            return result;
+          },
+          async () => {
+            if (!TURNSTILE_SITE_KEY) return true;
+            attempt_token = (await turnstile_ref.current?.refresh()) || "";
+
+            return attempt_token !== "";
+          },
         );
 
-        set_status(t("auth.verifying_credentials"));
-        response = await login_user({
-          user_hash,
-          password_hash,
-          remember_me,
-          captcha_token: attempt_token || undefined,
-          client_platform: import.meta.env.DEV ? "desktop" : undefined,
-          is_adding_account,
-        });
-        if (response.error) clear_pending_login_enrollment();
+        response = outcome.response;
+        signed_in_password = outcome.password;
 
         const remaining_candidates = index < candidates.length - 1;
         const has_more = remaining_candidates && !is_native_client;
@@ -549,6 +570,7 @@ export default function SignInPage() {
         } else {
           set_active_2fa_method("totp");
         }
+        if (signed_in_password !== password) set_password(signed_in_password);
         set_totp_required(true);
         set_is_loading(false);
 
@@ -559,7 +581,7 @@ export default function SignInPage() {
       const vault = await decrypt_vault(
         response.data.encrypted_vault,
         response.data.vault_nonce,
-        password,
+        signed_in_password,
       );
 
       set_status(t("auth.getting_user_info"));
@@ -608,7 +630,7 @@ export default function SignInPage() {
           add_account(
             login_user_data,
             vault,
-            password,
+            signed_in_password,
             response.data.encrypted_vault,
             response.data.vault_nonce,
             remember_me,
@@ -628,7 +650,7 @@ export default function SignInPage() {
           login(
             login_user_data,
             vault,
-            password,
+            signed_in_password,
             response.data.encrypted_vault,
             response.data.vault_nonce,
             remember_me,
@@ -655,10 +677,12 @@ export default function SignInPage() {
       if (elapsed < min_time) {
         await new Promise((resolve) => setTimeout(resolve, min_time - elapsed));
       }
-      if (is_auth_salt_collision(err)) {
+      const safety_key = login_safety_error_key(err);
+
+      if (safety_key) {
         api_client.allow_shared_session_end();
         void api_client.clear_session_cookies();
-        set_error(t("errors.auth_salt_collision"));
+        set_error(t(safety_key));
       } else if (is_crypto_module_load_error(err)) {
         set_error(t("errors.crypto_module_unavailable"));
       } else if (err instanceof Error && err.message.includes("decrypt")) {

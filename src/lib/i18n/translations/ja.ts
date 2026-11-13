@@ -1129,7 +1129,7 @@ export const ja = {
       "設定では、エイリアスの追加、独自ドメインの接続、2ファクタ認証の有効化ができます。",
     youre_ready: "準備完了",
     youre_ready_description:
-      "メールはエンドツーエンドで暗号化され、鍵はあなただけが持っています。? を押すと、いつでもすべてのキーボードショートカットを確認できます。",
+      "メールは暗号化して保存され、鍵はあなただけが持っています。? を押すと、いつでもすべてのキーボードショートカットを確認できます。",
     skip_tour: "ツアーをスキップ",
     get_started: "はじめる",
     step: "ステップ",
@@ -2039,6 +2039,10 @@ export const ja = {
     zip_archive: "ZIP アーカイブ",
   },
   settings: {
+    sandbox_off_by_setting_notice:
+      "環境変数によって無効にされているため、このウインドウはサンドボックスなしで動作しています。",
+    sandbox_off_notice:
+      "このウインドウはサンドボックスなしで動作しています。サンドボックスを有効にするには、bubblewrap をインストールしてから Aster Calendar を再起動してください。",
     billing_lifetime_note:
       "このプランは更新されず、今後お支払いは発生しません。変更するには、Aster サポートにお問い合わせください。",
     billing_status_lifetime: "永久",
@@ -2204,7 +2208,7 @@ export const ja = {
       "各メンバーが自分専用の @astermail.org アドレスを取得",
     fam_welcome_step1_point2:
       "完全なプライバシー - メンバー同士のメールは見えません",
-    fam_welcome_step1_point3: "すべてのアカウントに量子耐性の暗号化",
+    fam_welcome_step1_point3: "Aster アカウント間の耐量子暗号化",
     fam_welcome_step2_title: "1つのストレージプールを自由に管理",
     fam_welcome_step2_desc:
       "プランには共有ストレージプールが含まれます。各メンバーへの割り当てを決めて、いつでも調整できます。",
@@ -2564,7 +2568,7 @@ export const ja = {
     invite_title_named: "{{ name }} さんが Aster Mail に招待しました",
     invite_title_generic: "Aster Mail に招待されました",
     invite_subtitle:
-      "Aster Mail はゼロアクセス、エンドツーエンド暗号化のメールサービスです。あなた以外は受信箱を読むことができません。私たちにも読めません。",
+      "Aster Mail はゼロアクセス、エンドツーエンド暗号化のメールサービスです。メールは、あなただけが持つ鍵で暗号化して保存されます。",
     invite_discount_line:
       "今すぐ登録すると、最初のプランが {{ percent }}% オフになります。",
     invite_benefits_heading: "得られるもの",
@@ -4540,6 +4544,8 @@ export const ja = {
     "connection.status_connecting": "接続中...",
     "connection.status_error": "接続が切れたため、自動的に再試行しています。",
     "connection.status_disconnected": "切断済み",
+    "connection.tor_unavailable_fallback":
+      "Aster Mail では Tor を利用できないため、現在は直接接続しています。Tor を使うには、Tor Browser で Aster Mail を開いてください。",
     "connection.tor_blocked":
       "Tor が無効になっており、トラフィックの漏洩を防ぐためこのリクエストをブロックしました。Tor を有効にすると通ります。",
     "connection.tor_blocked_connecting":
@@ -4652,7 +4658,7 @@ export const ja = {
       "公開キーサーバーでキーを検索可能にします",
     info_forward_secrecy_title: "前方秘匿性とは？",
     info_forward_secrecy_description:
-      "セッション鍵は自動的にローテーションされます。今日誰かが秘密鍵を入手しても、各セッションが異なる鍵を使用していたため過去のメッセージは読めません。",
+      "暗号化鍵はスケジュールに従って自動的にローテーションされるため、1つの鍵が漏えいしても解読されるメールの範囲は限られます。すべてのデバイスでメールを読めるようにするため、アカウントにはアカウント鍵で暗号化されたメッセージのコピーも保存されます。そのため、パスワードを入手した人は過去のメールを読むことができます。",
     info_key_rotation_interval_title: "鍵ローテーション間隔",
     info_key_rotation_interval_description:
       "暗号化鍵が交換される頻度です。頻繁なほど安全ですが、オーバーヘッドが少し増えます。1週間はほとんどの人に適したデフォルトです。",
@@ -5020,7 +5026,7 @@ export const ja = {
       "すべての暗号化はデータがデバイスから送信される前にブラウザ内で行われます",
     zero_knowledge_storage: "ゼロ知識ストレージ",
     zero_knowledge_storage_description:
-      "私たちはあなたのデータを読むことができません。キーを持っているのはあなただけです。",
+      "私たちは保存されたあなたのデータを読むことができません。キーを持っているのはあなただけです。",
     email_content_attachments: "メール本文と添付ファイル",
     folder_names_structure: "フォルダ名と構造",
     drafts_signatures: "下書きと署名",
@@ -5217,7 +5223,7 @@ export const ja = {
     regenerate_codes_warning:
       "新しいコードを生成すると、現在のリカバリーコードはすぐに使えなくなります。このウィンドウを閉じる前に、新しいセットを安全な場所に保存しておくと安心です。",
     end_to_end_encrypted: "エンドツーエンド暗号化",
-    all_data_protected: "すべてのデータはゼロ知識暗号化で保護されています",
+    all_data_protected: "すべてのデータはゼロアクセス暗号化で保護されています",
     pgp_compatible: "PGP互換",
     pgp_compatible_description:
       "PGPを使用している誰にでも暗号化されたメールを送信できます。",
@@ -5311,6 +5317,13 @@ export const ja = {
     special_offer_fine_print_year:
       "最初の1年間は{{offer_price}}です。その後は、設定で解約するまで年額{{price}}で更新されます。",
     special_offer_billing_period: "請求期間",
+    special_offer_black_friday_title: "ブラックフライデー:{{months}}か月間{{percent}}%オフ",
+    special_offer_black_friday_body: "年間プラン、またはStar以外の月間プランを、最初の{{months}}か月間{{percent}}%オフでご利用いただけます。",
+    special_offer_ends_in: "終了まであと{{time}}",
+    special_offer_not_on_star_monthly: "Starの月間プランは対象外です",
+    special_offer_renews_at: "{{months}}か月後は{{price}}で更新されます",
+    special_offer_success_title_plan: "ありがとうございます。{{plan}}をご利用中です。",
+    special_offer_choose_plan: "プランを選択",
     plan_billing_terms:
       "サブスクリプションは、解約するまで通常価格で自動的に更新されます。設定からいつでも解約できます。",
     upgrade_offer_note: "{{percent}}%の割引は決済時に適用されます。",
@@ -7003,7 +7016,7 @@ export const ja = {
     rotate_keys_description_manual:
       "暗号化鍵をローテーションするにはパスワードを入力してください。過去のメールは引き続き読めます。",
     rotate_keys_description_required:
-      "暗号化鍵のローテーション時期です。パスワードを入力して新しい鍵を生成し、前方秘匿性を維持してください。",
+      "暗号化鍵のローテーション時期です。パスワードを入力して新しい鍵を生成してください。",
     rotating: "ローテーション中...",
     rotate_keys: "鍵をローテーション",
     key_rotation_data_loss_warning:
@@ -7035,6 +7048,10 @@ export const ja = {
     strip_exif_on_compose_label: "画像メタデータを削除",
     strip_exif_on_compose_description:
       "送信前に画像から EXIF などのメタデータを削除し、位置情報やデバイス情報を保護します",
+    error_reports_title: "エラーレポート",
+    send_error_reports_label: "エラーレポートを送信",
+    send_error_reports_description:
+      "問題が発生すると、Aster Mail はエラーコード、機能名、使用していたアプリの画面、アプリのバージョン、プラットフォームを含む短いレポートを送信します。レポートにメッセージ、連絡先、メールアドレス、パスワードが含まれることはありません。",
     account_protection_title: "アカウント保護",
     account_protection_weak: "弱い",
     account_protection_fair: "普通",
@@ -7766,7 +7783,7 @@ export const ja = {
       "ジャーナリストの方は、記者証を添えてサポートまでご連絡ください。",
     refer_a_friend: "友達を紹介",
     referral_email_body:
-      "こんにちは。\n\nしばらく Aster Mail を使っていますが、とても気に入っています。すべてがエンドツーエンドで暗号化されているので、あなた以外は誰もメールを読めません。運営者でさえ読めません。\n\n試してみたい場合は、こちらが私の招待リンクです。\n\n{{ referral_link }}\n\nあなたが使い始めると二人ともストレージが {{ amount }} 増えるので、あなたにもメリットがあります。\n\nそれでは",
+      "こんにちは。\n\nしばらく Aster Mail を使っていますが、とても気に入っています。メールはあなただけが持つ鍵で暗号化して保存されるので、運営者もメールボックスを読めません。\n\n試してみたい場合は、こちらが私の招待リンクです。\n\n{{ referral_link }}\n\nあなたが使い始めると二人ともストレージが {{ amount }} 増えるので、あなたにもメリットがあります。\n\nそれでは",
     referral_email_subject: "Aster を使ってみませんか",
     referral_how_it_works: "仕組み",
     referral_loading_contacts: "連絡先を読み込み中...",
@@ -8059,7 +8076,7 @@ export const ja = {
     browse_folder: "フォルダを選択",
     money_back_guarantee: "30 日間の返金保証",
     plan_every_plan_includes:
-      "すべてのプランに Aster Calendar、エンドツーエンド暗号化、ゼロ知識ストレージが含まれます。",
+      "すべてのプランに Aster Calendar、エンドツーエンド暗号化、ゼロアクセスストレージが含まれます。",
     cancel_anytime: "いつでも解約できます",
     billed_annually: "年額請求",
     save_annually_hint: "年額プランなら 20% お得",
@@ -8121,7 +8138,7 @@ export const ja = {
     referral_share_message_plain:
       "エンドツーエンドで暗号化されたメールとカレンダーのために Aster を使っています。私のリンクから参加してください。",
     referral_email_body_plain:
-      "こんにちは。\n\nしばらく Aster Mail を使っていますが、とても気に入っています。すべてがエンドツーエンドで暗号化されているので、あなた以外は誰もメールを読めません。運営者でさえ読めません。\n\n試してみたい場合は、こちらが私の招待リンクです。\n\n{{ referral_link }}\n\nそれでは",
+      "こんにちは。\n\nしばらく Aster Mail を使っていますが、とても気に入っています。メールはあなただけが持つ鍵で暗号化して保存されるので、運営者もメールボックスを読めません。\n\n試してみたい場合は、こちらが私の招待リンクです。\n\n{{ referral_link }}\n\nそれでは",
     referral_claim_window_closed:
       "このアカウントに招待コードを追加できる期間は終了しました。",
     referral_claim_already: "このアカウントにはすでに招待が登録されています。",
@@ -9794,9 +9811,14 @@ export const ja = {
     device_fingerprint: "確認コード",
     device_code_verify_toggle: "このデバイスを確認",
     link_device_fingerprint_hint:
-      "デスクトップアプリに確認コードが表示されている場合は、デバイスをリンクする前に、このコードと一致することを確認してください。",
+      "新しいデバイスに表示されている確認コードを入力してください。デスクトップアプリでは、「このデバイスを確認」を選択すると表示されます。",
+    link_device_fingerprint_placeholder: "XXXX XXXX XXXX XXXX XXXX",
+    link_device_fingerprint_incomplete:
+      "デバイスをリンクするには、新しいデバイスの確認コードをすべて入力してください。",
+    link_device_fingerprint_mismatch:
+      "このコードは新しいデバイスと一致しません。新しいデバイスのコードを確認して、もう一度入力してください。それでも一致しない場合は、「キャンセル」を選択してください。",
     device_code_fingerprint_hint:
-      "デバイスをリンクする前に、ブラウザにも同じ確認コードが表示されます。2つのコードが一致しない場合は、デバイスをリンクしないでください。",
+      "このデバイスをリンクするには、すでにサインインしているデバイスでこのコードを入力してください。",
     link_device_change_account: "アカウントを切り替える",
     link_device_choose_account: "アカウントを選択",
     link_device_choose_account_description: "デスクトップアプリを連携します",
@@ -9967,6 +9989,10 @@ export const ja = {
   errors: {
     auth_salt_collision:
       "サーバーが安全でない値を送信したため、サインインを中止しました。何もロック解除されていません。再試行する前にサポートに問い合わせてください。",
+    legacy_login_salt_new_device:
+      "アカウントのセキュリティ更新を完了するには、以前 Aster を使用したデバイスでサインインしてください。それができない場合は、リカバリーキーでパスワードをリセットしてください。",
+    legacy_login_salt_sign_in_again:
+      "アカウントのセキュリティ更新を完了するには、サインアウトしてからもう一度サインインしてください。",
     upload_too_large:
       "アップロードするデータが大きすぎます。続けるには、ファイルを削除するか小さくしてからやり直してください。",
     failed_remove_reaction:
@@ -10069,11 +10095,11 @@ export const ja = {
     invalid_unsubscribe_address:
       "この送信者の配信停止アドレスは形式に問題があるようです。メール本文内のリンクから、送信者のサイト上で配信停止することができます。",
     tor_unsupported_platform:
-      "Tor はこのプラットフォームでは利用できません。デスクトップ版またはモバイル版のアプリで接続を Tor 経由にすることができます。",
+      "Aster Mail では Tor を利用できません。Tor を使うには、Tor Browser で Aster Mail を開いてください。",
     tor_native_only:
-      "Tor はネイティブアプリでのみ利用できます。デスクトップ版またはモバイル版のアプリで利用することができます。",
+      "Aster Mail では Tor を利用できません。Tor を使うには、Tor Browser で Aster Mail を開いてください。",
     tor_plugin_missing:
-      "このデバイスには Tor モジュールがインストールされていません。アプリを再インストールするか、設定で直接接続に切り替えてください。",
+      "Aster Mail では Tor を利用できません。Tor を使うには、Tor Browser で Aster Mail を開いてください。",
     cdn_relay_misconfigured:
       "このビルドでは CDN リレーが設定されていません。設定で直接接続に切り替えてください。サポートが必要な場合は、hello@astermail.org までご連絡ください。",
     device_repair_required:
@@ -10154,6 +10180,8 @@ export const ja = {
       "受信者の暗号鍵が変更されたため、メッセージは送信されませんでした。送信するには、別の方法で相手に変更を確認してから、「新しい鍵を信頼」を選択してください。",
     key_trust_check_failed:
       "受信者の暗号鍵を確認できなかったため、メッセージは送信されませんでした。接続を確認して、もう一度お試しください。",
+    recipient_classification_unavailable:
+      "{{recipients}} への配信方法を確認できませんでした。接続を確認して、もう一度お試しください。",
     failed_send_external:
       "リンクした外部アカウントからこのメールを送信できませんでした。もう一度お試しください。下書きは保存されています。",
     failed_queue_email:

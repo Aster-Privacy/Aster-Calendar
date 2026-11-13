@@ -216,10 +216,11 @@ export interface ResetVaultResponse {
 
 export async function get_reset_vault(
   token: string,
+  current_password_hash?: string,
 ): Promise<ApiResponse<ResetVaultResponse>> {
   return api_client.post<ResetVaultResponse>(
     "/core/v1/recovery/reset-password/vault",
-    { token },
+    current_password_hash ? { token, current_password_hash } : { token },
   );
 }
 
@@ -230,10 +231,13 @@ export interface SaveRecoveryBackupOptions {
   encrypted_vault?: string;
   vault_nonce?: string;
   vault_format?: number;
+  expected_vault_sha256?: string;
 }
 
 export interface ResetSecondFactorStatus {
   address?: string;
+  password_salt?: string;
+  kdf_version?: number;
   required: boolean;
   verified: boolean;
   totp: boolean;

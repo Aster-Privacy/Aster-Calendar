@@ -47,6 +47,10 @@ import {
 import { clear_signed_out_account_caches } from "./signed_out_account_caches";
 
 import {
+  remember_saved_login_accounts,
+  seed_session_login_salt,
+} from "@/services/crypto/login_proof";
+import {
   init_desktop_device_auth,
   forget_device_account,
 } from "@/native/desktop_device_auth";
@@ -289,6 +293,8 @@ export function use_auth_account_state() {
     const init = async () => {
       try {
         const data = await initialize_accounts();
+
+        void remember_saved_login_accounts();
         const current = await get_current_account();
 
         if (!current) {
@@ -473,6 +479,9 @@ export function use_auth_account_state() {
             safe_log_error(e);
           });
           backfill_user_profile(user);
+          seed_session_login_salt(user.id, user.email).catch((caught) =>
+            ignore_error("contexts/auth/use_auth_account_state:init", caught),
+          );
           sync_shared_mailbox_grants()
             .then(async () => {
               const refreshed = await get_all_accounts();

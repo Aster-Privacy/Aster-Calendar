@@ -72,8 +72,27 @@ export async function carry_vault_through_reset(
     ),
   };
 
-  if (keeps_master_key && old_vault.mk_created_at) {
-    carried.mk_created_at = old_vault.mk_created_at;
+  delete carried.storage_rekey;
+
+  if (keeps_master_key) {
+    if (old_vault.data_kek_random === true) {
+      carried.data_kek_random = true;
+    } else {
+      delete carried.data_kek_random;
+    }
+
+    if (old_vault.mk_created_at) {
+      carried.mk_created_at = old_vault.mk_created_at;
+    }
+
+    if (old_vault.storage_rekey) {
+      carried.storage_rekey = {
+        ...old_vault.storage_rekey,
+        prior_keys: old_vault.storage_rekey.prior_keys
+          ? [...old_vault.storage_rekey.prior_keys]
+          : undefined,
+      };
+    }
   }
 
   if (old_vault.escrow_seed && !fresh_vault.escrow_seed) {

@@ -3413,6 +3413,8 @@ export interface CommonTranslations {
 }
 
 export interface SettingsTranslations {
+  sandbox_off_by_setting_notice: string;
+  sandbox_off_notice: string;
   billing_lifetime_note: string;
   billing_status_lifetime: string;
   custom_theme_role_sidebar: string;
@@ -4290,6 +4292,9 @@ export interface SettingsTranslations {
   block_remote_css_description: string;
   strip_exif_on_compose_label: string;
   strip_exif_on_compose_description: string;
+  error_reports_title: string;
+  send_error_reports_label: string;
+  send_error_reports_description: string;
   account_protection_title: string;
   account_protection_weak: string;
   account_protection_fair: string;
@@ -5776,6 +5781,7 @@ export interface SettingsTranslations {
   "connection.status_connecting": string;
   "connection.status_error": string;
   "connection.status_disconnected": string;
+  "connection.tor_unavailable_fallback": string;
   "connection.tor_blocked": string;
   "connection.tor_blocked_connecting": string;
   "connection.requires_native_app": string;
@@ -6553,6 +6559,13 @@ export interface SettingsTranslations {
   special_offer_hero_duration_year: string;
   special_offer_fine_print_year: string;
   special_offer_billing_period: string;
+  special_offer_black_friday_title: string;
+  special_offer_black_friday_body: string;
+  special_offer_ends_in: string;
+  special_offer_not_on_star_monthly: string;
+  special_offer_renews_at: string;
+  special_offer_success_title_plan: string;
+  special_offer_choose_plan: string;
   plan_billing_terms: string;
   upgrade_offer_note: string;
   dns_records_for_domain: string;
@@ -9402,6 +9415,9 @@ export interface AuthTranslations {
   device_fingerprint: string;
   device_code_verify_toggle: string;
   link_device_fingerprint_hint: string;
+  link_device_fingerprint_placeholder: string;
+  link_device_fingerprint_incomplete: string;
+  link_device_fingerprint_mismatch: string;
   device_code_fingerprint_hint: string;
   link_device_change_account: string;
   link_device_choose_account: string;
@@ -9762,6 +9778,8 @@ export interface AuthTranslations {
 export interface ErrorTranslations {
   crypto_module_unavailable: string;
   auth_salt_collision: string;
+  legacy_login_salt_new_device: string;
+  legacy_login_salt_sign_in_again: string;
   upload_too_large: string;
   post_quantum_unavailable: string;
   generic: string;
@@ -9845,6 +9863,7 @@ export interface ErrorTranslations {
   message_password_too_weak: string;
   recipient_key_untrusted: string;
   key_trust_check_failed: string;
+  recipient_classification_unavailable: string;
   failed_send_external: string;
   failed_queue_email: string;
   no_active_account: string;

@@ -56,6 +56,7 @@ import {
 } from "@/components/common/pending_deletion_dialog";
 import { DesktopPairGate } from "@/components/common/desktop_pair_gate";
 import { UpdateBanner } from "@/components/updates/update_banner";
+import { SandboxNotice } from "@/components/desktop/sandbox_notice";
 import { ActionToast } from "@/components/toast/action_toast";
 import { SimpleToast } from "@/components/toast/simple_toast";
 import {
@@ -455,6 +456,7 @@ function App() {
       <PendingDeletionDialog />
       <Family2faDialog />
       <UpdateBanner />
+      <SandboxNotice />
       <ErrorBoundary>
         <DesktopPairGate>
           <Suspense fallback={<FullPageLoader />}>

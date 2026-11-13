@@ -28,7 +28,9 @@ import {
 } from "./ratchet_keys";
 
 export const ENVELOPE_CAPABILITY_MAX_MARKER = 4;
-export const ENVELOPE_CAPABILITY_X3DH_MAX_VERSION = 2;
+export const ENVELOPE_CAPABILITY_X3DH_MAX_VERSION = 3;
+export const ENVELOPE_CAPABILITY_X3DH_ONE_TIME_VERSION = 4;
+export const ENVELOPE_CAPABILITY_BOUND_VERSION = 1;
 export const ENVELOPE_CAPABILITY_REPORT_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 const ML_KEM_768_PUBLIC_KEY_LENGTH = 1184;
 
@@ -55,10 +57,12 @@ export interface EnvelopeCapabilityDeps {
     identity_fingerprint: string | null,
     pq_identity_fingerprint: string | null,
     x3dh_max_version: number,
+    bound_envelope_version: number,
   ) => Promise<EnvelopeCapabilityResult | null>;
   platform: () => string;
   identity_fingerprint: () => Promise<string | null>;
   pq_identity_fingerprint: () => Promise<string | null>;
+  one_time_prekeys_readable?: () => Promise<boolean>;
 }
 
 function browser_read(key: string): string | null {
@@ -104,6 +108,7 @@ async function post_capability(
   identity_fingerprint: string | null,
   pq_identity_fingerprint: string | null,
   x3dh_max_version: number,
+  bound_envelope_version: number,
 ): Promise<EnvelopeCapabilityResult | null> {
   const response = await api_client.post<EnvelopeCapabilityResult>(
     "/crypto/v1/ratchet/envelope-capability",
@@ -114,6 +119,7 @@ async function post_capability(
       identity_fingerprint,
       pq_identity_fingerprint,
       x3dh_max_version,
+      bound_envelope_version,
     },
   );
 
@@ -170,6 +176,28 @@ async function current_pq_identity_fingerprint(): Promise<string | null> {
   }
 }
 
+async function current_one_time_prekeys_readable(): Promise<boolean> {
+  try {
+    const { ec_one_time_storage_available } = await import("./ec_prekey_store");
+
+    return await ec_one_time_storage_available();
+  } catch {
+    return false;
+  }
+}
+
+export async function resolve_reported_x3dh_version(
+  one_time_prekeys_readable?: () => Promise<boolean>,
+): Promise<number> {
+  if (!one_time_prekeys_readable) return ENVELOPE_CAPABILITY_X3DH_MAX_VERSION;
+
+  const readable = await one_time_prekeys_readable().catch(() => false);
+
+  return readable === true
+    ? ENVELOPE_CAPABILITY_X3DH_ONE_TIME_VERSION
+    : ENVELOPE_CAPABILITY_X3DH_MAX_VERSION;
+}
+
 const default_deps: EnvelopeCapabilityDeps = {
   now: () => Date.now(),
   new_client_id: random_client_id,
@@ -179,6 +207,7 @@ const default_deps: EnvelopeCapabilityDeps = {
   platform: current_platform,
   identity_fingerprint: current_identity_fingerprint,
   pq_identity_fingerprint: current_pq_identity_fingerprint,
+  one_time_prekeys_readable: current_one_time_prekeys_readable,
 };
 
 export async function report_envelope_capability_if_due(
@@ -201,9 +230,13 @@ export async function report_envelope_capability_if_due(
     (await deps.identity_fingerprint().catch(() => null)) ?? "";
   const pq_fingerprint =
     (await deps.pq_identity_fingerprint().catch(() => null)) ?? "";
-  const [last_at, last_fingerprint = "", last_pq_fingerprint = ""] = (
-    deps.read(LAST_REPORTED_PREFIX + user_id) ?? ""
-  ).split("|");
+  const bound_marker = String(ENVELOPE_CAPABILITY_BOUND_VERSION);
+  const [
+    last_at,
+    last_fingerprint = "",
+    last_pq_fingerprint = "",
+    last_bound = "",
+  ] = (deps.read(LAST_REPORTED_PREFIX + user_id) ?? "").split("|");
   const last = Number(last_at);
   const elapsed = now - last;
 
@@ -211,6 +244,7 @@ export async function report_envelope_capability_if_due(
     !force &&
     fingerprint === last_fingerprint &&
     pq_fingerprint === last_pq_fingerprint &&
+    bound_marker === last_bound &&
     Number.isFinite(last) &&
     last > 0 &&
     elapsed >= 0 &&
@@ -226,6 +260,10 @@ export async function report_envelope_capability_if_due(
     write(CLIENT_ID_KEY, client_id);
   }
 
+  const reported_x3dh_version = await resolve_reported_x3dh_version(
+    deps.one_time_prekeys_readable,
+  );
+
   const result = await deps
     .post(
       client_id,
@@ -233,14 +271,15 @@ export async function report_envelope_capability_if_due(
       deps.platform(),
       fingerprint || null,
       pq_fingerprint || null,
-      ENVELOPE_CAPABILITY_X3DH_MAX_VERSION,
+      reported_x3dh_version,
+      ENVELOPE_CAPABILITY_BOUND_VERSION,
     )
     .catch(() => null);
 
   if (result?.success) {
     write(
       LAST_REPORTED_PREFIX + user_id,
-      `${now}|${fingerprint}|${pq_fingerprint}`,
+      `${now}|${fingerprint}|${pq_fingerprint}|${bound_marker}`,
     );
   }
 

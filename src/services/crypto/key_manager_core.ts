@@ -148,6 +148,16 @@ export interface EncryptedVault {
   vault_format?: number;
   kdf_version?: number;
   mk_created_at?: string;
+  data_kek_random?: boolean;
+  storage_rekey?: StorageRekeyState;
+  identity_rotation_pending?: boolean;
+}
+
+export interface StorageRekeyState {
+  state: "pending" | "done";
+  started_at?: string;
+  done_at?: string;
+  prior_keys?: string[];
 }
 
 export interface VaultEncryptionResult {

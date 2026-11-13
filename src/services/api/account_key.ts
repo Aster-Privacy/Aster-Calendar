@@ -82,6 +82,8 @@ export interface AccountKeyCapabilities {
   data_conversion: boolean;
   device_recovery: boolean;
   key_escrow: boolean;
+  bound_vault_writes: boolean;
+  bound_attachment_writes: boolean;
 }
 
 const CAPABILITIES_TTL_MS = 5 * 60 * 1000;
@@ -90,6 +92,8 @@ const CAPABILITIES_DISABLED: AccountKeyCapabilities = {
   data_conversion: false,
   device_recovery: false,
   key_escrow: false,
+  bound_vault_writes: false,
+  bound_attachment_writes: false,
 };
 
 let capabilities_cache: {
@@ -108,6 +112,12 @@ export function account_key_capabilities_known(): boolean {
   );
 }
 
+export function peek_account_key_capabilities(): AccountKeyCapabilities {
+  return capabilities_cache && account_key_capabilities_known()
+    ? capabilities_cache.value
+    : CAPABILITIES_DISABLED;
+}
+
 export async function get_account_key_capabilities(): Promise<AccountKeyCapabilities> {
   if (
     capabilities_cache &&
@@ -122,6 +132,8 @@ export async function get_account_key_capabilities(): Promise<AccountKeyCapabili
       data_conversion?: unknown;
       device_recovery?: unknown;
       key_escrow?: unknown;
+      bound_vault_writes?: unknown;
+      bound_attachment_writes?: unknown;
     }>("/crypto/v1/keys/account-key/capabilities");
     const format_writes =
       !response.error && response.data?.format_writes === true;
@@ -131,6 +143,10 @@ export async function get_account_key_capabilities(): Promise<AccountKeyCapabili
       device_recovery:
         !response.error && response.data?.device_recovery === true,
       key_escrow: !response.error && response.data?.key_escrow === true,
+      bound_vault_writes:
+        !response.error && response.data?.bound_vault_writes === true,
+      bound_attachment_writes:
+        !response.error && response.data?.bound_attachment_writes === true,
     };
 
     capabilities_cache = { value, fetched_at: Date.now() };

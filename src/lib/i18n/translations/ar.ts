@@ -1045,7 +1045,7 @@ export const ar = {
       "من الإعدادات تضيف اسمًا مستعارًا، وتربط نطاقًا مخصصًا، وتفعّل المصادقة الثنائية.",
     youre_ready: "أنت جاهز",
     youre_ready_description:
-      "بريدك مشفّر من طرف إلى طرف، والمفاتيح لديك وحدك. اضغط ؟ في أي وقت لعرض جميع اختصارات لوحة المفاتيح.",
+      "بريدك يُخزَّن مشفّرًا، والمفاتيح لديك وحدك. اضغط ؟ في أي وقت لعرض جميع اختصارات لوحة المفاتيح.",
     skip_tour: "تخطي الجولة",
     get_started: "ابدأ الآن",
     step: "خطوة",
@@ -2188,6 +2188,10 @@ export const ar = {
     zip_archive: "أرشيف ZIP",
   },
   settings: {
+    sandbox_off_by_setting_notice:
+      "تعمل هذه النافذة بدون وضع الحماية لأن متغير بيئة أوقفه.",
+    sandbox_off_notice:
+      "تعمل هذه النافذة بدون وضع الحماية. لتشغيل وضع الحماية، ثبّت bubblewrap ثم أعد تشغيل Aster Calendar.",
     billing_lifetime_note:
       "لا تتجدد هذه الخطة أبدًا، ولا تدفع مقابلها مرة أخرى. لتغييرها، تواصل مع دعم Aster.",
     billing_status_lifetime: "مدى الحياة",
@@ -2325,7 +2329,7 @@ export const ar = {
     fam_welcome_step1_point1: "يحصل كل عضو على عنوان @astermail.org خاص به",
     fam_welcome_step1_point2:
       "خصوصية كاملة - لا يمكن للأعضاء رؤية رسائل بعضهم البعض",
-    fam_welcome_step1_point3: "تشفير مقاوم للحوسبة الكمومية على كل حساب",
+    fam_welcome_step1_point3: "تشفير مقاوم للحوسبة الكمومية بين حسابات Aster",
     fam_welcome_step2_title: "مساحة تخزين واحدة تحت تحكمك",
     fam_welcome_step2_desc:
       "تأتي خطتك مع مساحة تخزين مشتركة. حدد حصة كل عضو وعدّلها في أي وقت.",
@@ -2672,7 +2676,7 @@ export const ar = {
     invite_title_named: "دعاك {{ name }} إلى Aster Mail",
     invite_title_generic: "لقد تمت دعوتك إلى Aster Mail",
     invite_subtitle:
-      "Aster Mail بريد إلكتروني معدوم الوصول ومشفّر من طرف إلى طرف. لا يستطيع أحد غيرك قراءة بريدك الوارد، ولا نحن حتى.",
+      "Aster Mail بريد إلكتروني معدوم الوصول ومشفّر من طرف إلى طرف. نخزّن بريدك مشفّرًا بمفاتيح لا يملكها أحد سواك.",
     invite_discount_line:
       "سجّل الآن واحصل على خصم {{ percent }}% على باقتك الأولى.",
     invite_benefits_heading: "ما الذي ستحصل عليه",
@@ -4695,6 +4699,8 @@ export const ar = {
     "connection.status_error":
       "فقدنا الاتصال، ونحن نعيد المحاولة من تلقاء أنفسنا.",
     "connection.status_disconnected": "غير متصل",
+    "connection.tor_unavailable_fallback":
+      "Tor غير متاحة في Aster Mail، لذا أصبح اتصالك الآن مباشرًا. لاستخدام Tor، افتح Aster Mail في Tor Browser.",
     "connection.tor_blocked":
       "Tor متوقف، وقد حُجب هذا الطلب لمنع تسرّب تنقّلك. تفعيل Tor يتيح مروره.",
     "connection.tor_blocked_connecting":
@@ -4805,7 +4811,7 @@ export const ar = {
       "جعل مفاتيحك قابلة للعثور عليها في خوادم المفاتيح العامة",
     info_forward_secrecy_title: "ما هي السرية التامة؟",
     info_forward_secrecy_description:
-      "تتناوب مفاتيح جلستك تلقائياً. حتى لو حصل أحدهم على مفتاحك الخاص اليوم، لا يمكنه قراءة الرسائل القديمة لأن كل جلسة استخدمت مفتاحاً مختلفاً.",
+      "تتناوب مفاتيح التشفير الخاصة بك تلقائياً وفق جدول زمني، مما يحدّ من كمية البريد التي يمكن لمفتاح واحد مسرّب فتحها. وللحفاظ على إمكانية قراءة بريدك على جميع أجهزتك، يحتفظ حسابك أيضاً بنسخ من رسائلك مشفّرة بمفاتيح حسابك، لذا يمكن لأي شخص يحصل على كلمة المرور الخاصة بك أن يقرأ بريدك السابق.",
     info_key_rotation_interval_title: "فترة تدوير المفاتيح",
     info_key_rotation_interval_description:
       "مدى تكرار استبدال مفتاح التشفير. كلما كان أكثر تكراراً كان أكثر أماناً مع حمل إضافي بسيط. أسبوع هو افتراضي جيد لمعظم الأشخاص.",
@@ -5154,7 +5160,7 @@ export const ar = {
       "يتم كل التشفير في متصفحك قبل مغادرة البيانات لجهازك",
     zero_knowledge_storage: "تخزين صفري المعرفة",
     zero_knowledge_storage_description:
-      "لا يمكننا قراءة بياناتك. أنت وحدك من يملك المفاتيح.",
+      "لا يمكننا قراءة بياناتك المخزَّنة. أنت وحدك من يملك المفاتيح.",
     email_content_attachments: "محتوى البريد والمرفقات",
     folder_names_structure: "أسماء المجلدات والهيكل",
     drafts_signatures: "المسودات والتوقيعات",
@@ -5345,7 +5351,7 @@ export const ar = {
     regenerate_codes_warning:
       "رموز الاسترداد الحالية ستتوقف عن العمل بمجرد إنشاء مجموعة جديدة. حفظ المجموعة الجديدة في مكان آمن قبل إغلاق هذه النافذة يبقيك مغطّى. اكتب",
     end_to_end_encrypted: "مشفر من طرف إلى طرف",
-    all_data_protected: "جميع بياناتك محمية بتشفير صفري المعرفة",
+    all_data_protected: "جميع بياناتك محمية بتشفير معدوم الوصول",
     pgp_compatible: "متوافق مع PGP",
     pgp_compatible_description: "أرسل رسائل مشفرة لأي شخص يستخدم PGP.",
     emails_decrypted: "الرسائل المفككة التشفير",
@@ -5432,6 +5438,13 @@ export const ar = {
     special_offer_fine_print_year:
       "تدفع {{offer_price}} للسنة الأولى. بعد ذلك تُجدَّد خطتك بسعر {{price}} سنويًا حتى تلغيها من الإعدادات.",
     special_offer_billing_period: "فترة الفوترة",
+    special_offer_black_friday_title: "الجمعة السوداء: خصم {{percent}}% لمدة {{months}} شهرًا",
+    special_offer_black_friday_body: "احصل على خصم {{percent}}% على أي خطة سنوية، أو أي خطة شهرية باستثناء Star، خلال أول {{months}} شهرًا.",
+    special_offer_ends_in: "ينتهي خلال {{time}}",
+    special_offer_not_on_star_monthly: "غير متاح لخطة Star الشهرية",
+    special_offer_renews_at: "يتجدد بسعر {{price}} بعد {{months}} شهرًا",
+    special_offer_success_title_plan: "شكرًا لك. أصبحت مشتركًا في {{plan}}.",
+    special_offer_choose_plan: "اختر خطة",
     plan_billing_terms:
       "تُجدَّد الاشتراكات تلقائيًا بالسعر العادي حتى تلغيها. يمكنك الإلغاء في أي وقت من الإعدادات.",
     upgrade_offer_note: "يُطبَّق خصم {{percent}}% عند الدفع.",
@@ -7063,7 +7076,7 @@ export const ar = {
     rotate_keys_description_manual:
       "أدخل كلمة المرور لتدوير مفاتيح التشفير. ستظل الرسائل القديمة قابلة للقراءة.",
     rotate_keys_description_required:
-      "مفاتيح التشفير الخاصة بك حان موعد تدويرها. أدخل كلمة المرور لإنشاء مفاتيح جديدة والحفاظ على السرية الأمامية.",
+      "مفاتيح التشفير الخاصة بك حان موعد تدويرها. أدخل كلمة المرور لإنشاء مفاتيح جديدة.",
     rotating: "جارٍ التدوير...",
     rotate_keys: "تدوير المفاتيح",
     key_rotation_data_loss_warning:
@@ -7200,6 +7213,10 @@ export const ar = {
     strip_exif_on_compose_label: "إزالة بيانات الصورة",
     strip_exif_on_compose_description:
       "إزالة بيانات EXIF وغيرها من الصور قبل الإرسال لحماية موقعك ومعلومات جهازك",
+    error_reports_title: "تقارير الأخطاء",
+    send_error_reports_label: "إرسال تقارير الأخطاء",
+    send_error_reports_description:
+      "عند حدوث خطأ، يرسل Aster Mail تقريرًا قصيرًا يتضمن رمز الخطأ واسم الميزة وقسم التطبيق الذي كنت فيه وإصدار التطبيق ونظامك الأساسي. لا تتضمن التقارير أبدًا رسائلك أو جهات اتصالك أو عناوين بريدك الإلكتروني أو كلمات المرور.",
     account_protection_title: "حماية الحساب",
     account_protection_weak: "ضعيفة",
     account_protection_fair: "مقبولة",
@@ -7558,7 +7575,7 @@ export const ar = {
     send_referral_to_contacts: "إرسال بريد إلى جميع جهات الاتصال",
     referral_email_subject: "عليك تجربة Aster",
     referral_email_body:
-      "مرحبًا،\n\nأستخدم Aster Mail منذ فترة وأنا معجب به كثيرًا. كل شيء مشفّر من طرف إلى طرف، فلا أحد يستطيع قراءة رسائلك سواك، ولا حتى القائمون على الخدمة.\n\nإذا أردت تجربته، هذا رابط دعوتي:\n\n{{ referral_link }}\n\nنحصل كلانا على {{ amount }} من التخزين الإضافي بمجرد أن تبدأ باستخدامه، فلك نصيب من ذلك أيضًا.\n\nتحياتي",
+      "مرحبًا،\n\nأستخدم Aster Mail منذ فترة وأنا معجب به كثيرًا. يخزّن بريدك مشفّرًا بمفاتيح لا يملكها أحد سواك، فلا يستطيع القائمون على الخدمة قراءة صندوق بريدك.\n\nإذا أردت تجربته، هذا رابط دعوتي:\n\n{{ referral_link }}\n\nنحصل كلانا على {{ amount }} من التخزين الإضافي بمجرد أن تبدأ باستخدامه، فلك نصيب من ذلك أيضًا.\n\nتحياتي",
     referral_no_contacts:
       "لم يتم العثور على جهات اتصال. أضف بعض جهات الاتصال أولًا!",
     referral_loading_contacts: "جارٍ تحميل جهات الاتصال...",
@@ -7988,7 +8005,7 @@ export const ar = {
     browse_folder: "اختيار مجلد",
     money_back_guarantee: "ضمان استرداد المال خلال 30 يومًا",
     plan_every_plan_includes:
-      "تتضمن كل خطة Aster Calendar والتشفير التام بين الطرفين والتخزين بدون معرفة.",
+      "تتضمن كل خطة Aster Calendar والتشفير التام بين الطرفين والتخزين معدوم الوصول.",
     cancel_anytime: "يمكنك الإلغاء في أي وقت",
     billed_annually: "يُحاسب سنويًا",
     save_annually_hint: "وفّر 20% مع الاشتراك السنوي",
@@ -8050,7 +8067,7 @@ export const ar = {
     referral_share_message_plain:
       "أستخدم Aster للبريد والتقويم المشفّرين من طرف إلى طرف. انضم عبر رابطي.",
     referral_email_body_plain:
-      "مرحبًا،\n\nأستخدم Aster Mail منذ فترة وأنا معجب به كثيرًا. كل شيء مشفّر من طرف إلى طرف، فلا أحد يستطيع قراءة رسائلك سواك، ولا حتى القائمون على الخدمة.\n\nإذا أردت تجربته، هذا رابط دعوتي:\n\n{{ referral_link }}\n\nتحياتي",
+      "مرحبًا،\n\nأستخدم Aster Mail منذ فترة وأنا معجب به كثيرًا. يخزّن بريدك مشفّرًا بمفاتيح لا يملكها أحد سواك، فلا يستطيع القائمون على الخدمة قراءة صندوق بريدك.\n\nإذا أردت تجربته، هذا رابط دعوتي:\n\n{{ referral_link }}\n\nتحياتي",
     referral_claim_window_closed:
       "انتهت المدة المتاحة لإضافة رمز دعوة إلى هذا الحساب.",
     referral_claim_already: "هذا الحساب مرتبط بدعوة بالفعل.",
@@ -9807,9 +9824,14 @@ export const ar = {
     device_fingerprint: "رمز التحقق",
     device_code_verify_toggle: "التحقق من هذا الجهاز",
     link_device_fingerprint_hint:
-      "إذا عرض تطبيق سطح المكتب رمز تحقق، فتأكد من أنه يطابق هذا الرمز قبل ربط الجهاز.",
+      "أدخل رمز التحقق الذي يعرضه جهازك الجديد. في تطبيق سطح المكتب، اختر التحقق من هذا الجهاز لعرضه.",
+    link_device_fingerprint_placeholder: "XXXX XXXX XXXX XXXX XXXX",
+    link_device_fingerprint_incomplete:
+      "لربط الجهاز، أدخل رمز التحقق الكامل من جهازك الجديد.",
+    link_device_fingerprint_mismatch:
+      "هذا الرمز لا يطابق جهازك الجديد. تحقق من الرمز على جهازك الجديد وأدخله مرة أخرى. إذا ظل غير مطابق، فاختر إلغاء.",
     device_code_fingerprint_hint:
-      "يعرض متصفحك رمز التحقق نفسه قبل ربط الجهاز. إذا لم يتطابق الرمزان، فلا تربط الجهاز.",
+      "لربط هذا الجهاز، أدخل هذا الرمز على الجهاز الذي سجّلت الدخول عليه بالفعل.",
     link_device_change_account: "تغيير الحساب",
     link_device_choose_account: "اختر حسابًا",
     link_device_choose_account_description: "لربط تطبيق سطح المكتب",
@@ -9977,6 +9999,10 @@ export const ar = {
   errors: {
     auth_salt_collision:
       "توقف تسجيل الدخول لأن الخادم أرسل قيمة غير آمنة، لذلك لم يتم فتح أي شيء. تواصل مع الدعم قبل المحاولة مرة أخرى.",
+    legacy_login_salt_new_device:
+      "لإكمال تحديث أمني لحسابك، سجّل الدخول على جهاز استخدمته مع Aster من قبل. إذا تعذّر ذلك، فأعد تعيين كلمة المرور باستخدام مفتاح الاسترداد.",
+    legacy_login_salt_sign_in_again:
+      "لإكمال تحديث أمني لحسابك، سجّل الخروج ثم سجّل الدخول مرة أخرى.",
     upload_too_large:
       "حجم الملفات المرفوعة كبير جدا. للمتابعة، احذف ملفا أو صغّر حجمه ثم أعد المحاولة.",
     failed_remove_reaction: "تعذر إزالة التفاعل. يرجى المحاولة مرة أخرى.",
@@ -10068,11 +10094,11 @@ export const ar = {
     invalid_unsubscribe_address:
       "عنوان إلغاء الاشتراك من هذا المرسل يبدو غير سليم. يتيح الرابط داخل البريد نفسه إلغاء الاشتراك على موقع المرسل.",
     tor_unsupported_platform:
-      "Tor غير متاحة على هذه المنصة. يتيح تطبيق سطح المكتب أو الجوال توجيه اتصالك عبر Tor.",
+      "Tor غير متاحة في Aster Mail. لاستخدام Tor، افتح Aster Mail في Tor Browser.",
     tor_native_only:
-      "Tor متاحة فقط في التطبيق الأصلي. يتيح تطبيق سطح المكتب أو الجوال استخدامها.",
+      "Tor غير متاحة في Aster Mail. لاستخدام Tor، افتح Aster Mail في Tor Browser.",
     tor_plugin_missing:
-      "وحدة Tor غير مثبتة على هذا الجهاز. أعد تثبيت التطبيق أو انتقل إلى الاتصال المباشر من الإعدادات.",
+      "Tor غير متاحة في Aster Mail. لاستخدام Tor، افتح Aster Mail في Tor Browser.",
     cdn_relay_misconfigured:
       "مرحّل CDN غير مهيأ في هذا الإصدار. انتقل إلى الاتصال المباشر من الإعدادات. إذا احتجت إلى مساعدة، تواصل مع hello@astermail.org.",
     device_repair_required:
@@ -10145,6 +10171,8 @@ export const ar = {
       "تغير مفتاح تشفير أحد المستلمين، لذلك لم تُرسل الرسالة. لإرسالها، أكّد التغيير مع هذا الشخص بطريقة أخرى، ثم اختر الوثوق بالمفتاح الجديد.",
     key_trust_check_failed:
       "تعذر التحقق من مفاتيح تشفير المستلمين، لذلك لم تُرسل الرسالة. تحقق من اتصالك وحاول مرة أخرى.",
+    recipient_classification_unavailable:
+      "تعذر التأكد من طريقة التسليم إلى {{recipients}}. تحقق من اتصالك وحاول مرة أخرى.",
     failed_send_external:
       "لم تُرسل هذه الرسالة عبر حسابك الخارجي المرتبط. حاول مجددًا. مسوّدتك محفوظة.",
     failed_queue_email:

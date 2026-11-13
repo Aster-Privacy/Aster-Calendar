@@ -30,6 +30,10 @@ import {
 
 import { ignore_error } from "@/lib/ignore_error";
 import { get_active_translations } from "@/lib/i18n/translations";
+import {
+  assertion_verified_user,
+  seal_passphrase_with_prf,
+} from "@/services/crypto/passkey_prf_wrap";
 import { webauthn_available_here } from "@/lib/app_kind";
 
 async function get_prf_eval(): Promise<ArrayBuffer> {
@@ -313,13 +317,21 @@ async function setup_prf_passphrase(
 
   if (!credential) return;
 
+  const assertion = credential.response as AuthenticatorAssertionResponse;
+
+  if (!assertion_verified_user(assertion.authenticatorData)) return;
+
   const prf_output: ArrayBuffer | null =
     (credential.getClientExtensionResults() as any)?.prf?.results?.first ??
     null;
 
   if (!prf_output) return;
 
-  const enc = await encrypt_with_prf(prf_output, passphrase);
+  const enc = await seal_passphrase_with_prf(
+    prf_output,
+    passphrase,
+    new Uint8Array(credential.rawId),
+  );
 
   if (!enc) return;
 
@@ -327,50 +339,6 @@ async function setup_prf_passphrase(
     prf_encrypted_passphrase: enc.encrypted,
     prf_nonce: enc.nonce,
   });
-}
-
-async function encrypt_with_prf(
-  prf_output: ArrayBuffer,
-  passphrase: string,
-): Promise<{ encrypted: string; nonce: string } | null> {
-  try {
-    const key_material = await crypto.subtle.importKey(
-      "raw",
-      prf_output,
-      "HKDF",
-      false,
-      ["deriveKey"],
-    );
-    const key = await crypto.subtle.deriveKey(
-      {
-        name: "HKDF",
-        hash: "SHA-256",
-        salt: new TextEncoder().encode("aster-vault-passphrase-key-v1"),
-        info: new Uint8Array(0),
-      },
-      key_material,
-      { name: "AES-GCM", length: 256 },
-      false,
-      ["encrypt"],
-    );
-    const nonce = crypto.getRandomValues(new Uint8Array(12));
-    const encrypted = await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv: nonce },
-      key,
-      new TextEncoder().encode(passphrase),
-    );
-
-    return {
-      encrypted: btoa(
-        Array.from(new Uint8Array(encrypted), (b) =>
-          String.fromCharCode(b),
-        ).join(""),
-      ),
-      nonce: btoa(Array.from(nonce, (b) => String.fromCharCode(b)).join("")),
-    };
-  } catch {
-    return null;
-  }
 }
 
 export function is_passkey_supported(): boolean {

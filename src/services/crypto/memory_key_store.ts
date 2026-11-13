@@ -117,6 +117,25 @@ let session_expire_unsubscribe: (() => void) | null = null;
 let keys_ready_listeners: Set<() => void> = new Set();
 let keys_ready_seen = false;
 
+async function load_prior_storage_keys_into_memory(
+  prior_keys: string[] | undefined,
+): Promise<void> {
+  if (!prior_keys) return;
+
+  for (const encoded of prior_keys) {
+    let raw: Uint8Array;
+
+    try {
+      raw = base64_to_array(encoded);
+    } catch {
+      continue;
+    }
+
+    await append_legacy_key_raw_bytes(raw);
+    zero_uint8_array(raw);
+  }
+}
+
 export interface VaultClearedEvent {
   same_owner: boolean;
 }
@@ -467,12 +486,22 @@ export async function store_vault_in_memory(
     ratchet_regen_v4_done: vault.ratchet_regen_v4_done,
     legacy_keks: vault.legacy_keks ? [...vault.legacy_keks] : undefined,
     data_kek: vault.data_kek,
+    data_kek_random: vault.data_kek_random,
+    storage_rekey: vault.storage_rekey
+      ? {
+          ...vault.storage_rekey,
+          prior_keys: vault.storage_rekey.prior_keys
+            ? [...vault.storage_rekey.prior_keys]
+            : undefined,
+        }
+      : undefined,
     vault_format: vault.vault_format,
     kdf_version: vault.kdf_version,
     mk_created_at: vault.mk_created_at,
   };
 
   await load_legacy_keks_into_memory(vault.legacy_keks);
+  await load_prior_storage_keys_into_memory(vault.storage_rekey?.prior_keys);
   await load_previous_key_derived_keks_into_memory([
     ...(vault.previous_keys ?? []),
     ...(vault.legacy_identity_keys ?? []),
@@ -534,6 +563,7 @@ export async function store_vault_in_memory(
     }
     if (vault_in_memory && derived_encryption_key) {
       vault_in_memory.data_kek = array_to_base64(derived_encryption_key);
+      delete vault_in_memory.data_kek_random;
     }
   }
 
