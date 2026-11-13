@@ -76,6 +76,7 @@ import { get_display_time_zone } from "@/utils/date_format";
 import { is_booking_event } from "@/services/calendar/appointments";
 import { is_birthday_kind } from "@/services/calendar/birthdays";
 import { use_guarded_link } from "@/components/calendar/use_guarded_link";
+import { map_search_url, map_target } from "@/utils/map_link";
 import {
   safe_http_url,
   safe_http_url_from_input,
@@ -169,10 +170,6 @@ function is_address_like(value: string) {
   const trimmed = value.trim();
 
   return trimmed.length > 4 && (trimmed.includes(",") || /\d/.test(trimmed));
-}
-
-function maps_search_url(value: string) {
-  return `https://www.openstreetmap.org/search?query=${encodeURIComponent(value.trim())}`;
 }
 
 function find_scroll_parent(node: HTMLElement | null): HTMLElement | null {
@@ -718,8 +715,12 @@ export function EventDetailPopover({
   const location_href = location_is_link
     ? location_link
     : location_is_address
-      ? maps_search_url(location_value)
+      ? map_search_url(location_value)
       : undefined;
+  const map_label =
+    map_target() === "openstreetmap"
+      ? t("calendar.open_in_openstreetmap")
+      : t("calendar.open_in_maps");
   const has_more_actions =
     conference_url !== null || location_href !== undefined;
   const is_booking = is_booking_event(event);
@@ -849,7 +850,7 @@ export function EventDetailPopover({
                       )}
                       {location_is_link
                         ? t("calendar.detail_open_link")
-                        : t("calendar.open_in_openstreetmap")}
+                        : map_label}
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
@@ -923,7 +924,7 @@ export function EventDetailPopover({
                   title={
                     location_is_link
                       ? undefined
-                      : t("calendar.open_in_openstreetmap")
+                      : map_label
                   }
                   onAuxClick={guard_link_click}
                   onClick={guard_link_click}

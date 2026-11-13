@@ -27,11 +27,17 @@ export function open_external(url: string, features?: string): Window | null {
     const candidate = url.startsWith("//") ? `https:${url}` : url;
     const parsed = new URL(public_web_url(candidate));
 
-    if (!["http:", "https:", "mailto:"].includes(parsed.protocol)) {
+    if (!["http:", "https:", "mailto:", "geo:"].includes(parsed.protocol)) {
       return null;
     }
     normalized = parsed.href;
   } catch {
+    return null;
+  }
+
+  if (normalized.startsWith("geo:")) {
+    window.location.assign(normalized);
+
     return null;
   }
 
