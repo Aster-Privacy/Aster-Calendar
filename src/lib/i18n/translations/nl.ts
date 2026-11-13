@@ -9976,39 +9976,16 @@ export const nl = {
     device_code_waiting: "Wachten op bevestiging",
     device_code_expires_in: "Verloopt over",
     link_device_title: "Apparaat koppelen",
-    link_device_enter_code: "Voer de code in die op je desktop-app staat.",
-    link_device_code_placeholder: "XXXX-XXXX",
-    link_device_verify_button: "Doorgaan",
-    link_device_confirm_prompt: "Wil je dit apparaat koppelen aan je account?",
-    link_device_confirm_button: "Apparaat koppelen",
-    link_device_confirming: "Apparaat koppelen...",
     link_device_cancel: "Annuleren",
-    link_device_desktop: "Desktop-app",
-    device_fingerprint: "Verificatiecode",
-    device_code_verify_toggle: "Dit apparaat verifiëren",
-    link_device_fingerprint_hint:
-      "Als je desktop-app een verificatiecode toont, controleer dan of die overeenkomt met deze voordat je het apparaat koppelt.",
-    device_code_fingerprint_hint:
-      "Je browser toont dezelfde verificatiecode voordat je het apparaat koppelt. Als de twee codes niet overeenkomen, koppel het apparaat dan niet.",
-    link_device_change_account: "Account wijzigen",
+    device_fingerprint: "Apparaatvingerafdruk",
+    device_fingerprint_copy: "Apparaatvingerafdruk kopiëren",
+    device_code_fingerprint_required_hint:
+      "Je browser vraagt om deze apparaatvingerafdruk voordat het apparaat wordt gekoppeld.",
     link_device_choose_account: "Kies een account",
-    link_device_choose_account_description: "Om je desktop-app te koppelen",
-    link_device_choose_account_note:
-      "Je versleutelingssleutels blijven versleuteld terwijl ze tussen je apparaten worden overgedragen.",
-    link_device_use_another_account: "Een ander account gebruiken",
-    link_device_use_this_account: "Dit account gebruiken",
-    link_device_other_accounts: "Overschakelen naar een ander account",
     hub_accounts_or_password: "Of log in met je wachtwoord",
     hub_account_password_required: "Wachtwoord vereist",
     hub_account_link_failed:
       "Voer het wachtwoord van dit account in om door te gaan.",
-    link_device_success: "Apparaat gekoppeld",
-    link_device_success_description:
-      "Je desktop-app is nu gekoppeld. Je kunt dit tabblad sluiten.",
-    link_device_invalid_code:
-      "Een koppelcode is 8 tekens lang. Controleer de code en probeer het opnieuw.",
-    link_device_expired_code:
-      "Deze code is verlopen of komt niet overeen. Je desktop-app heeft de huidige code.",
     link_device_failed:
       "Koppeling is niet voltooid. Opnieuw beginnen lost dit meestal op. Je account is ongewijzigd.",
     link_device_try_again:
@@ -10077,17 +10054,6 @@ export const nl = {
       "Studentenstatus geverifieerd. Meld je aan en je korting van 30% wordt bij het afrekenen toegepast.",
     academic_failed_signin_note:
       "Die verificatielink is verlopen of al gebruikt. Meld je aan en vraag een nieuwe aan bij Facturering in Instellingen.",
-    link_device_upgrade_required_toast:
-      "Een Bridge-apparaat koppelen vereist het Star-abonnement of hoger. Upgrade om door te gaan.",
-    link_device_upgrade_title: "Upgrade om dit apparaat te koppelen",
-    link_device_upgrade_description:
-      "Een desktop-Bridge aan je account koppelen vereist het Star-abonnement of hoger. Kies hieronder een abonnement, dan wordt je apparaat direct na het afrekenen gekoppeld.",
-    link_device_already_linked:
-      "Dit apparaat is al aan een ander account gekoppeld. Ontkoppel het daar eerst en probeer het opnieuw.",
-    link_device_rate_limited:
-      "Te veel pogingen. Wacht ongeveer een minuut en probeer het opnieuw.",
-    link_device_account_suspended:
-      "Dit account is geschorst, dus er kunnen nu geen nieuwe apparaten worden gekoppeld. Neem contact op met support.",
     plan_academic_discount_note:
       "Je korting van 30% wordt bij het afrekenen automatisch toegepast zodra je e-mailadres is geverifieerd.",
     plan_referral_discount_note:

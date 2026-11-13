@@ -9785,40 +9785,16 @@ export const ja = {
     device_code_waiting: "確認を待っています",
     device_code_expires_in: "有効期限",
     link_device_title: "デバイスをリンク",
-    link_device_enter_code:
-      "デスクトップアプリに表示されたコードを入力してください。",
-    link_device_code_placeholder: "XXXX-XXXX",
-    link_device_verify_button: "続行",
-    link_device_confirm_prompt: "このデバイスをアカウントにリンクしますか？",
-    link_device_confirm_button: "デバイスをリンク",
-    link_device_confirming: "デバイスをリンク中...",
     link_device_cancel: "キャンセル",
-    link_device_desktop: "デスクトップアプリ",
-    device_fingerprint: "確認コード",
-    device_code_verify_toggle: "このデバイスを確認",
-    link_device_fingerprint_hint:
-      "デスクトップアプリに確認コードが表示されている場合は、デバイスをリンクする前に、このコードと一致することを確認してください。",
-    device_code_fingerprint_hint:
-      "デバイスをリンクする前に、ブラウザにも同じ確認コードが表示されます。2つのコードが一致しない場合は、デバイスをリンクしないでください。",
-    link_device_change_account: "アカウントを切り替える",
+    device_fingerprint: "デバイスのフィンガープリント",
+    device_fingerprint_copy: "デバイスのフィンガープリントをコピー",
+    device_code_fingerprint_required_hint:
+      "デバイスをリンクする前に、ブラウザでこのデバイスのフィンガープリントの入力が求められます。",
     link_device_choose_account: "アカウントを選択",
-    link_device_choose_account_description: "デスクトップアプリを連携します",
-    link_device_choose_account_note:
-      "暗号鍵は、デバイス間で転送される間も暗号化されたままです。",
-    link_device_use_another_account: "別のアカウントを使用",
-    link_device_use_this_account: "このアカウントを使用",
-    link_device_other_accounts: "別のアカウントに切り替える",
     hub_accounts_or_password: "またはパスワードでサインイン",
     hub_account_password_required: "パスワードが必要です",
     hub_account_link_failed:
       "このアカウントで続行するには、パスワードを入力してください。",
-    link_device_success: "デバイスがリンクされました",
-    link_device_success_description:
-      "デスクトップアプリがリンクされました。このタブを閉じることができます。",
-    link_device_invalid_code:
-      "リンクコードは 8 文字です。コードを確認して、もう一度お試しください。",
-    link_device_expired_code:
-      "このコードは期限切れか一致しませんでした。デスクトップアプリに現在のコードがあります。",
     link_device_failed:
       "リンクが完了しませんでした。最初からやり直すと解決することが多いです。アカウントに変更はありません。",
     link_device_try_again:
@@ -9884,18 +9860,6 @@ export const ja = {
       "学生であることを確認しました。サインインすると、お支払い時に 30% の割引が適用されます。",
     academic_failed_signin_note:
       "この確認リンクは期限切れか、すでに使用されています。サインインして、請求設定から新しいリンクを申請してください。",
-    link_device_upgrade_required_toast:
-      "Bridge デバイスの連携には Star 以上のプランが必要です。アップグレードして続けてください。",
-    link_device_upgrade_title:
-      "このデバイスを連携するにはアップグレードが必要です",
-    link_device_upgrade_description:
-      "デスクトップ版 Bridge をアカウントに接続するには Star 以上のプランが必要です。下からプランを選ぶと、お支払い後すぐにデバイスが連携されます。",
-    link_device_already_linked:
-      "このデバイスは別のアカウントに連携済みです。先にそちらで連携を解除してから、もう一度お試しください。",
-    link_device_rate_limited:
-      "試行回数が多すぎます。1 分ほど待ってから、もう一度お試しください。",
-    link_device_account_suspended:
-      "このアカウントは停止中のため、現在は新しいデバイスを連携できません。サポートにお問い合わせください。",
     plan_academic_discount_note:
       "メールアドレスの確認が済むと、お支払い時に 30% の割引が自動で適用されます。",
     plan_referral_discount_note: "紹介割引はお支払い時に自動で適用されます。",

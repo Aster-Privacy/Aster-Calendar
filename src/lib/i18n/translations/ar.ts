@@ -9799,39 +9799,16 @@ export const ar = {
     device_code_waiting: "في انتظار التأكيد",
     device_code_expires_in: "ينتهي خلال",
     link_device_title: "ربط الجهاز",
-    link_device_enter_code: "أدخل الرمز المعروض على تطبيق سطح المكتب الخاص بك.",
-    link_device_code_placeholder: "XXXX-XXXX",
-    link_device_verify_button: "متابعة",
-    link_device_confirm_prompt: "هل تريد ربط هذا الجهاز بحسابك؟",
-    link_device_confirm_button: "ربط الجهاز",
-    link_device_confirming: "جارٍ ربط الجهاز...",
     link_device_cancel: "إلغاء",
-    link_device_desktop: "تطبيق سطح المكتب",
-    device_fingerprint: "رمز التحقق",
-    device_code_verify_toggle: "التحقق من هذا الجهاز",
-    link_device_fingerprint_hint:
-      "إذا عرض تطبيق سطح المكتب رمز تحقق، فتأكد من أنه يطابق هذا الرمز قبل ربط الجهاز.",
-    device_code_fingerprint_hint:
-      "يعرض متصفحك رمز التحقق نفسه قبل ربط الجهاز. إذا لم يتطابق الرمزان، فلا تربط الجهاز.",
-    link_device_change_account: "تغيير الحساب",
+    device_fingerprint: "بصمة الجهاز",
+    device_fingerprint_copy: "نسخ بصمة الجهاز",
+    device_code_fingerprint_required_hint:
+      "يطلب متصفحك بصمة الجهاز هذه قبل ربط الجهاز.",
     link_device_choose_account: "اختر حسابًا",
-    link_device_choose_account_description: "لربط تطبيق سطح المكتب",
-    link_device_choose_account_note:
-      "تبقى مفاتيح التشفير الخاصة بك مشفّرة أثناء انتقالها بين أجهزتك.",
-    link_device_use_another_account: "استخدام حساب آخر",
-    link_device_use_this_account: "استخدام هذا الحساب",
-    link_device_other_accounts: "التبديل إلى حساب آخر",
     hub_accounts_or_password: "أو سجّل الدخول باستخدام كلمة المرور",
     hub_account_password_required: "كلمة المرور مطلوبة",
     hub_account_link_failed:
       "للمتابعة بهذا الحساب، أدخل كلمة المرور الخاصة به.",
-    link_device_success: "تم ربط الجهاز",
-    link_device_success_description:
-      "تطبيق سطح المكتب الخاص بك مرتبط الآن. يمكنك إغلاق هذه التبويبة.",
-    link_device_invalid_code:
-      "رمز الربط مكوّن من 8 أحرف. تحقق من الرمز وحاول مجددًا.",
-    link_device_expired_code:
-      "انتهت صلاحية هذا الرمز أو لم يتطابق. تطبيق سطح المكتب الخاص بك لديه الرمز الحالي.",
     link_device_failed:
       "الربط لم يكتمل. البداية من جديد عادةً ما تحل الأمر. حسابك لم يتغير.",
     link_device_try_again: "لم ينجح ذلك. البداية من جديد عادةً ما تحل الأمر.",
@@ -9896,17 +9873,6 @@ export const ar = {
       "تم التحقق من صفة الطالب. سجّل الدخول وسيُطبَّق خصم 30% عند الدفع.",
     academic_failed_signin_note:
       "انتهت صلاحية رابط التحقق هذا أو سبق استخدامه. سجّل الدخول واطلب رابطًا جديدًا من إعدادات الفوترة.",
-    link_device_upgrade_required_toast:
-      "يتطلب ربط جهاز Bridge خطة Star أو أعلى. رقِّ خطتك للمتابعة.",
-    link_device_upgrade_title: "رقِّ خطتك لربط هذا الجهاز",
-    link_device_upgrade_description:
-      "يتطلب ربط Bridge لسطح المكتب بحسابك خطة Star أو أعلى. اختر خطة أدناه وسيُربط جهازك فور إتمام الدفع.",
-    link_device_already_linked:
-      "هذا الجهاز مرتبط بحساب آخر. ألغِ ربطه هناك أولًا ثم حاول مرة أخرى.",
-    link_device_rate_limited:
-      "محاولات كثيرة جدًا. انتظر نحو دقيقة ثم حاول مرة أخرى.",
-    link_device_account_suspended:
-      "هذا الحساب موقوف، لذا لا يمكن ربط أجهزة جديدة الآن. تواصل مع الدعم لحل المشكلة.",
     plan_academic_discount_note:
       "يُطبَّق خصم 30% تلقائيًا عند الدفع بمجرد التحقق من بريدك الإلكتروني.",
     plan_referral_discount_note: "يُطبَّق خصم الإحالة تلقائيًا عند الدفع.",
