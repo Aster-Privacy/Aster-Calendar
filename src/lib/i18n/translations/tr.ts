@@ -9879,40 +9879,15 @@ export const tr = {
     device_code_waiting: "Onay bekleniyor",
     device_code_expires_in: "Süre sonu",
     link_device_title: "Cihazı bağla",
-    link_device_enter_code: "Masaüstü uygulamanızda gösterilen kodu girin.",
-    link_device_code_placeholder: "XXXX-XXXX",
-    link_device_verify_button: "Devam",
-    link_device_confirm_prompt:
-      "Bu cihazı hesabınıza bağlamak istiyor musunuz?",
-    link_device_confirm_button: "Cihazı bağla",
-    link_device_confirming: "Cihaz bağlanıyor...",
     link_device_cancel: "İptal",
-    link_device_desktop: "Masaüstü uygulaması",
-    device_fingerprint: "Doğrulama kodu",
-    device_code_verify_toggle: "Bu cihazı doğrula",
-    link_device_fingerprint_hint:
-      "Masaüstü uygulamanız bir doğrulama kodu gösteriyorsa cihazı bağlamadan önce bununla eşleştiğinden emin olun.",
-    device_code_fingerprint_hint:
-      "Tarayıcınız cihazı bağlamadan önce aynı doğrulama kodunu gösterir. İki kod eşleşmiyorsa cihazı bağlamayın.",
-    link_device_change_account: "Hesap değiştir",
+    device_fingerprint: "Cihaz parmak izi",
+    device_fingerprint_copy: "Cihaz parmak izini kopyala",
+    device_code_fingerprint_required_hint:
+      "Tarayıcınız cihazı bağlamadan önce bu cihaz parmak izini ister.",
     link_device_choose_account: "Bir hesap seçin",
-    link_device_choose_account_description:
-      "Masaüstü uygulamanızı bağlamak için",
-    link_device_choose_account_note:
-      "Şifreleme anahtarlarınız cihazlarınız arasında aktarılırken şifreli kalır.",
-    link_device_use_another_account: "Başka bir hesap kullan",
-    link_device_use_this_account: "Bu hesabı kullan",
-    link_device_other_accounts: "Başka bir hesaba geç",
     hub_accounts_or_password: "Veya şifrenle giriş yap",
     hub_account_password_required: "Şifre gerekli",
     hub_account_link_failed: "Bu hesapla devam etmek için parolasını girin.",
-    link_device_success: "Cihaz bağlandı",
-    link_device_success_description:
-      "Masaüstü uygulamanız artık bağlandı. Bu sekmeyi kapatabilirsiniz.",
-    link_device_invalid_code:
-      "Bağlantı kodu 8 karakter uzunluğundadır. Kodu kontrol edin ve tekrar deneyin.",
-    link_device_expired_code:
-      "Bu kodun süresi doldu veya eşleşmedi. Masaüstü uygulamanızda geçerli kod bulunuyor.",
     link_device_failed:
       "Bağlantı tamamlanamadı. Yeniden başlamak genellikle yeterli olur. Hesabınız değişmedi.",
     link_device_try_again:
@@ -9980,17 +9955,6 @@ export const tr = {
       "Öğrenci durumu doğrulandı. Oturum açın, %30 indiriminiz ödeme sırasında uygulanır.",
     academic_failed_signin_note:
       "Bu doğrulama bağlantısının süresi dolmuş ya da daha önce kullanılmış. Oturum açıp Faturalandırma ayarlarından yeni bir bağlantı isteyin.",
-    link_device_upgrade_required_toast:
-      "Bridge cihazı bağlamak için Star veya üstü bir plan gerekir. Devam etmek için planınızı yükseltin.",
-    link_device_upgrade_title: "Bu cihazı bağlamak için planınızı yükseltin",
-    link_device_upgrade_description:
-      "Masaüstü Bridge’i hesabınıza bağlamak için Star veya üstü bir plan gerekir. Aşağıdan bir plan seçin, cihazınız ödemeden hemen sonra bağlanır.",
-    link_device_already_linked:
-      "Bu cihaz başka bir hesaba bağlı. Önce oradan bağlantısını kaldırıp tekrar deneyin.",
-    link_device_rate_limited:
-      "Çok fazla deneme yapıldı. Yaklaşık bir dakika bekleyip tekrar deneyin.",
-    link_device_account_suspended:
-      "Bu hesap askıya alındı, bu yüzden şu anda yeni cihaz bağlanamıyor. Çözmek için destek ekibiyle iletişime geçin.",
     plan_academic_discount_note:
       "E-postanız doğrulandığında %30 indiriminiz ödeme sırasında otomatik uygulanır.",
     plan_referral_discount_note:
@@ -10066,6 +10030,10 @@ export const tr = {
   errors: {
     auth_salt_collision:
       "Sunucu güvenli olmayan bir değer gönderdiği için oturum açma durduruldu ve hiçbir şeyin kilidi açılmadı. Yeniden denemeden önce destek ile iletişime geç.",
+    legacy_login_salt_new_device:
+      "Hesabınızın güvenlik güncellemesini tamamlamak için daha önce Aster ile kullandığınız bir cihazda oturum açın. Bunu yapamıyorsanız parolanızı kurtarma anahtarınızla sıfırlayın.",
+    legacy_login_salt_sign_in_again:
+      "Hesabınızın güvenlik güncellemesini tamamlamak için oturumu kapatıp yeniden açın.",
     upload_too_large:
       "Yükleme çok büyük. Devam etmek için bir dosyayı kaldırın veya küçültün, sonra yeniden deneyin.",
     failed_remove_reaction: "Tepki kaldırılamadı. Lütfen tekrar deneyin.",

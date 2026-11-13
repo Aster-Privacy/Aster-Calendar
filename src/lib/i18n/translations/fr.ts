@@ -10131,43 +10131,20 @@ export const fr = {
     email_copied: "E-mail copié",
     last_updated: "Dernière mise à jour : {{date}}",
     link_device_cancel: "Annuler",
-    link_device_code_placeholder: "Code à 6 chiffres",
-    link_device_confirm_button: "Confirmer",
-    link_device_confirm_prompt: "Confirmer l'association de l'appareil ?",
-    link_device_confirming: "Confirmation en cours...",
-    link_device_desktop: "Associer un appareil de bureau",
-    device_fingerprint: "Code de vérification",
-    device_code_verify_toggle: "Vérifier cet appareil",
-    link_device_fingerprint_hint:
-      "Si votre application de bureau affiche un code de vérification, vérifiez qu'il correspond à celui-ci avant d'associer l'appareil.",
-    device_code_fingerprint_hint:
-      "Votre navigateur affiche le même code de vérification avant d'associer l'appareil. Si les deux codes ne correspondent pas, n'associez pas l'appareil.",
-    link_device_change_account: "Changer de compte",
+    device_fingerprint: "Empreinte de l'appareil",
+    device_fingerprint_copy: "Copier l'empreinte de l'appareil",
+    device_code_fingerprint_required_hint:
+      "Votre navigateur demande cette empreinte de l'appareil avant d'associer l'appareil.",
     link_device_choose_account: "Choisissez un compte",
-    link_device_choose_account_description:
-      "Pour associer votre application de bureau",
-    link_device_choose_account_note:
-      "Vos clés de chiffrement restent chiffrées lorsqu'elles passent d'un appareil à l'autre.",
-    link_device_use_another_account: "Utiliser un autre compte",
-    link_device_use_this_account: "Utiliser ce compte",
-    link_device_other_accounts: "Passer à un autre compte",
-    link_device_enter_code: "Entrez le code affiché sur votre autre appareil.",
-    link_device_expired_code:
-      "Ce code a expiré ou ne correspondait pas. Votre application de bureau affiche le code actuel.",
     link_device_failed:
       "L'association n'a pas abouti. Recommencez depuis le début. Votre compte est inchangé.",
-    link_device_invalid_code:
-      "Un code de liaison comporte 8 caractères. Vérifiez le code et réessayez.",
     hub_accounts_or_password: "Ou connectez-vous avec votre mot de passe",
     hub_account_password_required: "Mot de passe requis",
     hub_account_link_failed:
       "Pour continuer avec ce compte, saisissez son mot de passe.",
-    link_device_success: "Appareil lié avec succès",
-    link_device_success_description: "Cet appareil a accès à votre compte.",
     link_device_title: "Lier un appareil",
     link_device_try_again:
       "Cela n'a pas fonctionné. Recommencez depuis le début.",
-    link_device_verify_button: "Vérifier",
     pair_device_cancel: "Annuler",
     pair_device_failed:
       "L'association n'a pas abouti. Recommencez depuis votre application de bureau. Votre compte est inchangé.",
@@ -10228,18 +10205,6 @@ export const fr = {
       "Statut étudiant vérifié. Connectez-vous et votre remise de 30 % sera appliquée au paiement.",
     academic_failed_signin_note:
       "Ce lien de vérification a expiré ou a déjà été utilisé. Connectez-vous et demandez-en un nouveau dans les réglages de facturation.",
-    link_device_upgrade_required_toast:
-      "Associer un appareil Bridge nécessite un abonnement Star ou supérieur. Passez à un abonnement supérieur pour continuer.",
-    link_device_upgrade_title:
-      "Passez à un abonnement supérieur pour associer cet appareil",
-    link_device_upgrade_description:
-      "Connecter un Bridge d’ordinateur à votre compte nécessite un abonnement Star ou supérieur. Choisissez un abonnement ci-dessous et votre appareil sera associé juste après le paiement.",
-    link_device_already_linked:
-      "Cet appareil est déjà associé à un autre compte. Dissociez-le d’abord, puis réessayez.",
-    link_device_rate_limited:
-      "Trop de tentatives. Patientez environ une minute, puis réessayez.",
-    link_device_account_suspended:
-      "Ce compte est suspendu, il n’est donc pas possible d’associer de nouveaux appareils pour l’instant. Contactez l’assistance pour régler la situation.",
     plan_academic_discount_note:
       "Votre remise de 30 % s’applique automatiquement au paiement dès que votre e-mail est vérifié.",
     plan_referral_discount_note:
@@ -10315,6 +10280,10 @@ export const fr = {
   errors: {
     auth_salt_collision:
       "La connexion a été interrompue parce que le serveur a envoyé une valeur non sécurisée. Rien n'a été déverrouillé. Contactez l'assistance avant de réessayer.",
+    legacy_login_salt_new_device:
+      "Pour terminer une mise à jour de sécurité de votre compte, connectez-vous sur un appareil que vous avez déjà utilisé avec Aster. Si ce n'est pas possible, réinitialisez votre mot de passe avec votre clé de récupération.",
+    legacy_login_salt_sign_in_again:
+      "Pour terminer une mise à jour de sécurité de votre compte, déconnectez-vous puis reconnectez-vous.",
     upload_too_large:
       "L'envoi est trop volumineux. Pour continuer, retirez ou réduisez un fichier, puis réessayez.",
     failed_remove_reaction:

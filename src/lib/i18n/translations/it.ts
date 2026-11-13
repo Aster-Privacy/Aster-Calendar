@@ -10050,44 +10050,19 @@ export const it = {
     device_code_waiting: "In attesa di conferma",
     last_updated: "Ultimo aggiornamento: {{date}}",
     link_device_cancel: "Annulla",
-    link_device_code_placeholder: "XXXX-XXXX",
-    link_device_confirm_button: "Collega dispositivo",
-    link_device_confirm_prompt:
-      "Vuoi collegare questo dispositivo al tuo account?",
-    link_device_confirming: "Collegamento dispositivo...",
-    link_device_desktop: "App desktop",
-    device_fingerprint: "Codice di verifica",
-    device_code_verify_toggle: "Verifica questo dispositivo",
-    link_device_fingerprint_hint:
-      "Se la tua app desktop mostra un codice di verifica, verifica che corrisponda a questo prima di collegare il dispositivo.",
-    device_code_fingerprint_hint:
-      "Il browser mostra lo stesso codice di verifica prima di collegare il dispositivo. Se i due codici non corrispondono, non collegare il dispositivo.",
-    link_device_change_account: "Cambia account",
+    device_fingerprint: "Impronta digitale del dispositivo",
+    device_fingerprint_copy: "Copia impronta digitale del dispositivo",
+    device_code_fingerprint_required_hint:
+      "Il browser chiede questa impronta digitale del dispositivo prima di collegare il dispositivo.",
     link_device_choose_account: "Scegli un account",
-    link_device_choose_account_description: "Per collegare la tua app desktop",
-    link_device_choose_account_note:
-      "Le tue chiavi di crittografia restano crittografate mentre passano da un dispositivo all'altro.",
-    link_device_use_another_account: "Usa un altro account",
-    link_device_use_this_account: "Usa questo account",
-    link_device_other_accounts: "Passa a un altro account",
-    link_device_enter_code:
-      "Inserisci il codice mostrato nella tua app desktop.",
-    link_device_expired_code:
-      "Questo codice è scaduto o non corrispondeva. La tua app desktop ha quello attuale.",
     link_device_failed:
       "Il collegamento non si è completato. Ricominciare di solito risolve. Il tuo account è invariato.",
-    link_device_invalid_code:
-      "Un codice di collegamento è lungo 8 caratteri. Controlla il codice e riprova.",
     hub_accounts_or_password: "Oppure accedi con la tua password",
     hub_account_password_required: "Password obbligatoria",
     hub_account_link_failed:
       "Per continuare con questo account, inserisci la sua password.",
-    link_device_success: "Dispositivo collegato",
-    link_device_success_description:
-      "La tua app desktop è ora collegata. Puoi chiudere questa scheda.",
     link_device_title: "Collega dispositivo",
     link_device_try_again: "Non ha funzionato. Ricominciare di solito risolve.",
-    link_device_verify_button: "Continua",
     pair_device_cancel: "Annulla",
     pair_device_failed:
       "L'associazione non si è completata. Ricominciare dalla tua app desktop di solito risolve. Il tuo account è invariato.",
@@ -10153,18 +10128,6 @@ export const it = {
       "Stato di studente verificato. Accedi e lo sconto del 30% verrà applicato al pagamento.",
     academic_failed_signin_note:
       "Il link di verifica è scaduto o è già stato usato. Accedi e richiedine uno nuovo nelle impostazioni di Fatturazione.",
-    link_device_upgrade_required_toast:
-      "Per collegare un dispositivo Bridge serve il piano Star o superiore. Passa a un piano superiore per continuare.",
-    link_device_upgrade_title:
-      "Passa a un piano superiore per collegare questo dispositivo",
-    link_device_upgrade_description:
-      "Per collegare un Bridge desktop al tuo account serve il piano Star o superiore. Scegli un piano qui sotto e il dispositivo verrà collegato subito dopo il pagamento.",
-    link_device_already_linked:
-      "Questo dispositivo è già collegato a un altro account. Scollegalo prima da lì, poi riprova.",
-    link_device_rate_limited:
-      "Troppi tentativi. Attendi circa un minuto e riprova.",
-    link_device_account_suspended:
-      "Questo account è sospeso, quindi al momento non è possibile collegare nuovi dispositivi. Contatta l’assistenza per risolvere.",
     plan_academic_discount_note:
       "Lo sconto del 30% viene applicato automaticamente al pagamento appena la tua e-mail è verificata.",
     plan_referral_discount_note:
@@ -10240,6 +10203,10 @@ export const it = {
   errors: {
     auth_salt_collision:
       "L'accesso è stato interrotto perché il server ha inviato un valore non sicuro, quindi non è stato sbloccato nulla. Contatta l'assistenza prima di riprovare.",
+    legacy_login_salt_new_device:
+      "Per completare un aggiornamento di sicurezza del tuo account, accedi da un dispositivo che hai già usato con Aster. Se non puoi, reimposta la password con la tua chiave di recupero.",
+    legacy_login_salt_sign_in_again:
+      "Per completare un aggiornamento di sicurezza del tuo account, esci e accedi di nuovo.",
     upload_too_large:
       "Il caricamento è troppo grande. Per continuare, rimuova o riduca un file e riprovi.",
     failed_remove_reaction: "Impossibile rimuovere la reazione. Riprova.",

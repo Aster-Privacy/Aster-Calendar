@@ -10009,44 +10009,19 @@ export const es = {
     email_copied: "Correo copiado",
     last_updated: "Última actualización: {{date}}",
     link_device_cancel: "Cancelar",
-    link_device_code_placeholder: "Código de 6 dígitos",
-    link_device_confirm_button: "Confirmar",
-    link_device_confirm_prompt: "¿Confirmar la vinculación del dispositivo?",
-    link_device_confirming: "Confirmando...",
-    link_device_desktop: "Vincular dispositivo de escritorio",
-    device_fingerprint: "Código de verificación",
-    device_code_verify_toggle: "Verificar este dispositivo",
-    link_device_fingerprint_hint:
-      "Si tu aplicación de escritorio muestra un código de verificación, comprueba que coincide con este antes de vincular el dispositivo.",
-    device_code_fingerprint_hint:
-      "Tu navegador muestra el mismo código de verificación antes de vincular el dispositivo. Si los dos códigos no coinciden, no vincules el dispositivo.",
-    link_device_change_account: "Cambiar de cuenta",
+    device_fingerprint: "Huella digital del dispositivo",
+    device_fingerprint_copy: "Copiar huella digital del dispositivo",
+    device_code_fingerprint_required_hint:
+      "Tu navegador pide esta huella digital del dispositivo antes de vincular el dispositivo.",
     link_device_choose_account: "Elige una cuenta",
-    link_device_choose_account_description:
-      "Para vincular tu aplicación de escritorio",
-    link_device_choose_account_note:
-      "Sus claves de cifrado permanecen cifradas mientras se transfieren entre sus dispositivos.",
-    link_device_use_another_account: "Usar otra cuenta",
-    link_device_use_this_account: "Usar esta cuenta",
-    link_device_other_accounts: "Cambiar a otra cuenta",
-    link_device_enter_code:
-      "Ingresa el código mostrado en tu otro dispositivo.",
-    link_device_expired_code:
-      "Este código caducó o no coincide. Tu app de escritorio muestra el código actual.",
     link_device_failed:
       "La vinculación no terminó. Empieza de nuevo. Tu cuenta no ha cambiado.",
-    link_device_invalid_code:
-      "Un código de vinculación tiene 8 caracteres. Comprueba el código e inténtalo de nuevo.",
     hub_accounts_or_password: "O inicia sesión con tu contraseña",
     hub_account_password_required: "Contraseña obligatoria",
     hub_account_link_failed:
       "Para continuar con esta cuenta, introduce su contraseña.",
-    link_device_success: "Dispositivo vinculado exitosamente",
-    link_device_success_description:
-      "Este dispositivo tiene acceso a tu cuenta.",
     link_device_title: "Vincular dispositivo",
     link_device_try_again: "Eso no funcionó. Empieza de nuevo.",
-    link_device_verify_button: "Verificar",
     pair_device_cancel: "Cancelar",
     pair_device_failed:
       "El emparejamiento no terminó. Empieza de nuevo desde tu app de escritorio. Tu cuenta no ha cambiado.",
@@ -10105,17 +10080,6 @@ export const es = {
       "Estado de estudiante verificado. Inicia sesión y tu descuento del 30 % se aplicará al pagar.",
     academic_failed_signin_note:
       "Ese enlace de verificación caducó o ya se usó. Inicia sesión y solicita uno nuevo en los ajustes de Facturación.",
-    link_device_upgrade_required_toast:
-      "Vincular un dispositivo con Bridge requiere el plan Star o superior. Mejora tu plan para continuar.",
-    link_device_upgrade_title: "Mejora tu plan para vincular este dispositivo",
-    link_device_upgrade_description:
-      "Conectar un Bridge de escritorio a tu cuenta requiere el plan Star o superior. Elige un plan abajo y tu dispositivo se vinculará justo después del pago.",
-    link_device_already_linked:
-      "Este dispositivo ya está vinculado a otra cuenta. Desvincúlalo allí primero y vuelve a intentarlo.",
-    link_device_rate_limited:
-      "Demasiados intentos. Espera un minuto y vuelve a intentarlo.",
-    link_device_account_suspended:
-      "Esta cuenta está suspendida, así que ahora no se pueden vincular dispositivos nuevos. Escribe al soporte para resolverlo.",
     plan_academic_discount_note:
       "Tu descuento del 30 % se aplica automáticamente al pagar en cuanto se verifique tu correo.",
     plan_referral_discount_note:
@@ -10191,6 +10155,10 @@ export const es = {
   errors: {
     auth_salt_collision:
       "El inicio de sesión se detuvo porque el servidor envió un valor no seguro, así que no se desbloqueó nada. Contacta con soporte antes de volver a intentarlo.",
+    legacy_login_salt_new_device:
+      "Para completar una actualización de seguridad de tu cuenta, inicia sesión en un dispositivo que ya hayas usado con Aster. Si no puedes, restablece tu contraseña con tu clave de recuperación.",
+    legacy_login_salt_sign_in_again:
+      "Para completar una actualización de seguridad de tu cuenta, cierra sesión y vuelve a iniciarla.",
     upload_too_large:
       "La carga es demasiado grande. Para continuar, quita o reduce un archivo y vuelve a intentarlo.",
     failed_remove_reaction:
