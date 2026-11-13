@@ -587,6 +587,17 @@ export interface CalendarTranslations {
   edit_calendar: string;
   calendar_name_placeholder: string;
   delete_calendar_message: string;
+  clear_calendar_events: string;
+  clear_calendar_title: string;
+  clear_calendar_message: string;
+  clear_calendar_message_one?: string;
+  clear_calendar_counting: string;
+  clear_calendar_empty_title: string;
+  clear_calendar_empty_message: string;
+  clear_calendar_in_progress: string;
+  clear_calendar_done: string;
+  clear_calendar_done_one?: string;
+  clear_calendar_failed: string;
   tour_welcome_title: string;
   tour_welcome_description: string;
   tour_create_title: string;

@@ -22,7 +22,7 @@ import type { TranslationKey } from "@/lib/i18n";
 import type { DecryptedCalendar } from "@/types/calendar";
 import type { UserPreferences } from "@/services/api/preferences";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Badge,
   IslandRow,
@@ -57,6 +57,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown_menu";
 import {
+  CalendarClearDialog,
   CalendarDeleteDialog,
   CalendarEditDialog,
 } from "@/components/calendar/calendar_edit_dialog";
@@ -1350,6 +1351,10 @@ export function CalendarListSection() {
   const [delete_target, set_delete_target] = useState<DecryptedCalendar | null>(
     null,
   );
+  const [clear_target, set_clear_target] = useState<DecryptedCalendar | null>(
+    null,
+  );
+  const close_clear = useCallback(() => set_clear_target(null), []);
 
   const reload = async () => {
     try {
@@ -1486,6 +1491,12 @@ export function CalendarListSection() {
                       {t("calendar.settings_set_default_calendar")}
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuItem
+                    className="text-danger focus:text-danger"
+                    onSelect={() => set_clear_target(calendar)}
+                  >
+                    {t("calendar.clear_calendar_events")}
+                  </DropdownMenuItem>
                   {!calendar.is_default && (
                     <DropdownMenuItem
                       className="text-danger focus:text-danger"
@@ -1516,6 +1527,8 @@ export function CalendarListSection() {
         on_close={() => set_delete_target(null)}
         on_deleted={handle_deleted}
       />
+
+      <CalendarClearDialog calendar={clear_target} on_close={close_clear} />
     </IslandSections>
   );
 }

@@ -10905,6 +10905,19 @@ export const tr = {
     calendar_name_placeholder: "İş, Aile, Seyahat",
     delete_calendar_message:
       "Bu işlem “{{name}}” takvimini ve içindeki tüm etkinlikleri kalıcı olarak siler. Silinen etkinlikler çöp kutusuna gitmez.",
+    clear_calendar_events: "Tüm etkinlikleri sil",
+    clear_calendar_title: "Tüm etkinlikler silinsin mi?",
+    clear_calendar_message:
+      "Bu işlem “{{name}}” takvimindeki {{count}} etkinliği kalıcı olarak siler. Silinen etkinlikler çöp kutusuna gitmez ve bu işlem geri alınamaz.",
+    clear_calendar_message_one:
+      "Bu işlem “{{name}}” takvimindeki {{count}} etkinliği kalıcı olarak siler. Silinen etkinlikler çöp kutusuna gitmez ve bu işlem geri alınamaz.",
+    clear_calendar_counting: "Etkinlikler sayılıyor…",
+    clear_calendar_empty_title: "Silinecek etkinlik yok",
+    clear_calendar_empty_message: "“{{name}}” takviminde etkinlik yok.",
+    clear_calendar_in_progress: "Etkinlikler siliniyor…",
+    clear_calendar_done: "{{count}} etkinlik silindi",
+    clear_calendar_done_one: "{{count}} etkinlik silindi",
+    clear_calendar_failed: "Bazı etkinlikler silinemedi. Tekrar deneyin.",
     tour_welcome_title: "Aster Calendar'a hoş geldiniz",
     tour_welcome_description:
       "Etkinlikleriniz bu cihazdan ayrılmadan önce cihazda şifrelenir. Bu kısa tur size her şeyin nerede olduğunu gösterir.",

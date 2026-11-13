@@ -42,7 +42,9 @@ import {
 import { use_i18n } from "@/lib/i18n/context";
 import {
   create_calendar,
+  delete_all_calendar_events,
   delete_calendar,
+  list_calendar_event_ids,
   update_calendar,
 } from "@/services/api/calendar";
 
@@ -287,6 +289,142 @@ export function CalendarDeleteDialog({
       on_cancel={on_close}
       on_confirm={() => void confirm()}
       title={t("calendar.settings_delete_calendar_title")}
+      variant="danger"
+    />
+  );
+}
+
+const clearing_calendars = new Set<string>();
+
+export function is_clearing_calendar(calendar_id: string): boolean {
+  return clearing_calendars.has(calendar_id);
+}
+
+interface CalendarClearDialogProps {
+  calendar: DecryptedCalendar | null;
+  on_close: () => void;
+  on_cleared?: (calendar_id: string) => void;
+}
+
+type ClearCount = { state: "loading" } | { state: "ready"; count: number } | { state: "error" };
+
+export function CalendarClearDialog({
+  calendar,
+  on_close,
+  on_cleared,
+}: CalendarClearDialogProps) {
+  const { t } = use_i18n();
+  const [count, set_count] = useState<ClearCount>({ state: "loading" });
+  const calendar_id = calendar?.id ?? null;
+
+  useEffect(() => {
+    set_count({ state: "loading" });
+
+    if (!calendar_id) {
+      return;
+    }
+
+    let cancelled = false;
+
+    list_calendar_event_ids(calendar_id)
+      .then((event_ids) => {
+        if (!cancelled) {
+          set_count({ state: "ready", count: event_ids.length });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          set_count({ state: "error" });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [calendar_id]);
+
+  useEffect(() => {
+    if (calendar_id && count.state === "error") {
+      show_toast(t("calendar.clear_calendar_failed"), "error");
+      on_close();
+    }
+  }, [calendar_id, count.state, on_close, t]);
+
+  const run_clear = async (target: DecryptedCalendar) => {
+    if (clearing_calendars.has(target.id)) {
+      return;
+    }
+
+    clearing_calendars.add(target.id);
+    show_toast(t("calendar.clear_calendar_in_progress"), "info");
+
+    try {
+      const result = await delete_all_calendar_events(target.id);
+
+      if (result.failed > 0) {
+        show_toast(t("calendar.clear_calendar_failed"), "error");
+      } else {
+        show_toast(
+          t("calendar.clear_calendar_done", { count: result.deleted }),
+          "success",
+        );
+      }
+
+      on_cleared?.(target.id);
+    } catch {
+      show_toast(t("calendar.clear_calendar_failed"), "error");
+    } finally {
+      clearing_calendars.delete(target.id);
+    }
+  };
+
+  const is_empty = count.state === "ready" && count.count === 0;
+  const name = calendar?.name ?? "";
+
+  const confirm = () => {
+    const target = calendar;
+
+    on_close();
+
+    if (!target || count.state !== "ready" || count.count === 0) {
+      return;
+    }
+
+    void run_clear(target);
+  };
+
+  if (is_empty) {
+    return (
+      <ConfirmationModal
+        cancel_text={t("common.cancel")}
+        confirm_text={t("common.ok")}
+        is_open={calendar !== null}
+        message={t("calendar.clear_calendar_empty_message", { name })}
+        on_cancel={on_close}
+        on_confirm={on_close}
+        title={t("calendar.clear_calendar_empty_title")}
+        variant="info"
+      />
+    );
+  }
+
+  return (
+    <ConfirmationModal
+      cancel_text={t("common.cancel")}
+      confirm_text={t("calendar.clear_calendar_events")}
+      is_loading={count.state !== "ready"}
+      is_open={calendar !== null && count.state !== "error"}
+      message={
+        count.state === "ready"
+          ? t("calendar.clear_calendar_message", {
+              count: count.count,
+              name,
+            })
+          : t("calendar.clear_calendar_counting")
+      }
+      on_cancel={on_close}
+      on_confirm={confirm}
+      title={t("calendar.clear_calendar_title")}
       variant="danger"
     />
   );

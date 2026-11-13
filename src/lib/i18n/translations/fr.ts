@@ -11184,6 +11184,20 @@ export const fr = {
     calendar_name_placeholder: "Travail, Famille, Voyages",
     delete_calendar_message:
       "Cette action supprime définitivement « {{name}} » et tous ses événements. Les événements supprimés ne vont pas dans la corbeille.",
+    clear_calendar_events: "Supprimer tous les événements",
+    clear_calendar_title: "Supprimer tous les événements ?",
+    clear_calendar_message:
+      "Cette action supprime définitivement {{count}} événements de « {{name}} ». Les événements supprimés ne vont pas dans la corbeille, et vous ne pouvez pas annuler cette action.",
+    clear_calendar_message_one:
+      "Cette action supprime définitivement {{count}} événement de « {{name}} ». Les événements supprimés ne vont pas dans la corbeille, et vous ne pouvez pas annuler cette action.",
+    clear_calendar_counting: "Comptage des événements…",
+    clear_calendar_empty_title: "Aucun événement à supprimer",
+    clear_calendar_empty_message: "« {{name}} » ne contient aucun événement.",
+    clear_calendar_in_progress: "Suppression des événements…",
+    clear_calendar_done: "{{count}} événements supprimés",
+    clear_calendar_done_one: "{{count}} événement supprimé",
+    clear_calendar_failed:
+      "Certains événements n'ont pas pu être supprimés. Réessayez.",
     tour_welcome_title: "Bienvenue dans Aster Calendar",
     tour_welcome_description:
       "Vos événements sont chiffrés sur cet appareil avant de le quitter. Cette courte visite vous montre où tout se trouve.",

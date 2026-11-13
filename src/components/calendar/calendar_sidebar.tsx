@@ -48,6 +48,7 @@ import {
   PlusIcon,
   SwatchIcon,
   TrashIcon,
+  XCircleIcon,
 } from "@heroicons/react/24/outline";
 import {
   Button,
@@ -97,6 +98,7 @@ import {
 import { show_toast } from "@/components/toast/simple_toast";
 import { update_calendar } from "@/services/api/calendar";
 import {
+  CalendarClearDialog,
   CalendarDeleteDialog,
   CalendarEditDialog,
 } from "@/components/calendar/calendar_edit_dialog";
@@ -543,11 +545,17 @@ export function CalendarSidebar({
   }>({ is_open: false, calendar: null });
   const [calendar_to_delete, set_calendar_to_delete] =
     useState<DecryptedCalendar | null>(null);
+  const [calendar_to_clear, set_calendar_to_clear] =
+    useState<DecryptedCalendar | null>(null);
 
   const open_new_calendar = () =>
     set_calendar_editor({ is_open: true, calendar: null });
   const open_edit_calendar = (calendar: DecryptedCalendar) =>
     set_calendar_editor({ is_open: true, calendar });
+  const close_calendar_clear = useCallback(
+    () => set_calendar_to_clear(null),
+    [],
+  );
   const close_calendar_editor = () =>
     set_calendar_editor((current) => ({ ...current, is_open: false }));
 
@@ -1089,17 +1097,22 @@ export function CalendarSidebar({
             {t("calendar.settings_set_default_calendar")}
           </ContextMenuItem>
         )}
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          className={DESTRUCTIVE_MENU_CLASS}
+          onClick={() => set_calendar_to_clear(calendar)}
+        >
+          <XCircleIcon className="me-2 h-4 w-4" />
+          {t("calendar.clear_calendar_events")}
+        </ContextMenuItem>
         {!calendar.is_default && (
-          <>
-            <ContextMenuSeparator />
-            <ContextMenuItem
-              className={DESTRUCTIVE_MENU_CLASS}
-              onClick={() => set_calendar_to_delete(calendar)}
-            >
-              <TrashIcon className="me-2 h-4 w-4" />
-              {t("calendar.settings_delete_calendar")}
-            </ContextMenuItem>
-          </>
+          <ContextMenuItem
+            className={DESTRUCTIVE_MENU_CLASS}
+            onClick={() => set_calendar_to_delete(calendar)}
+          >
+            <TrashIcon className="me-2 h-4 w-4" />
+            {t("calendar.settings_delete_calendar")}
+          </ContextMenuItem>
         )}
       </ContextMenuContent>
     </ContextMenu>
@@ -1448,6 +1461,10 @@ export function CalendarSidebar({
       <CalendarDeleteDialog
         calendar={calendar_to_delete}
         on_close={() => set_calendar_to_delete(null)}
+      />
+      <CalendarClearDialog
+        calendar={calendar_to_clear}
+        on_close={close_calendar_clear}
       />
     </>
   );

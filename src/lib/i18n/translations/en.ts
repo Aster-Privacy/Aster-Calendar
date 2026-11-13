@@ -10763,6 +10763,19 @@ export const en: Translations = {
     calendar_name_placeholder: "Work, Family, Travel",
     delete_calendar_message:
       "This permanently deletes “{{name}}” and every event in it. Deleted events don't go to Trash.",
+    clear_calendar_events: "Delete all events",
+    clear_calendar_title: "Delete all events?",
+    clear_calendar_message:
+      "This permanently deletes {{count}} events in “{{name}}”. Deleted events don't go to Trash, and you can't undo this.",
+    clear_calendar_message_one:
+      "This permanently deletes {{count}} event in “{{name}}”. Deleted events don't go to Trash, and you can't undo this.",
+    clear_calendar_counting: "Counting events…",
+    clear_calendar_empty_title: "No events to delete",
+    clear_calendar_empty_message: "“{{name}}” doesn't have any events.",
+    clear_calendar_in_progress: "Deleting events…",
+    clear_calendar_done: "{{count}} events deleted",
+    clear_calendar_done_one: "{{count}} event deleted",
+    clear_calendar_failed: "Some events couldn't be deleted. Try again.",
     tour_welcome_title: "Welcome to Aster Calendar",
     tour_welcome_description:
       "Your events are encrypted on this device before they leave it. This short tour shows you where everything is.",
