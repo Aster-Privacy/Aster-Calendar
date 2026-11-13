@@ -30,6 +30,8 @@ import type {
   QuickCreateDraft,
   QuickCreatePreview,
 } from "@/components/calendar/quick_create_popover";
+import type { WorkingLocationHandlers } from "@/components/calendar/working_location_badge";
+import type { WeekdayKey } from "@/services/calendar/working_location";
 import type { use_calendar_state } from "@/components/calendar/use_calendar_state";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1208,6 +1210,26 @@ export function CalendarContent({
     },
   };
 
+  const working_location_handlers = useMemo<WorkingLocationHandlers>(
+    () => ({
+      resolve: state.resolve_working_location,
+      usual_for: (day: Date) =>
+        state.working_week[String(day.getDay()) as WeekdayKey],
+      can_reset: state.can_reset_working_location,
+      on_set: state.set_day_working_location,
+      on_reset: state.reset_day_working_location,
+      on_other: state.open_other_working_location,
+    }),
+    [
+      state.can_reset_working_location,
+      state.open_other_working_location,
+      state.reset_day_working_location,
+      state.resolve_working_location,
+      state.set_day_working_location,
+      state.working_week,
+    ],
+  );
+
   const import_target_calendar_id = (() => {
     const preferred = state.preferences.calendar_default_calendar_id;
 
@@ -1361,7 +1383,7 @@ export function CalendarContent({
               calendar_by_id={state.calendar_by_id}
               calendars={state.calendars}
               event_menu_actions={event_menu_actions}
-              events={state.events}
+              events={state.view_events}
               draft_day={state.quick_range ? state.quick_range.start : null}
               on_day_click={state.handle_day_click}
               on_day_number_click={state.handle_year_day_click}
@@ -1385,6 +1407,7 @@ export function CalendarContent({
               t={state.t}
               time_format={state.preferences.time_format}
               week_start_day={state.week_start_day}
+              working_location={working_location_handlers}
             />
           )}
 
@@ -1396,7 +1419,7 @@ export function CalendarContent({
               calendar_by_id={state.calendar_by_id}
               calendars={state.calendars}
               event_menu_actions={event_menu_actions}
-              events={state.events}
+              events={state.view_events}
               is_phone={is_phone}
               is_single_day={state.view_mode === "day"}
               on_swipe_navigate={(direction) =>
@@ -1471,13 +1494,14 @@ export function CalendarContent({
               working_hours_start={
                 state.preferences.calendar_working_hours_start
               }
+              working_location={working_location_handlers}
             />
           )}
 
           {state.view_mode === "year" && (
             <CalendarYearView
               anchor_date={state.anchor_date}
-              events={state.events}
+              events={state.view_events}
               language={language}
               on_day_click={state.handle_year_day_click}
               on_month_click={state.handle_year_month_click}
@@ -1493,7 +1517,7 @@ export function CalendarContent({
               calendar_by_id={state.calendar_by_id}
               calendars={state.calendars}
               event_menu_actions={event_menu_actions}
-              events={state.events}
+              events={state.view_events}
               endless={
                 state.is_schedule_endless
                   ? {

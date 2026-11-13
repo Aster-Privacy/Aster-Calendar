@@ -11766,6 +11766,13 @@ export const de = {
     working_location_home: "Zuhause",
     working_location_office: "Büro",
     working_location_other: "Sonstiges",
+    working_location_none: "Keiner",
+    working_location_for_day: "Arbeitsort: {{location}}",
+    working_location_usual_for_day: "Arbeitsort: {{location}} (übliche Woche)",
+    working_location_set: "Arbeitsort festlegen",
+    working_location_use_usual: "Üblichen verwenden ({{location}})",
+    working_location_clear: "Entfernen",
+    working_location_other_place: "Anderer Ort…",
     out_of_office_note:
       "Andere sehen dich in diesem Zeitraum als nicht verfügbar.",
     focus_time_note:
@@ -12035,6 +12042,9 @@ export const de = {
     settings_show_declined_desc: "Abgelehnte Termine im Raster sichtbar lassen",
     settings_dim_past_events: "Vergangene Termine abdunkeln",
     settings_dim_past_events_desc: "Bereits beendete Termine abschwächen",
+    settings_working_week: "Üblicher Arbeitsort",
+    settings_working_week_desc:
+      "Wird an jedem Tag als Symbol angezeigt. Einen einzelnen Tag änderst du über sein Symbol.",
     settings_density: "Informationsdichte",
     settings_density_desc: "Wie viel vertikalen Platz jede Stunde einnimmt",
     settings_density_responsive: "Automatisch",

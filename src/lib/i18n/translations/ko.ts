@@ -11122,6 +11122,13 @@ export const ko = {
     working_location_home: "자택",
     working_location_office: "사무실",
     working_location_other: "기타",
+    working_location_none: "없음",
+    working_location_for_day: "근무 장소: {{location}}",
+    working_location_usual_for_day: "근무 장소: {{location}} (평소 주간)",
+    working_location_set: "근무 장소 설정",
+    working_location_use_usual: "평소대로 사용 ({{location}})",
+    working_location_clear: "지우기",
+    working_location_other_place: "다른 장소…",
     out_of_office_note: "이 기간 동안 다른 사람에게 예약 불가로 표시됩니다.",
     focus_time_note:
       "집중 시간은 캘린더를 차단하여 다른 일정이 겹치지 않게 합니다.",
@@ -11369,6 +11376,9 @@ export const ko = {
     settings_show_declined_desc: "거절한 일정을 그리드에 계속 표시",
     settings_dim_past_events: "지난 일정 흐리게",
     settings_dim_past_events_desc: "이미 끝난 일정을 흐리게 표시",
+    settings_working_week: "평소 근무 장소",
+    settings_working_week_desc:
+      "각 날짜에 아이콘으로 표시됩니다. 하루만 바꾸려면 그 날의 아이콘을 사용하세요.",
     settings_density: "정보 밀도",
     settings_density_desc: "각 시간이 차지하는 세로 공간",
     settings_density_responsive: "자동",
