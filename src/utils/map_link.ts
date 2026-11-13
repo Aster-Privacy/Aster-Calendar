@@ -36,7 +36,9 @@ function read_platform_hints(): PlatformHints {
   };
 }
 
-export function map_target(hints: PlatformHints = read_platform_hints()): MapTarget {
+export function map_target(
+  hints: PlatformHints = read_platform_hints(),
+): MapTarget {
   const { user_agent, max_touch_points } = hints;
 
   if (/android/i.test(user_agent)) return "device";

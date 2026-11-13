@@ -921,11 +921,7 @@ export function EventDetailPopover({
                   href={location_href}
                   rel="noopener noreferrer"
                   target="_blank"
-                  title={
-                    location_is_link
-                      ? undefined
-                      : map_label
-                  }
+                  title={location_is_link ? undefined : map_label}
                   onAuxClick={guard_link_click}
                   onClick={guard_link_click}
                 >

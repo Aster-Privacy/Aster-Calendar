@@ -33,9 +33,9 @@ const WINDOWS_CHROME =
 
 describe("map_target", () => {
   it("hands addresses to the device map app on Android", () => {
-    expect(map_target({ user_agent: ANDROID_CHROME, max_touch_points: 5 })).toBe(
-      "device",
-    );
+    expect(
+      map_target({ user_agent: ANDROID_CHROME, max_touch_points: 5 }),
+    ).toBe("device");
   });
 
   it("uses Apple Maps on iPhone and iPad", () => {
@@ -51,9 +51,9 @@ describe("map_target", () => {
     expect(map_target({ user_agent: MAC_SAFARI, max_touch_points: 0 })).toBe(
       "openstreetmap",
     );
-    expect(map_target({ user_agent: WINDOWS_CHROME, max_touch_points: 0 })).toBe(
-      "openstreetmap",
-    );
+    expect(
+      map_target({ user_agent: WINDOWS_CHROME, max_touch_points: 0 }),
+    ).toBe("openstreetmap");
   });
 });
 
