@@ -91,7 +91,9 @@ export function ExternalLinkWarningModal({
     try {
       const parsed = new URL(url);
 
-      return parsed.hostname;
+      if (parsed.hostname) return parsed.hostname;
+
+      return url.length > 50 ? url.slice(0, 50) + "..." : url;
     } catch {
       return url.length > 50 ? url.slice(0, 50) + "..." : url;
     }
