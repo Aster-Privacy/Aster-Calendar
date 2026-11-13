@@ -11597,6 +11597,14 @@ export const nl = {
     working_location_home: "Thuis",
     working_location_office: "Kantoor",
     working_location_other: "Anders",
+    working_location_none: "Geen",
+    working_location_for_day: "Werklocatie: {{location}}",
+    working_location_usual_for_day:
+      "Werklocatie: {{location}} (gebruikelijke week)",
+    working_location_set: "Werklocatie instellen",
+    working_location_use_usual: "Gebruikelijke gebruiken ({{location}})",
+    working_location_clear: "Wissen",
+    working_location_other_place: "Andere plek…",
     out_of_office_note: "Anderen zien je in deze periode als niet beschikbaar.",
     focus_time_note:
       "Focustijd blokkeert je agenda zodat niemand eroverheen plant.",
@@ -11866,6 +11874,9 @@ export const nl = {
       "Houd geweigerde afspraken zichtbaar in het raster",
     settings_dim_past_events: "Helderheid van voorbije afspraken verlagen",
     settings_dim_past_events_desc: "Vervaag afspraken die al voorbij zijn",
+    settings_working_week: "Gebruikelijke werklocatie",
+    settings_working_week_desc:
+      "Wordt als pictogram bij elke dag getoond. Wijzig één dag via het pictogram van die dag.",
     settings_density: "Informatiedichtheid",
     settings_density_desc: "Hoeveel verticale ruimte elk uur inneemt",
     settings_density_responsive: "Automatisch",

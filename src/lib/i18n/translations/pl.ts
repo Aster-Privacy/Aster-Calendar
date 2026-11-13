@@ -11841,6 +11841,14 @@ export const pl = {
     working_location_home: "Dom",
     working_location_office: "Biuro",
     working_location_other: "Inne",
+    working_location_none: "Brak",
+    working_location_for_day: "Miejsce pracy: {{location}}",
+    working_location_usual_for_day:
+      "Miejsce pracy: {{location}} (zwykły tydzień)",
+    working_location_set: "Ustaw miejsce pracy",
+    working_location_use_usual: "Użyj zwykłego ({{location}})",
+    working_location_clear: "Wyczyść",
+    working_location_other_place: "Inne miejsce…",
     out_of_office_note: "Inni zobaczą Cię jako niedostępnego w tym okresie.",
     focus_time_note:
       "Czas skupienia blokuje kalendarz, aby nikt nie planował na ten czas.",
@@ -12111,6 +12119,9 @@ export const pl = {
     settings_dim_past_events: "Przyciemniaj minione wydarzenia",
     settings_dim_past_events_desc:
       "Przyciemniaj wydarzenia, które już się skończyły",
+    settings_working_week: "Zwykłe miejsce pracy",
+    settings_working_week_desc:
+      "Wyświetlane jako ikona przy każdym dniu. Aby zmienić jeden dzień, użyj jego ikony.",
     settings_density: "Gęstość informacji",
     settings_density_desc: "Ile miejsca w pionie zajmuje każda godzina",
     settings_density_responsive: "Elastyczna",

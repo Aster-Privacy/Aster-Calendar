@@ -33,6 +33,10 @@ import { IslandIconButton, Tooltip } from "@aster/ui";
 
 import { CalendarEventContextMenu } from "@/components/calendar/calendar_event_context_menu";
 import { EventKindIcon } from "@/components/calendar/event_kind_icon";
+import {
+  WorkingLocationBadge,
+  type WorkingLocationHandlers,
+} from "@/components/calendar/working_location_badge";
 import { use_event_tooltip } from "@/components/calendar/calendar_event_tooltip";
 import {
   add_days,
@@ -409,6 +413,7 @@ interface CalendarMonthViewProps {
   on_range_select: (start: Date, end: Date, is_all_day: boolean) => void;
   default_duration_minutes: number;
   dim_past_events?: boolean;
+  working_location?: WorkingLocationHandlers;
 }
 
 export const CalendarMonthView = memo(function CalendarMonthView({
@@ -439,6 +444,7 @@ export const CalendarMonthView = memo(function CalendarMonthView({
   on_range_select,
   default_duration_minutes,
   dim_past_events = false,
+  working_location,
 }: CalendarMonthViewProps) {
   const [overflow_day, set_overflow_day] = useState<{
     day: Date;
@@ -1093,7 +1099,20 @@ export const CalendarMonthView = memo(function CalendarMonthView({
                   </button>
                 )}
 
-                <div className="relative flex flex-shrink-0 items-center justify-center gap-1.5 pt-1 pb-0.5">
+                <div className="group/working relative flex flex-shrink-0 items-center justify-center gap-1.5 pt-1 pb-0.5">
+                  {working_location && (
+                    <span
+                      className="absolute end-1 top-1 z-[3]"
+                      onPointerDown={(pointed) => pointed.stopPropagation()}
+                    >
+                      <WorkingLocationBadge
+                        day={day}
+                        handlers={working_location}
+                        t={t}
+                        variant="cell"
+                      />
+                    </span>
+                  )}
                   <button
                     aria-current={is_today ? "date" : undefined}
                     aria-label={day_label_format.format(day)}

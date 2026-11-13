@@ -11691,6 +11691,14 @@ export const pt_br = {
     working_location_home: "Casa",
     working_location_office: "Escritório",
     working_location_other: "Outro",
+    working_location_none: "Nenhum",
+    working_location_for_day: "Local de trabalho: {{location}}",
+    working_location_usual_for_day:
+      "Local de trabalho: {{location}} (semana habitual)",
+    working_location_set: "Definir local de trabalho",
+    working_location_use_usual: "Usar o habitual ({{location}})",
+    working_location_clear: "Limpar",
+    working_location_other_place: "Outro local…",
     out_of_office_note:
       "As outras pessoas verão você como indisponível nesse período.",
     focus_time_note:
@@ -11959,6 +11967,9 @@ export const pt_br = {
       "Mantém visíveis na grade os eventos que você recusou",
     settings_dim_past_events: "Reduzir o brilho dos eventos passados",
     settings_dim_past_events_desc: "Esmaece os eventos que já terminaram",
+    settings_working_week: "Local de trabalho habitual",
+    settings_working_week_desc:
+      "Aparece como ícone em cada dia. Para mudar um único dia, use o ícone dele.",
     settings_density: "Densidade de informações",
     settings_density_desc: "Quanto espaço vertical cada hora ocupa",
     settings_density_responsive: "Responsiva",

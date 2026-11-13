@@ -827,6 +827,13 @@ export interface CalendarTranslations {
   working_location_home: string;
   working_location_office: string;
   working_location_other: string;
+  working_location_none: string;
+  working_location_for_day: string;
+  working_location_usual_for_day: string;
+  working_location_set: string;
+  working_location_use_usual: string;
+  working_location_clear: string;
+  working_location_other_place: string;
   out_of_office_note: string;
   focus_time_note: string;
   event_deleted: string;
@@ -1048,6 +1055,8 @@ export interface CalendarTranslations {
   settings_show_declined_desc: string;
   settings_dim_past_events: string;
   settings_dim_past_events_desc: string;
+  settings_working_week: string;
+  settings_working_week_desc: string;
   settings_density: string;
   settings_density_desc: string;
   settings_density_responsive: string;

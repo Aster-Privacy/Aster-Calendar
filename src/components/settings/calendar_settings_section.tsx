@@ -36,11 +36,13 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   BellAlertIcon,
+  BuildingOffice2Icon,
   CalendarDaysIcon,
   ClockIcon,
   CommandLineIcon,
   EllipsisHorizontalIcon,
   GlobeAltIcon,
+  HomeIcon,
   PlusIcon,
   Squares2X2Icon,
   ViewColumnsIcon,
@@ -92,6 +94,11 @@ import {
   DEFAULT_REMINDER_OPTIONS,
   format_default_reminder,
 } from "@/services/calendar/event_reminders";
+import {
+  normalize_working_week,
+  type UsualLocation,
+  type WeekdayKey,
+} from "@/services/calendar/working_location";
 const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120];
 const REMINDER_OPTIONS = DEFAULT_REMINDER_OPTIONS.filter((value) => value >= 0);
 const ALL_DAY_REMINDER_OPTIONS = DEFAULT_ALL_DAY_REMINDER_OPTIONS.filter(
@@ -346,6 +353,24 @@ export function CalendarViewsSection() {
       : [...working_days, day_index].sort((a, b) => a - b);
 
     update_preference("calendar_working_days", next);
+  };
+
+  const working_week = normalize_working_week(
+    preferences.calendar_working_week,
+  );
+  const next_usual_location: Record<string, UsualLocation> = {
+    none: "office",
+    office: "home",
+    home: null,
+  };
+
+  const cycle_usual_location = (day_index: number) => {
+    const key = String(day_index) as WeekdayKey;
+
+    update_preference("calendar_working_week", {
+      ...working_week,
+      [key]: next_usual_location[working_week[key] ?? "none"],
+    });
   };
 
   const add_world_clock = (value: string) => {
@@ -843,6 +868,56 @@ export function CalendarViewsSection() {
             t("calendar.settings_info_working_days"),
           )}
           label={t("calendar.settings_working_days")}
+        />
+
+        <SettingControlRow
+          control={ordered_weekdays.map((day_index) => {
+            const usual = working_week[String(day_index) as WeekdayKey];
+            const usual_label = usual
+              ? t(
+                  usual === "home"
+                    ? "calendar.working_location_home"
+                    : "calendar.working_location_office",
+                )
+              : t("calendar.working_location_none");
+
+            return (
+              <button
+                key={day_index}
+                aria-label={`${weekday_short(day_index)}: ${usual_label}`}
+                className="flex h-11 w-8 flex-col items-center justify-center gap-0.5 rounded-full border text-[12px] font-medium transition-colors duration-150 ease-out"
+                style={{
+                  backgroundColor: usual
+                    ? "var(--accent-color)"
+                    : "transparent",
+                  borderColor: usual
+                    ? "var(--accent-color)"
+                    : "var(--border-primary)",
+                  color: usual
+                    ? "var(--accent-fg, #ffffff)"
+                    : "var(--text-secondary)",
+                }}
+                title={usual_label}
+                type="button"
+                onClick={() => cycle_usual_location(day_index)}
+              >
+                <span>{t(WEEKDAY_KEYS[day_index])}</span>
+                {usual === "home" ? (
+                  <HomeIcon aria-hidden="true" className="h-3.5 w-3.5" />
+                ) : usual === "office" ? (
+                  <BuildingOffice2Icon
+                    aria-hidden="true"
+                    className="h-3.5 w-3.5"
+                  />
+                ) : (
+                  <span aria-hidden="true" className="h-3.5 w-3.5" />
+                )}
+              </button>
+            );
+          })}
+          control_width="auto"
+          description={t("calendar.settings_working_week_desc")}
+          label={t("calendar.settings_working_week")}
         />
       </IslandSection>
     </IslandSections>

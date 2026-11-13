@@ -11459,6 +11459,13 @@ export const tr = {
     working_location_home: "Ev",
     working_location_office: "Ofis",
     working_location_other: "Diğer",
+    working_location_none: "Yok",
+    working_location_for_day: "Çalışma yeri: {{location}}",
+    working_location_usual_for_day: "Çalışma yeri: {{location}} (olağan hafta)",
+    working_location_set: "Çalışma yerini ayarla",
+    working_location_use_usual: "Olağanı kullan ({{location}})",
+    working_location_clear: "Temizle",
+    working_location_other_place: "Başka bir yer…",
     out_of_office_note: "Bu dönemde başkaları sizi müsait değil olarak görür.",
     focus_time_note:
       "Odaklanma zamanı takviminizi bloke eder, kimse üzerine plan yapamaz.",
@@ -11722,6 +11729,9 @@ export const tr = {
       "Reddettiğiniz etkinlikleri ızgarada görünür tut",
     settings_dim_past_events: "Geçmiş etkinliklerin parlaklığını azalt",
     settings_dim_past_events_desc: "Bitmiş etkinlikleri soluklaştır",
+    settings_working_week: "Olağan çalışma yeri",
+    settings_working_week_desc:
+      "Her günde bir simge olarak gösterilir. Tek bir günü değiştirmek için o günün simgesini kullanın.",
     settings_density: "Bilgi yoğunluğu",
     settings_density_desc: "Her saatin kapladığı dikey alan",
     settings_density_responsive: "Uyarlanabilir",
