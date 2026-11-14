@@ -392,6 +392,27 @@ export async function get_pinned_owner_key_fingerprint(
   }
 }
 
+export async function lookup_owner_key_pin(
+  pin_id: string,
+): Promise<string | null | "unreadable"> {
+  if (!pin_id) return null;
+
+  try {
+    const storage_key = await get_pin_storage_key();
+    const uid = await current_account_uid();
+    const existing = await scoped_get<StoredOwnerKeyPin>(
+      OWNER_KEY_PIN_PREFIX,
+      uid,
+      pin_id,
+      storage_key,
+    );
+
+    return existing?.fingerprint ?? null;
+  } catch {
+    return "unreadable";
+  }
+}
+
 export async function trust_recipient_keys(
   pin_id: string,
   kem_identity_key: string | null,
