@@ -11445,7 +11445,15 @@ export const pl = {
     settings_info_day_split:
       "Gdy widoczne sa dwa lub więcej kalendarzy, widok dnia dzieli się na kolumnę na kalendarz.",
     birthday_title: "Urodziny: {{name}}",
+    anniversary_title: "Rocznica: {{name}}",
     settings_birthdays: "Urodziny",
+    remove_birthdays_calendar: "Usuń kalendarz",
+    remove_birthdays_calendar_title: "Usunąć {{name}}?",
+    remove_birthdays_calendar_message: "Urodziny z Twoich kontaktów przestaną być widoczne w kalendarzu na wszystkich Twoich urządzeniach. Twoje kontakty się nie zmienią, a kalendarz możesz przywrócić w Ustawieniach.",
+    birthdays_removed_toast: "Kalendarz usunięty",
+    birthdays_restored_toast: "Kalendarz przywrócony",
+    birthdays_removed_description: "Urodziny z Twoich kontaktów są ukryte na wszystkich Twoich urządzeniach.",
+    add_birthdays_calendar_back: "Przywróć",
     settings_birthdays_desc: "Pokaż urodziny z kontaktów",
     settings_info_birthdays:
       "Dodaje urodziny każdego kontaktu jako wpis całodniowy tylko do odczytu, powtarzany co roku.",

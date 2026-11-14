@@ -11079,7 +11079,15 @@ export const tr = {
     settings_info_day_split:
       "Iki veya daha fazla takvim görünürken gün görünümü takvim başına bir sütuna bölünür.",
     birthday_title: "{{name}} doğum günü",
+    anniversary_title: "{{name}} yıl dönümü",
     settings_birthdays: "Doğum günleri",
+    remove_birthdays_calendar: "Takvimi kaldır",
+    remove_birthdays_calendar_title: "{{name}} kaldırılsın mı?",
+    remove_birthdays_calendar_message: "Kişilerinizdeki doğum günleri hiçbir cihazınızda takviminizde görünmez. Kişileriniz değişmez ve takvimi Ayarlar'dan geri ekleyebilirsiniz.",
+    birthdays_removed_toast: "Takvim kaldırıldı",
+    birthdays_restored_toast: "Takvim geri eklendi",
+    birthdays_removed_description: "Kişilerinizdeki doğum günleri tüm cihazlarınızda gizli.",
+    add_birthdays_calendar_back: "Geri ekle",
     settings_birthdays_desc: "Kişilerinizin doğum günlerini göster",
     settings_info_birthdays:
       "Her kişinin doğum gününü salt okunur tüm gün girişi olarak her yıl takvime ekler.",

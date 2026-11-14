@@ -58,6 +58,8 @@ interface CalendarEditDialogProps {
   on_close: () => void;
   on_saved?: (saved: CalendarSavedPayload) => void;
   on_delete_request?: (calendar: DecryptedCalendar) => void;
+  on_save_local?: (saved: CalendarSavedPayload) => void;
+  delete_label?: string;
 }
 
 export function CalendarEditDialog({
@@ -66,6 +68,8 @@ export function CalendarEditDialog({
   on_close,
   on_saved,
   on_delete_request,
+  on_save_local,
+  delete_label,
 }: CalendarEditDialogProps) {
   const { t } = use_i18n();
   const name_id = useId();
@@ -90,6 +94,13 @@ export function CalendarEditDialog({
 
   const submit = async () => {
     if (!can_submit) {
+      return;
+    }
+
+    if (on_save_local) {
+      on_save_local({ id: calendar?.id ?? null, name: trimmed, color });
+      on_close();
+
       return;
     }
 
@@ -161,7 +172,8 @@ export function CalendarEditDialog({
               role="radiogroup"
             >
               {EVENT_COLOR_OPTIONS.map((option) => {
-                const is_selected = nearest_event_color(color).name === option.name;
+                const is_selected =
+                  nearest_event_color(color).name === option.name;
 
                 return (
                   <button
@@ -208,7 +220,7 @@ export function CalendarEditDialog({
               on_delete_request?.(calendar);
             }}
           >
-            {t("calendar.settings_delete_calendar")}
+            {delete_label ?? t("calendar.settings_delete_calendar")}
           </Button>
         )}
         <Button

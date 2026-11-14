@@ -76,6 +76,7 @@ import { get_display_time_zone } from "@/utils/date_format";
 import { is_booking_event } from "@/services/calendar/appointments";
 import { is_birthday_kind } from "@/services/calendar/birthdays";
 import { use_guarded_link } from "@/components/calendar/use_guarded_link";
+import { use_synthetic_calendar_display } from "@/hooks/use_synthetic_calendar_display";
 import { map_search_url, map_target } from "@/utils/map_link";
 import {
   safe_http_url,
@@ -264,6 +265,7 @@ export function EventDetailPopover({
   on_respond,
 }: EventDetailPopoverProps) {
   const { guard_link_click, open_guarded_link } = use_guarded_link();
+  const { birthdays_name } = use_synthetic_calendar_display();
   const card_ref = useRef<HTMLDivElement>(null);
   const close_ref = useRef<HTMLButtonElement>(null);
   const description_ref = useRef<HTMLParagraphElement>(null);
@@ -561,7 +563,7 @@ export function EventDetailPopover({
   const ends_at = new Date(event.ends_at);
   const color = resolve_event_color(event, calendar?.color);
   const calendar_name = is_birthday_kind(event)
-    ? t("calendar.settings_birthdays")
+    ? birthdays_name
     : calendar?.name;
   const title_id = `event_detail_title_${event.id}`;
 

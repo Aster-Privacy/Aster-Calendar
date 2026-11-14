@@ -9959,7 +9959,15 @@ export const zh_CN = {
     settings_info_day_split:
       "当显示两个或更多日历时，日视图会按日历拆分为多列。",
     birthday_title: "{{name}}的生日",
+    anniversary_title: "{{name}}的纪念日",
     settings_birthdays: "生日",
+    remove_birthdays_calendar: "移除日历",
+    remove_birthdays_calendar_title: "要移除“{{name}}”吗？",
+    remove_birthdays_calendar_message: "联系人的生日将不再显示在你所有设备的日历中。你的联系人不会改变，你可以在“设置”中重新添加此日历。",
+    birthdays_removed_toast: "日历已移除",
+    birthdays_restored_toast: "日历已重新添加",
+    birthdays_removed_description: "联系人的生日已在你的所有设备上隐藏。",
+    add_birthdays_calendar_back: "重新添加",
     settings_birthdays_desc: "显示联系人的生日",
     settings_info_birthdays:
       "将每位联系人的生日作为只读全天条目每年添加到日历。",

@@ -11016,7 +11016,15 @@ export const hi = {
     settings_info_day_split:
       "जब दो या अधिक कैलेंडर दिख रहे हों, तो दिन व्यू हर कैलेंडर के लिए एक कॉलम में बंट जाता है।",
     birthday_title: "{{name}} का जन्मदिन",
+    anniversary_title: "{{name}} की सालगिरह",
     settings_birthdays: "जन्मदिन",
+    remove_birthdays_calendar: "कैलेंडर हटाएं",
+    remove_birthdays_calendar_title: "{{name}} हटाएं?",
+    remove_birthdays_calendar_message: "आपके संपर्कों के जन्मदिन आपके किसी भी डिवाइस पर कैलेंडर में नहीं दिखेंगे। आपके संपर्क नहीं बदलेंगे, और आप सेटिंग में कैलेंडर को वापस जोड़ सकते हैं।",
+    birthdays_removed_toast: "कैलेंडर हटाया गया",
+    birthdays_restored_toast: "कैलेंडर वापस जोड़ा गया",
+    birthdays_removed_description: "आपके संपर्कों के जन्मदिन आपके सभी डिवाइस पर छिपे हुए हैं।",
+    add_birthdays_calendar_back: "वापस जोड़ें",
     settings_birthdays_desc: "आपके संपर्कों के जन्मदिन दिखाएं",
     settings_info_birthdays:
       "हर संपर्क के जन्मदिन को आपके कैलेंडर में केवल पढ़ने योग्य पूरे दिन की एंट्री के रूप में जोड़ता है, जो हर साल दोहराई जाती है।",

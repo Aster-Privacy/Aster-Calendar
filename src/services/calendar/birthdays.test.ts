@@ -43,6 +43,23 @@ describe("birthday events you create", () => {
     expect(is_event_shown(birthday, visible, false)).toBe(false);
   });
 
+  it("follows its own calendar once the birthdays calendar is removed", () => {
+    expect(
+      is_event_shown(
+        { calendar_id: "personal", event_kind: "birthday" },
+        visible,
+        null,
+      ),
+    ).toBe(true);
+    expect(
+      is_event_shown(
+        { calendar_id: "hidden", event_kind: "birthday" },
+        visible,
+        null,
+      ),
+    ).toBe(false);
+  });
+
   it("follows calendar visibility for other events", () => {
     expect(
       is_event_shown(

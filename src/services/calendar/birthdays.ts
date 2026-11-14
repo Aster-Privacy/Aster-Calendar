@@ -18,36 +18,74 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
+import { parse_contact_date } from "@/utils/date_utils";
+
 export const BIRTHDAY_EVENT_PREFIX = "birthday-";
 export const BIRTHDAY_CALENDAR_ID = "__birthdays__";
 export const BIRTHDAY_COLOR = "#d81b60";
+
+export type BirthdayKind = "birthday" | "anniversary";
 
 export interface BirthdaySource {
   id: string;
   name: string;
   birthday: string;
+  kind?: BirthdayKind;
 }
 
 export interface BirthdayOccurrence {
   contact_id: string;
   name: string;
   date: Date;
+  kind: BirthdayKind;
 }
 
 function parse_birthday(value: string): { month: number; day: number } | null {
-  const full = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  const parts = parse_contact_date(value);
 
-  if (full) {
-    return { day: Number(full[3]), month: Number(full[2]) - 1 };
+  return parts ? { day: parts.day, month: parts.month - 1 } : null;
+}
+
+export interface BirthdayContact {
+  id: string;
+  first_name?: string;
+  last_name?: string;
+  birthday?: string;
+  date_entries?: { value: string; type: string }[];
+}
+
+export function contact_birthday_sources(
+  contact: BirthdayContact,
+): BirthdaySource[] {
+  const name = `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim();
+
+  if (name.length === 0) {
+    return [];
   }
 
-  const monthless = /^--?(\d{2})-(\d{2})$/.exec(value.trim());
+  const sources: BirthdaySource[] = [];
 
-  if (monthless) {
-    return { day: Number(monthless[2]), month: Number(monthless[1]) - 1 };
+  if (contact.birthday && parse_birthday(contact.birthday)) {
+    sources.push({ birthday: contact.birthday, id: contact.id, name });
   }
 
-  return null;
+  const anniversaries = (contact.date_entries ?? []).filter(
+    (entry) =>
+      entry.type === "anniversary" &&
+      typeof entry.value === "string" &&
+      parse_birthday(entry.value) !== null,
+  );
+
+  anniversaries.forEach((entry, index) => {
+    sources.push({
+      birthday: entry.value,
+      id: `${contact.id}-anniversary${index > 0 ? `-${index + 1}` : ""}`,
+      kind: "anniversary",
+      name,
+    });
+  });
+
+  return sources;
 }
 
 export function birthdays_in_range(
@@ -82,6 +120,7 @@ export function birthdays_in_range(
         result.push({
           contact_id: source.id,
           date: occurrence,
+          kind: source.kind ?? "birthday",
           name: source.name,
         });
       }
@@ -100,9 +139,9 @@ export function is_birthday_kind(event: { event_kind: string }): boolean {
 export function is_event_shown(
   event: { event_kind: string; calendar_id: string },
   visible_calendar_ids: ReadonlySet<string>,
-  show_birthdays: boolean,
+  show_birthdays: boolean | null,
 ): boolean {
-  return is_birthday_kind(event)
+  return is_birthday_kind(event) && show_birthdays !== null
     ? show_birthdays
     : visible_calendar_ids.has(event.calendar_id);
 }

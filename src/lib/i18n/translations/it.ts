@@ -11285,7 +11285,15 @@ export const it = {
     settings_info_day_split:
       "Quando sono visibili due o più calendari, la vista giorno si divide in una colonna per calendario.",
     birthday_title: "Compleanno di {{name}}",
+    anniversary_title: "Anniversario di {{name}}",
     settings_birthdays: "Compleanni",
+    remove_birthdays_calendar: "Rimuovi calendario",
+    remove_birthdays_calendar_title: "Rimuovere {{name}}?",
+    remove_birthdays_calendar_message: "I compleanni dei tuoi contatti non verranno più mostrati nel calendario su nessuno dei tuoi dispositivi. I tuoi contatti non cambiano e puoi aggiungere di nuovo il calendario nelle Impostazioni.",
+    birthdays_removed_toast: "Calendario rimosso",
+    birthdays_restored_toast: "Calendario aggiunto di nuovo",
+    birthdays_removed_description: "I compleanni dei tuoi contatti sono nascosti su tutti i tuoi dispositivi.",
+    add_birthdays_calendar_back: "Aggiungi di nuovo",
     settings_birthdays_desc: "Mostra i compleanni dei tuoi contatti",
     settings_info_birthdays:
       "Aggiunge il compleanno di ogni contatto come voce di giornata intera in sola lettura, ripetuta ogni anno.",

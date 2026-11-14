@@ -10972,7 +10972,15 @@ export const ja = {
     settings_info_day_split:
       "2つ以上のカレンダーが表示されている場合、日ビューがカレンダーごとの列に分かれます。",
     birthday_title: "{{name}} の誕生日",
+    anniversary_title: "{{name}} の記念日",
     settings_birthdays: "誕生日",
+    remove_birthdays_calendar: "カレンダーを削除",
+    remove_birthdays_calendar_title: "{{name}}を削除しますか？",
+    remove_birthdays_calendar_message: "連絡先の誕生日が、すべてのデバイスのカレンダーに表示されなくなります。連絡先は変更されず、設定からカレンダーを元に戻せます。",
+    birthdays_removed_toast: "カレンダーを削除しました",
+    birthdays_restored_toast: "カレンダーを元に戻しました",
+    birthdays_removed_description: "連絡先の誕生日はすべてのデバイスで非表示になっています。",
+    add_birthdays_calendar_back: "元に戻す",
     settings_birthdays_desc: "連絡先の誕生日を表示します",
     settings_info_birthdays:
       "各連絡先の誕生日を読み取り専用の終日予定として毎年カレンダーに追加します。",

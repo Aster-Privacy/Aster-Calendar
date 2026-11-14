@@ -11373,7 +11373,15 @@ export const de = {
     settings_info_day_split:
       "Wenn zwei oder mehr Kalender sichtbar sind, teilt sich die Tagesansicht in eine Spalte pro Kalender.",
     birthday_title: "Geburtstag von {{name}}",
+    anniversary_title: "Jahrestag von {{name}}",
     settings_birthdays: "Geburtstage",
+    remove_birthdays_calendar: "Kalender entfernen",
+    remove_birthdays_calendar_title: "{{name}} entfernen?",
+    remove_birthdays_calendar_message: "Geburtstage aus deinen Kontakten werden auf keinem deiner Geräte mehr im Kalender angezeigt. Deine Kontakte bleiben unverändert, und du kannst den Kalender in den Einstellungen wieder hinzufügen.",
+    birthdays_removed_toast: "Kalender entfernt",
+    birthdays_restored_toast: "Kalender wieder hinzugefügt",
+    birthdays_removed_description: "Geburtstage aus deinen Kontakten sind auf all deinen Geräten ausgeblendet.",
+    add_birthdays_calendar_back: "Wieder hinzufügen",
     settings_birthdays_desc: "Geburtstage aus deinen Kontakten anzeigen",
     settings_info_birthdays:
       "Fügt den Geburtstag jedes Kontakts als schreibgeschützten ganztägigen Eintrag hinzu, jährlich wiederholt.",
