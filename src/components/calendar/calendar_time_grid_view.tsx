@@ -80,6 +80,11 @@ import {
   event_occurrence_key,
   start_of_day,
 } from "@/components/calendar/calendar_utils";
+import {
+  layout_day_lanes,
+  shows_as_all_day_on,
+  type LaneSlot,
+} from "@/components/calendar/multi_day_layout";
 import { format_time, local_date_key } from "@/utils/date_format";
 import {
   calendar_now,
@@ -123,79 +128,12 @@ const MIN_EVENT_MINUTES = 15;
 const STACK_OFFSET_PX = 12;
 const MIN_CHIP_WIDTH_PX = 28;
 
-interface AllDaySegment {
-  event: DecryptedCalendarEvent;
-  is_start: boolean;
-  is_end: boolean;
-  span_days: number;
-}
-
-type AllDayRow = AllDaySegment | null;
-
-interface AllDayRun {
-  event: DecryptedCalendarEvent;
-  key: string;
-  first: number;
-  last: number;
-}
+type AllDayRow = LaneSlot<DecryptedCalendarEvent>;
 
 function layout_all_day_rows(lists: DecryptedCalendarEvent[][]): AllDayRow[][] {
-  const runs: AllDayRun[] = [];
-  const open_runs = new Map<string, AllDayRun>();
-
-  lists.forEach((list, day_index) => {
-    for (const event of list) {
-      const key = `${event.id}|${event.starts_at}`;
-      const open_run = open_runs.get(key);
-
-      if (open_run && open_run.last === day_index - 1) {
-        open_run.last = day_index;
-        continue;
-      }
-
-      const run = { event, key, first: day_index, last: day_index };
-
-      open_runs.set(key, run);
-      runs.push(run);
-    }
-  });
-
-  runs.sort(
-    (left, right) =>
-      left.first - right.first ||
-      right.last - right.first - (left.last - left.first),
+  return layout_day_lanes(lists, { is_joinable: () => true }).map(
+    (day) => day.slots,
   );
-
-  const rows: AllDayRow[][] = lists.map(() => []);
-
-  for (const run of runs) {
-    let lane = 0;
-
-    while (
-      rows
-        .slice(run.first, run.last + 1)
-        .some((day_rows) => Boolean(day_rows[lane]))
-    ) {
-      lane += 1;
-    }
-
-    for (let day_index = run.first; day_index <= run.last; day_index += 1) {
-      const day_rows = rows[day_index];
-
-      while (day_rows.length < lane) {
-        day_rows.push(null);
-      }
-
-      day_rows[lane] = {
-        event: run.event,
-        is_start: day_index === run.first,
-        is_end: day_index === run.last,
-        span_days: run.last - day_index + 1,
-      };
-    }
-  }
-
-  return rows;
 }
 
 function all_day_segment_style(
@@ -1109,13 +1047,18 @@ export const CalendarTimeGridView = memo(function CalendarTimeGridView({
     [days, events],
   );
   const all_day_by_day = useMemo(
-    () => events_by_day.map((list) => list.filter((event) => event.is_all_day)),
-    [events_by_day],
+    () =>
+      events_by_day.map((list, day_index) =>
+        list.filter((event) => shows_as_all_day_on(event, days[day_index])),
+      ),
+    [events_by_day, days],
   );
   const timed_by_day = useMemo(
     () =>
-      events_by_day.map((list) => list.filter((event) => !event.is_all_day)),
-    [events_by_day],
+      events_by_day.map((list, day_index) =>
+        list.filter((event) => !shows_as_all_day_on(event, days[day_index])),
+      ),
+    [events_by_day, days],
   );
   const layout_by_day = useMemo(
     () =>
@@ -2292,6 +2235,7 @@ export const CalendarTimeGridView = memo(function CalendarTimeGridView({
                       new Date(event.ends_at).getTime() < now.getTime();
                     const can_resize =
                       is_end &&
+                      event.is_all_day &&
                       !is_readonly_event(event) &&
                       days.some((candidate) =>
                         is_same_day(candidate, new Date(event.ends_at)),
