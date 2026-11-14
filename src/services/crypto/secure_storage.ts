@@ -59,6 +59,7 @@ import {
 const CURRENT_VERSION = 1;
 const DEVICE_LEGACY_VERSION = 1;
 const DEVICE_WRAPPED_VERSION = 2;
+const DEVICE_SESSION_VERSION = 3;
 const STORAGE_SALT_KEY = "aster_storage_salt";
 const DEVICE_ID_KEY = "aster_device_id";
 
@@ -620,7 +621,21 @@ async function get_legacy_device_encryption_key(): Promise<CryptoKey> {
   return legacy_device_encryption_key;
 }
 
-async function get_device_write_key(): Promise<{
+let session_device_key: Promise<CryptoKey> | null = null;
+
+function get_session_device_key(): Promise<CryptoKey> {
+  if (!session_device_key) {
+    session_device_key = crypto.subtle.generateKey(
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"],
+    );
+  }
+
+  return session_device_key;
+}
+
+async function get_device_write_key(holds_no_secrets = false): Promise<{
   key: CryptoKey;
   version: number;
 }> {
@@ -630,13 +645,28 @@ async function get_device_write_key(): Promise<{
     return { key: wrap_key, version: DEVICE_WRAPPED_VERSION };
   }
 
+  if (holds_no_secrets) {
+    return {
+      key: await get_legacy_device_encryption_key(),
+      version: DEVICE_LEGACY_VERSION,
+    };
+  }
+
   return {
-    key: await get_legacy_device_encryption_key(),
-    version: DEVICE_LEGACY_VERSION,
+    key: await get_session_device_key(),
+    version: DEVICE_SESSION_VERSION,
   };
 }
 
 async function get_device_read_key(version: number): Promise<CryptoKey> {
+  if (version === DEVICE_SESSION_VERSION) {
+    if (!session_device_key) {
+      throw new SecureStorageError("missing_key");
+    }
+
+    return session_device_key;
+  }
+
   if (version >= DEVICE_WRAPPED_VERSION) {
     const wrap_key = await get_device_wrap_key();
 
@@ -651,7 +681,13 @@ async function get_device_read_key(version: number): Promise<CryptoKey> {
 }
 
 export async function device_encrypt(data: string): Promise<string> {
-  const { key, version } = await get_device_write_key();
+  return encrypt_device_payload(data, await get_device_write_key());
+}
+
+async function encrypt_device_payload(
+  data: string,
+  { key, version }: { key: CryptoKey; version: number },
+): Promise<string> {
   const encoder = new TextEncoder();
   const plaintext = encoder.encode(data);
   const nonce = generate_random_bytes(12);
@@ -719,9 +755,22 @@ export async function device_decrypt(encrypted_data: string): Promise<string> {
   return decoder.decode(plaintext_buffer);
 }
 
-export async function device_store(key: string, value: unknown): Promise<void> {
-  const serialized = JSON.stringify(value);
-  const encrypted = await device_encrypt(serialized);
+export async function device_store<T>(
+  key: string,
+  value: T,
+  redact_without_device_key?: (value: T) => unknown,
+): Promise<void> {
+  const write_key = await get_device_write_key(
+    redact_without_device_key !== undefined,
+  );
+  const stored =
+    write_key.version === DEVICE_LEGACY_VERSION && redact_without_device_key
+      ? redact_without_device_key(value)
+      : value;
+  const encrypted = await encrypt_device_payload(
+    JSON.stringify(stored),
+    write_key,
+  );
 
   localStorage.setItem(key, encrypted);
 }
@@ -801,6 +850,7 @@ function is_legacy_device_payload(encrypted: string): boolean {
 
 export function clear_device_encryption_cache(): void {
   legacy_device_encryption_key = null;
+  session_device_key = null;
   clear_device_wrap_key_cache();
 }
 

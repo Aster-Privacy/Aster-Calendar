@@ -25,6 +25,7 @@ mod badges_data;
 mod boot_guard;
 mod device;
 mod http_client;
+mod sync_socket;
 
 use std::sync::Mutex;
 #[cfg(windows)]
@@ -45,14 +46,13 @@ const APP_NAVIGATION_HOSTS: &[&str] = &[
     "tauri.localhost",
     "asset.localhost",
     "ipc.localhost",
+    "app.astermail.org",
     "challenges.cloudflare.com",
 ];
 
 const DEV_NAVIGATION_HOSTS: &[&str] = &["localhost", "127.0.0.1"];
 
-const APP_NAVIGATION_SUFFIXES: &[&str] = &[
-    ".astermail.org",
-];
+const APP_NAVIGATION_SUFFIXES: &[&str] = &[];
 
 const APP_ONION_HOSTS: &[&str] = &[
     "asterwkopxf427ndjpgco5swerhivljvwcsggsxmfgmve4awbahpcrqd.onion",
@@ -471,6 +471,7 @@ fn main() {
         .manage(TrayMenuState(Mutex::new(None)))
         .manage(CloseToTrayState(Mutex::new(true)))
         .manage(boot_guard::BootState::new())
+        .manage(sync_socket::SyncSockets::default())
         .invoke_handler(tauri::generate_handler![
             frontend_ready,
             frontend_painted,
@@ -490,6 +491,8 @@ fn main() {
             device::crypto::device_get_stored_passphrase,
             device::crypto::device_pin_seal_stored_passphrase,
             device::crypto::device_pin_restore_stored_passphrase,
+            device::crypto::device_seal_local_secret,
+            device::crypto::device_open_local_secret,
             device::crypto::device_forget_account,
             device::crypto::device_clear_session,
             device::crypto::device_clear_identity,
@@ -497,6 +500,9 @@ fn main() {
             device::crypto::device_auth_store_get,
             device::crypto::device_auth_store_clear,
             device::crypto::device_http_request,
+            sync_socket::sync_socket_open,
+            sync_socket::sync_socket_send,
+            sync_socket::sync_socket_close,
             device::crypto::crypto_pbkdf2,
             device::crypto::crypto_hkdf,
             device::crypto::crypto_aes_gcm_encrypt,
@@ -751,6 +757,28 @@ mod navigation_tests {
             super::quarantine_attribute_value(0x6700_0000),
             "0081;67000000;Aster Calendar;"
         );
+    }
+
+    #[test]
+    fn forwards_other_subdomains_out_of_the_app_window() {
+        for url in [
+            "https://astermail.org/",
+            "https://mail.astermail.org/inbox",
+            "https://calendar.astermail.org/",
+            "https://anything.app.astermail.org/",
+            "https://astermail.com/",
+            "https://app.astermail.com/",
+        ] {
+            let parsed = Url::parse(url).expect("valid url");
+            assert!(!is_app_navigation_for_build(&parsed, false), "{url}");
+            assert!(!is_app_navigation_for_build(&parsed, true), "{url}");
+            assert!(should_forward_to_app(&parsed), "{url}");
+        }
+    }
+
+    #[test]
+    fn the_webview_cannot_open_a_sync_socket_by_itself() {
+        assert!(!include_str!("../tauri.conf.json").contains("wss://"));
     }
 
     #[test]

@@ -21,14 +21,24 @@
 import type { EncryptedVault } from "@/services/crypto/key_manager";
 
 import { decrypt_vault } from "@/services/crypto/key_manager";
+import { rewrap_legacy_entries } from "@/services/crypto/encrypted_storage";
+import { ignore_error } from "@/lib/ignore_error";
 import {
   store_vault_in_memory,
   get_vault_from_memory,
   has_vault_in_memory,
   has_vault_in_memory_for,
+  on_vault_cleared,
 } from "@/services/crypto/memory_key_store";
+import { reset_level2_state } from "@/services/crypto/vault_level2";
 
 let vault_decryption_lock: Promise<void> | null = null;
+
+on_vault_cleared((event) => {
+  if (event.same_owner) return;
+
+  reset_level2_state();
+});
 
 export async function decrypt_vault_with_lock(
   encrypted_vault: string,
@@ -66,6 +76,10 @@ export async function decrypt_vault_with_lock(
     const vault = await decrypt_vault(encrypted_vault, vault_nonce, passphrase);
 
     await store_vault_in_memory(vault, passphrase, owner_user_id);
+
+    rewrap_legacy_entries().catch((caught) =>
+      ignore_error("contexts/auth/vault_decryption:rewrap", caught),
+    );
 
     return vault;
   } finally {

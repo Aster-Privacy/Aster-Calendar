@@ -1059,7 +1059,7 @@ export const nl = {
       "In Instellingen voeg je een alias toe, koppel je een eigen domein en schakel je tweestapsverificatie in.",
     youre_ready: "Je bent klaar",
     youre_ready_description:
-      "Je e-mail is end-to-end versleuteld en alleen jij hebt de sleutels. Druk op elk moment op ? om alle sneltoetsen te zien.",
+      "Je e-mail wordt versleuteld opgeslagen en alleen jij hebt de sleutels. Druk op elk moment op ? om alle sneltoetsen te zien.",
     skip_tour: "Rondleiding overslaan",
     get_started: "Aan de slag",
     step: "Stap",
@@ -2073,6 +2073,10 @@ export const nl = {
     zip_archive: "ZIP-archief",
   },
   settings: {
+    sandbox_off_by_setting_notice:
+      "Dit venster draait zonder sandbox omdat een omgevingsvariabele die heeft uitgeschakeld.",
+    sandbox_off_notice:
+      "Dit venster draait zonder sandbox. Installeer bubblewrap en start Aster Calendar opnieuw om de sandbox in te schakelen.",
     billing_lifetime_note:
       "Dit abonnement wordt nooit verlengd en je betaalt er nooit meer voor. Neem contact op met Aster-support om het te wijzigen.",
     billing_status_lifetime: "Levenslang",
@@ -2202,7 +2206,7 @@ export const nl = {
     fam_welcome_step1_point1: "Elk lid krijgt een eigen @astermail.org-adres",
     fam_welcome_step1_point2:
       "Volledige privacy - leden kunnen elkaars e-mails niet zien",
-    fam_welcome_step1_point3: "Kwantumveilige versleuteling op elk account",
+    fam_welcome_step1_point3: "Post-kwantumversleuteling tussen Aster-accounts",
     fam_welcome_step2_title: "Eén opslagpool, jij bepaalt",
     fam_welcome_step2_desc:
       "Je abonnement bevat een gedeelde opslagpool. Bepaal hoeveel elk lid krijgt en pas het op elk moment aan.",
@@ -2530,7 +2534,7 @@ export const nl = {
     invite_title_named: "{{ name }} heeft je uitgenodigd voor Aster Mail",
     invite_title_generic: "Je bent uitgenodigd voor Aster Mail",
     invite_subtitle:
-      "Aster Mail is zero-access, end-to-end versleutelde e-mail. Niemand behalve jij kan je inbox lezen, wij ook niet.",
+      "Aster Mail is zero-access, end-to-end versleutelde e-mail. We slaan je e-mail versleuteld op met sleutels die alleen jij hebt.",
     invite_discount_line:
       "Meld je nu aan en krijg {{ percent }}% korting op je eerste abonnement.",
     invite_benefits_heading: "Dit krijg je",
@@ -4532,6 +4536,8 @@ export const nl = {
     "connection.status_error":
       "We zijn de verbinding kwijtgeraakt, en we proberen het zelf opnieuw.",
     "connection.status_disconnected": "Niet verbonden",
+    "connection.tor_unavailable_fallback":
+      "Tor is niet beschikbaar in Aster Mail, dus je maakt nu rechtstreeks verbinding. Open Aster Mail in Tor Browser om Tor te gebruiken.",
     "connection.tor_blocked":
       "Tor staat uit, en we hebben dit verzoek geblokkeerd om je verkeer niet te laten weglekken. Tor inschakelen laat het door.",
     "connection.tor_blocked_connecting":
@@ -4642,7 +4648,7 @@ export const nl = {
       "Maak je sleutels vindbaar op openbare sleutelservers",
     info_forward_secrecy_title: "Wat is Forward Secrecy?",
     info_forward_secrecy_description:
-      "Je sessiesleutels worden automatisch gewisseld. Zelfs als iemand vandaag je privésleutel zou krijgen, kunnen ze oude berichten niet lezen omdat elke sessie een andere sleutel gebruikte.",
+      "Je versleutelingssleutels worden automatisch volgens een schema gewisseld. Zo kan één uitgelekte sleutel maar een beperkt deel van je e-mail ontgrendelen. Om je e-mail op al je apparaten leesbaar te houden, bewaart je account ook kopieën van je berichten die met je accountsleutels zijn versleuteld. Wie je wachtwoord krijgt, kan je eerdere e-mail dus nog steeds lezen.",
     info_key_rotation_interval_title: "Sleutelrotatie-interval",
     info_key_rotation_interval_description:
       "Hoe vaak je versleutelingssleutel wordt gewisseld. Vaker is veiliger maar vraagt iets meer overhead. Een week is een goede standaard voor de meeste mensen.",
@@ -5010,7 +5016,7 @@ export const nl = {
       "Alle versleuteling vindt plaats in je browser voordat gegevens je apparaat verlaten",
     zero_knowledge_storage: "Zero-access-opslag",
     zero_knowledge_storage_description:
-      "Wij kunnen je gegevens niet lezen. Alleen jij hebt de sleutels.",
+      "Wij kunnen je opgeslagen gegevens niet lezen. Alleen jij hebt de sleutels.",
     email_content_attachments: "E-mailinhoud & bijlagen",
     folder_names_structure: "Mapnamen & structuur",
     drafts_signatures: "Concepten & handtekeningen",
@@ -5294,6 +5300,13 @@ export const nl = {
     special_offer_fine_print_year:
       "Je betaalt {{offer_price}} voor het eerste jaar. Daarna wordt je abonnement verlengd voor {{price}} per jaar totdat je het opzegt in Instellingen.",
     special_offer_billing_period: "Factuurperiode",
+    special_offer_black_friday_title: "Black Friday: {{percent}}% korting gedurende {{months}} maanden",
+    special_offer_black_friday_body: "Krijg {{percent}}% korting op elk jaarabonnement, of elk maandabonnement behalve Star, voor je eerste {{months}} maanden.",
+    special_offer_ends_in: "Eindigt over {{time}}",
+    special_offer_not_on_star_monthly: "Niet beschikbaar voor Star maandelijks",
+    special_offer_renews_at: "Wordt na {{months}} maanden verlengd voor {{price}}",
+    special_offer_success_title_plan: "Bedankt. Je hebt nu {{plan}}.",
+    special_offer_choose_plan: "Kies een abonnement",
     plan_billing_terms:
       "Abonnementen worden automatisch verlengd tegen het standaardtarief totdat je opzegt. Je kunt op elk moment opzeggen in Instellingen.",
     upgrade_offer_note:
@@ -7119,7 +7132,7 @@ export const nl = {
     rotate_keys_description_manual:
       "Voer je wachtwoord in om je versleutelingssleutels te roteren. Oude e-mails blijven leesbaar.",
     rotate_keys_description_required:
-      "Je versleutelingssleutels zijn toe aan rotatie. Voer je wachtwoord in om nieuwe sleutels te genereren en forward secrecy te behouden.",
+      "Je versleutelingssleutels zijn toe aan rotatie. Voer je wachtwoord in om nieuwe sleutels te genereren.",
     rotating: "Roteren...",
     rotate_keys: "Sleutels roteren",
     key_rotation_data_loss_warning:
@@ -7152,6 +7165,10 @@ export const nl = {
     strip_exif_on_compose_label: "Afbeeldingsmetadata verwijderen",
     strip_exif_on_compose_description:
       "Verwijder EXIF- en andere metadata uit afbeeldingen voor het verzenden om je locatie en apparaatinformatie te beschermen",
+    error_reports_title: "Foutrapporten",
+    send_error_reports_label: "Foutrapporten versturen",
+    send_error_reports_description:
+      "Als er iets misgaat, verstuurt Aster Mail een kort rapport met een foutcode, de naam van de functie, het deel van de app waarin je was, de appversie en je platform. Rapporten bevatten nooit je berichten, contacten, e-mailadressen of wachtwoorden.",
     account_protection_title: "Accountbeveiliging",
     account_protection_weak: "Zwak",
     account_protection_fair: "Matig",
@@ -7990,7 +8007,7 @@ export const nl = {
       "Journalist? Neem contact op met support met je perskaart om je code te ontvangen.",
     refer_a_friend: "Vriend doorverwijzen",
     referral_email_body:
-      "Hoi,\n\nik gebruik Aster Mail nu een tijdje en het bevalt me erg goed. Alles is end-to-end versleuteld, dus niemand kan je e-mail lezen behalve jijzelf. Zelfs de beheerders niet.\n\nWil je het proberen, dit is mijn uitnodigingslink:\n\n{{ referral_link }}\n\nWe krijgen allebei {{ amount }} extra opslag zodra jij het gaat gebruiken, dus jij hebt er ook wat aan.\n\nGroeten",
+      "Hoi,\n\nik gebruik Aster Mail nu een tijdje en het bevalt me erg goed. Je e-mail wordt versleuteld opgeslagen met sleutels die alleen jij hebt, dus de beheerders kunnen je mailbox niet lezen.\n\nWil je het proberen, dit is mijn uitnodigingslink:\n\n{{ referral_link }}\n\nWe krijgen allebei {{ amount }} extra opslag zodra jij het gaat gebruiken, dus jij hebt er ook wat aan.\n\nGroeten",
     referral_email_subject: "Probeer Aster eens",
     referral_how_it_works: "Hoe het werkt",
     referral_loading_contacts: "Contacten laden...",
@@ -8172,7 +8189,7 @@ export const nl = {
     browse_folder: "Map selecteren",
     money_back_guarantee: "30 dagen niet-goed-geldterug",
     plan_every_plan_includes:
-      "Elk abonnement bevat Aster Calendar, end-to-end-versleuteling en zero-knowledge-opslag.",
+      "Elk abonnement bevat Aster Calendar, end-to-end-versleuteling en zero-access-opslag.",
     cancel_anytime: "Altijd opzegbaar",
     billed_annually: "jaarlijks gefactureerd",
     save_annually_hint: "Bespaar 20% met een jaarabonnement",
@@ -8235,7 +8252,7 @@ export const nl = {
     referral_share_message_plain:
       "Ik gebruik Aster voor end-to-end versleutelde e-mail en agenda. Meld je aan via mijn link.",
     referral_email_body_plain:
-      "Hoi,\n\nik gebruik Aster Mail nu een tijdje en het bevalt me erg goed. Alles is end-to-end versleuteld, dus niemand kan je e-mail lezen behalve jijzelf. Zelfs de beheerders niet.\n\nWil je het proberen, dit is mijn uitnodigingslink:\n\n{{ referral_link }}\n\nGroeten",
+      "Hoi,\n\nik gebruik Aster Mail nu een tijdje en het bevalt me erg goed. Je e-mail wordt versleuteld opgeslagen met sleutels die alleen jij hebt, dus de beheerders kunnen je mailbox niet lezen.\n\nWil je het proberen, dit is mijn uitnodigingslink:\n\n{{ referral_link }}\n\nGroeten",
     referral_claim_window_closed:
       "De periode om een uitnodigingscode aan dit account toe te voegen is voorbij.",
     referral_claim_already: "Aan dit account is al een uitnodiging gekoppeld.",
@@ -10237,11 +10254,11 @@ export const nl = {
     invalid_unsubscribe_address:
       "Het afmeldadres van deze afzender lijkt onjuist opgemaakt. De link in de e-mail zelf laat je je afmelden op de site van de afzender.",
     tor_unsupported_platform:
-      "Tor is niet beschikbaar op dit platform. De desktop- of mobiele app kan je verbinding via Tor leiden.",
+      "Tor is niet beschikbaar in Aster Mail. Open Aster Mail in Tor Browser om Tor te gebruiken.",
     tor_native_only:
-      "Tor is alleen beschikbaar in de native app. De desktop- of mobiele app stelt je in staat om het te gebruiken.",
+      "Tor is niet beschikbaar in Aster Mail. Open Aster Mail in Tor Browser om Tor te gebruiken.",
     tor_plugin_missing:
-      "De Tor-module is niet geïnstalleerd op dit apparaat. Installeer de app opnieuw of schakel over naar een directe verbinding in Instellingen.",
+      "Tor is niet beschikbaar in Aster Mail. Open Aster Mail in Tor Browser om Tor te gebruiken.",
     cdn_relay_misconfigured:
       "De CDN-relay is niet geconfigureerd voor deze build. Schakel over naar een directe verbinding in Instellingen. Als je hulp nodig hebt, neem dan contact op met hello@astermail.org.",
     device_repair_required:
@@ -10323,6 +10340,8 @@ export const nl = {
       "De versleutelingssleutel van een ontvanger is gewijzigd, dus het bericht is niet verstuurd. Bevestig de wijziging op een andere manier en kies daarna Nieuwe sleutel vertrouwen.",
     key_trust_check_failed:
       "De versleutelingssleutels van de ontvangers konden niet worden gecontroleerd, dus het bericht is niet verstuurd. Controleer je verbinding en probeer het opnieuw.",
+    recipient_classification_unavailable:
+      "Kan niet bevestigen hoe het bericht bij {{recipients}} moet worden bezorgd. Controleer je verbinding en probeer het opnieuw.",
     failed_send_external:
       "Deze e-mail is niet verzonden via je gekoppelde externe account. Probeer het opnieuw. Je concept is opgeslagen.",
     failed_queue_email:

@@ -23,6 +23,7 @@ import { api_client } from "./api/client";
 import { get_ws_base_url } from "./api/base_url";
 import { request_cache } from "./api/request_cache";
 import { connection_store } from "./routing/connection_store";
+import { open_sync_socket } from "./routing/pinned_sync_socket";
 import { TorUnavailableError } from "./routing/tor_unavailable_error";
 
 import { is_onion_host } from "@/lib/onion_host";
@@ -163,7 +164,7 @@ class SyncClient {
       const ws_url = get_ws_base_url();
 
       this.last_connect_started_at = Date.now();
-      this.socket = new WebSocket(ws_url);
+      this.socket = open_sync_socket(ws_url);
 
       this.socket.onopen = () => {
         const token = api_client.get_access_token();

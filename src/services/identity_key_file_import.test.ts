@@ -167,11 +167,13 @@ beforeEach(async () => {
       _format: number,
       next_vault: EncryptedVault,
     ) => {
-      if (user_id !== USER_ID) return false;
+      if (user_id !== USER_ID) return null;
 
       pushed = next_vault;
 
-      return true;
+      await store_vault_in_memory(next_vault, NEW_PASSWORD, user_id);
+
+      return next_vault;
     },
   );
 });

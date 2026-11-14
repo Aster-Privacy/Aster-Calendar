@@ -105,6 +105,7 @@ export async function generate_shared_mailbox_material(
     signed_prekey_private: signed_prekey.secret_key,
     recovery_codes: [],
     data_kek: array_to_base64(master_key),
+    data_kek_random: true,
     vault_format: MASTER_KEY_VAULT_FORMAT,
     mk_created_at: new Date().toISOString(),
   };
@@ -279,6 +280,7 @@ export async function generate_rotated_credential(
 
   const rotated_vault: EncryptedVault = {
     ...vault_data,
+    identity_rotation_pending: true,
     identity_key: await reprotect_pgp_key(
       vault_data.identity_key,
       old_login_secret,

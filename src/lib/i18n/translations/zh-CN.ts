@@ -948,7 +948,7 @@ export const zh_CN = {
       "在设置中，您可以添加别名、连接自定义域名并开启两步验证。",
     youre_ready: "一切就绪",
     youre_ready_description:
-      "您的邮件采用端到端加密，密钥只在您手中。随时按 ? 查看全部键盘快捷键。",
+      "您的邮件以加密形式存储，密钥只在您手中。随时按 ? 查看全部键盘快捷键。",
     skip_tour: "跳过引导",
     get_started: "开始使用",
     step: "步骤",
@@ -1882,6 +1882,10 @@ export const zh_CN = {
     zip_archive: "ZIP 压缩文件",
   },
   settings: {
+    sandbox_off_by_setting_notice:
+      "由于环境变量关闭了沙盒，此窗口正在没有沙盒的情况下运行。",
+    sandbox_off_notice:
+      "此窗口正在没有沙盒的情况下运行。要开启沙盒，请安装 bubblewrap，然后重新启动 Aster Calendar。",
     billing_lifetime_note:
       "此套餐永不续订，您无需再为其付费。如需更改，请联系 Aster 支持团队。",
     billing_status_lifetime: "终身",
@@ -2048,7 +2052,7 @@ export const zh_CN = {
       "家庭中的每个人都拥有自己私密、加密的收件箱，与您的完全分离。",
     fam_welcome_step1_point1: "每位成员都有自己的 @astermail.org 地址",
     fam_welcome_step1_point2: "完全隐私 - 成员之间无法查看彼此的邮件",
-    fam_welcome_step1_point3: "每个账户都采用抗量子加密",
+    fam_welcome_step1_point3: "Aster 账户之间采用后量子加密",
     fam_welcome_step2_title: "一个存储池，由您掌控",
     fam_welcome_step2_desc:
       "您的套餐包含共享存储池。决定每位成员的配额，并可随时调整。",
@@ -2368,7 +2372,7 @@ export const zh_CN = {
     invite_title_named: "{{ name }} 邀请您加入 Aster Mail",
     invite_title_generic: "您已被邀请加入 Aster Mail",
     invite_subtitle:
-      "Aster Mail 是零访问、端到端加密的电子邮件服务。除您之外没有人能读取您的收件箱，我们也不能。",
+      "Aster Mail 是零访问、端到端加密的电子邮件服务。我们使用只有您持有的密钥加密存储您的邮件。",
     invite_discount_line: "立即注册，首个套餐享 {{ percent }}% 折扣。",
     invite_benefits_heading: "您将获得",
     invite_benefit_zero_access: "零访问、端到端加密邮件",
@@ -4163,6 +4167,8 @@ export const zh_CN = {
     "connection.status_connecting": "连接中...",
     "connection.status_error": "连接已断开，我们正在自动重试。",
     "connection.status_disconnected": "已断开",
+    "connection.tor_unavailable_fallback":
+      "Aster Mail 不支持 Tor，因此您现在使用的是直连。如需使用 Tor，请在 Tor Browser 中打开 Aster Mail。",
     "connection.tor_blocked":
       "Tor 已关闭，为防止流量泄露，我们已拦截此请求。请启用 Tor 后再继续。",
     "connection.tor_blocked_connecting":
@@ -4259,7 +4265,7 @@ export const zh_CN = {
     publish_to_keyservers_description: "在公共密钥服务器上使您的密钥可被查找",
     info_forward_secrecy_title: "什么是前向保密？",
     info_forward_secrecy_description:
-      "您的会话密钥会自动轮换。即使有人今天获得了您的私钥，也无法读取过去的消息，因为每个会话使用了不同的密钥。",
+      "您的加密密钥会按计划自动轮换，从而限制单个泄露的密钥能解开的邮件数量。为了让您的邮件在所有设备上都可读，您的账户还会保存使用账户密钥加密的邮件副本，因此任何获得您密码的人仍然可以读取您过去的邮件。",
     info_key_rotation_interval_title: "密钥轮换间隔",
     info_key_rotation_interval_description:
       "您的加密密钥多久更换一次。更频繁意味着更安全，但开销略大。一周对大多数人来说是个好的默认值。",
@@ -4585,7 +4591,7 @@ export const zh_CN = {
       "所有加密均在浏览器中完成，数据离开设备前即已加密",
     zero_knowledge_storage: "零知识存储",
     zero_knowledge_storage_description:
-      "我们无法读取您的数据。只有您持有密钥。",
+      "我们无法读取您存储的数据。只有您持有密钥。",
     email_content_attachments: "邮件内容和附件",
     folder_names_structure: "文件夹名称和结构",
     drafts_signatures: "草稿和签名",
@@ -4767,7 +4773,7 @@ export const zh_CN = {
     regenerate_codes_warning:
       "您当前的恢复码会在生成新的一组之后立即失效。在关闭这个窗口之前把新的一组保存到安全的地方，可以让您继续受到保护。请输入",
     end_to_end_encrypted: "端到端加密",
-    all_data_protected: "您的所有数据均受零知识加密保护",
+    all_data_protected: "您的所有数据均受零访问加密保护",
     pgp_compatible: "PGP 兼容",
     pgp_compatible_description: "向任何使用 PGP 的人发送加密邮件。",
     emails_decrypted: "已解密邮件",
@@ -4844,6 +4850,13 @@ export const zh_CN = {
     special_offer_fine_print_year:
       "首年支付 {{offer_price}}。之后套餐将按每年 {{price}} 续订，直到您在设置中取消。",
     special_offer_billing_period: "计费周期",
+    special_offer_black_friday_title: "黑色星期五:{{months}} 个月立减 {{percent}}%",
+    special_offer_black_friday_body: "任何年付套餐,或除 Star 以外的任何月付套餐,前 {{months}} 个月均可立减 {{percent}}%。",
+    special_offer_ends_in: "{{time}}后结束",
+    special_offer_not_on_star_monthly: "Star 月付套餐不适用",
+    special_offer_renews_at: "{{months}} 个月后按 {{price}} 续订",
+    special_offer_success_title_plan: "谢谢。您已升级到 {{plan}}。",
+    special_offer_choose_plan: "选择套餐",
     plan_billing_terms:
       "订阅会按标准价格自动续订，直到您取消。您可以随时在设置中取消。",
     upgrade_offer_note: "您的 {{percent}}% 折扣将在结账时生效。",
@@ -6365,7 +6378,7 @@ export const zh_CN = {
     rotate_keys_description_manual:
       "输入您的密码以轮换加密密钥，旧邮件仍可正常阅读。",
     rotate_keys_description_required:
-      "您的加密密钥到了轮换时间。输入密码以生成新密钥，保持前向保密。",
+      "您的加密密钥到了轮换时间。输入密码以生成新密钥。",
     trusted_devices: "受信任的设备",
     trusted_devices_description:
       "您与账户配对的桌面和移动应用。撤销某台设备会将其退出登录，并删除其本地保险库密钥。",
@@ -6590,6 +6603,10 @@ export const zh_CN = {
     strip_exif_on_compose_label: "清除图片元数据",
     strip_exif_on_compose_description:
       "发送前自动清除图片的 EXIF 及其他元数据，保护您的位置和设备信息",
+    error_reports_title: "错误报告",
+    send_error_reports_label: "发送错误报告",
+    send_error_reports_description:
+      "出现问题时，Aster Mail 会发送一份简短报告，其中包含错误代码、功能名称、您所在的应用页面、应用版本和您的平台。报告绝不会包含您的邮件、联系人、电子邮件地址或密码。",
     account_protection_title: "账户保护",
     account_protection_weak: "较弱",
     account_protection_fair: "一般",
@@ -7136,7 +7153,7 @@ export const zh_CN = {
     refer_a_friend: "推荐朋友",
     referral_email_subject: "推荐您试试 Aster",
     referral_email_body:
-      "您好：\n\n我用 Aster Mail 已经有一段时间了，体验很不错。所有内容都是端到端加密的，除了您自己，没有人能读到您的邮件，运营方也不行。\n\n如果您想试试，这是我的邀请链接：\n\n{{ referral_link }}\n\n您开始使用后，我们双方各获得 {{ amount }} 额外存储空间，您也能有所收获。\n\n祝好",
+      "您好：\n\n我用 Aster Mail 已经有一段时间了，体验很不错。您的邮件使用只有您持有的密钥加密存储，运营方无法读取您的邮箱。\n\n如果您想试试，这是我的邀请链接：\n\n{{ referral_link }}\n\n您开始使用后，我们双方各获得 {{ amount }} 额外存储空间，您也能有所收获。\n\n祝好",
     referral_how_it_works: "工作原理",
     referral_step_share: "把邀请链接分享给朋友、家人或同事。",
     referral_step_signup: "他们通过您的链接创建账户并开始使用。",
@@ -7304,7 +7321,7 @@ export const zh_CN = {
     browse_folder: "选择文件夹",
     money_back_guarantee: "30 天退款保证",
     plan_every_plan_includes:
-      "所有套餐都包含 Aster Calendar、端到端加密和零知识存储。",
+      "所有套餐都包含 Aster Calendar、端到端加密和零访问存储。",
     cancel_anytime: "随时可取消",
     billed_annually: "按年计费",
     save_annually_hint: "选择年付可省 20%",
@@ -7363,7 +7380,7 @@ export const zh_CN = {
     referral_share_message_plain:
       "我在用 Aster 收发端到端加密的邮件并管理日历。通过我的链接加入吧。",
     referral_email_body_plain:
-      "您好：\n\n我用 Aster Mail 已经有一段时间了，体验很不错。所有内容都是端到端加密的，除了您自己，没有人能读到您的邮件，运营方也不行。\n\n如果您想试试，这是我的邀请链接：\n\n{{ referral_link }}\n\n祝好",
+      "您好：\n\n我用 Aster Mail 已经有一段时间了，体验很不错。您的邮件使用只有您持有的密钥加密存储，运营方无法读取您的邮箱。\n\n如果您想试试，这是我的邀请链接：\n\n{{ referral_link }}\n\n祝好",
     referral_claim_window_closed: "为此账户添加邀请代码的时限已过。",
     referral_claim_already: "此账户已关联一个邀请。",
     referral_claim_self: "不能使用您自己的邀请代码。",
@@ -9114,10 +9131,11 @@ export const zh_CN = {
     invalid_unsubscribe_address:
       "此发件人提供的退订地址格式异常。可使用邮件正文中的链接，在发件人网站上完成退订。",
     tor_unsupported_platform:
-      "此平台不支持 Tor。桌面或移动应用可以通过 Tor 路由您的连接。",
-    tor_native_only: "Tor 仅在原生应用中可用。桌面或移动应用可以让您使用它。",
+      "Aster Mail 不支持 Tor。如需使用 Tor，请在 Tor Browser 中打开 Aster Mail。",
+    tor_native_only:
+      "Aster Mail 不支持 Tor。如需使用 Tor，请在 Tor Browser 中打开 Aster Mail。",
     tor_plugin_missing:
-      "此设备上未安装 Tor 模块。请重新安装应用，或在“设置”中切换为直连。",
+      "Aster Mail 不支持 Tor。如需使用 Tor，请在 Tor Browser 中打开 Aster Mail。",
     cdn_relay_misconfigured:
       "此构建版本未配置 CDN 中继。请在“设置”中切换为直连。如需帮助，请联系 hello@astermail.org。",
     device_repair_required:
@@ -9190,6 +9208,8 @@ export const zh_CN = {
       "某位收件人的加密密钥已更改，因此未发送邮件。要发送，请通过其他方式与对方确认此更改，然后选择“信任新密钥”。",
     key_trust_check_failed:
       "无法检查收件人的加密密钥，因此未发送邮件。请检查网络连接后重试。",
+    recipient_classification_unavailable:
+      "无法确认如何将邮件投递给 {{recipients}}。请检查网络连接后重试。",
     failed_send_external:
       "此邮件未能通过您关联的外部账户发送。请重试。您的草稿已保存。",
     failed_queue_email:

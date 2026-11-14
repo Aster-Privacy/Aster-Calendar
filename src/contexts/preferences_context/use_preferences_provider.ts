@@ -49,6 +49,10 @@ import {
   report_session_user_mismatch,
 } from "@/services/api/preferences";
 import { api_client } from "@/services/api/client";
+import {
+  CLIENT_VAULT_LEVEL,
+  VAULT_LEVEL_HEADER,
+} from "@/services/api/client/helpers";
 import { get_csrf_token_from_cookie } from "@/services/api/csrf";
 import { request_cache } from "@/services/api/request_cache";
 import { get_effective_base_url } from "@/services/routing/routing_provider";
@@ -829,6 +833,7 @@ export function use_preferences_provider() {
       const csrf = get_csrf_token_from_cookie();
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
+        [VAULT_LEVEL_HEADER]: CLIENT_VAULT_LEVEL,
         ...expected_user_headers(),
       };
 

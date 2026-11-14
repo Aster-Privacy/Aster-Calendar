@@ -145,7 +145,12 @@ import {
   clear_sender_identity_authentication_cache,
   note_message_sender_identity,
 } from "@/services/crypto/sender_identity_authentication";
+import * as recovery_lane from "@/services/crypto/ratchet_recovery_lane";
 import { is_ratchet_verified_body } from "@/utils/email_crypto";
+import {
+  clear_own_addresses,
+  set_own_addresses,
+} from "@/services/calendar/own_addresses";
 
 const SENDER = "sender@astermail.org";
 const RECIPIENT = "recipient@astermail.org";
@@ -529,6 +534,33 @@ describe("undecryptable-message failure modes", () => {
     const sender_vault = make_vault((await generate_ratchet_keys())!);
     const receiver_vault = make_vault((await generate_ratchet_keys())!);
 
+    h.bundle = bundle_for(receiver_vault);
+    h.vault = sender_vault;
+
+    const seal = vi
+      .spyOn(recovery_lane, "seal_recovery_lane")
+      .mockRejectedValueOnce(new Error("seal failed"));
+
+    try {
+      await expect(
+        encrypt_for_ratchet_recipient(
+          SENDER,
+          RECIPIENT,
+          "recipient",
+          "must never ship",
+          sender_vault,
+        ),
+      ).rejects.toBeInstanceOf(RecoveryLaneUnavailableError);
+      expect(seal).toHaveBeenCalledTimes(1);
+    } finally {
+      seal.mockRestore();
+    }
+  });
+
+  it("emits no ratchet body when the post-quantum key is damaged", async () => {
+    const sender_vault = make_vault((await generate_ratchet_keys())!);
+    const receiver_vault = make_vault((await generate_ratchet_keys())!);
+
     h.bundle = {
       ...bundle_for(receiver_vault),
       pq_kem_public_key: "bm90LWEta2V5",
@@ -544,7 +576,7 @@ describe("undecryptable-message failure modes", () => {
         "must never ship",
         sender_vault,
       ),
-    ).rejects.toBeInstanceOf(RecoveryLaneUnavailableError);
+    ).resolves.toBeNull();
   });
 
   it("never emits a ratchet body without a recovery lane", async () => {
@@ -1336,10 +1368,40 @@ describe("recovery lane trust", () => {
     h.bundle = null;
     clear_sender_identity_authentication_cache();
 
-    const plaintext = await receive(envelope, own_vault, "self-1");
+    set_own_addresses([SENDER]);
 
-    expect(plaintext).toBe("note to self");
-    expect(is_ratchet_verified_body(envelope, plaintext)).toBe(true);
+    try {
+      const plaintext = await receive(envelope, own_vault, "self-1");
+
+      expect(plaintext).toBe("note to self");
+      expect(is_ratchet_verified_body(envelope, plaintext)).toBe(true);
+    } finally {
+      clear_own_addresses();
+    }
+  });
+
+  it("does not trust this account's own key for another sender's address", async () => {
+    const own_vault = make_vault((await generate_ratchet_keys())!);
+    const contact_vault = make_vault((await generate_ratchet_keys())!);
+
+    h.bundle = bundle_for(own_vault);
+
+    const envelope = await send("claims to be a contact", own_vault);
+
+    h.store.clear();
+    h.bundle = null;
+    clear_sender_identity_authentication_cache();
+    clear_own_addresses();
+    await check_and_pin_identity(
+      SENDER,
+      contact_vault.ratchet_identity_public!,
+      true,
+    );
+
+    const plaintext = await receive(envelope, own_vault, "self-2");
+
+    expect(plaintext).toBe("claims to be a contact");
+    expect(is_ratchet_verified_body(envelope, plaintext)).toBe(false);
   });
 
   it("verifies a first message whose sender key the directory vouches for", async () => {

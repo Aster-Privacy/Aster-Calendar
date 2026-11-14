@@ -1104,7 +1104,7 @@ export const fr = {
       "Les réglages vous permettent d'ajouter un alias, de connecter un domaine personnalisé et d'activer l'authentification à deux facteurs.",
     youre_ready: "Vous êtes prêt",
     youre_ready_description:
-      "Vos e-mails sont chiffrés de bout en bout et vous seul détenez les clés. Appuyez sur ? à tout moment pour voir tous les raccourcis clavier.",
+      "Vos e-mails sont stockés chiffrés et vous seul détenez les clés. Appuyez sur ? à tout moment pour voir tous les raccourcis clavier.",
     skip_tour: "Passer la visite",
     get_started: "Commencer",
     step: "Étape",
@@ -2085,6 +2085,10 @@ export const fr = {
     zip_archive: "Archive ZIP",
   },
   settings: {
+    sandbox_off_by_setting_notice:
+      "Cette fenêtre s'exécute sans son bac à sable, car une variable d'environnement l'a désactivé.",
+    sandbox_off_notice:
+      "Cette fenêtre s'exécute sans son bac à sable. Pour l'activer, installez bubblewrap, puis redémarrez Aster Calendar.",
     billing_lifetime_note:
       "Ce forfait ne se renouvelle jamais et vous ne le payez plus jamais. Pour le modifier, contactez l'assistance Aster.",
     billing_status_lifetime: "À vie",
@@ -2221,7 +2225,7 @@ export const fr = {
     fam_welcome_step1_point2:
       "Confidentialité totale : les membres ne peuvent pas voir les e-mails des autres",
     fam_welcome_step1_point3:
-      "Chiffrement résistant au quantique sur chaque compte",
+      "Chiffrement post-quantique entre les comptes Aster",
     fam_welcome_step2_title: "Un seul espace de stockage, sous votre contrôle",
     fam_welcome_step2_desc:
       "Votre forfait inclut un espace de stockage partagé. Décidez de la part de chaque membre et ajustez-la à tout moment.",
@@ -2602,7 +2606,7 @@ export const fr = {
     invite_title_named: "{{ name }} vous a invité sur Aster Mail",
     invite_title_generic: "Vous avez été invité sur Aster Mail",
     invite_subtitle:
-      "Aster Mail est une messagerie chiffrée de bout en bout et à accès zéro. Personne d'autre que vous ne peut lire votre boîte de réception, pas même nous.",
+      "Aster Mail est une messagerie chiffrée de bout en bout et à accès zéro. Nous stockons vos e-mails chiffrés avec des clés que vous seul détenez.",
     invite_discount_line:
       "Inscrivez-vous maintenant et bénéficiez de {{ percent }}% de réduction sur votre premier abonnement.",
     invite_benefits_heading: "Ce que vous obtenez",
@@ -4658,6 +4662,8 @@ export const fr = {
     "connection.status_error":
       "Nous avons perdu la connexion, et nous réessayons de notre côté.",
     "connection.status_disconnected": "Déconnecté",
+    "connection.tor_unavailable_fallback":
+      "Tor n'est pas disponible dans Aster Mail, votre connexion est donc désormais directe. Pour utiliser Tor, ouvrez Aster Mail dans Tor Browser.",
     "connection.tor_blocked":
       "Tor est désactivé, et nous avons bloqué cette requête pour empêcher votre trafic de fuir. Activer Tor le laissera passer.",
     "connection.tor_blocked_connecting":
@@ -4774,7 +4780,7 @@ export const fr = {
     info_forward_secrecy_title:
       "Qu'est-ce que la confidentialité persistante ?",
     info_forward_secrecy_description:
-      "Vos clés de session tournent automatiquement. Même si quelqu'un obtenait votre clé privée aujourd'hui, il ne pourrait pas lire les anciens messages car chaque session utilisait une clé différente.",
+      "Vos clés de chiffrement tournent automatiquement selon un calendrier, ce qui limite le nombre d'e-mails qu'une seule clé compromise peut déverrouiller. Pour que vos e-mails restent lisibles sur tous vos appareils, votre compte conserve aussi des copies de vos messages chiffrées avec les clés de votre compte. Toute personne qui obtient votre mot de passe peut donc encore lire vos anciens e-mails.",
     info_key_rotation_interval_title: "Intervalle de rotation des clés",
     info_key_rotation_interval_description:
       "La fréquence à laquelle votre clé de chiffrement est remplacée. Plus souvent est plus sûr, mais avec un peu plus de surcharge. Une semaine est un bon défaut pour la plupart.",
@@ -5161,7 +5167,7 @@ export const fr = {
       "Tout le chiffrement se fait dans votre navigateur avant que les données ne quittent votre appareil",
     zero_knowledge_storage: "Stockage à connaissance nulle",
     zero_knowledge_storage_description:
-      "Nous ne pouvons pas lire vos données. Seul vous détenez les clés.",
+      "Nous ne pouvons pas lire vos données stockées. Seul vous détenez les clés.",
     email_content_attachments: "Contenu des e-mails et pièces jointes",
     folder_names_structure: "Noms et structure des dossiers",
     drafts_signatures: "Brouillons et signatures",
@@ -5366,7 +5372,7 @@ export const fr = {
       "Vos codes de récupération actuels cesseront de fonctionner dès que vous en générerez de nouveaux. Enregistrer le nouvel ensemble dans un endroit sûr avant de fermer cette fenêtre vous garde couvert. Tapez",
     end_to_end_encrypted: "Chiffré de bout en bout",
     all_data_protected:
-      "Toutes vos données sont protégées par un chiffrement à connaissance nulle",
+      "Toutes vos données sont protégées par un chiffrement à accès zéro",
     pgp_compatible: "Compatible PGP",
     pgp_compatible_description:
       "Envoyez des e-mails chiffrés à quiconque utilisant PGP.",
@@ -5463,6 +5469,13 @@ export const fr = {
     special_offer_fine_print_year:
       "Vous payez {{offer_price}} pour la première année. Votre forfait est ensuite renouvelé à {{price}} par an jusqu'à ce que vous l'annuliez dans Réglages.",
     special_offer_billing_period: "Période de facturation",
+    special_offer_black_friday_title: "Black Friday : {{percent}} % de réduction pendant {{months}} mois",
+    special_offer_black_friday_body: "Profitez de {{percent}} % de réduction sur n'importe quel forfait annuel, ou sur n'importe quel forfait mensuel sauf Star, pendant vos {{months}} premiers mois.",
+    special_offer_ends_in: "Se termine dans {{time}}",
+    special_offer_not_on_star_monthly: "Non disponible pour Star mensuel",
+    special_offer_renews_at: "Renouvelé à {{price}} après {{months}} mois",
+    special_offer_success_title_plan: "Merci. Vous profitez maintenant de {{plan}}.",
+    special_offer_choose_plan: "Choisir un forfait",
     plan_billing_terms:
       "Les abonnements sont renouvelés automatiquement au tarif standard jusqu'à leur annulation. Vous pouvez annuler à tout moment dans Réglages.",
     upgrade_offer_note:
@@ -6910,7 +6923,7 @@ export const fr = {
       "Une fois la rotation effectuée, votre ancienne clé est retirée. Les e-mails chiffrés exclusivement avec votre ancienne clé ne pourront plus être déchiffrés. Cette action est irréversible.",
     rotating: "Renouvellement...",
     rotate_keys_description_required:
-      "Vos clés de chiffrement doivent être renouvelées. Saisissez votre mot de passe pour générer de nouvelles clés et préserver la confidentialité persistante.",
+      "Vos clés de chiffrement doivent être renouvelées. Saisissez votre mot de passe pour générer de nouvelles clés.",
     rotate_keys_description_manual:
       "Saisissez votre mot de passe pour renouveler vos clés de chiffrement. Vos anciens e-mails restent lisibles.",
     current_key_age: "Âge de la clé actuelle",
@@ -7265,6 +7278,10 @@ export const fr = {
     strip_exif_on_compose_label: "Supprimer les métadonnées des images",
     strip_exif_on_compose_description:
       "Supprimer les métadonnées EXIF et autres des images avant l'envoi pour protéger votre emplacement et les informations de votre appareil",
+    error_reports_title: "Rapports d'erreur",
+    send_error_reports_label: "Envoyer les rapports d'erreur",
+    send_error_reports_description:
+      "Lorsqu'un problème survient, Aster Mail envoie un court rapport avec un code d'erreur, le nom de la fonctionnalité, la section de l'application où vous étiez, la version de l'application et votre plateforme. Les rapports n'incluent jamais vos messages, contacts, adresses e-mail ou mots de passe.",
     account_protection_title: "Protection du compte",
     account_protection_weak: "Faible",
     account_protection_fair: "Passable",
@@ -8108,7 +8125,7 @@ export const fr = {
       "Journaliste ? Contactez le support avec votre carte de presse pour recevoir votre code.",
     refer_a_friend: "Parrainer un ami",
     referral_email_body:
-      "Bonjour,\n\nJ'utilise Aster Mail depuis un moment et j'aime beaucoup. Tout est chiffré de bout en bout, donc personne ne peut lire vos e-mails à part vous. Pas même ceux qui gèrent le service.\n\nSi vous voulez essayer, voici mon lien d'invitation :\n\n{{ referral_link }}\n\nNous recevons chacun {{ amount }} de stockage supplémentaire dès que vous commencez à l'utiliser, donc vous y gagnez aussi.\n\nÀ bientôt",
+      "Bonjour,\n\nJ'utilise Aster Mail depuis un moment et j'aime beaucoup. Vos e-mails sont stockés chiffrés avec des clés que vous seul détenez, donc ceux qui gèrent le service ne peuvent pas lire votre boîte.\n\nSi vous voulez essayer, voici mon lien d'invitation :\n\n{{ referral_link }}\n\nNous recevons chacun {{ amount }} de stockage supplémentaire dès que vous commencez à l'utiliser, donc vous y gagnez aussi.\n\nÀ bientôt",
     referral_email_subject: "Vous devriez essayer Aster",
     referral_how_it_works: "Comment ça marche",
     referral_loading_contacts: "Chargement des contacts...",
@@ -8301,7 +8318,7 @@ export const fr = {
     browse_folder: "Choisir un dossier",
     money_back_guarantee: "Garantie satisfait ou remboursé de 30 jours",
     plan_every_plan_includes:
-      "Tous les forfaits incluent Aster Calendar, le chiffrement de bout en bout et un stockage à connaissance nulle.",
+      "Tous les forfaits incluent Aster Calendar, le chiffrement de bout en bout et un stockage à accès zéro.",
     cancel_anytime: "Annulez à tout moment",
     billed_annually: "facturé chaque année",
     save_annually_hint: "Économisez 20 % avec l’offre annuelle",
@@ -8365,7 +8382,7 @@ export const fr = {
     referral_share_message_plain:
       "J'utilise Aster pour mes e-mails et mon calendrier chiffrés de bout en bout. Inscrivez-vous avec mon lien.",
     referral_email_body_plain:
-      "Bonjour,\n\nJ'utilise Aster Mail depuis un moment et j'aime beaucoup. Tout est chiffré de bout en bout, donc personne ne peut lire vos e-mails à part vous. Pas même ceux qui gèrent le service.\n\nSi vous voulez essayer, voici mon lien d'invitation :\n\n{{ referral_link }}\n\nÀ bientôt",
+      "Bonjour,\n\nJ'utilise Aster Mail depuis un moment et j'aime beaucoup. Vos e-mails sont stockés chiffrés avec des clés que vous seul détenez, donc ceux qui gèrent le service ne peuvent pas lire votre boîte.\n\nSi vous voulez essayer, voici mon lien d'invitation :\n\n{{ referral_link }}\n\nÀ bientôt",
     referral_claim_window_closed:
       "Le délai pour ajouter un code d'invitation à ce compte est écoulé.",
     referral_claim_already: "Ce compte est déjà associé à une invitation.",
@@ -10388,11 +10405,11 @@ export const fr = {
     invalid_unsubscribe_address:
       "L'adresse de désabonnement de cet expéditeur semble mal formée. Le lien dans l'e-mail lui-même vous permettra de vous désabonner sur le site de l'expéditeur.",
     tor_unsupported_platform:
-      "Tor n'est pas disponible sur cette plateforme. L'application de bureau ou mobile peut acheminer votre connexion via Tor.",
+      "Tor n'est pas disponible dans Aster Mail. Pour utiliser Tor, ouvrez Aster Mail dans Tor Browser.",
     tor_native_only:
-      "Tor n'est disponible que dans l'application native. L'application de bureau ou mobile vous permettra de l'utiliser.",
+      "Tor n'est pas disponible dans Aster Mail. Pour utiliser Tor, ouvrez Aster Mail dans Tor Browser.",
     tor_plugin_missing:
-      "Le module Tor n'est pas installé sur cet appareil. Réinstallez l'application ou passez à une connexion directe dans Paramètres.",
+      "Tor n'est pas disponible dans Aster Mail. Pour utiliser Tor, ouvrez Aster Mail dans Tor Browser.",
     cdn_relay_misconfigured:
       "Le relais CDN n'est pas configuré pour cette version. Passez à une connexion directe dans Paramètres. Si vous avez besoin d'aide, contactez hello@astermail.org.",
     device_repair_required:
@@ -10442,6 +10459,8 @@ export const fr = {
       "La clé de chiffrement d'un destinataire a changé, le message n'a donc pas été envoyé. Pour l'envoyer, confirmez le changement avec cette personne par un autre moyen, puis choisissez Faire confiance à la nouvelle clé.",
     key_trust_check_failed:
       "Impossible de vérifier les clés de chiffrement des destinataires, le message n'a donc pas été envoyé. Vérifiez votre connexion et réessayez.",
+    recipient_classification_unavailable:
+      "Impossible de confirmer comment distribuer le message à {{recipients}}. Vérifiez votre connexion et réessayez.",
     conflict:
       "Quelqu'un ou quelque chose a modifié cet élément avant vous. Actualisez pour voir la version la plus récente.",
     connection_failed:

@@ -1102,7 +1102,7 @@ export const en: Translations = {
       "Settings is where you add an alias, connect a custom domain, and turn on two-factor authentication.",
     youre_ready: "You're ready",
     youre_ready_description:
-      "Your mail is end-to-end encrypted, and only you hold the keys. Press ? at any time to see every keyboard shortcut.",
+      "Your mail is stored encrypted, and only you hold the keys. Press ? at any time to see every keyboard shortcut.",
     skip_tour: "Skip tour",
     get_started: "Get Started",
     step: "Step",
@@ -2032,6 +2032,10 @@ export const en: Translations = {
     zip_archive: "ZIP archive",
   },
   settings: {
+    sandbox_off_by_setting_notice:
+      "This window is running without its sandbox because an environment variable turned it off.",
+    sandbox_off_notice:
+      "This window is running without its sandbox. To turn the sandbox on, install bubblewrap, and then restart Aster Calendar.",
     billing_lifetime_note:
       "This plan never renews, and you never pay for it again. To change it, contact Aster support.",
     billing_status_lifetime: "Lifetime",
@@ -2141,7 +2145,7 @@ export const en: Translations = {
       "Each member gets their own @astermail.org address",
     fam_welcome_step1_point2:
       "Complete privacy - members can't see each other's emails",
-    fam_welcome_step1_point3: "Quantum-safe encryption on every account",
+    fam_welcome_step1_point3: "Post-quantum encryption between Aster accounts",
     fam_welcome_step2_title: "One storage pool, you control it",
     fam_welcome_step2_desc:
       "Your plan comes with a shared pool of storage. Decide how much each member gets and adjust any time.",
@@ -3091,6 +3095,10 @@ export const en: Translations = {
     strip_exif_on_compose_label: "Strip Image Metadata",
     strip_exif_on_compose_description:
       "Remove EXIF and other metadata from images before sending to protect your location and device information",
+    error_reports_title: "Error Reports",
+    send_error_reports_label: "Send Error Reports",
+    send_error_reports_description:
+      "When something fails, Aster Mail sends a short report with an error code, the feature name, the area of the app you were in, the app version, and your platform. Reports never include your messages, contacts, email addresses, or passwords.",
     account_protection_title: "Account protection",
     account_protection_weak: "Weak",
     account_protection_fair: "Fair",
@@ -3786,7 +3794,7 @@ export const en: Translations = {
     invite_title_named: "{{ name }} invited you to Aster Mail",
     invite_title_generic: "You've been invited to Aster Mail",
     invite_subtitle:
-      "Aster Mail is zero-access, end-to-end encrypted email. Nobody but you can read your inbox, not even us.",
+      "Aster Mail is zero-access, end-to-end encrypted email. We store your mail encrypted with keys that only you hold.",
     invite_storage_line: "You both get {{ amount }} of extra storage",
     invite_storage_note:
       "Create your free account with this link. The storage lands on both accounts once you start using yours.",
@@ -4638,7 +4646,7 @@ export const en: Translations = {
       "You've used {{percent}}% of your storage. {{plan}} gives you more room.",
     money_back_guarantee: "30-day money-back guarantee",
     plan_every_plan_includes:
-      "Every plan includes Aster Calendar, end-to-end encryption, and zero-knowledge storage.",
+      "Every plan includes Aster Calendar, end-to-end encryption, and zero-access storage.",
     cancel_anytime: "Cancel anytime",
     billed_annually: "billed annually",
     save_annually_hint: "Save 20% with yearly",
@@ -5236,7 +5244,7 @@ export const en: Translations = {
     send_referral_to_contacts: "Email all contacts",
     referral_email_subject: "You should try Aster",
     referral_email_body:
-      "Hey,\n\nI've been using Aster Mail for a while now and really like it. Everything is end to end encrypted, so nobody can read your emails except you. Not even the people who run it.\n\nIf you want to give it a try, here's my invite link:\n\n{{ referral_link }}\n\nWe both get {{ amount }} of extra storage once you start using it, so you get something out of it too.\n\nCheers",
+      "Hey,\n\nI've been using Aster Mail for a while now and really like it. It stores your mail encrypted with keys that only you hold, so the people who run it can't read your mailbox.\n\nIf you want to give it a try, here's my invite link:\n\n{{ referral_link }}\n\nWe both get {{ amount }} of extra storage once you start using it, so you get something out of it too.\n\nCheers",
     referral_no_contacts: "No contacts found. Add some contacts first!",
     referral_loading_contacts: "Loading contacts...",
     referral_your_discount: "Your Discount",
@@ -5286,7 +5294,7 @@ export const en: Translations = {
     referral_share_message_plain:
       "I use Aster for end-to-end encrypted email and calendar. Join with my link.",
     referral_email_body_plain:
-      "Hey,\n\nI've been using Aster Mail for a while now and really like it. Everything is end to end encrypted, so nobody can read your emails except you. Not even the people who run it.\n\nIf you want to give it a try, here's my invite link:\n\n{{ referral_link }}\n\nCheers",
+      "Hey,\n\nI've been using Aster Mail for a while now and really like it. It stores your mail encrypted with keys that only you hold, so the people who run it can't read your mailbox.\n\nIf you want to give it a try, here's my invite link:\n\n{{ referral_link }}\n\nCheers",
     referral_claim_window_closed:
       "The window to add an invite code to this account has closed.",
     referral_claim_already: "This account already has an invite on it.",
@@ -5453,6 +5461,8 @@ export const en: Translations = {
     "connection.status_error":
       "We lost the connection, and we are retrying on our own.",
     "connection.status_disconnected": "Disconnected",
+    "connection.tor_unavailable_fallback":
+      "Tor isn't available in Aster Mail, so your connection is now direct. To use Tor, open Aster Mail in Tor Browser.",
     "connection.tor_blocked":
       "Tor is turned off, and we blocked this request to keep your traffic from leaking. Turning Tor on will let it through.",
     "connection.tor_blocked_connecting":
@@ -5582,7 +5592,7 @@ export const en: Translations = {
       "Make your keys findable on public keyservers",
     info_forward_secrecy_title: "What is Forward Secrecy?",
     info_forward_secrecy_description:
-      "Your session keys rotate automatically on a schedule. Even if someone got your private key today, they couldn't read past messages because each session used a different key that no longer exists.",
+      "Your encryption keys rotate automatically on a schedule, which limits how much mail a single leaked key can unlock. To keep your mail readable on all your devices, your account also stores copies of your messages encrypted with your account keys, so anyone who gets your password can still read your past mail.",
     info_key_rotation_interval_title: "Key rotation interval",
     info_key_rotation_interval_description:
       "How often your encryption key gets swapped out. More frequent means more secure, but slightly more overhead. A week is a good default for most people.",
@@ -5977,7 +5987,7 @@ export const en: Translations = {
       "All encryption happens in your browser before data leaves your device",
     zero_knowledge_storage: "Zero-Access Storage",
     zero_knowledge_storage_description:
-      "We cannot read your data. Only you hold the keys.",
+      "We can't read your stored data. Only you hold the keys.",
     email_content_attachments: "Email content & attachments",
     folder_names_structure: "Folder names & structure",
     drafts_signatures: "Drafts & signatures",
@@ -6278,6 +6288,13 @@ export const en: Translations = {
     special_offer_fine_print_year:
       "You pay {{offer_price}} for your first year. Your plan then renews at {{price}} per year until you cancel it in Settings.",
     special_offer_billing_period: "Billing period",
+    special_offer_black_friday_title: "Black Friday: {{percent}}% off for {{months}} months",
+    special_offer_black_friday_body: "Get {{percent}}% off any yearly plan, or any monthly plan except Star, for your first {{months}} months.",
+    special_offer_ends_in: "Ends in {{time}}",
+    special_offer_not_on_star_monthly: "Not available on Star monthly",
+    special_offer_renews_at: "Renews at {{price}} after {{months}} months",
+    special_offer_success_title_plan: "Thank you. You're on {{plan}}.",
+    special_offer_choose_plan: "Choose a plan",
     plan_billing_terms:
       "Subscriptions renew automatically at the standard rate until you cancel. Cancel at any time in Settings.",
     upgrade_offer_note: "Your {{percent}}% discount is applied at checkout.",
@@ -7295,7 +7312,7 @@ export const en: Translations = {
     rotate_keys_description_manual:
       "Enter your password to rotate your encryption keys. Old emails will remain readable.",
     rotate_keys_description_required:
-      "Your encryption keys are due for rotation. Enter your password to generate new keys and maintain forward secrecy.",
+      "Your encryption keys are due for rotation. Enter your password to generate new keys.",
     rotating: "Rotating...",
     rotate_keys: "Rotate Keys",
     key_rotation_data_loss_warning:
@@ -10042,6 +10059,8 @@ export const en: Translations = {
       "A recipient's encryption key changed, so the message wasn't sent. To send it, confirm the change with them another way, then choose Trust new key.",
     key_trust_check_failed:
       "Couldn't check the recipients' encryption keys, so the message wasn't sent. Check your connection and try again.",
+    recipient_classification_unavailable:
+      "Couldn't confirm how to deliver to {{recipients}}. Check your connection and try again.",
     failed_send_external:
       "This email did not send through your linked outside account. Try again. Your draft is saved.",
     failed_queue_email:
@@ -10173,11 +10192,11 @@ export const en: Translations = {
     invalid_unsubscribe_address:
       "The unsubscribe address from this sender looks malformed. The link in the email itself will let you unsubscribe on the sender's site.",
     tor_unsupported_platform:
-      "Tor is not available on this platform. The desktop or mobile app can route your connection through Tor.",
+      "Tor isn't available in Aster Mail. To use Tor, open Aster Mail in Tor Browser.",
     tor_native_only:
-      "Tor is only available in the native app. The desktop or mobile app will let you use it.",
+      "Tor isn't available in Aster Mail. To use Tor, open Aster Mail in Tor Browser.",
     tor_plugin_missing:
-      "The Tor module is not installed on this device. Reinstall the app or switch to a direct connection in Settings.",
+      "Tor isn't available in Aster Mail. To use Tor, open Aster Mail in Tor Browser.",
     cdn_relay_misconfigured:
       "The CDN relay is not configured for this build. Switch to a direct connection in Settings. If you need help, contact hello@astermail.org.",
     device_repair_required:

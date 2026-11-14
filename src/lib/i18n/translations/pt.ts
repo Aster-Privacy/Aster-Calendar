@@ -986,7 +986,7 @@ export const pt = {
       "Em Definições, pode adicionar um alias, ligar um domínio personalizado e ativar a autenticação de dois fatores.",
     youre_ready: "Tudo pronto",
     youre_ready_description:
-      "O seu correio está encriptado de ponta a ponta e as chaves são só suas. Prima ? a qualquer momento para ver todos os atalhos de teclado.",
+      "O seu correio é guardado encriptado e as chaves são só suas. Prima ? a qualquer momento para ver todos os atalhos de teclado.",
     skip_tour: "Ignorar visita guiada",
     get_started: "Começar",
     step: "Passo",
@@ -2108,6 +2108,10 @@ export const pt = {
     zip_archive: "Arquivo ZIP",
   },
   settings: {
+    sandbox_off_by_setting_notice:
+      "Esta janela está a ser executada sem a sandbox porque uma variável de ambiente a desativou.",
+    sandbox_off_notice:
+      "Esta janela está a ser executada sem a sandbox. Para ativar a sandbox, instale o bubblewrap e reinicie o Aster Calendar.",
     billing_lifetime_note:
       "Este plano nunca é renovado e não volta a pagar por ele. Para o alterar, contacte o suporte da Aster.",
     billing_status_lifetime: "Vitalício",
@@ -2245,7 +2249,7 @@ export const pt = {
     fam_welcome_step1_point2:
       "Privacidade total - os membros não podem ver os e-mails uns dos outros",
     fam_welcome_step1_point3:
-      "Encriptação resistente a ataques quânticos em todas as contas",
+      "Encriptação pós-quântica entre contas Aster",
     fam_welcome_step2_title:
       "Um único armazenamento partilhado, sob o seu controlo",
     fam_welcome_step2_desc:
@@ -2624,7 +2628,7 @@ export const pt = {
     invite_title_named: "{{ name }} enviou-lhe um convite para o Aster Mail",
     invite_title_generic: "Recebeu um convite para o Aster Mail",
     invite_subtitle:
-      "O Aster Mail é um e-mail de acesso zero, encriptado ponto a ponto. Ninguém além de si pode ler a sua caixa de entrada, nem mesmo nós.",
+      "O Aster Mail é um e-mail de acesso zero, encriptado ponto a ponto. Guardamos o seu correio encriptado com chaves que só estão na sua posse.",
     invite_discount_line:
       "Registe-se agora e obtenha {{ percent }}% de desconto no seu primeiro plano.",
     invite_benefits_heading: "O que obtém",
@@ -4660,6 +4664,8 @@ export const pt = {
     "connection.status_error":
       "Perdemos a ligação e estamos a tentar restabelecê-la automaticamente.",
     "connection.status_disconnected": "Desligado",
+    "connection.tor_unavailable_fallback":
+      "O Tor não está disponível no Aster Mail, por isso a sua ligação é agora direta. Para utilizar o Tor, abra o Aster Mail no Tor Browser.",
     "connection.tor_blocked":
       "O Tor está desativado, e bloqueámos este pedido para evitar fugas do seu tráfego. Ative o Tor para permitir a ligação.",
     "connection.tor_blocked_connecting":
@@ -4774,7 +4780,7 @@ export const pt = {
       "Tornar as suas chaves localizáveis em servidores de chaves públicos",
     info_forward_secrecy_title: "O que é o sigilo futuro?",
     info_forward_secrecy_description:
-      "As suas chaves de sessão são renovadas automaticamente de acordo com um calendário. Mesmo que alguém obtivesse hoje a sua chave privada, não conseguiria ler mensagens anteriores, porque cada sessão utilizou uma chave diferente que já não existe.",
+      "As suas chaves de encriptação são renovadas automaticamente de acordo com um calendário, o que limita a quantidade de e-mails que uma única chave comprometida consegue desbloquear. Para manter os seus e-mails legíveis em todos os seus dispositivos, a sua conta também guarda cópias das suas mensagens encriptadas com as chaves da sua conta, pelo que quem obtiver a sua palavra-passe continua a conseguir ler os seus e-mails anteriores.",
     info_key_rotation_interval_title: "Intervalo de rotação de chaves",
     info_key_rotation_interval_description:
       "Com que frequência a sua chave de encriptação é substituída. Quanto mais frequente, mais seguro, mas com um pouco mais de processamento. Uma semana é uma boa predefinição para a maioria das pessoas.",
@@ -5153,7 +5159,7 @@ export const pt = {
       "Toda a encriptação acontece no seu navegador antes de os dados saírem do seu dispositivo",
     zero_knowledge_storage: "Armazenamento de acesso zero",
     zero_knowledge_storage_description:
-      "Não conseguimos ler os seus dados. Só o utilizador tem as chaves.",
+      "Não conseguimos ler os seus dados guardados. Só o utilizador tem as chaves.",
     email_content_attachments: "Conteúdo de e-mail e anexos",
     folder_names_structure: "Nomes e estrutura de pastas",
     drafts_signatures: "Rascunhos e assinaturas",
@@ -5449,6 +5455,13 @@ export const pt = {
     special_offer_fine_print_year:
       "Paga {{offer_price}} pelo primeiro ano. Depois, o seu plano é renovado a {{price}} por ano até o cancelar em Definições.",
     special_offer_billing_period: "Período de faturação",
+    special_offer_black_friday_title: "Black Friday: {{percent}}% de desconto durante {{months}} meses",
+    special_offer_black_friday_body: "Escolha qualquer plano anual, ou qualquer plano mensal exceto o Star, com {{percent}}% de desconto nos seus primeiros {{months}} meses.",
+    special_offer_ends_in: "Termina em {{time}}",
+    special_offer_not_on_star_monthly: "Não disponível no Star mensal",
+    special_offer_renews_at: "Renova por {{price}} após {{months}} meses",
+    special_offer_success_title_plan: "Obrigado. Já tem o {{plan}}.",
+    special_offer_choose_plan: "Escolha um plano",
     plan_billing_terms:
       "As subscrições são renovadas automaticamente ao preço normal até as cancelar. Cancele a qualquer momento em Definições.",
     upgrade_offer_note:
@@ -7222,7 +7235,7 @@ export const pt = {
     rotate_keys_description_manual:
       "Introduza a sua palavra-passe para renovar as suas chaves de encriptação. Os e-mails antigos continuarão legíveis.",
     rotate_keys_description_required:
-      "As suas chaves de encriptação têm de ser renovadas. Introduza a sua palavra-passe para gerar novas chaves e manter o sigilo futuro.",
+      "As suas chaves de encriptação têm de ser renovadas. Introduza a sua palavra-passe para gerar novas chaves.",
     trusted_devices: "Dispositivos confiáveis",
     trusted_devices_description:
       "Aplicações para computador e dispositivos móveis que emparelhou com a sua conta. Revogar um dispositivo termina a sessão nele e elimina a respetiva chave de cofre local.",
@@ -7466,6 +7479,10 @@ export const pt = {
     strip_exif_on_compose_label: "Remover metadados de imagens",
     strip_exif_on_compose_description:
       "Remove metadados EXIF e outros das imagens antes de enviar para proteger a sua localização e informações do dispositivo",
+    error_reports_title: "Relatórios de erros",
+    send_error_reports_label: "Enviar relatórios de erros",
+    send_error_reports_description:
+      "Quando algo falha, o Aster Mail envia um relatório curto com um código de erro, o nome da funcionalidade, a área da aplicação em que estava, a versão da aplicação e a sua plataforma. Os relatórios nunca incluem as suas mensagens, contactos, endereços de email ou palavras-passe.",
     account_protection_title: "Proteção da conta",
     account_protection_weak: "Fraca",
     account_protection_fair: "Razoável",
@@ -7844,7 +7861,7 @@ export const pt = {
     send_referral_to_contacts: "Enviar e-mail para todos os contactos",
     referral_email_subject: "Devia experimentar o Aster",
     referral_email_body:
-      "Olá,\n\nUso o Aster Mail há algum tempo e gosto mesmo muito. Tudo é encriptado ponto a ponto, por isso ninguém consegue ler os seus e-mails além de si. Nem sequer quem gere o serviço.\n\nSe quiser experimentar, este é o meu link de convite:\n\n{{ referral_link }}\n\nAmbos recebemos {{ amount }} de armazenamento extra assim que começar a usá-lo, por isso também ganha alguma coisa.\n\nUm abraço",
+      "Olá,\n\nUso o Aster Mail há algum tempo e gosto mesmo muito. O seu correio é guardado encriptado com chaves que só estão na sua posse, por isso quem gere o serviço não consegue ler a sua caixa de correio.\n\nSe quiser experimentar, este é o meu link de convite:\n\n{{ referral_link }}\n\nAmbos recebemos {{ amount }} de armazenamento extra assim que começar a usá-lo, por isso também ganha alguma coisa.\n\nUm abraço",
     referral_no_contacts:
       "Nenhum contacto encontrado. Adicione alguns contactos primeiro.",
     referral_loading_contacts: "A carregar contactos...",
@@ -8293,7 +8310,7 @@ export const pt = {
     browse_folder: "Selecionar pasta",
     money_back_guarantee: "Garantia de reembolso de 30 dias",
     plan_every_plan_includes:
-      "Todos os planos incluem o Aster Calendar, encriptação ponto a ponto e armazenamento de conhecimento zero.",
+      "Todos os planos incluem o Aster Calendar, encriptação ponto a ponto e armazenamento de acesso zero.",
     cancel_anytime: "Cancele quando quiser",
     billed_annually: "cobrado anualmente",
     save_annually_hint: "Poupe 20% no plano anual",
@@ -8356,7 +8373,7 @@ export const pt = {
     referral_share_message_plain:
       "Uso o Aster para e-mail e calendário encriptados ponto a ponto. Junte-se com a minha ligação.",
     referral_email_body_plain:
-      "Olá,\n\nUso o Aster Mail há algum tempo e gosto mesmo muito. Tudo é encriptado ponto a ponto, por isso ninguém consegue ler os seus e-mails além de si. Nem sequer quem gere o serviço.\n\nSe quiser experimentar, este é o meu link de convite:\n\n{{ referral_link }}\n\nUm abraço",
+      "Olá,\n\nUso o Aster Mail há algum tempo e gosto mesmo muito. O seu correio é guardado encriptado com chaves que só estão na sua posse, por isso quem gere o serviço não consegue ler a sua caixa de correio.\n\nSe quiser experimentar, este é o meu link de convite:\n\n{{ referral_link }}\n\nUm abraço",
     referral_claim_window_closed:
       "O prazo para adicionar um código de convite a esta conta terminou.",
     referral_claim_already: "Esta conta já tem um convite associado.",
@@ -10365,11 +10382,11 @@ export const pt = {
     invalid_unsubscribe_address:
       "O endereço de cancelamento de subscrição deste remetente parece mal formado. O link no próprio e-mail permite cancelar a subscrição no site do remetente.",
     tor_unsupported_platform:
-      "O Tor não está disponível nesta plataforma. A aplicação para computador ou telemóvel pode encaminhar a sua ligação através do Tor.",
+      "O Tor não está disponível no Aster Mail. Para utilizar o Tor, abra o Aster Mail no Tor Browser.",
     tor_native_only:
-      "O Tor só está disponível na aplicação nativa. A aplicação para computador ou telemóvel permite utilizá-lo.",
+      "O Tor não está disponível no Aster Mail. Para utilizar o Tor, abra o Aster Mail no Tor Browser.",
     tor_plugin_missing:
-      "O módulo Tor não está instalado neste dispositivo. Reinstale a aplicação ou mude para uma ligação direta nas Definições.",
+      "O Tor não está disponível no Aster Mail. Para utilizar o Tor, abra o Aster Mail no Tor Browser.",
     cdn_relay_misconfigured:
       "O relay de CDN não está configurado para esta versão. Mude para uma ligação direta nas Definições. Se precisar de ajuda, contacte hello@astermail.org.",
     device_repair_required:
@@ -10419,6 +10436,8 @@ export const pt = {
       "A chave de encriptação de um destinatário mudou, por isso a mensagem não foi enviada. Para a enviar, confirme a alteração com essa pessoa por outro meio e escolha Confiar na nova chave.",
     key_trust_check_failed:
       "Não foi possível verificar as chaves de encriptação dos destinatários, por isso a mensagem não foi enviada. Verifique a ligação e tente novamente.",
+    recipient_classification_unavailable:
+      "Não foi possível confirmar como entregar a mensagem a {{recipients}}. Verifique a ligação e tente novamente.",
     conflict:
       "Alguém ou algo alterou isto primeiro. Atualizar mostrará a versão mais recente.",
     connection_failed:

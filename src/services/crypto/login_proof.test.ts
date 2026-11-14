@@ -580,6 +580,25 @@ describe("short login salts", () => {
   });
 });
 
+describe("vault salt offered as a v1 login salt", () => {
+  it("refuses before any hash leaves an unpinned origin", async () => {
+    const vault = await encrypt_vault(
+      { identity_key: "secret" } as never,
+      PASSWORD,
+    );
+    const vault_salt = base64_to_array(vault.encrypted_vault).slice(0, 16);
+    const user_hash = await hash_email("victim@astermail.org");
+
+    await expect(
+      derive_sign_in_proof(PASSWORD, vault_salt, 1, user_hash),
+    ).rejects.toBeInstanceOf(LegacyLoginSaltError);
+    await expect(
+      derive_current_account_proof(PASSWORD, vault_salt, 1),
+    ).rejects.toBeInstanceOf(LegacyLoginSaltError);
+    expect(h.post).not.toHaveBeenCalled();
+  });
+});
+
 describe("stored record keys", () => {
   const PINS = "aster:login_v2_accounts";
   const SALTS = "aster:login_salt_records";
