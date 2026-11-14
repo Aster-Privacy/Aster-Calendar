@@ -50,6 +50,15 @@ vi.mock("@/contexts/external_link_context", () => ({
   use_external_link: () => ({ handle_external_link: vi.fn() }),
 }));
 
+vi.mock("@/hooks/use_synthetic_calendar_display", () => ({
+  use_synthetic_calendar_display: () => ({
+    birthdays_color: "#d81b60",
+    birthdays_name: "Birthdays",
+    birthdays_removed: false,
+    holidays_color: "#0b8043",
+  }),
+}));
+
 const { EventDetailPopover } =
   await import("@/components/calendar/event_detail_popover");
 

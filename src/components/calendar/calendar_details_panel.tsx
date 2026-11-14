@@ -473,7 +473,10 @@ export function CalendarDetailsPanel({
   const render_event_details = (event: DecryptedCalendarEvent) => {
     const calendar_name = is_birthday_kind(event)
       ? birthdays_name
-      : (calendar_by_id.get(event.calendar_id)?.name ?? t("calendar.calendar"));
+      : is_holiday_event(event)
+        ? t("calendar.settings_holidays")
+        : (calendar_by_id.get(event.calendar_id)?.name ??
+          t("calendar.calendar"));
     const kind_label =
       event.event_kind === "default"
         ? null
