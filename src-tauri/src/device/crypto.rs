@@ -1621,6 +1621,10 @@ mod tests {
         [seed; 32]
     }
 
+    fn fresh_key() -> [u8; 32] {
+        rand::random()
+    }
+
     fn scratch_path(name: &str) -> std::path::PathBuf {
         let mut path = std::env::temp_dir();
         path.push(format!("aster_device_crypto_test_{}_{}", std::process::id(), name));
@@ -1658,7 +1662,7 @@ mod tests {
 
     #[test]
     fn local_secret_round_trips_under_its_own_magic() {
-        let key = test_key(11);
+        let key = fresh_key();
         let sealed = seal_local_secret(&key, b"inner ciphertext").unwrap();
 
         assert_eq!(&sealed[..8], MAGIC_LS);
@@ -1667,7 +1671,7 @@ mod tests {
 
     #[test]
     fn local_secret_does_not_open_other_sealed_blobs() {
-        let key = test_key(12);
+        let key = fresh_key();
         let passphrase_blob = aead_seal(&key, MAGIC_PP, b"secret").unwrap();
         let local_blob = seal_local_secret(&key, b"secret").unwrap();
 
@@ -1678,19 +1682,20 @@ mod tests {
 
     #[test]
     fn local_secret_rejects_the_wrong_key_and_tampering() {
-        let sealed = seal_local_secret(&test_key(13), b"secret").unwrap();
+        let key = fresh_key();
+        let sealed = seal_local_secret(&key, b"secret").unwrap();
         let mut tampered = sealed.clone();
         let last = tampered.len() - 1;
         tampered[last] ^= 1;
 
-        assert!(open_local_secret(&test_key(14), &sealed).is_err());
-        assert!(open_local_secret(&test_key(13), &tampered).is_err());
-        assert!(open_local_secret(&test_key(13), &sealed[..40]).is_err());
+        assert!(open_local_secret(&fresh_key(), &sealed).is_err());
+        assert!(open_local_secret(&key, &tampered).is_err());
+        assert!(open_local_secret(&key, &sealed[..40]).is_err());
     }
 
     #[test]
     fn local_secret_rejects_empty_and_oversized_values() {
-        let key = test_key(15);
+        let key = fresh_key();
 
         assert!(seal_local_secret(&key, b"").is_err());
         assert!(seal_local_secret(&key, &vec![1u8; LOCAL_SECRET_MAX_BYTES + 1]).is_err());
@@ -2053,17 +2058,25 @@ mod tests {
 mod challenge_signing_tests {
     use super::*;
 
+    fn fresh_nonce() -> [u8; 32] {
+        rand::random()
+    }
+
+    fn fresh_bytes(len: usize) -> Vec<u8> {
+        (0..len).map(|_| rand::random::<u8>()).collect()
+    }
+
     #[test]
     fn refuses_anything_that_is_not_a_login_nonce() {
         for len in [0usize, 31, 33, 64, 1024] {
-            assert!(challenge_signing_input(&vec![1u8; len], Some(2)).is_err());
-            assert!(challenge_signing_input(&vec![1u8; len], None).is_err());
+            assert!(challenge_signing_input(&fresh_bytes(len), Some(2)).is_err());
+            assert!(challenge_signing_input(&fresh_bytes(len), None).is_err());
         }
     }
 
     #[test]
     fn binds_the_login_context_when_the_server_asks_for_it() {
-        let nonce = [9u8; 32];
+        let nonce = fresh_nonce();
         let input = challenge_signing_input(&nonce, Some(2)).unwrap();
         assert!(input.starts_with(DEVICE_LOGIN_SIGNATURE_CONTEXT));
         assert!(input.ends_with(&nonce));
@@ -2072,7 +2085,7 @@ mod challenge_signing_tests {
 
     #[test]
     fn signs_the_labeled_challenge_when_the_server_names_no_version() {
-        let nonce = [9u8; 32];
+        let nonce = fresh_nonce();
         let labeled = crate::device::challenge::device_challenge_message(&nonce).unwrap();
         assert_ne!(labeled, nonce.to_vec());
         assert_eq!(challenge_signing_input(&nonce, None).unwrap(), labeled);
@@ -2081,7 +2094,7 @@ mod challenge_signing_tests {
 
     #[test]
     fn refuses_an_unknown_version() {
-        assert!(challenge_signing_input(&[9u8; 32], Some(3)).is_err());
+        assert!(challenge_signing_input(&fresh_nonce(), Some(3)).is_err());
     }
 }
 
