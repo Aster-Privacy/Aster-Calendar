@@ -11664,6 +11664,9 @@ export const hi = {
     settings_notification_permission_blocked:
       "आपका ब्राउज़र इस साइट की सूचनाएं रोक रहा है। रिमाइंडर इसके बजाय ऐप में अलर्ट के रूप में दिखेंगे।",
     settings_notification_permission_granted: "डेस्कटॉप सूचनाओं की अनुमति है",
+    notification_permission_banner:
+      "इस ब्राउज़र में डेस्कटॉप सूचनाएँ बंद हैं। जब तक आप इन्हें फिर से अनुमति नहीं देते, रिमाइंडर इसी टैब में दिखते हैं।",
+    notification_permission_banner_allow: "अनुमति दें",
     settings_timezone: "टाइम ज़ोन",
     settings_primary_timezone: "मुख्य टाइम ज़ोन",
     settings_primary_timezone_desc: "इस डिवाइस से लिया गया",

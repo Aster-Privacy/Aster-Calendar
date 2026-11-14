@@ -11891,6 +11891,9 @@ export const es = {
       "Tu navegador bloquea las notificaciones de este sitio. Los recordatorios seguirán dentro de la aplicación.",
     settings_notification_permission_granted:
       "Las notificaciones de escritorio están permitidas",
+    notification_permission_banner:
+      "Las notificaciones de escritorio están desactivadas en este navegador. Hasta que vuelvas a permitirlas, los recordatorios aparecen en esta pestaña.",
+    notification_permission_banner_allow: "Permitir",
     settings_timezone: "Zona horaria",
     settings_primary_timezone: "Zona horaria principal",
     settings_primary_timezone_desc: "Tomada de este dispositivo",

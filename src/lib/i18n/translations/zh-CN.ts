@@ -10552,6 +10552,9 @@ export const zh_CN = {
     settings_notification_permission_blocked:
       "浏览器已阻止此网站的通知。提醒仍会显示在应用内。",
     settings_notification_permission_granted: "桌面通知已获允许",
+    notification_permission_banner:
+      "此浏览器已关闭桌面通知。在你再次允许之前，提醒会显示在此标签页中。",
+    notification_permission_banner_allow: "允许",
     settings_timezone: "时区",
     settings_primary_timezone: "主时区",
     settings_primary_timezone_desc: "取自此设备",

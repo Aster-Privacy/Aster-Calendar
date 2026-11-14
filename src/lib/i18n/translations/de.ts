@@ -12046,6 +12046,9 @@ export const de = {
       "Dein Browser blockiert Benachrichtigungen für diese Seite. Erinnerungen erscheinen weiterhin in der App.",
     settings_notification_permission_granted:
       "Desktop-Benachrichtigungen sind erlaubt",
+    notification_permission_banner:
+      "Desktop-Benachrichtigungen sind in diesem Browser deaktiviert. Bis du sie wieder erlaubst, erscheinen Erinnerungen in diesem Tab.",
+    notification_permission_banner_allow: "Erlauben",
     settings_timezone: "Zeitzone",
     settings_primary_timezone: "Primäre Zeitzone",
     settings_primary_timezone_desc: "Von diesem Gerät übernommen",

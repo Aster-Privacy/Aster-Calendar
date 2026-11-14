@@ -11996,6 +11996,9 @@ export const pt = {
       "Seu navegador bloqueia notificações deste site. Os lembretes continuarão no aplicativo.",
     settings_notification_permission_granted:
       "Notificações na área de trabalho permitidas",
+    notification_permission_banner:
+      "As notificações no ambiente de trabalho estão desativadas neste navegador. Até as permitir novamente, os lembretes aparecem neste separador.",
+    notification_permission_banner_allow: "Permitir",
     settings_timezone: "Fuso horário",
     settings_primary_timezone: "Fuso horário principal",
     settings_primary_timezone_desc: "Obtido deste dispositivo",

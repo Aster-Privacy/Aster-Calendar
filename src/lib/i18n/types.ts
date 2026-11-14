@@ -1042,6 +1042,8 @@ export interface CalendarTranslations {
   settings_grant_notification_permission: string;
   settings_notification_permission_blocked: string;
   settings_notification_permission_granted: string;
+  notification_permission_banner: string;
+  notification_permission_banner_allow: string;
   settings_timezone: string;
   settings_primary_timezone: string;
   settings_primary_timezone_desc: string;

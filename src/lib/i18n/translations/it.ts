@@ -11951,6 +11951,9 @@ export const it = {
       "Il browser blocca le notifiche per questo sito. I promemoria resteranno nell'app.",
     settings_notification_permission_granted:
       "Le notifiche desktop sono consentite",
+    notification_permission_banner:
+      "Le notifiche desktop sono disattivate in questo browser. Finché non le consenti di nuovo, i promemoria compaiono in questa scheda.",
+    notification_permission_banner_allow: "Consenti",
     settings_timezone: "Fuso orario",
     settings_primary_timezone: "Fuso orario principale",
     settings_primary_timezone_desc: "Ricavato da questo dispositivo",

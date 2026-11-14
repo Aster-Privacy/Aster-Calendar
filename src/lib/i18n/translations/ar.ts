@@ -11612,6 +11612,9 @@ export const ar = {
     settings_notification_permission_blocked:
       "متصفحك يحظر إشعارات هذا الموقع. ستظل التذكيرات تظهر داخل التطبيق.",
     settings_notification_permission_granted: "إشعارات سطح المكتب مسموح بها",
+    notification_permission_banner:
+      "إشعارات سطح المكتب متوقفة في هذا المتصفح. إلى أن تسمح بها مرة أخرى، تظهر التذكيرات في علامة التبويب هذه.",
+    notification_permission_banner_allow: "السماح",
     settings_timezone: "المنطقة الزمنية",
     settings_primary_timezone: "المنطقة الزمنية الأساسية",
     settings_primary_timezone_desc: "مأخوذة من هذا الجهاز",

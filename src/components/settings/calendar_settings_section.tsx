@@ -1267,7 +1267,12 @@ export function CalendarNotificationsSection() {
       return;
     }
 
-    set_permission(Notification.permission);
+    const refresh = () => set_permission(Notification.permission);
+
+    refresh();
+    window.addEventListener("focus", refresh);
+
+    return () => window.removeEventListener("focus", refresh);
   }, []);
 
   const request_permission = async () => {

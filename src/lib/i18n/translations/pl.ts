@@ -12122,6 +12122,9 @@ export const pl = {
       "Przeglądarka blokuje powiadomienia tej strony. Przypomnienia pozostaną w aplikacji.",
     settings_notification_permission_granted:
       "Powiadomienia pulpitu sa dozwolone",
+    notification_permission_banner:
+      "Powiadomienia na pulpicie są wyłączone w tej przeglądarce. Dopóki ich ponownie nie zezwolisz, przypomnienia pojawiają się w tej karcie.",
+    notification_permission_banner_allow: "Zezwól",
     settings_timezone: "Strefa czasowa",
     settings_primary_timezone: "Główna strefa czasowa",
     settings_primary_timezone_desc: "Pobrana z tego urządzenia",
