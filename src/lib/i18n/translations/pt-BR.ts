@@ -515,6 +515,7 @@ export const pt_br = {
     custom_color: "Cor personalizada",
     brightness: "Brilho",
     hex_color: "Cor hexadecimal",
+    hex_color_invalid: "Digite uma cor hexadecimal como #3b82f6",
     color_orange: "Laranja",
     color_amber: "Âmbar",
     color_yellow: "Amarelo",

@@ -653,6 +653,7 @@ export const ko = {
     custom_color: "사용자 지정 색상",
     brightness: "밝기",
     hex_color: "16진수 색상",
+    hex_color_invalid: "#3b82f6 같은 16진수 색상을 입력하세요",
     color_orange: "주황",
     color_amber: "호박색",
     color_yellow: "노랑",

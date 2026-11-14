@@ -26,10 +26,13 @@ import { Button, ButtonSpinner, IslandDivider } from "@aster/ui";
 
 import {
   DEFAULT_EVENT_COLOR,
-  EVENT_COLOR_OPTIONS,
+  PICKER_COLOR_OPTIONS,
   selected_event_color_name,
 } from "@/components/calendar/calendar_utils";
-import { CustomColorSwatch } from "@/components/ui/color_wheel";
+import {
+  CustomColorSwatch,
+  selected_swatch_shadow,
+} from "@/components/ui/color_wheel";
 import { ConfirmationModal } from "@/components/modals/confirmation_modal";
 import { show_toast } from "@/components/toast/simple_toast";
 import { Input } from "@/components/ui/input";
@@ -170,10 +173,10 @@ export function CalendarEditDialog({
             </span>
             <div
               aria-labelledby={color_label_id}
-              className="flex flex-wrap gap-2.5 py-0.5"
+              className="flex flex-nowrap gap-2 py-0.5 sm:gap-2.5"
               role="radiogroup"
             >
-              {EVENT_COLOR_OPTIONS.map((option) => {
+              {PICKER_COLOR_OPTIONS.map((option) => {
                 const is_selected = selected_color_name === option.name;
 
                 return (
@@ -181,13 +184,13 @@ export function CalendarEditDialog({
                     key={option.hex}
                     aria-checked={is_selected}
                     aria-label={t(option.name_key)}
-                    className="flex h-7 w-7 items-center justify-center rounded-full transition-[box-shadow] duration-150 motion-reduce:transition-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--aster-island-fill)]"
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full sm:h-7 sm:w-7 transition-[box-shadow] duration-150 motion-reduce:transition-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--aster-island-fill)]"
                     data-calendar-color={option.name}
                     role="radio"
                     style={{
                       backgroundColor: option.token,
                       boxShadow: is_selected
-                        ? `0 0 0 2px var(--aster-island-fill), 0 0 0 4px ${option.token}`
+                        ? selected_swatch_shadow("var(--aster-island-fill)")
                         : "none",
                     }}
                     title={t(option.name_key)}
@@ -208,6 +211,7 @@ export function CalendarEditDialog({
                 is_selected={selected_color_name === null}
                 ring_background="var(--aster-island-fill)"
                 role="radio"
+                size_class="h-6 w-6 sm:h-7 sm:w-7"
                 value={color}
                 on_change={set_color}
                 on_commit={set_color}

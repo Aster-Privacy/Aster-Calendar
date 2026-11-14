@@ -648,6 +648,7 @@ export const ja = {
     custom_color: "カスタムカラー",
     brightness: "明るさ",
     hex_color: "16進カラー",
+    hex_color_invalid: "#3b82f6 のような16進カラーを入力してください",
     color_orange: "オレンジ",
     color_amber: "アンバー",
     color_yellow: "イエロー",

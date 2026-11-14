@@ -56,7 +56,10 @@ import {
 } from "@heroicons/react/24/outline";
 
 import { DateField } from "@/components/calendar/date_field";
-import { CustomColorSwatch } from "@/components/ui/color_wheel";
+import {
+  CustomColorSwatch,
+  selected_swatch_shadow,
+} from "@/components/ui/color_wheel";
 import {
   preset_to_rule,
   RecurrenceField,
@@ -68,7 +71,7 @@ import { TagColorPicker } from "@/components/calendar/tag_color_picker";
 import { use_tag_colors } from "@/components/calendar/use_tag_colors";
 import {
   default_event_color,
-  EVENT_COLOR_OPTIONS,
+  PICKER_COLOR_OPTIONS,
   normalize_event_color,
   selected_event_color_name,
   ink_on_fill,
@@ -1796,7 +1799,7 @@ export function EventFormModal({
                             />
                           }
                         >
-                          <div className="flex flex-wrap items-center gap-2.5 py-1 ps-1">
+                          <div className="flex flex-nowrap items-center gap-2 py-1 ps-1 sm:gap-2.5">
                             <button
                               aria-label={t("calendar.color_calendar_default")}
                               aria-pressed={color === null}
@@ -1806,7 +1809,9 @@ export function EventFormModal({
                                 backgroundColor: default_color,
                                 boxShadow:
                                   color === null
-                                    ? `0 0 0 2px var(--aster-dialog-bg), 0 0 0 4px ${default_color}`
+                                    ? selected_swatch_shadow(
+                                        "var(--aster-dialog-bg)",
+                                      )
                                     : "none",
                               }}
                               title={t("calendar.color_calendar_default")}
@@ -1820,7 +1825,7 @@ export function EventFormModal({
                                 />
                               )}
                             </button>
-                            {EVENT_COLOR_OPTIONS.map((option) => {
+                            {PICKER_COLOR_OPTIONS.map((option) => {
                               const is_selected =
                                 selected_color_name === option.name;
 
@@ -1833,7 +1838,9 @@ export function EventFormModal({
                                   style={{
                                     backgroundColor: option.token,
                                     boxShadow: is_selected
-                                      ? `0 0 0 2px var(--aster-dialog-bg), 0 0 0 4px ${option.token}`
+                                      ? selected_swatch_shadow(
+                                          "var(--aster-dialog-bg)",
+                                        )
                                       : "none",
                                   }}
                                   title={t(option.name_key)}

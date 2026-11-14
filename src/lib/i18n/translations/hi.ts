@@ -578,6 +578,7 @@ export const hi = {
     custom_color: "कस्टम रंग",
     brightness: "चमक",
     hex_color: "हेक्स रंग",
+    hex_color_invalid: "#3b82f6 जैसा हेक्स रंग दर्ज करें",
     color_orange: "नारंगी",
     color_amber: "एम्बर",
     color_yellow: "पीला",

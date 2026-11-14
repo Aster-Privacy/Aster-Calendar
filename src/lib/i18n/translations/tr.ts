@@ -589,6 +589,7 @@ export const tr = {
     custom_color: "Özel renk",
     brightness: "Parlaklık",
     hex_color: "Onaltılık renk",
+    hex_color_invalid: "#3b82f6 gibi bir onaltılık renk girin",
     color_orange: "Turuncu",
     color_amber: "Kehribar",
     color_yellow: "Sarı",

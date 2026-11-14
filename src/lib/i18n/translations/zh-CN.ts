@@ -547,6 +547,7 @@ export const zh_CN = {
     custom_color: "自定义颜色",
     brightness: "亮度",
     hex_color: "十六进制颜色",
+    hex_color_invalid: "请输入十六进制颜色，例如 #3b82f6",
     color_orange: "橙色",
     color_amber: "琥珀色",
     color_yellow: "黄色",

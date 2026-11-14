@@ -2235,6 +2235,7 @@ export interface CommonTranslations {
   custom_color: string;
   brightness: string;
   hex_color: string;
+  hex_color_invalid: string;
   color_orange: string;
   color_amber: string;
   color_yellow: string;

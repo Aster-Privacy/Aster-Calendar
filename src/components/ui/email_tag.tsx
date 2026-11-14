@@ -21,7 +21,26 @@
 import type { TranslationKey } from "@/lib/i18n/types";
 import type { TagColorVariant, TagIconName } from "@aster/ui";
 
-import { TAG_ICON_GROUPS as ui_tag_icon_groups } from "@aster/ui";
+import {
+  TAG_COLOR_PRESETS as ui_tag_color_presets,
+  TAG_ICON_GROUPS as ui_tag_icon_groups,
+} from "@aster/ui";
+
+const PICKER_TAG_COLOR_VARIANTS: readonly TagColorVariant[] = [
+  "red",
+  "orange",
+  "yellow",
+  "green",
+  "teal",
+  "blue",
+  "purple",
+  "pink",
+];
+
+export const PICKER_TAG_COLOR_PRESETS = PICKER_TAG_COLOR_VARIANTS.flatMap(
+  (variant) =>
+    ui_tag_color_presets.filter((preset) => preset.variant === variant),
+);
 
 export {
   EmailTag,

@@ -57,6 +57,7 @@ import {
   DEFAULT_EVENT_COLOR,
   EVENT_COLOR_OPTIONS,
   NEUTRAL_EVENT_COLOR,
+  PICKER_COLOR_OPTIONS,
 } from "@/components/calendar/calendar_utils";
 import { BIRTHDAY_COLOR } from "@/services/calendar/birthdays";
 import { HOLIDAY_COLOR } from "@/services/calendar/holidays";
@@ -751,6 +752,27 @@ describe("event color palette", () => {
     expect(selected_event_color_name("violet")).toBe("purple");
     expect(selected_event_color_name("#123456")).toBeNull();
     expect(selected_event_color_name(null)).toBeNull();
+  });
+
+  it("shows brown and gray as the custom swatch while keeping them in the palette", () => {
+    expect(PICKER_COLOR_OPTIONS.map((option) => option.name)).toEqual([
+      "red",
+      "orange",
+      "yellow",
+      "green",
+      "teal",
+      "blue",
+      "purple",
+      "pink",
+    ]);
+    expect(EVENT_COLOR_OPTIONS).toHaveLength(10);
+    expect(selected_event_color_name("gray")).toBeNull();
+    expect(selected_event_color_name("slate")).toBeNull();
+    expect(selected_event_color_name(NEUTRAL_EVENT_COLOR.hex)).toBeNull();
+    expect(find_event_color_option("brown")?.name).toBe("brown");
+    expect(event_color_token(find_event_color_option("gray")!.hex)).toBe(
+      find_event_color_option("gray")!.token,
+    );
   });
 
   it.each([

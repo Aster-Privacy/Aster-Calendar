@@ -600,6 +600,7 @@ export const es = {
     custom_color: "Color personalizado",
     brightness: "Brillo",
     hex_color: "Color hexadecimal",
+    hex_color_invalid: "Introduce un color hexadecimal como #3b82f6",
     color_orange: "Naranja",
     color_amber: "Ámbar",
     color_yellow: "Amarillo",

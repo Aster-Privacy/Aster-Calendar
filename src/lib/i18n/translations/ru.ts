@@ -584,6 +584,7 @@ export const ru = {
     custom_color: "Свой цвет",
     brightness: "Яркость",
     hex_color: "Шестнадцатеричный цвет",
+    hex_color_invalid: "Введите шестнадцатеричный цвет, например #3b82f6",
     color_orange: "Оранжевый",
     color_amber: "Янтарный",
     color_yellow: "Жёлтый",

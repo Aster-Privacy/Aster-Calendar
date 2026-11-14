@@ -600,6 +600,7 @@ export const fr = {
     custom_color: "Couleur personnalisée",
     brightness: "Luminosité",
     hex_color: "Couleur hexadécimale",
+    hex_color_invalid: "Saisissez une couleur hexadécimale comme #3b82f6",
     color_orange: "Orange",
     color_amber: "Ambre",
     color_yellow: "Jaune",

@@ -582,6 +582,7 @@ export const nl = {
     custom_color: "Aangepaste kleur",
     brightness: "Helderheid",
     hex_color: "Hex-kleur",
+    hex_color_invalid: "Voer een hex-kleur in, zoals #3b82f6",
     color_orange: "Oranje",
     color_amber: "Amber",
     color_yellow: "Geel",

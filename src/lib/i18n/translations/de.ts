@@ -509,6 +509,7 @@ export const de = {
     custom_color: "Eigene Farbe",
     brightness: "Helligkeit",
     hex_color: "Hex-Farbe",
+    hex_color_invalid: "Gib eine Hex-Farbe wie #3b82f6 ein",
     color_orange: "Orange",
     color_amber: "Bernstein",
     color_yellow: "Gelb",

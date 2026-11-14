@@ -23,8 +23,11 @@ import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { useId, useRef, useState } from "react";
 import { CheckIcon } from "@heroicons/react/24/outline";
 
-import { EVENT_COLOR_OPTIONS } from "@/components/calendar/calendar_utils";
-import { CustomColorSwatch } from "@/components/ui/color_wheel";
+import { PICKER_COLOR_OPTIONS } from "@/components/calendar/calendar_utils";
+import {
+  CustomColorSwatch,
+  selected_swatch_shadow,
+} from "@/components/ui/color_wheel";
 import {
   Popover,
   PopoverContent,
@@ -33,7 +36,7 @@ import {
 import { use_i18n } from "@/lib/i18n/context";
 import { is_tag_color } from "@/services/calendar/tag_colors";
 
-export const TAG_COLOR_GRID_COLUMNS = 6;
+export const TAG_COLOR_GRID_COLUMNS = 1;
 
 export function next_swatch_index(
   key: string,
@@ -73,10 +76,10 @@ export function TagColorSwatches({ color, on_select }: TagColorSwatchesProps) {
   const heading_id = useId();
   const button_refs = useRef<(HTMLButtonElement | null)[]>([]);
   const current = color.toLowerCase();
-  const selected_index = EVENT_COLOR_OPTIONS.findIndex(
+  const selected_index = PICKER_COLOR_OPTIONS.findIndex(
     (option) => option.hex.toLowerCase() === current,
   );
-  const custom_index = EVENT_COLOR_OPTIONS.length;
+  const custom_index = PICKER_COLOR_OPTIONS.length;
   const is_custom = selected_index < 0 && is_tag_color(current);
   const focus_index =
     selected_index >= 0 ? selected_index : is_custom ? custom_index : 0;
@@ -110,12 +113,12 @@ export function TagColorSwatches({ color, on_select }: TagColorSwatchesProps) {
       </p>
       <div
         aria-labelledby={heading_id}
-        className="grid grid-cols-6 gap-2"
+        className="flex flex-nowrap items-center gap-1.5 sm:gap-2"
         data-testid="tag-color-swatches"
         role="toolbar"
         onKeyDown={handle_key_down}
       >
-        {EVENT_COLOR_OPTIONS.map((option, index) => {
+        {PICKER_COLOR_OPTIONS.map((option, index) => {
           const is_selected = index === selected_index;
 
           return (
@@ -126,13 +129,15 @@ export function TagColorSwatches({ color, on_select }: TagColorSwatchesProps) {
               }}
               aria-label={t(option.name_key)}
               aria-pressed={is_selected}
-              className="flex h-8 w-8 cursor-pointer touch-manipulation items-center justify-center rounded-full transition-shadow duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--aster-floating-bg,var(--bg-primary))]"
+              className="flex h-7 w-7 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full transition-shadow duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--aster-floating-bg,var(--bg-primary))]"
               data-autofocus={index === focus_index ? "true" : undefined}
               data-color={option.hex}
               style={{
                 backgroundColor: option.token,
                 boxShadow: is_selected
-                  ? `0 0 0 2px var(--aster-floating-bg, var(--bg-primary)), 0 0 0 4px ${option.token}`
+                  ? selected_swatch_shadow(
+                      "var(--aster-floating-bg, var(--bg-primary))",
+                    )
                   : "none",
               }}
               tabIndex={index === focus_index ? 0 : -1}
@@ -156,7 +161,7 @@ export function TagColorSwatches({ color, on_select }: TagColorSwatchesProps) {
             button_refs.current[custom_index] = node;
           }}
           is_selected={is_custom}
-          size_class="h-8 w-8"
+          size_class="h-7 w-7"
           check_class="h-4 w-4"
           tab_index={focus_index === custom_index ? 0 : -1}
           value={is_custom ? current : null}

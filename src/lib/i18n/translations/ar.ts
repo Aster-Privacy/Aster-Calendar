@@ -581,6 +581,7 @@ export const ar = {
     custom_color: "لون مخصص",
     brightness: "السطوع",
     hex_color: "لون سداسي عشري",
+    hex_color_invalid: "أدخل لونًا سداسيًا عشريًا مثل #3b82f6",
     color_orange: "برتقالي",
     color_amber: "كهرماني",
     color_yellow: "أصفر",

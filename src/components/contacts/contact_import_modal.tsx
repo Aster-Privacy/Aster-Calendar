@@ -44,7 +44,7 @@ import { CheckIcon } from "@heroicons/react/24/solid";
 
 import { Button } from "@/components/ui/button";
 import { ContactAvatar } from "@/components/common/contacts/contact_avatar";
-import { TAG_COLOR_PRESETS } from "@/components/ui/email_tag";
+import { PICKER_TAG_COLOR_PRESETS } from "@/components/ui/email_tag";
 import {
   Select,
   SelectContent,
@@ -339,8 +339,9 @@ export function ContactImportModal({
         const response = await create_contact_group({
           name: missing[i],
           color:
-            TAG_COLOR_PRESETS[(groups.length + i) % TAG_COLOR_PRESETS.length]
-              .hex,
+            PICKER_TAG_COLOR_PRESETS[
+              (groups.length + i) % PICKER_TAG_COLOR_PRESETS.length
+            ].hex,
         });
 
         if (!response.data) {

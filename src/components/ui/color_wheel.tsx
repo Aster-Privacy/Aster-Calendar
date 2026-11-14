@@ -35,7 +35,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { hex_to_readable_ink } from "@/components/calendar/calendar_utils";
+import {
+  find_event_color_option,
+  hex_to_readable_ink,
+} from "@/components/calendar/calendar_utils";
 import {
   DEFAULT_CUSTOM_COLOR,
   type HsvColor,
@@ -61,8 +64,13 @@ const POPOVER_CLASS =
   "w-[232px] max-w-[calc(100vw-32px)] rounded-[var(--aster-radius-floating)] p-4";
 const SLIDER_FOCUS_CLASS =
   "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--aster-floating-bg,var(--bg-primary))]";
+const FULL_HEX_PATTERN = /^#?[0-9a-f]{6}$/i;
 const THUMB_CLASS =
   "pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_1px_4px_rgba(0,0,0,0.45)]";
+
+export function selected_swatch_shadow(ring_background: string): string {
+  return `0 0 0 2px ${ring_background}, 0 0 0 4px var(--text-primary)`;
+}
 
 function initial_hsv(
   value: string | null | undefined,
@@ -100,6 +108,7 @@ export function ColorWheelPanel({
 }: ColorWheelPanelProps) {
   const { t } = use_i18n();
   const hex_input_id = useId();
+  const hex_error_id = useId();
   const brightness_label_id = useId();
   const [hsv, set_hsv] = useState<HsvColor>(() =>
     initial_hsv(value, default_color),
@@ -224,9 +233,7 @@ export function ColorWheelPanel({
     }
   };
 
-  const handle_slider_key = (
-    key_event: ReactKeyboardEvent<HTMLDivElement>,
-  ) => {
+  const handle_slider_key = (key_event: ReactKeyboardEvent<HTMLDivElement>) => {
     const unit_step = key_event.shiftKey ? UNIT_STEP_LARGE : UNIT_STEP;
     const steps: Record<string, number> = {
       ArrowRight: Math.min(1, hsv.v + unit_step),
@@ -244,21 +251,47 @@ export function ColorWheelPanel({
     }
   };
 
-  const handle_hex_input = (raw: string) => {
-    set_hex_draft(raw);
+  const apply_hex = (normalized: string) => {
+    const next = hex_to_hsv(normalized);
 
-    const normalized = normalize_hex_color(raw);
-    const next = normalized ? hex_to_hsv(normalized) : null;
-
-    if (!normalized || !next) {
-      set_hex_error(true);
-
-      return;
+    if (!next) {
+      return false;
     }
 
-    set_hex_error(false);
     set_hsv(next);
+    set_hex_draft(normalized);
+    set_hex_error(false);
     emit(normalized);
+
+    return true;
+  };
+
+  const handle_hex_input = (raw: string) => {
+    set_hex_draft(raw);
+    set_hex_error(false);
+
+    const normalized = normalize_hex_color(raw);
+
+    if (normalized && FULL_HEX_PATTERN.test(raw.trim())) {
+      const next = hex_to_hsv(normalized);
+
+      if (next) {
+        set_hsv(next);
+        emit(normalized);
+      }
+    }
+  };
+
+  const commit_hex_draft = () => {
+    const normalized = normalize_hex_color(hex_draft);
+
+    if (normalized && apply_hex(normalized)) {
+      return true;
+    }
+
+    set_hex_error(true);
+
+    return false;
   };
 
   const current_hex = hsv_to_hex(hsv);
@@ -350,53 +383,62 @@ export function ColorWheelPanel({
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <span
-          aria-hidden="true"
-          className="h-8 w-8 shrink-0 rounded-full"
-          data-testid="color-wheel-preview"
-          style={{
-            backgroundColor: current_hex,
-            boxShadow: "inset 0 0 0 1px rgba(127, 127, 127, 0.35)",
-          }}
-        />
-        <label className="sr-only" htmlFor={hex_input_id}>
-          {t("common.hex_color")}
-        </label>
-        <Input
-          aria-invalid={hex_error}
-          autoCapitalize="off"
-          autoComplete="off"
-          className="w-auto min-w-0 flex-1 font-mono"
-          data-testid="color-wheel-hex"
-          id={hex_input_id}
-          maxLength={7}
-          placeholder="#rrggbb"
-          size="sm"
-          spellCheck={false}
-          status={hex_error ? "error" : "default"}
-          title={t("common.hex_color")}
-          type="text"
-          value={hex_draft}
-          onBlur={() => {
-            set_hex_draft(hsv_to_hex(hsv));
-            set_hex_error(false);
-          }}
-          onChange={(change_event) =>
-            handle_hex_input(change_event.target.value)
-          }
-          onKeyDown={(key_event) => {
-            if (key_event.key !== "Enter") {
-              return;
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-2">
+          <span
+            aria-hidden="true"
+            className="h-8 w-8 shrink-0 rounded-full"
+            data-testid="color-wheel-preview"
+            style={{
+              backgroundColor: current_hex,
+              boxShadow: "inset 0 0 0 1px rgba(127, 127, 127, 0.35)",
+            }}
+          />
+          <label className="sr-only" htmlFor={hex_input_id}>
+            {t("common.hex_color")}
+          </label>
+          <Input
+            aria-describedby={hex_error ? hex_error_id : undefined}
+            aria-invalid={hex_error}
+            autoCapitalize="off"
+            autoComplete="off"
+            className="w-auto min-w-0 flex-1 font-mono"
+            data-testid="color-wheel-hex"
+            id={hex_input_id}
+            maxLength={7}
+            placeholder="#rrggbb"
+            size="sm"
+            spellCheck={false}
+            title={t("common.hex_color")}
+            type="text"
+            value={hex_draft}
+            onBlur={commit_hex_draft}
+            onChange={(change_event) =>
+              handle_hex_input(change_event.target.value)
             }
+            onKeyDown={(key_event) => {
+              if (key_event.key !== "Enter") {
+                return;
+              }
 
-            key_event.preventDefault();
+              key_event.preventDefault();
 
-            if (!hex_error) {
-              on_submit?.();
-            }
-          }}
-        />
+              if (commit_hex_draft()) {
+                on_submit?.();
+              }
+            }}
+          />
+        </div>
+        {hex_error && (
+          <p
+            className="text-xs text-[var(--color-danger)]"
+            data-testid="color-wheel-hex-error"
+            id={hex_error_id}
+            role="alert"
+          >
+            {t("common.hex_color_invalid")}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -411,9 +453,16 @@ export function custom_swatch_style(
   }
 
   return {
-    backgroundImage: `radial-gradient(circle closest-side, ${color} 0 60%, transparent 60%), ${RAINBOW_CONIC_GRADIENT}`,
-    boxShadow: `0 0 0 2px ${ring_background}, 0 0 0 4px ${color}`,
+    backgroundColor: color,
+    boxShadow: selected_swatch_shadow(ring_background),
   };
+}
+
+function resolve_swatch_color(value: string | null | undefined) {
+  return (
+    normalize_hex_color(value) ??
+    normalize_hex_color(find_event_color_option(value)?.hex)
+  );
 }
 
 interface CustomColorSwatchProps {
@@ -453,7 +502,7 @@ export function CustomColorSwatch({
   const [is_open, set_is_open] = useState(false);
   const [draft, set_draft] = useState<string | null>(null);
   const opened_with_ref = useRef<string | null>(null);
-  const committed = is_selected ? normalize_hex_color(value) : null;
+  const committed = is_selected ? resolve_swatch_color(value) : null;
   const shown_color = (is_open && draft) || committed;
 
   const handle_open_change = (next_open: boolean) => {
@@ -551,7 +600,7 @@ export function AnchoredColorWheel({
 }: AnchoredColorWheelProps) {
   const { t } = use_i18n();
   const [draft, set_draft] = useState<string | null>(null);
-  const opened_with = normalize_hex_color(value);
+  const opened_with = resolve_swatch_color(value);
 
   const close = () => {
     if (draft && draft !== opened_with) {
@@ -609,9 +658,8 @@ export function CustomColorDot({
       aria-hidden="true"
       className={`block shrink-0 rounded-full ${className}`}
       style={{
-        backgroundImage: color
-          ? `radial-gradient(circle closest-side, ${color} 0 55%, transparent 55%), ${RAINBOW_CONIC_GRADIENT}`
-          : RAINBOW_CONIC_GRADIENT,
+        backgroundColor: color ?? undefined,
+        backgroundImage: color ? undefined : RAINBOW_CONIC_GRADIENT,
       }}
     />
   );

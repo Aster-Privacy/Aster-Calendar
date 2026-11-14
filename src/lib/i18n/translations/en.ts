@@ -578,6 +578,7 @@ export const en: Translations = {
     custom_color: "Custom color",
     brightness: "Brightness",
     hex_color: "Hex color",
+    hex_color_invalid: "Enter a hex color like #3b82f6",
     color_orange: "Orange",
     color_amber: "Amber",
     color_yellow: "Yellow",

@@ -944,6 +944,21 @@ function event_color_option_by_name(name: EventColorName): EventColorOption {
 export const NEUTRAL_EVENT_COLOR: EventColorOption =
   event_color_option_by_name("gray");
 
+export const PICKER_COLOR_NAMES: readonly EventColorName[] = [
+  "red",
+  "orange",
+  "yellow",
+  "green",
+  "teal",
+  "blue",
+  "purple",
+  "pink",
+];
+
+export const PICKER_COLOR_OPTIONS: EventColorOption[] = PICKER_COLOR_NAMES.map(
+  event_color_option_by_name,
+);
+
 export const DEFAULT_EVENT_COLOR: EventColorOption =
   event_color_option_by_name("blue");
 
@@ -1139,8 +1154,10 @@ export function event_color_token(color: string | null | undefined): string {
     return "var(--accent-color)";
   }
 
-  return (find_event_color_option(color) ?? find_event_color_option(custom))
-    ?.token ?? custom;
+  return (
+    (find_event_color_option(color) ?? find_event_color_option(custom))
+      ?.token ?? custom
+  );
 }
 
 export function normalize_event_color(
@@ -1186,10 +1203,13 @@ export function selected_event_color_name(
 
   const custom = normalize_event_color(color);
 
-  return (
-    find_event_color_option(color) ??
-    (custom ? find_event_color_option(custom) : null)
-  )?.name ?? null;
+  const name =
+    (
+      find_event_color_option(color) ??
+      (custom ? find_event_color_option(custom) : null)
+    )?.name ?? null;
+
+  return name !== null && PICKER_COLOR_NAMES.includes(name) ? name : null;
 }
 
 const PAST_EVENT_FILTER = "saturate(0.6)";

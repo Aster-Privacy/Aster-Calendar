@@ -595,6 +595,7 @@ export const pl = {
     custom_color: "Kolor niestandardowy",
     brightness: "Jasność",
     hex_color: "Kolor szesnastkowy",
+    hex_color_invalid: "Wpisz kolor szesnastkowy, np. #3b82f6",
     color_orange: "Pomarańczowy",
     color_amber: "Bursztynowy",
     color_yellow: "Żółty",

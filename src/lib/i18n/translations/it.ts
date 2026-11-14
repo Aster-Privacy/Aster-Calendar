@@ -595,6 +595,7 @@ export const it = {
     custom_color: "Colore personalizzato",
     brightness: "Luminosità",
     hex_color: "Colore esadecimale",
+    hex_color_invalid: "Inserisci un colore esadecimale come #3b82f6",
     color_orange: "Arancione",
     color_amber: "Ambra",
     color_yellow: "Giallo",
