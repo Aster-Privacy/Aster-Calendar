@@ -955,50 +955,59 @@ export function CalendarSidebar({
     show_toast(t("calendar.birthdays_removed_toast"), "success");
   };
 
-  const color_submenu = (current: string, on_pick: (color: string) => void) => (
-    <ContextMenuSub>
-      <ContextMenuSubTrigger>
-        <span
-          aria-hidden="true"
-          className="me-2 inline-flex h-4 w-4 items-center justify-center"
-        >
-          <span
-            className="h-3 w-3 rounded-[3px]"
-            style={{ backgroundColor: event_color_token(current) }}
-          />
-        </span>
-        {t("common.change_color")}
-      </ContextMenuSubTrigger>
-      <ContextMenuSubContent className="w-44">
-        {EVENT_COLOR_OPTIONS.map((option) => {
-          const is_current = nearest_event_color(current).name === option.name;
+  const color_submenu = (
+    target: string,
+    current: string,
+    on_pick: (color: string) => void,
+  ) => {
+    const current_color_name = selected_event_color_name(current);
 
-          return (
-            <ContextMenuItem
-              key={option.hex}
-              aria-checked={is_current}
-              role="menuitemradio"
-              onClick={() => on_pick(option.hex)}
-            >
-              <span
-                aria-hidden="true"
-                className="me-2 inline-flex h-4 w-4 items-center justify-center"
+    return (
+      <ContextMenuSub>
+        <ContextMenuSubTrigger>
+          <span
+            aria-hidden="true"
+            className="me-2 inline-flex h-4 w-4 items-center justify-center"
+          >
+            <span
+              className="h-3 w-3 rounded-[3px]"
+              style={{ backgroundColor: event_color_token(current) }}
+            />
+          </span>
+          {t("common.change_color")}
+        </ContextMenuSubTrigger>
+        <ContextMenuSubContent className="w-44">
+          {PICKER_COLOR_OPTIONS.map((option) => {
+            const is_current = current_color_name === option.name;
+
+            return (
+              <ContextMenuItem
+                key={option.hex}
+                aria-checked={is_current}
+                role="menuitemradio"
+                onClick={() => on_pick(option.hex)}
               >
                 <span
-                  className="h-3 w-3 rounded-[3px]"
-                  style={{ backgroundColor: option.token }}
-                />
-              </span>
-              <span className="flex-1">{t(option.name_key)}</span>
-              {is_current && (
-                <CheckIcon className="ms-2 h-4 w-4 text-txt-secondary" />
-              )}
-            </ContextMenuItem>
-          );
-        })}
-      </ContextMenuSubContent>
-    </ContextMenuSub>
-  );
+                  aria-hidden="true"
+                  className="me-2 inline-flex h-4 w-4 items-center justify-center"
+                >
+                  <span
+                    className="h-3 w-3 rounded-[3px]"
+                    style={{ backgroundColor: option.token }}
+                  />
+                </span>
+                <span className="flex-1">{t(option.name_key)}</span>
+                {is_current && (
+                  <CheckIcon className="ms-2 h-4 w-4 text-txt-secondary" />
+                )}
+              </ContextMenuItem>
+            );
+          })}
+          {custom_color_menu_item(target, current, current_color_name === null)}
+        </ContextMenuSubContent>
+      </ContextMenuSub>
+    );
+  };
 
   const toggle_birthdays = () =>
     update_visibility((current) => ({
@@ -1013,120 +1022,143 @@ export function CalendarSidebar({
     }));
 
   const birthday_row = (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <div
-          className={`group relative rounded-[var(--aster-radius-item,8px)] data-[state=open]:[&>button]:bg-[var(--aster-hover)] ${
-            birthdays_visible ? "" : "[&>button_span.flex-1]:opacity-55"
-          }`}
-          data-visibility-row="birthdays"
+    <AnchoredColorWheel
+      open={color_wheel_target === "birthdays"}
+      value={birthdays_color}
+      on_close={() => set_color_wheel_target(null)}
+      on_commit={change_birthdays_color}
+    >
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <div
+            className={`group relative rounded-[var(--aster-radius-item,8px)] data-[state=open]:[&>button]:bg-[var(--aster-hover)] ${
+              birthdays_visible ? "" : "[&>button_span.flex-1]:opacity-55"
+            }`}
+            data-visibility-row="birthdays"
+          >
+            <SidebarTagRow
+              rail_tip
+              aria-pressed={birthdays_visible}
+              color={birthdays_color}
+              icon_slot={visibility_box(birthdays_color, birthdays_visible)}
+              is_collapsed={is_collapsed}
+              label={birthdays_name}
+              on_click={toggle_birthdays}
+              trailing={!is_collapsed ? <span className="w-5" /> : undefined}
+            />
+            {!is_collapsed && (
+              <button
+                aria-haspopup="menu"
+                aria-label={t("calendar.calendar_options")}
+                className={`absolute end-1.5 top-1/2 z-[2] inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-[8px] text-[var(--icon-muted)] opacity-0 transition-[opacity,background-color,color] duration-150 hover:bg-[var(--aster-hover)] hover:text-[var(--icon-active)] group-hover:opacity-100 group-data-[state=open]:opacity-100 focus-visible:opacity-100 ${focus_ring}`}
+                type="button"
+                onClick={open_calendar_menu}
+              >
+                <EllipsisHorizontalIcon className="h-4 w-4" />
+              </button>
+            )}
+            {color_wheel_anchor}
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent
+          className="w-52"
+          onCloseAutoFocus={open_pending_color_wheel}
         >
-          <SidebarTagRow
-            rail_tip
-            aria-pressed={birthdays_visible}
-            color={birthdays_color}
-            icon_slot={visibility_box(birthdays_color, birthdays_visible)}
-            is_collapsed={is_collapsed}
-            label={birthdays_name}
-            on_click={toggle_birthdays}
-            trailing={!is_collapsed ? <span className="w-5" /> : undefined}
-          />
-          {!is_collapsed && (
-            <button
-              aria-haspopup="menu"
-              aria-label={t("calendar.calendar_options")}
-              className={`absolute end-1.5 top-1/2 z-[2] inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-[8px] text-[var(--icon-muted)] opacity-0 transition-[opacity,background-color,color] duration-150 hover:bg-[var(--aster-hover)] hover:text-[var(--icon-active)] group-hover:opacity-100 group-data-[state=open]:opacity-100 focus-visible:opacity-100 ${focus_ring}`}
-              type="button"
-              onClick={open_calendar_menu}
-            >
-              <EllipsisHorizontalIcon className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      </ContextMenuTrigger>
-      <ContextMenuContent className="w-52">
-        <ContextMenuItem onClick={() => show_only({ kind: "birthdays" })}>
-          <EyeIcon className="me-2 h-4 w-4" />
-          {t("calendar.show_only_this_calendar")}
-        </ContextMenuItem>
-        <ContextMenuItem onClick={toggle_birthdays}>
-          {birthdays_visible ? (
-            <EyeSlashIcon className="me-2 h-4 w-4" />
-          ) : (
+          <ContextMenuItem onClick={() => show_only({ kind: "birthdays" })}>
             <EyeIcon className="me-2 h-4 w-4" />
-          )}
-          {birthdays_visible
-            ? t("calendar.hide_this_calendar")
-            : t("calendar.show_this_calendar")}
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        {color_submenu(birthdays_color, change_birthdays_color)}
-        <ContextMenuItem onClick={() => set_is_birthdays_editor_open(true)}>
-          <PencilIcon className="me-2 h-4 w-4" />
-          {t("calendar.edit_calendar")}
-        </ContextMenuItem>
-        <ContextMenuItem
-          className="text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
-          onClick={() => set_is_birthdays_remove_open(true)}
-        >
-          <TrashIcon className="me-2 h-4 w-4" />
-          {t("calendar.remove_birthdays_calendar")}
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+            {t("calendar.show_only_this_calendar")}
+          </ContextMenuItem>
+          <ContextMenuItem onClick={toggle_birthdays}>
+            {birthdays_visible ? (
+              <EyeSlashIcon className="me-2 h-4 w-4" />
+            ) : (
+              <EyeIcon className="me-2 h-4 w-4" />
+            )}
+            {birthdays_visible
+              ? t("calendar.hide_this_calendar")
+              : t("calendar.show_this_calendar")}
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          {color_submenu("birthdays", birthdays_color, change_birthdays_color)}
+          <ContextMenuItem onClick={() => set_is_birthdays_editor_open(true)}>
+            <PencilIcon className="me-2 h-4 w-4" />
+            {t("calendar.edit_calendar")}
+          </ContextMenuItem>
+          <ContextMenuItem
+            className="text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
+            onClick={() => set_is_birthdays_remove_open(true)}
+          >
+            <TrashIcon className="me-2 h-4 w-4" />
+            {t("calendar.remove_birthdays_calendar")}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    </AnchoredColorWheel>
   );
 
   const holiday_row = (
-    <ContextMenu key={HOLIDAY_CALENDAR_ID}>
-      <ContextMenuTrigger asChild>
-        <div
-          className={`group relative rounded-[var(--aster-radius-item,8px)] data-[state=open]:[&>button]:bg-[var(--aster-hover)] ${
-            holidays_visible ? "" : "[&>button_span.flex-1]:opacity-55"
-          }`}
-          data-visibility-row="holidays"
+    <AnchoredColorWheel
+      key={HOLIDAY_CALENDAR_ID}
+      open={color_wheel_target === "holidays"}
+      value={holidays_color}
+      on_close={() => set_color_wheel_target(null)}
+      on_commit={change_holidays_color}
+    >
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <div
+            className={`group relative rounded-[var(--aster-radius-item,8px)] data-[state=open]:[&>button]:bg-[var(--aster-hover)] ${
+              holidays_visible ? "" : "[&>button_span.flex-1]:opacity-55"
+            }`}
+            data-visibility-row="holidays"
+          >
+            <SidebarTagRow
+              rail_tip
+              aria-pressed={holidays_visible}
+              color={holidays_color}
+              icon_slot={visibility_box(holidays_color, holidays_visible)}
+              is_collapsed={is_collapsed}
+              label={t("calendar.settings_holidays")}
+              on_click={toggle_holidays}
+              trailing={!is_collapsed ? <span className="w-5" /> : undefined}
+            />
+            {!is_collapsed && (
+              <button
+                aria-haspopup="menu"
+                aria-label={t("calendar.calendar_options")}
+                className={`absolute end-1.5 top-1/2 z-[2] inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-[8px] text-[var(--icon-muted)] opacity-0 transition-[opacity,background-color,color] duration-150 hover:bg-[var(--aster-hover)] hover:text-[var(--icon-active)] group-hover:opacity-100 group-data-[state=open]:opacity-100 focus-visible:opacity-100 ${focus_ring}`}
+                type="button"
+                onClick={open_calendar_menu}
+              >
+                <EllipsisHorizontalIcon className="h-4 w-4" />
+              </button>
+            )}
+            {color_wheel_anchor}
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent
+          className="w-52"
+          onCloseAutoFocus={open_pending_color_wheel}
         >
-          <SidebarTagRow
-            rail_tip
-            aria-pressed={holidays_visible}
-            color={holidays_color}
-            icon_slot={visibility_box(holidays_color, holidays_visible)}
-            is_collapsed={is_collapsed}
-            label={t("calendar.settings_holidays")}
-            on_click={toggle_holidays}
-            trailing={!is_collapsed ? <span className="w-5" /> : undefined}
-          />
-          {!is_collapsed && (
-            <button
-              aria-haspopup="menu"
-              aria-label={t("calendar.calendar_options")}
-              className={`absolute end-1.5 top-1/2 z-[2] inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-[8px] text-[var(--icon-muted)] opacity-0 transition-[opacity,background-color,color] duration-150 hover:bg-[var(--aster-hover)] hover:text-[var(--icon-active)] group-hover:opacity-100 group-data-[state=open]:opacity-100 focus-visible:opacity-100 ${focus_ring}`}
-              type="button"
-              onClick={open_calendar_menu}
-            >
-              <EllipsisHorizontalIcon className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      </ContextMenuTrigger>
-      <ContextMenuContent className="w-52">
-        <ContextMenuItem onClick={() => show_only({ kind: "holidays" })}>
-          <EyeIcon className="me-2 h-4 w-4" />
-          {t("calendar.show_only_this_calendar")}
-        </ContextMenuItem>
-        <ContextMenuItem onClick={toggle_holidays}>
-          {holidays_visible ? (
-            <EyeSlashIcon className="me-2 h-4 w-4" />
-          ) : (
+          <ContextMenuItem onClick={() => show_only({ kind: "holidays" })}>
             <EyeIcon className="me-2 h-4 w-4" />
-          )}
-          {holidays_visible
-            ? t("calendar.hide_this_calendar")
-            : t("calendar.show_this_calendar")}
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        {color_submenu(holidays_color, change_holidays_color)}
-      </ContextMenuContent>
-    </ContextMenu>
+            {t("calendar.show_only_this_calendar")}
+          </ContextMenuItem>
+          <ContextMenuItem onClick={toggle_holidays}>
+            {holidays_visible ? (
+              <EyeSlashIcon className="me-2 h-4 w-4" />
+            ) : (
+              <EyeIcon className="me-2 h-4 w-4" />
+            )}
+            {holidays_visible
+              ? t("calendar.hide_this_calendar")
+              : t("calendar.show_this_calendar")}
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          {color_submenu("holidays", holidays_color, change_holidays_color)}
+        </ContextMenuContent>
+      </ContextMenu>
+    </AnchoredColorWheel>
   );
 
   const calendar_rows = calendars.map((calendar) => {
