@@ -25,7 +25,14 @@ import type {
   DecryptedCalendarEvent,
 } from "@/types/calendar";
 
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { createPortal } from "react-dom";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 
@@ -61,6 +68,11 @@ import { is_holiday_event } from "@/services/calendar/holidays";
 import { is_birthday_event } from "@/services/calendar/birthdays";
 import { is_subscription_event } from "@/services/calendar/subscriptions";
 import { is_booking_event } from "@/services/calendar/appointments";
+import {
+  is_joinable_event,
+  layout_day_lanes,
+  type DayLanes,
+} from "@/components/calendar/multi_day_layout";
 
 const MIN_ROW_HEIGHT_PX = 88;
 const PHONE_ROW_HEIGHT_PX = 64;
@@ -100,10 +112,6 @@ function compact_time(date: Date, time_format: "12h" | "24h"): string {
     .toLowerCase();
 
   return time_format === "12h" ? compact.replace(":00", "") : compact;
-}
-
-function visible_event_count(total: number, max_per_cell: number): number {
-  return total === max_per_cell + 1 ? total : max_per_cell;
 }
 
 const DRAG_THRESHOLD_PX = 4;
@@ -223,12 +231,66 @@ interface MonthChipApi {
   }) => void;
 }
 
+const EMPTY_DAY_LANES: DayLanes<DecryptedCalendarEvent> = {
+  slots: [],
+  hidden_count: 0,
+};
+
+function month_segment_style(
+  base: CSSProperties,
+  is_start: boolean,
+  is_end: boolean,
+  is_active: boolean,
+): CSSProperties {
+  if (is_start && is_end) {
+    return base;
+  }
+
+  const radius = "var(--calendar_event_radius, 6px)";
+  const start_sign = document.documentElement.dir === "rtl" ? -1 : 1;
+  const ring = "var(--accent-color)";
+  const shadows: string[] = [];
+
+  if (is_active) {
+    shadows.push(`inset 0 2px 0 0 ${ring}`, `inset 0 -2px 0 0 ${ring}`);
+
+    if (is_start) {
+      shadows.push(`inset ${2 * start_sign}px 0 0 0 ${ring}`);
+    }
+
+    if (is_end) {
+      shadows.push(`inset ${-2 * start_sign}px 0 0 0 ${ring}`);
+    }
+  }
+
+  const start_join = is_start ? "0px" : "var(--month_join_start)";
+  const end_join = is_end ? "0px" : "var(--month_join_end)";
+
+  return {
+    ...base,
+    borderRadius: 0,
+    borderStartStartRadius: is_start ? radius : 0,
+    borderEndStartRadius: is_start ? radius : 0,
+    borderStartEndRadius: is_end ? radius : 0,
+    borderEndEndRadius: is_end ? radius : 0,
+    boxShadow: shadows.length > 0 ? shadows.join(", ") : "none",
+    marginInlineStart: is_start ? undefined : `calc(-1 * ${start_join})`,
+    marginInlineEnd: is_end ? undefined : `calc(-1 * ${end_join})`,
+    outline: undefined,
+    outlineOffset: undefined,
+    width: `calc(100% + ${start_join} + ${end_join})`,
+  };
+}
+
+function month_title_width(span_days: number): string {
+  return `calc(${span_days} * 100% + ${span_days - 1} * (var(--month_join_start) + 16px) - var(--month_join_end))`;
+}
+
 interface MonthDayChipsProps {
   t: (key: TranslationKey, params?: Record<string, string | number>) => string;
   api: MonthChipApi;
   day: Date;
-  day_events: DecryptedCalendarEvent[];
-  shown_count: number;
+  lanes: DayLanes<DecryptedCalendarEvent>;
   active_event_id: string | null;
   calendar_by_id: Map<string, DecryptedCalendar>;
   calendars: DecryptedCalendar[];
@@ -240,22 +302,34 @@ const MonthDayChips = memo(function MonthDayChips({
   t,
   api,
   day,
-  day_events,
-  shown_count,
+  lanes,
   active_event_id,
   calendar_by_id,
   calendars,
   time_format,
   dim_past_events,
 }: MonthDayChipsProps) {
-  const overflow_count = day_events.length - shown_count;
+  const overflow_count = lanes.hidden_count;
 
   return (
-    <div className="@container relative flex-1 min-h-0 flex flex-col gap-[3px] overflow-hidden">
-      {day_events.slice(0, shown_count).map((event) => {
+    <div className="@container relative flex-1 min-h-0 flex flex-col gap-[3px] overflow-x-visible overflow-y-clip">
+      {lanes.slots.map((slot, lane) => {
+        if (!slot) {
+          return (
+            <span
+              key={`lane-gap-${lane}`}
+              aria-hidden="true"
+              className="h-6 shrink-0"
+            />
+          );
+        }
+
+        const { event, is_start, is_end, span_days } = slot;
         const calendar = calendar_by_id.get(event.calendar_id);
         const color = resolve_event_color(event, calendar?.color);
         const is_active = event_occurrence_key(event) === active_event_id;
+        const is_bar = is_joinable_event(event);
+        const title_span = is_start && !is_end ? span_days : 1;
 
         return (
           <CalendarEventContextMenu
@@ -268,18 +342,33 @@ const MonthDayChips = memo(function MonthDayChips({
             <button
               data-event-id={event.id}
               data-event-block=""
-              data-chip-row={event.is_all_day ? undefined : ""}
-              className={`w-full flex touch-none select-none items-center gap-2 ps-2 pe-2 h-6 text-[12px] leading-[1.4] overflow-hidden xl:text-[12.5px] max-sm:text-[11px] max-sm:gap-1 ${event.is_all_day ? "" : "hover:bg-[var(--aster-hover)]"} focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[color:var(--accent-color)] ${
-                event.is_all_day ? "font-medium" : ""
+              data-chip-row={is_bar ? undefined : ""}
+              data-segment={
+                is_start && is_end
+                  ? undefined
+                  : is_start
+                    ? "start"
+                    : is_end
+                      ? "end"
+                      : "middle"
+              }
+              className={`relative w-full flex shrink-0 touch-none select-none items-center gap-2 ps-2 pe-2 h-6 text-[12px] leading-[1.4] xl:text-[12.5px] max-sm:text-[11px] max-sm:gap-1 ${title_span > 1 ? "z-[1] overflow-visible" : "overflow-hidden"} ${is_bar ? "" : "hover:bg-[var(--aster-hover)]"} focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[color:var(--accent-color)] ${
+                is_bar ? "font-medium" : ""
               }`}
-              style={build_month_chip_style(color, {
+              style={month_segment_style(
+                build_month_chip_style(color, {
+                  is_active,
+                  is_all_day: is_bar,
+                  is_past:
+                    dim_past_events &&
+                    !is_active &&
+                    new Date(event.ends_at).getTime() <
+                      calendar_now().getTime(),
+                }),
+                is_start,
+                is_end,
                 is_active,
-                is_all_day: event.is_all_day,
-                is_past:
-                  dim_past_events &&
-                  !is_active &&
-                  new Date(event.ends_at).getTime() < calendar_now().getTime(),
-              })}
+              )}
               aria-label={
                 event.is_all_day
                   ? t("calendar.a11y_all_day_event_chip", {
@@ -312,15 +401,35 @@ const MonthDayChips = memo(function MonthDayChips({
                 api.actions.on_edit(event);
               }}
             >
-              {!event.is_all_day && (
+              {!is_bar && (
                 <span
                   aria-hidden="true"
                   className="h-2 w-2 flex-shrink-0 rounded-full max-sm:h-1.5 max-sm:w-1.5"
                   style={{ backgroundColor: "var(--cal_color)" }}
                 />
               )}
-              <EventKindIcon kind={event.event_kind} />
-              {!event.is_all_day && (
+              {is_bar ? (
+                <span
+                  aria-hidden={is_start ? undefined : true}
+                  data-segment-title={is_start ? "" : undefined}
+                  className={`flex min-w-0 items-center gap-2 max-sm:gap-1${is_start ? "" : " invisible"}${title_span > 1 ? " shrink-0" : " flex-1"}`}
+                  style={
+                    title_span > 1
+                      ? { width: month_title_width(title_span) }
+                      : undefined
+                  }
+                >
+                  <EventKindIcon kind={event.event_kind} />
+                  <span
+                    className={`flex-1 truncate min-w-0 text-start max-sm:[text-overflow:clip]${task_title_class(event)}`}
+                  >
+                    {event.title || t("calendar.untitled_event")}
+                  </span>
+                </span>
+              ) : (
+                <EventKindIcon kind={event.event_kind} />
+              )}
+              {!is_bar && (
                 <span
                   className="tabular-nums flex-shrink-0 text-txt-muted max-md:hidden @[208px]:hidden"
                   dir="ltr"
@@ -328,12 +437,14 @@ const MonthDayChips = memo(function MonthDayChips({
                   {compact_time(new Date(event.starts_at), time_format)}
                 </span>
               )}
-              <span
-                className={`flex-1 truncate min-w-0 text-start max-sm:[text-overflow:clip]${event.is_all_day ? "" : " font-medium"}${task_title_class(event)}`}
-              >
-                {event.title || t("calendar.untitled_event")}
-              </span>
-              {!event.is_all_day && (
+              {!is_bar && (
+                <span
+                  className={`flex-1 truncate min-w-0 text-start max-sm:[text-overflow:clip] font-medium${task_title_class(event)}`}
+                >
+                  {event.title || t("calendar.untitled_event")}
+                </span>
+              )}
+              {!is_bar && (
                 <span
                   className="hidden tabular-nums flex-shrink-0 text-[11.5px] text-txt-muted xl:text-[12px] @[208px]:inline"
                   dir="ltr"
@@ -960,6 +1071,27 @@ export const CalendarMonthView = memo(function CalendarMonthView({
     grid_height > 0
       ? Math.max(1, Math.min(max_events_per_cell, fitted_lines - 1))
       : max_events_per_cell;
+  const lanes_by_day = useMemo(() => {
+    const result = new Map<string, DayLanes<DecryptedCalendarEvent>>();
+
+    for (
+      let row_start = 0;
+      row_start < grid.length;
+      row_start += column_count
+    ) {
+      const row = grid.slice(row_start, row_start + column_count);
+      const row_lanes = layout_day_lanes(
+        row.map((day) => events_by_day.get(day.toDateString()) ?? []),
+        { is_joinable: is_joinable_event, max_lanes: fitted_max_events },
+      );
+
+      row.forEach((day, index) => {
+        result.set(day.toDateString(), row_lanes[index]);
+      });
+    }
+
+    return result;
+  }, [grid, events_by_day, column_count, fitted_max_events]);
 
   return (
     <div
@@ -1004,10 +1136,6 @@ export const CalendarMonthView = memo(function CalendarMonthView({
             const is_current_month = day.getMonth() === anchor_month;
             const is_today = is_same_day(day, today);
             const is_selected = is_same_day(day, selected_date);
-            const shown_count = visible_event_count(
-              day_events.length,
-              fitted_max_events,
-            );
             const is_last_row = index >= grid.length - column_count;
             const is_month_start = day.getDate() === 1;
             const alternate_day = format_alternate_day(
@@ -1029,7 +1157,7 @@ export const CalendarMonthView = memo(function CalendarMonthView({
                 data-month-index={index}
                 data-day-key={day.toDateString()}
                 data-cell-hover-target=""
-                className={`group/cell relative px-1.5 pb-1.5 min-h-0 flex flex-col cursor-pointer max-sm:px-0.5${
+                className={`group/cell relative px-1.5 pb-1.5 min-h-0 flex flex-col cursor-pointer [--month_join_start:7px] [--month_join_end:6px] max-sm:px-0.5 max-sm:[--month_join_start:3px] max-sm:[--month_join_end:2px]${
                   is_last_row ? "" : " border-b"
                 }`}
                 style={{
@@ -1189,8 +1317,9 @@ export const CalendarMonthView = memo(function CalendarMonthView({
                     dim_past_events={dim_past_events}
                     calendars={calendars}
                     day={day}
-                    day_events={day_events}
-                    shown_count={shown_count}
+                    lanes={
+                      lanes_by_day.get(day.toDateString()) ?? EMPTY_DAY_LANES
+                    }
                     t={t}
                     time_format={time_format}
                   />
