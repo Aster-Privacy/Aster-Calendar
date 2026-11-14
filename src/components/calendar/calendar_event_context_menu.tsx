@@ -25,6 +25,8 @@ import type {
 } from "@/types/calendar";
 import type { ReactNode } from "react";
 
+import { useRef, useState } from "react";
+
 import {
   ArrowTopRightOnSquareIcon,
   CheckCircleIcon,
@@ -40,8 +42,14 @@ import {
 import {
   default_event_color,
   EVENT_COLOR_OPTIONS,
-  nearest_event_color,
+  normalize_event_color,
+  selected_event_color_name,
 } from "@/components/calendar/calendar_utils";
+import {
+  AnchoredColorWheel,
+  ColorWheelAnchor,
+  CustomColorDot,
+} from "@/components/ui/color_wheel";
 import { is_read_only_event } from "@/services/calendar/display_colors";
 
 import {
@@ -101,6 +109,27 @@ export function CalendarEventContextMenu({
     return <>{children}</>;
   }
 
+  return (
+    <EventContextMenuWithActions
+      actions={actions}
+      calendars={calendars}
+      event={event}
+      t={t}
+    >
+      {children}
+    </EventContextMenuWithActions>
+  );
+}
+
+function EventContextMenuWithActions({
+  actions,
+  calendars,
+  children,
+  event,
+  t,
+}: CalendarEventContextMenuProps & { actions: CalendarEventMenuActions }) {
+  const [is_wheel_open, set_is_wheel_open] = useState(false);
+  const wheel_pending_ref = useRef(false);
   const is_read_only = is_read_only_event(event);
   const read_only_color = is_read_only
     ? actions.read_only_color?.(event)
@@ -114,14 +143,37 @@ export function CalendarEventContextMenu({
   const chosen_color = is_read_only
     ? (read_only_color?.override ?? null)
     : event.color;
+  const selected_color_name = selected_event_color_name(chosen_color);
+  const is_custom_color = chosen_color !== null && selected_color_name === null;
   const targets = is_read_only
     ? []
     : (calendars ?? []).filter((calendar) => calendar.id !== event.calendar_id);
 
   return (
+    <AnchoredColorWheel
+      default_color={normalize_event_color(default_color) ?? undefined}
+      open={is_wheel_open}
+      value={is_custom_color ? chosen_color : null}
+      on_close={() => set_is_wheel_open(false)}
+      on_commit={(hex) => actions.on_set_color(event, hex)}
+    >
     <ContextMenu>
-      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent className={CONTENT_CLASS} collisionPadding={8}>
+      <ColorWheelAnchor asChild>
+        <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      </ColorWheelAnchor>
+      <ContextMenuContent
+        className={CONTENT_CLASS}
+        collisionPadding={8}
+        onCloseAutoFocus={(focus_event) => {
+          if (!wheel_pending_ref.current) {
+            return;
+          }
+
+          focus_event.preventDefault();
+          wheel_pending_ref.current = false;
+          set_is_wheel_open(true);
+        }}
+      >
         <ContextMenuItem onSelect={() => actions.on_open(event)}>
           <ArrowTopRightOnSquareIcon aria-hidden="true" />
           <span>{t("calendar.menu_open")}</span>
@@ -230,15 +282,31 @@ export function CalendarEventContextMenu({
                   style={{ backgroundColor: option.hex }}
                 />
                 <span className="truncate">{t(option.name_key)}</span>
-                {chosen_color !== null &&
-                  nearest_event_color(chosen_color).name === option.name && (
-                    <CheckIcon
-                      aria-hidden="true"
-                      className="ms-auto text-[var(--calendar_accent_text,var(--accent-color))]"
-                    />
-                  )}
+                {selected_color_name === option.name && (
+                  <CheckIcon
+                    aria-hidden="true"
+                    className="ms-auto text-[var(--calendar_accent_text,var(--accent-color))]"
+                  />
+                )}
               </ContextMenuItem>
             ))}
+            <ContextMenuItem
+              onSelect={() => {
+                wheel_pending_ref.current = true;
+              }}
+            >
+              <CustomColorDot
+                className="h-2.5 w-2.5"
+                color={is_custom_color ? chosen_color : null}
+              />
+              <span className="truncate">{t("common.custom_color")}</span>
+              {is_custom_color && (
+                <CheckIcon
+                  aria-hidden="true"
+                  className="ms-auto text-[var(--calendar_accent_text,var(--accent-color))]"
+                />
+              )}
+            </ContextMenuItem>
           </ContextMenuSubContent>
         </ContextMenuSub>
 
@@ -259,5 +327,6 @@ export function CalendarEventContextMenu({
         )}
       </ContextMenuContent>
     </ContextMenu>
+    </AnchoredColorWheel>
   );
 }

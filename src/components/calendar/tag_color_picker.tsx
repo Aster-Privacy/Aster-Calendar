@@ -24,12 +24,14 @@ import { useId, useRef, useState } from "react";
 import { CheckIcon } from "@heroicons/react/24/outline";
 
 import { EVENT_COLOR_OPTIONS } from "@/components/calendar/calendar_utils";
+import { CustomColorSwatch } from "@/components/ui/color_wheel";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { use_i18n } from "@/lib/i18n/context";
+import { is_tag_color } from "@/services/calendar/tag_colors";
 
 export const TAG_COLOR_GRID_COLUMNS = 6;
 
@@ -74,7 +76,10 @@ export function TagColorSwatches({ color, on_select }: TagColorSwatchesProps) {
   const selected_index = EVENT_COLOR_OPTIONS.findIndex(
     (option) => option.hex.toLowerCase() === current,
   );
-  const focus_index = selected_index >= 0 ? selected_index : 0;
+  const custom_index = EVENT_COLOR_OPTIONS.length;
+  const is_custom = selected_index < 0 && is_tag_color(current);
+  const focus_index =
+    selected_index >= 0 ? selected_index : is_custom ? custom_index : 0;
 
   const handle_key_down = (key_event: ReactKeyboardEvent<HTMLDivElement>) => {
     const active = button_refs.current.findIndex(
@@ -85,11 +90,7 @@ export function TagColorSwatches({ color, on_select }: TagColorSwatchesProps) {
       return;
     }
 
-    const next = next_swatch_index(
-      key_event.key,
-      active,
-      EVENT_COLOR_OPTIONS.length,
-    );
+    const next = next_swatch_index(key_event.key, active, custom_index + 1);
 
     if (next === null) {
       return;
@@ -143,12 +144,24 @@ export function TagColorSwatches({ color, on_select }: TagColorSwatchesProps) {
                 <CheckIcon
                   aria-hidden="true"
                   className="h-4 w-4"
-                  style={{ color: "var(--calendar_event_text, #ffffff)" }}
+                  style={{ color: option.ink }}
                 />
               )}
             </button>
           );
         })}
+        <CustomColorSwatch
+          autofocus_marker={focus_index === custom_index}
+          button_ref={(node) => {
+            button_refs.current[custom_index] = node;
+          }}
+          is_selected={is_custom}
+          size_class="h-8 w-8"
+          check_class="h-4 w-4"
+          tab_index={focus_index === custom_index ? 0 : -1}
+          value={is_custom ? current : null}
+          on_commit={on_select}
+        />
       </div>
     </div>
   );

@@ -25,6 +25,7 @@ import { collect_tags, tag_color } from "@/components/calendar/calendar_utils";
 import {
   TAG_COLOR_MAX_ENTRIES,
   default_tag_color,
+  is_tag_color,
   is_tag_palette_color,
   resolve_tag_color,
   sanitize_tag_colors,
@@ -64,6 +65,19 @@ describe("is_tag_palette_color", () => {
   });
 });
 
+describe("is_tag_color", () => {
+  it("accepts any six digit hex and rejects names, short hex, and other types", () => {
+    expect(is_tag_color("#123456")).toBe(true);
+    expect(is_tag_color("#ABCDEF")).toBe(true);
+    expect(is_tag_color(palette[0])).toBe(true);
+    expect(is_tag_color("#abc")).toBe(false);
+    expect(is_tag_color("123456")).toBe(false);
+    expect(is_tag_color("#12345g")).toBe(false);
+    expect(is_tag_color("red")).toBe(false);
+    expect(is_tag_color(42)).toBe(false);
+  });
+});
+
 describe("sanitize_tag_colors", () => {
   it("returns an empty map for anything that is not a plain object", () => {
     expect(sanitize_tag_colors(null)).toEqual({});
@@ -76,11 +90,13 @@ describe("sanitize_tag_colors", () => {
       sanitize_tag_colors({
         " Work ": palette[1].toUpperCase(),
         work: palette[2],
-        Home: "#123456",
+        Home: "#12345G",
         "   ": palette[3],
         gym: palette[4],
+        Custom: "#1A2B3C",
+        short: "#abc",
       }),
-    ).toEqual({ work: palette[1], gym: palette[4] });
+    ).toEqual({ work: palette[1], gym: palette[4], custom: "#1a2b3c" });
   });
 
   it("caps the number of entries", () => {
@@ -111,9 +127,18 @@ describe("resolve_tag_color", () => {
     expect(resolve_tag_color("constructor", {})).toBe(
       default_tag_color("constructor"),
     );
-    expect(resolve_tag_color("Work", { work: "#123456" })).toBe(
+    expect(resolve_tag_color("Work", { work: "teal" })).toBe(
       default_tag_color("Work"),
     );
+  });
+
+  it("keeps a custom color through a sanitize and resolve round trip", () => {
+    const stored = with_tag_color({}, "Work", "#1A2B3C");
+    const synced = sanitize_tag_colors(JSON.parse(JSON.stringify(stored)));
+
+    expect(stored).toEqual({ work: "#1a2b3c" });
+    expect(synced).toEqual({ work: "#1a2b3c" });
+    expect(resolve_tag_color(" WORK ", synced)).toBe("#1a2b3c");
   });
 });
 
@@ -132,7 +157,8 @@ describe("with_tag_color", () => {
     const current = { work: color };
 
     expect(with_tag_color(current, "work", color)).toBe(current);
-    expect(with_tag_color(current, "work", "#123456")).toBe(current);
+    expect(with_tag_color(current, "work", "#12345")).toBe(current);
+    expect(with_tag_color(current, "work", "blue")).toBe(current);
     expect(with_tag_color(current, "   ", palette[0])).toBe(current);
   });
 

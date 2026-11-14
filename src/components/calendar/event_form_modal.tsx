@@ -56,6 +56,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 import { DateField } from "@/components/calendar/date_field";
+import { CustomColorSwatch } from "@/components/ui/color_wheel";
 import {
   preset_to_rule,
   RecurrenceField,
@@ -68,7 +69,8 @@ import { use_tag_colors } from "@/components/calendar/use_tag_colors";
 import {
   default_event_color,
   EVENT_COLOR_OPTIONS,
-  nearest_event_color,
+  normalize_event_color,
+  selected_event_color_name,
   ink_on_fill,
 } from "@/components/calendar/calendar_utils";
 import { calendar_now } from "@/services/calendar/view_zone";
@@ -799,6 +801,7 @@ export function EventFormModal({
   const default_color = is_birthday
     ? birthdays_color
     : default_event_color(event_kind, selected_calendar?.color);
+  const selected_color_name = selected_event_color_name(color);
 
   const attendee_candidate_error = (
     candidate: string,
@@ -1819,8 +1822,7 @@ export function EventFormModal({
                             </button>
                             {EVENT_COLOR_OPTIONS.map((option) => {
                               const is_selected =
-                                color !== null &&
-                                nearest_event_color(color).name === option.name;
+                                selected_color_name === option.name;
 
                               return (
                                 <button
@@ -1847,6 +1849,20 @@ export function EventFormModal({
                                 </button>
                               );
                             })}
+                            <CustomColorSwatch
+                              check_class="h-3 w-3"
+                              default_color={
+                                normalize_event_color(accent_color) ?? undefined
+                              }
+                              is_selected={
+                                color !== null && selected_color_name === null
+                              }
+                              ring_background="var(--aster-dialog-bg)"
+                              size_class="h-5 w-5"
+                              value={color}
+                              on_change={set_color}
+                              on_commit={set_color}
+                            />
                           </div>
                         </FieldRow>
                       </motion.div>

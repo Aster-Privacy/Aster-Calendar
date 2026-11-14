@@ -131,10 +131,11 @@ describe("TagColorSwatches", () => {
 
     const buttons = swatch_buttons();
 
-    expect(buttons).toHaveLength(EVENT_COLOR_OPTIONS.length);
-    expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual(
-      EVENT_COLOR_OPTIONS.map((option) => option.name_key),
-    );
+    expect(buttons).toHaveLength(EVENT_COLOR_OPTIONS.length + 1);
+    expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
+      ...EVENT_COLOR_OPTIONS.map((option) => option.name_key),
+      "common.custom_color",
+    ]);
     expect(
       buttons.filter(
         (button) => button.getAttribute("aria-pressed") === "true",
@@ -142,6 +143,23 @@ describe("TagColorSwatches", () => {
     ).toEqual([buttons[3]]);
     expect(buttons[3].tabIndex).toBe(0);
     expect(buttons[0].tabIndex).toBe(-1);
+  });
+
+  it("marks a custom tag color on the custom swatch", () => {
+    render(<TagColorSwatches color="#1A2B3C" on_select={vi.fn()} />);
+
+    const buttons = swatch_buttons();
+    const custom = buttons[buttons.length - 1];
+
+    expect(custom.dataset.testid).toBe("custom-color-swatch");
+    expect(custom.getAttribute("aria-pressed")).toBe("true");
+    expect(custom.dataset.color).toBe("#1a2b3c");
+    expect(custom.tabIndex).toBe(0);
+    expect(
+      buttons
+        .slice(0, -1)
+        .some((button) => button.getAttribute("aria-pressed") === "true"),
+    ).toBe(false);
   });
 
   it("calls on_select with the chosen hex", () => {

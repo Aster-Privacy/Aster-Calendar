@@ -975,6 +975,9 @@ const LEGACY_EVENT_COLORS: Record<string, EventColorName> = {
   "#14775c": "green",
   "#15803d": "green",
   "#0b8043": "green",
+  "#3f51b5": "blue",
+  "#8e24aa": "purple",
+  "#f4511e": "red",
   "#14737c": "teal",
   "#06b6d4": "teal",
   "#13708f": "teal",
@@ -1130,11 +1133,63 @@ export function event_color_token(color: string | null | undefined): string {
     return color;
   }
 
-  if (parse_color_channels(color) === null) {
+  const custom = normalize_event_color(color);
+
+  if (custom === null) {
     return "var(--accent-color)";
   }
 
-  return nearest_event_color(color).token;
+  return (find_event_color_option(color) ?? find_event_color_option(custom))
+    ?.token ?? custom;
+}
+
+export function normalize_event_color(
+  color: string | null | undefined,
+): string | null {
+  if (!color) {
+    return null;
+  }
+
+  const channels = parse_color_channels(color);
+
+  if (channels === null) {
+    return null;
+  }
+
+  return `#${[channels.red, channels.green, channels.blue]
+    .map((channel) => channel.toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+export function is_custom_event_color(
+  color: string | null | undefined,
+): boolean {
+  if (!color || color.startsWith("var(")) {
+    return false;
+  }
+
+  const custom = normalize_event_color(color);
+
+  return (
+    custom !== null &&
+    find_event_color_option(color) === null &&
+    find_event_color_option(custom) === null
+  );
+}
+
+export function selected_event_color_name(
+  color: string | null | undefined,
+): EventColorName | null {
+  if (!color) {
+    return null;
+  }
+
+  const custom = normalize_event_color(color);
+
+  return (
+    find_event_color_option(color) ??
+    (custom ? find_event_color_option(custom) : null)
+  )?.name ?? null;
 }
 
 const PAST_EVENT_FILTER = "saturate(0.6)";

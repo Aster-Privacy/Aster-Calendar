@@ -27,8 +27,9 @@ import { Button, ButtonSpinner, IslandDivider } from "@aster/ui";
 import {
   DEFAULT_EVENT_COLOR,
   EVENT_COLOR_OPTIONS,
-  nearest_event_color,
+  selected_event_color_name,
 } from "@/components/calendar/calendar_utils";
+import { CustomColorSwatch } from "@/components/ui/color_wheel";
 import { ConfirmationModal } from "@/components/modals/confirmation_modal";
 import { show_toast } from "@/components/toast/simple_toast";
 import { Input } from "@/components/ui/input";
@@ -89,6 +90,7 @@ export function CalendarEditDialog({
   }, [is_open, calendar]);
 
   const trimmed = name.trim();
+  const selected_color_name = selected_event_color_name(color);
   const can_submit = !is_busy && trimmed.length > 0;
   const can_delete = !!calendar && !calendar.is_default && !!on_delete_request;
 
@@ -172,8 +174,7 @@ export function CalendarEditDialog({
               role="radiogroup"
             >
               {EVENT_COLOR_OPTIONS.map((option) => {
-                const is_selected =
-                  nearest_event_color(color).name === option.name;
+                const is_selected = selected_color_name === option.name;
 
                 return (
                   <button
@@ -203,6 +204,14 @@ export function CalendarEditDialog({
                   </button>
                 );
               })}
+              <CustomColorSwatch
+                is_selected={selected_color_name === null}
+                ring_background="var(--aster-island-fill)"
+                role="radio"
+                value={color}
+                on_change={set_color}
+                on_commit={set_color}
+              />
             </div>
           </div>
         </form>

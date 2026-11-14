@@ -37,6 +37,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { ContactGroupGlyph } from "@/components/common/contacts/contact_group_glyph";
 import { TagIconPicker } from "@/components/tags/tag_icon_picker";
+import { CustomColorSwatch } from "@/components/ui/color_wheel";
 import {
   TAG_COLOR_PRESETS,
   tag_color_label_key,
@@ -89,6 +90,9 @@ export function ContactGroupModal({
   }, [default_color, group, is_open]);
 
   const trimmed_name = name.trim();
+  const is_custom_color = !TAG_COLOR_PRESETS.some(
+    (preset) => preset.hex.toLowerCase() === color.toLowerCase(),
+  );
 
   const validation_error = useMemo(() => {
     if (!trimmed_name) return null;
@@ -259,6 +263,15 @@ export function ContactGroupModal({
                   onClick={() => set_color(preset.hex)}
                 />
               ))}
+              <CustomColorSwatch
+                check_class="h-3.5 w-3.5"
+                is_selected={is_custom_color}
+                ring_background="var(--modal-bg)"
+                size_class="aspect-square w-full"
+                value={color}
+                on_change={set_color}
+                on_commit={set_color}
+              />
             </div>
           </div>
 

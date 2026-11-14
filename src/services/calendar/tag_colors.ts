@@ -48,6 +48,12 @@ export function is_tag_palette_color(value: unknown): value is string {
   );
 }
 
+const TAG_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
+
+export function is_tag_color(value: unknown): value is string {
+  return typeof value === "string" && TAG_COLOR_PATTERN.test(value);
+}
+
 export function default_tag_color(name: string): string {
   const key = name.trim().toLowerCase();
   let hash = 0;
@@ -77,7 +83,7 @@ export function sanitize_tag_colors(raw: unknown): TagColorMap {
       break;
     }
 
-    if (!is_tag_palette_color(raw_value)) {
+    if (!is_tag_color(raw_value)) {
       continue;
     }
 
@@ -99,7 +105,7 @@ export function resolve_tag_color(
 ): string {
   const key = tag_color_key(name);
 
-  if (colors && has_own(colors, key) && is_tag_palette_color(colors[key])) {
+  if (colors && has_own(colors, key) && is_tag_color(colors[key])) {
     return colors[key].toLowerCase();
   }
 
@@ -114,7 +120,7 @@ export function with_tag_color(
   const current = colors ?? {};
   const key = tag_color_key(name);
 
-  if (key.length === 0 || !is_tag_palette_color(color)) {
+  if (key.length === 0 || !is_tag_color(color)) {
     return current;
   }
 

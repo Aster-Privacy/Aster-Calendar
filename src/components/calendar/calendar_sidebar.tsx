@@ -73,7 +73,7 @@ import {
   is_same_day,
   event_color_token,
   EVENT_COLOR_OPTIONS,
-  nearest_event_color,
+  selected_event_color_name,
   ink_on_fill,
 } from "@/components/calendar/calendar_utils";
 import { calendar_now } from "@/services/calendar/view_zone";
@@ -106,6 +106,11 @@ import { RailTipLayer } from "@/components/layout/sidebar/rail_tip_layer";
 import { SidebarAccountSwitcher } from "@/components/layout/sidebar/sidebar_account_switcher";
 import { UpNextCard } from "@/components/calendar/up_next_card";
 import { TagColorPicker } from "@/components/calendar/tag_color_picker";
+import {
+  AnchoredColorWheel,
+  ColorWheelAnchor,
+  CustomColorDot,
+} from "@/components/ui/color_wheel";
 import { use_tag_colors } from "@/components/calendar/use_tag_colors";
 import { use_preferences } from "@/contexts/preferences_context";
 import { BIRTHDAY_CALENDAR_ID } from "@/services/calendar/birthdays";
@@ -785,6 +790,55 @@ export function CalendarSidebar({
     </div>
   );
 
+  const [color_wheel_target, set_color_wheel_target] = useState<
+    string | null
+  >(null);
+  const pending_color_wheel_ref = useRef<string | null>(null);
+
+  const open_pending_color_wheel = (focus_event: Event) => {
+    const target = pending_color_wheel_ref.current;
+
+    if (target === null) {
+      return;
+    }
+
+    focus_event.preventDefault();
+    pending_color_wheel_ref.current = null;
+    set_color_wheel_target(target);
+  };
+
+  const custom_color_menu_item = (
+    target: string,
+    color: string,
+    is_custom: boolean,
+  ) => (
+    <ContextMenuItem
+      aria-checked={is_custom}
+      role="menuitemradio"
+      onSelect={() => {
+        pending_color_wheel_ref.current = target;
+      }}
+    >
+      <span
+        aria-hidden="true"
+        className="me-2 inline-flex h-4 w-4 items-center justify-center"
+      >
+        <CustomColorDot color={is_custom ? color : null} />
+      </span>
+      <span className="flex-1">{t("common.custom_color")}</span>
+      {is_custom && <CheckIcon className="ms-2 h-4 w-4 text-txt-secondary" />}
+    </ContextMenuItem>
+  );
+
+  const color_wheel_anchor = (
+    <ColorWheelAnchor asChild>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+      />
+    </ColorWheelAnchor>
+  );
+
   const change_calendar_color = async (
     calendar: DecryptedCalendar,
     color: string,
@@ -1075,8 +1129,19 @@ export function CalendarSidebar({
     </ContextMenu>
   );
 
-  const calendar_rows = calendars.map((calendar) => (
-    <ContextMenu key={calendar.id}>
+  const calendar_rows = calendars.map((calendar) => {
+    const wheel_target = `calendar:${calendar.id}`;
+    const current_color_name = selected_event_color_name(calendar.color);
+
+    return (
+    <AnchoredColorWheel
+      key={calendar.id}
+      open={color_wheel_target === wheel_target}
+      value={calendar.color}
+      on_close={() => set_color_wheel_target(null)}
+      on_commit={(hex) => void change_calendar_color(calendar, hex)}
+    >
+    <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
           className={`group relative rounded-[var(--aster-radius-item,8px)] data-[state=open]:[&>button]:bg-[var(--aster-hover)] ${
@@ -1106,9 +1171,13 @@ export function CalendarSidebar({
               <EllipsisHorizontalIcon className="h-4 w-4" />
             </button>
           )}
+          {color_wheel_anchor}
         </div>
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-52">
+      <ContextMenuContent
+        className="w-52"
+        onCloseAutoFocus={open_pending_color_wheel}
+      >
         <ContextMenuItem onClick={() => on_create_in_calendar(calendar.id)}>
           <PlusIcon className="me-2 h-4 w-4" />
           {t("calendar.new_event")}
@@ -1148,8 +1217,7 @@ export function CalendarSidebar({
           </ContextMenuSubTrigger>
           <ContextMenuSubContent className="w-44">
             {EVENT_COLOR_OPTIONS.map((option) => {
-              const is_current =
-                nearest_event_color(calendar.color).name === option.name;
+              const is_current = current_color_name === option.name;
 
               return (
                 <ContextMenuItem
@@ -1176,6 +1244,11 @@ export function CalendarSidebar({
                 </ContextMenuItem>
               );
             })}
+            {custom_color_menu_item(
+              wheel_target,
+              calendar.color,
+              current_color_name === null,
+            )}
           </ContextMenuSubContent>
         </ContextMenuSub>
         <ContextMenuItem onClick={() => open_edit_calendar(calendar)}>
@@ -1210,15 +1283,25 @@ export function CalendarSidebar({
         )}
       </ContextMenuContent>
     </ContextMenu>
-  ));
+    </AnchoredColorWheel>
+    );
+  });
 
   const subscription_rows = subscriptions.map((subscription) => {
     const color = subscription_color(subscription);
-    const current_color_name = nearest_event_color(color).name;
+    const current_color_name = selected_event_color_name(color);
     const is_visible = subscription.hidden !== true;
+    const wheel_target = `subscription:${subscription.id}`;
 
     return (
-      <ContextMenu key={subscription.id}>
+      <AnchoredColorWheel
+        key={subscription.id}
+        open={color_wheel_target === wheel_target}
+        value={color}
+        on_close={() => set_color_wheel_target(null)}
+        on_commit={(hex) => change_subscription_color(subscription, hex)}
+      >
+      <ContextMenu>
         <ContextMenuTrigger asChild>
           <div
             className={`group relative rounded-[var(--aster-radius-item,8px)] data-[state=open]:[&>button]:bg-[var(--aster-hover)] ${
@@ -1249,9 +1332,13 @@ export function CalendarSidebar({
                 <EllipsisHorizontalIcon className="h-4 w-4" />
               </button>
             )}
+            {color_wheel_anchor}
           </div>
         </ContextMenuTrigger>
-        <ContextMenuContent className="w-52">
+        <ContextMenuContent
+          className="w-52"
+          onCloseAutoFocus={open_pending_color_wheel}
+        >
           <ContextMenuItem
             onClick={() =>
               show_only({ kind: "subscription", id: subscription.id })
@@ -1315,6 +1402,11 @@ export function CalendarSidebar({
                   </ContextMenuItem>
                 );
               })}
+              {custom_color_menu_item(
+                wheel_target,
+                color,
+                current_color_name === null,
+              )}
             </ContextMenuSubContent>
           </ContextMenuSub>
           <ContextMenuItem
@@ -1333,6 +1425,7 @@ export function CalendarSidebar({
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
+      </AnchoredColorWheel>
     );
   });
 

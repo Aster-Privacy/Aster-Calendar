@@ -46,8 +46,10 @@ import { show_toast } from "@/components/toast/simple_toast";
 import { CalendarSelect } from "@/components/calendar/calendar_select";
 import {
   EVENT_COLOR_OPTIONS,
-  nearest_event_color,
+  event_color_token,
+  selected_event_color_name,
 } from "@/components/calendar/calendar_utils";
+import { CustomColorSwatch } from "@/components/ui/color_wheel";
 import {
   Popover,
   PopoverContent,
@@ -803,7 +805,8 @@ function SubscriptionColorButton({
 }) {
   const { t } = use_i18n();
   const [open, set_open] = useState(false);
-  const current = nearest_event_color(subscription_color({ color }));
+  const resolved_color = subscription_color({ color });
+  const current_name = selected_event_color_name(resolved_color);
 
   return (
     <Popover open={open} onOpenChange={set_open}>
@@ -811,13 +814,13 @@ function SubscriptionColorButton({
         <button
           aria-label={label}
           className="flex h-8 w-8 items-center justify-center rounded-full transition-colors duration-150 hover:bg-[var(--aster-island-hover,rgba(127,127,127,0.12))] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] motion-reduce:transition-none"
-          data-subscription-color={current.name}
+          data-subscription-color={current_name ?? "custom"}
           title={t("calendar.ie_sub_color")}
           type="button"
         >
           <span
             className="block h-3 w-3 rounded-full"
-            style={{ backgroundColor: current.token }}
+            style={{ backgroundColor: event_color_token(resolved_color) }}
           />
         </button>
       </PopoverTrigger>
@@ -832,7 +835,7 @@ function SubscriptionColorButton({
           role="radiogroup"
         >
           {EVENT_COLOR_OPTIONS.map((option) => {
-            const is_selected = current.name === option.name;
+            const is_selected = current_name === option.name;
 
             return (
               <button
@@ -867,6 +870,17 @@ function SubscriptionColorButton({
               </button>
             );
           })}
+          <CustomColorSwatch
+            check_class="h-4 w-4"
+            is_selected={current_name === null}
+            ring_background="var(--aster-island-fill)"
+            role="radio"
+            value={resolved_color}
+            on_commit={(hex) => {
+              on_change(hex);
+              set_open(false);
+            }}
+          />
         </div>
       </PopoverContent>
     </Popover>
