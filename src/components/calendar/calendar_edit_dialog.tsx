@@ -173,7 +173,7 @@ export function CalendarEditDialog({
             </span>
             <div
               aria-labelledby={color_label_id}
-              className="flex flex-nowrap gap-2 py-0.5 sm:gap-2.5"
+              className="flex flex-nowrap justify-between gap-1 py-0.5"
               role="radiogroup"
             >
               {PICKER_COLOR_OPTIONS.map((option) => {
@@ -184,7 +184,7 @@ export function CalendarEditDialog({
                     key={option.hex}
                     aria-checked={is_selected}
                     aria-label={t(option.name_key)}
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full sm:h-7 sm:w-7 transition-[box-shadow] duration-150 motion-reduce:transition-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--aster-island-fill)]"
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-[box-shadow] duration-150 motion-reduce:transition-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--aster-island-fill)]"
                     data-calendar-color={option.name}
                     role="radio"
                     style={{
@@ -211,7 +211,7 @@ export function CalendarEditDialog({
                 is_selected={selected_color_name === null}
                 ring_background="var(--aster-island-fill)"
                 role="radio"
-                size_class="h-6 w-6 sm:h-7 sm:w-7"
+                size_class="h-6 w-6"
                 value={color}
                 on_change={set_color}
                 on_commit={set_color}

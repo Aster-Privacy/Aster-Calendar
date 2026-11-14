@@ -59,7 +59,7 @@ export function DefaultEventColorPicker({
   return (
     <div
       aria-labelledby={label_id}
-      className="flex flex-nowrap items-center gap-2 py-0.5 sm:gap-2.5"
+      className="flex flex-wrap items-center gap-2 py-0.5 sm:gap-2.5"
       data-testid="default-event-color-picker"
       role="radiogroup"
     >
