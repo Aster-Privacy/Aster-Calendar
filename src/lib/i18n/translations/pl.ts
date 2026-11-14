@@ -580,6 +580,9 @@ export const pl = {
       "Twoja płatność się nie powiodła. Dostęp zostanie ograniczony za {{days}} dni.",
     billing_alert_action: "Zapłać",
     dismiss: "Odrzuć",
+    web_sandbox_off_title: "Treści internetowe działają bez piaskownicy systemowej",
+    web_sandbox_off_body:
+      "Na tym komputerze Aster Calendar nie może uruchomić piaskownicy bubblewrap, więc treści internetowe działają bez niej. Aby ją ponownie włączyć, zainstaluj pakiet bubblewrap, zezwól na nieuprzywilejowane przestrzenie nazw użytkowników i uruchom ponownie Aster Calendar.",
     load_content: "Załaduj",
     open_link: "Otwórz link",
     no_icon: "Brak ikony",
@@ -10230,45 +10233,16 @@ export const pl = {
     device_code_waiting: "Oczekiwanie na potwierdzenie",
     device_code_expires_in: "Wygasa za",
     link_device_title: "Połącz urządzenie",
-    link_device_enter_code: "Wprowadź kod wyświetlony w aplikacji desktopowej.",
-    link_device_code_placeholder: "XXXX-XXXX",
-    link_device_verify_button: "Kontynuuj",
-    link_device_confirm_prompt: "Czy chcesz połączyć to urządzenie z kontem?",
-    link_device_confirm_button: "Połącz urządzenie",
-    link_device_confirming: "Łączenie urządzenia...",
     link_device_cancel: "Anuluj",
-    link_device_desktop: "Aplikacja desktopowa",
-    device_fingerprint: "Kod weryfikacyjny",
-    device_code_verify_toggle: "Zweryfikuj to urządzenie",
-    link_device_fingerprint_hint:
-      "Wpisz kod weryfikacyjny widoczny na nowym urządzeniu. W aplikacji na komputer wybierz Zweryfikuj to urządzenie, aby go wyświetlić.",
-    link_device_fingerprint_placeholder: "XXXX XXXX XXXX XXXX XXXX",
-    link_device_fingerprint_incomplete:
-      "Aby połączyć urządzenie, wpisz pełny kod weryfikacyjny z nowego urządzenia.",
-    link_device_fingerprint_mismatch:
-      "Ten kod nie pasuje do nowego urządzenia. Sprawdź kod na nowym urządzeniu i wpisz go ponownie. Jeśli nadal nie pasuje, wybierz Anuluj.",
-    device_code_fingerprint_hint:
-      "Aby połączyć to urządzenie, wpisz ten kod na urządzeniu, na którym już się zalogowano.",
-    link_device_change_account: "Zmień konto",
+    device_fingerprint: "Odcisk urządzenia",
+    device_fingerprint_copy: "Kopiuj odcisk urządzenia",
+    device_code_fingerprint_required_hint:
+      "Przeglądarka prosi o ten odcisk urządzenia, zanim połączy urządzenie.",
     link_device_choose_account: "Wybierz konto",
-    link_device_choose_account_description:
-      "Aby połączyć aplikację na komputer",
-    link_device_choose_account_note:
-      "Twoje klucze szyfrowania pozostają zaszyfrowane podczas przesyłania między Twoimi urządzeniami.",
-    link_device_use_another_account: "Użyj innego konta",
-    link_device_use_this_account: "Użyj tego konta",
-    link_device_other_accounts: "Przełącz na inne konto",
     hub_accounts_or_password: "Lub zaloguj się hasłem",
     hub_account_password_required: "Wymagane hasło",
     hub_account_link_failed:
       "Aby kontynuować na tym koncie, wprowadź jego hasło.",
-    link_device_success: "Urządzenie połączone",
-    link_device_success_description:
-      "Twoja aplikacja desktopowa jest teraz połączona. Możesz zamknąć tę kartę.",
-    link_device_invalid_code:
-      "Kod połączenia ma 8 znaków. Sprawdź kod i spróbuj ponownie.",
-    link_device_expired_code:
-      "Ten kod wygasł lub nie pasuje. Twoja aplikacja desktopowa ma aktualny.",
     link_device_failed:
       "Połączenie nie zostało ukończone. Zacznij od nowa. Twoje konto nie zostało zmienione.",
     link_device_try_again: "To nie zadziałało. Zacznij od nowa.",
@@ -10335,17 +10309,6 @@ export const pl = {
       "Status studenta zweryfikowany. Zaloguj się, a zniżka 30% zostanie zastosowana przy płatności.",
     academic_failed_signin_note:
       "Ten link weryfikacyjny wygasł lub został już użyty. Zaloguj się i poproś o nowy w ustawieniach Płatności.",
-    link_device_upgrade_required_toast:
-      "Powiązanie urządzenia Bridge wymaga planu Star lub wyższego. Ulepsz plan, aby kontynuować.",
-    link_device_upgrade_title: "Ulepsz plan, aby powiązać to urządzenie",
-    link_device_upgrade_description:
-      "Połączenie Bridge na komputerze z Twoim kontem wymaga planu Star lub wyższego. Wybierz plan poniżej, a urządzenie zostanie powiązane zaraz po płatności.",
-    link_device_already_linked:
-      "To urządzenie jest już powiązane z innym kontem. Najpierw usuń tam powiązanie i spróbuj ponownie.",
-    link_device_rate_limited:
-      "Zbyt wiele prób. Odczekaj około minuty i spróbuj ponownie.",
-    link_device_account_suspended:
-      "To konto jest zawieszone, więc nie można teraz powiązać nowych urządzeń. Skontaktuj się z pomocą techniczną.",
     plan_academic_discount_note:
       "Zniżka 30% zostanie zastosowana automatycznie przy płatności, gdy Twój e-mail zostanie zweryfikowany.",
     plan_referral_discount_note:
@@ -11475,6 +11438,7 @@ export const pl = {
     holiday_region_au: "Australia",
     holiday_region_pt: "Portugalia",
     holiday_region_br: "Brazylia",
+    holiday_region_in: "Indie",
     settings_day_split: "Widok dnia obok siebie",
     settings_day_split_desc:
       "Pokaż każdy kalendarz w osobnej kolumnie w widoku dnia",
@@ -11772,6 +11736,8 @@ export const pl = {
     tags: "Tagi",
     tags_placeholder: "Dodaj tagi",
     remove_tag: "Usuń tag",
+    tag_color: "Kolor tagu",
+    change_tag_color: "Zmień kolor tagu {{ tag }}",
     no_tags: "Brak tagów",
     details: "Szczegóły",
     details_hint: "Wybierz wydarzenie, aby zobaczyć szczegóły",
@@ -11894,6 +11860,14 @@ export const pl = {
     working_location_home: "Dom",
     working_location_office: "Biuro",
     working_location_other: "Inne",
+    working_location_none: "Brak",
+    working_location_for_day: "Miejsce pracy: {{location}}",
+    working_location_usual_for_day:
+      "Miejsce pracy: {{location}} (zwykły tydzień)",
+    working_location_set: "Ustaw miejsce pracy",
+    working_location_use_usual: "Użyj zwykłego ({{location}})",
+    working_location_clear: "Wyczyść",
+    working_location_other_place: "Inne miejsce…",
     out_of_office_note: "Inni zobaczą Cię jako niedostępnego w tym okresie.",
     focus_time_note:
       "Czas skupienia blokuje kalendarz, aby nikt nie planował na ten czas.",
@@ -11983,6 +11957,8 @@ export const pl = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "Brązowy",
+    color_gray: "Szary",
     event_color: "Kolor",
     year: "Rok",
     custom_view: "Widok niestandardowy",
@@ -12162,6 +12138,9 @@ export const pl = {
     settings_dim_past_events: "Przyciemniaj minione wydarzenia",
     settings_dim_past_events_desc:
       "Przyciemniaj wydarzenia, które już się skończyły",
+    settings_working_week: "Zwykłe miejsce pracy",
+    settings_working_week_desc:
+      "Wyświetlane jako ikona przy każdym dniu. Aby zmienić jeden dzień, użyj jego ikony.",
     settings_density: "Gęstość informacji",
     settings_density_desc: "Ile miejsca w pionie zajmuje każda godzina",
     settings_density_responsive: "Elastyczna",

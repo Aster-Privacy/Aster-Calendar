@@ -36,10 +36,18 @@ const show_toast = vi.fn();
 const preferences_state: {
   calendar_ics_subscriptions?: IcsSubscription[];
   calendar_birthdays_hidden?: boolean;
+  calendar_holiday_region?: string;
 } = {};
 
 vi.mock("@/contexts/preferences_context", () => ({
-  use_preferences: () => ({ preferences: preferences_state, update_preference }),
+  use_preferences: () => ({
+    preferences: preferences_state,
+    update_preference,
+  }),
+}));
+
+vi.mock("@/contexts/auth/use_auth_hook", () => ({
+  use_auth: () => ({ user: { id: "user-1" } }),
 }));
 
 vi.mock("@/lib/i18n/context", () => ({
@@ -167,14 +175,17 @@ vi.mock("framer-motion", async () => {
         },
       },
     ),
-    AnimatePresence: ({ children }: { children: ReactNode }) => (
-      <>{children}</>
-    ),
+    AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
   };
 });
 
 import { CalendarSidebar } from "@/components/calendar/calendar_sidebar";
 import { EVENT_COLOR_OPTIONS } from "@/components/calendar/calendar_utils";
+import {
+  forget_local_visibility_cache,
+  read_local_visibility,
+  write_local_visibility,
+} from "@/services/calendar/local_visibility";
 
 const CALENDAR: DecryptedCalendar = {
   id: "cal-1",
@@ -264,6 +275,22 @@ function menu_item(scope: HTMLElement, label: string): HTMLButtonElement {
   ).find((item) => item.textContent?.includes(label))!;
 }
 
+function stored() {
+  return read_local_visibility("user-1");
+}
+
+function birthday_row(): HTMLElement {
+  return container!.querySelector<HTMLElement>(
+    '[data-visibility-row="birthdays"]',
+  )!;
+}
+
+function holiday_row(): HTMLElement | null {
+  return container!.querySelector<HTMLElement>(
+    '[data-visibility-row="holidays"]',
+  );
+}
+
 function last_subscriptions(): IcsSubscription[] {
   const call = update_preference.mock.calls
     .filter(([key]) => key === "calendar_ics_subscriptions")
@@ -279,6 +306,9 @@ beforeEach(() => {
   on_toggle_calendar.mockReset();
   preferences_state.calendar_ics_subscriptions = [TEAM, SPORTS];
   preferences_state.calendar_birthdays_hidden = false;
+  preferences_state.calendar_holiday_region = "none";
+  window.localStorage.clear();
+  forget_local_visibility_cache();
 });
 
 afterEach(() => {
@@ -297,10 +327,14 @@ describe("CalendarSidebar subscriptions", () => {
     expect(row("sub-1").textContent).toContain("Team holidays");
     expect(row("sub-2").textContent).toContain("Sports");
     expect(
-      row("sub-1").querySelector("[aria-pressed]")?.getAttribute("aria-pressed"),
+      row("sub-1")
+        .querySelector("[aria-pressed]")
+        ?.getAttribute("aria-pressed"),
     ).toBe("true");
     expect(
-      row("sub-2").querySelector("[aria-pressed]")?.getAttribute("aria-pressed"),
+      row("sub-2")
+        .querySelector("[aria-pressed]")
+        ?.getAttribute("aria-pressed"),
     ).toBe("false");
   });
 
@@ -311,16 +345,53 @@ describe("CalendarSidebar subscriptions", () => {
     expect(section()).toBeNull();
   });
 
-  it("toggles visibility from the row", () => {
+  it("toggles visibility on this device only", () => {
     render();
 
-    act(() => row("sub-1").querySelector<HTMLElement>("[aria-pressed]")!.click());
+    act(() =>
+      row("sub-1").querySelector<HTMLElement>("[aria-pressed]")!.click(),
+    );
 
-    expect(last_subscriptions()).toEqual([{ ...TEAM, hidden: true }, SPORTS]);
+    expect(update_preference).not.toHaveBeenCalled();
+    expect(stored()?.hidden_subscription_ids).toEqual(["sub-2", "sub-1"]);
+    expect(
+      row("sub-1")
+        .querySelector("[aria-pressed]")
+        ?.getAttribute("aria-pressed"),
+    ).toBe("false");
 
-    act(() => row("sub-2").querySelector<HTMLElement>("[aria-pressed]")!.click());
+    act(() =>
+      row("sub-2").querySelector<HTMLElement>("[aria-pressed]")!.click(),
+    );
 
-    expect(last_subscriptions()).toEqual([TEAM, { ...SPORTS, hidden: false }]);
+    expect(update_preference).not.toHaveBeenCalled();
+    expect(stored()?.hidden_subscription_ids).toEqual(["sub-1"]);
+    expect(
+      row("sub-2")
+        .querySelector("[aria-pressed]")
+        ?.getAttribute("aria-pressed"),
+    ).toBe("true");
+  });
+
+  it("prefers the device state over the synced hidden flag", () => {
+    write_local_visibility("user-1", {
+      hidden_calendar_ids: [],
+      hidden_subscription_ids: ["sub-1"],
+      birthdays_hidden: false,
+      holidays_hidden: false,
+    });
+    render();
+
+    expect(
+      row("sub-1")
+        .querySelector("[aria-pressed]")
+        ?.getAttribute("aria-pressed"),
+    ).toBe("false");
+    expect(
+      row("sub-2")
+        .querySelector("[aria-pressed]")
+        ?.getAttribute("aria-pressed"),
+    ).toBe("true");
   });
 
   it("changes the color from the row menu", () => {
@@ -348,28 +419,34 @@ describe("CalendarSidebar subscriptions", () => {
   it("shows only the chosen subscription", () => {
     render();
 
-    act(() => menu_item(row("sub-2"), "calendar.show_only_this_calendar").click());
-
-    expect(on_toggle_calendar).toHaveBeenCalledWith("cal-1", false);
-    expect(update_preference).toHaveBeenCalledWith(
-      "calendar_birthdays_hidden",
-      true,
+    act(() =>
+      menu_item(row("sub-2"), "calendar.show_only_this_calendar").click(),
     );
-    expect(last_subscriptions()).toEqual([
-      { ...TEAM, hidden: true },
-      { ...SPORTS, hidden: false },
-    ]);
+
+    expect(on_toggle_calendar).not.toHaveBeenCalled();
+    expect(update_preference).not.toHaveBeenCalled();
+    expect(stored()).toEqual({
+      hidden_calendar_ids: ["cal-1"],
+      hidden_subscription_ids: ["sub-1"],
+      birthdays_hidden: true,
+      holidays_hidden: true,
+    });
   });
 
   it("opens the subscription settings and unsubscribes", () => {
     render();
 
-    act(() => menu_item(row("sub-1"), "calendar.subscription_settings").click());
+    act(() =>
+      menu_item(row("sub-1"), "calendar.subscription_settings").click(),
+    );
     expect(on_settings_click).toHaveBeenCalledWith("calendar_import_export");
 
     act(() => menu_item(row("sub-1"), "calendar.ie_sub_remove").click());
     expect(last_subscriptions()).toEqual([SPORTS]);
-    expect(show_toast).toHaveBeenCalledWith("calendar.ie_sub_removed", "success");
+    expect(show_toast).toHaveBeenCalledWith(
+      "calendar.ie_sub_removed",
+      "success",
+    );
   });
 
   it("hides subscriptions when showing only a regular calendar", () => {
@@ -384,7 +461,9 @@ describe("CalendarSidebar subscriptions", () => {
           true,
       )
       .flatMap((menu) =>
-        Array.from(menu.querySelectorAll<HTMLButtonElement>("[data-menu-item]")),
+        Array.from(
+          menu.querySelectorAll<HTMLButtonElement>("[data-menu-item]"),
+        ),
       )
       .find((item) =>
         item.textContent?.includes("calendar.show_only_this_calendar"),
@@ -393,9 +472,68 @@ describe("CalendarSidebar subscriptions", () => {
     act(() => show_only.click());
 
     expect(on_toggle_calendar).not.toHaveBeenCalled();
-    expect(last_subscriptions()).toEqual([
-      { ...TEAM, hidden: true },
-      { ...SPORTS, hidden: true },
-    ]);
+    expect(update_preference).not.toHaveBeenCalled();
+    expect(stored()).toEqual({
+      hidden_calendar_ids: [],
+      hidden_subscription_ids: ["sub-1", "sub-2"],
+      birthdays_hidden: true,
+      holidays_hidden: true,
+    });
+  });
+
+  it("toggles birthdays on this device only", () => {
+    render();
+
+    act(() =>
+      birthday_row().querySelector<HTMLElement>("[aria-pressed]")!.click(),
+    );
+
+    expect(update_preference).not.toHaveBeenCalled();
+    expect(stored()?.birthdays_hidden).toBe(true);
+  });
+});
+
+describe("CalendarSidebar holidays", () => {
+  it("has no holiday row without a region", () => {
+    render();
+
+    expect(holiday_row()).toBeNull();
+  });
+
+  it("toggles the holiday row on this device only", () => {
+    preferences_state.calendar_holiday_region = "us";
+    render();
+
+    const toggle = () =>
+      holiday_row()!.querySelector<HTMLElement>("[aria-pressed]")!;
+
+    expect(toggle().getAttribute("aria-pressed")).toBe("true");
+
+    act(() => toggle().click());
+
+    expect(update_preference).not.toHaveBeenCalled();
+    expect(stored()?.holidays_hidden).toBe(true);
+    expect(toggle().getAttribute("aria-pressed")).toBe("false");
+
+    act(() => menu_item(holiday_row()!, "calendar.show_this_calendar").click());
+
+    expect(stored()?.holidays_hidden).toBe(false);
+  });
+
+  it("shows only holidays", () => {
+    preferences_state.calendar_holiday_region = "us";
+    render();
+
+    act(() =>
+      menu_item(holiday_row()!, "calendar.show_only_this_calendar").click(),
+    );
+
+    expect(on_toggle_calendar).not.toHaveBeenCalled();
+    expect(stored()).toEqual({
+      hidden_calendar_ids: ["cal-1"],
+      hidden_subscription_ids: ["sub-1", "sub-2"],
+      birthdays_hidden: true,
+      holidays_hidden: false,
+    });
   });
 });

@@ -574,6 +574,9 @@ export const tr = {
       "Ödemeniz alınamadı. Erişim {{days}} gün içinde kısıtlanacak.",
     billing_alert_action: "Öde",
     dismiss: "Kapat",
+    web_sandbox_off_title: "Web içeriği sistem korumalı alanı olmadan çalışıyor",
+    web_sandbox_off_body:
+      "Bu bilgisayarda Aster Calendar, bubblewrap korumalı alanını başlatamıyor, bu nedenle web içeriği korumalı alan olmadan çalışıyor. Yeniden açmak için bubblewrap paketini yükleyin, ayrıcalıksız kullanıcı ad alanlarına izin verin ve Aster Calendar uygulamasını yeniden başlatın.",
     load_content: "Yükle",
     open_link: "Bağlantıyı aç",
     no_icon: "Simge yok",
@@ -9893,45 +9896,15 @@ export const tr = {
     device_code_waiting: "Onay bekleniyor",
     device_code_expires_in: "Süre sonu",
     link_device_title: "Cihazı bağla",
-    link_device_enter_code: "Masaüstü uygulamanızda gösterilen kodu girin.",
-    link_device_code_placeholder: "XXXX-XXXX",
-    link_device_verify_button: "Devam",
-    link_device_confirm_prompt:
-      "Bu cihazı hesabınıza bağlamak istiyor musunuz?",
-    link_device_confirm_button: "Cihazı bağla",
-    link_device_confirming: "Cihaz bağlanıyor...",
     link_device_cancel: "İptal",
-    link_device_desktop: "Masaüstü uygulaması",
-    device_fingerprint: "Doğrulama kodu",
-    device_code_verify_toggle: "Bu cihazı doğrula",
-    link_device_fingerprint_hint:
-      "Yeni cihazınızın gösterdiği doğrulama kodunu girin. Masaüstü uygulamasında görmek için Bu cihazı doğrula'yı seçin.",
-    link_device_fingerprint_placeholder: "XXXX XXXX XXXX XXXX XXXX",
-    link_device_fingerprint_incomplete:
-      "Cihazı bağlamak için yeni cihazınızdaki doğrulama kodunun tamamını girin.",
-    link_device_fingerprint_mismatch:
-      "Bu kod yeni cihazınızla eşleşmiyor. Yeni cihazınızdaki kodu kontrol edip tekrar girin. Hâlâ eşleşmiyorsa İptal'i seçin.",
-    device_code_fingerprint_hint:
-      "Bu cihazı bağlamak için bu kodu zaten oturum açtığınız cihaza girin.",
-    link_device_change_account: "Hesap değiştir",
+    device_fingerprint: "Cihaz parmak izi",
+    device_fingerprint_copy: "Cihaz parmak izini kopyala",
+    device_code_fingerprint_required_hint:
+      "Tarayıcınız cihazı bağlamadan önce bu cihaz parmak izini ister.",
     link_device_choose_account: "Bir hesap seçin",
-    link_device_choose_account_description:
-      "Masaüstü uygulamanızı bağlamak için",
-    link_device_choose_account_note:
-      "Şifreleme anahtarlarınız cihazlarınız arasında aktarılırken şifreli kalır.",
-    link_device_use_another_account: "Başka bir hesap kullan",
-    link_device_use_this_account: "Bu hesabı kullan",
-    link_device_other_accounts: "Başka bir hesaba geç",
     hub_accounts_or_password: "Veya şifrenle giriş yap",
     hub_account_password_required: "Şifre gerekli",
     hub_account_link_failed: "Bu hesapla devam etmek için parolasını girin.",
-    link_device_success: "Cihaz bağlandı",
-    link_device_success_description:
-      "Masaüstü uygulamanız artık bağlandı. Bu sekmeyi kapatabilirsiniz.",
-    link_device_invalid_code:
-      "Bağlantı kodu 8 karakter uzunluğundadır. Kodu kontrol edin ve tekrar deneyin.",
-    link_device_expired_code:
-      "Bu kodun süresi doldu veya eşleşmedi. Masaüstü uygulamanızda geçerli kod bulunuyor.",
     link_device_failed:
       "Bağlantı tamamlanamadı. Yeniden başlamak genellikle yeterli olur. Hesabınız değişmedi.",
     link_device_try_again:
@@ -9999,17 +9972,6 @@ export const tr = {
       "Öğrenci durumu doğrulandı. Oturum açın, %30 indiriminiz ödeme sırasında uygulanır.",
     academic_failed_signin_note:
       "Bu doğrulama bağlantısının süresi dolmuş ya da daha önce kullanılmış. Oturum açıp Faturalandırma ayarlarından yeni bir bağlantı isteyin.",
-    link_device_upgrade_required_toast:
-      "Bridge cihazı bağlamak için Star veya üstü bir plan gerekir. Devam etmek için planınızı yükseltin.",
-    link_device_upgrade_title: "Bu cihazı bağlamak için planınızı yükseltin",
-    link_device_upgrade_description:
-      "Masaüstü Bridge’i hesabınıza bağlamak için Star veya üstü bir plan gerekir. Aşağıdan bir plan seçin, cihazınız ödemeden hemen sonra bağlanır.",
-    link_device_already_linked:
-      "Bu cihaz başka bir hesaba bağlı. Önce oradan bağlantısını kaldırıp tekrar deneyin.",
-    link_device_rate_limited:
-      "Çok fazla deneme yapıldı. Yaklaşık bir dakika bekleyip tekrar deneyin.",
-    link_device_account_suspended:
-      "Bu hesap askıya alındı, bu yüzden şu anda yeni cihaz bağlanamıyor. Çözmek için destek ekibiyle iletişime geçin.",
     plan_academic_discount_note:
       "E-postanız doğrulandığında %30 indiriminiz ödeme sırasında otomatik uygulanır.",
     plan_referral_discount_note:
@@ -11110,6 +11072,7 @@ export const tr = {
     holiday_region_au: "Avustralya",
     holiday_region_pt: "Portekiz",
     holiday_region_br: "Brezilya",
+    holiday_region_in: "Hindistan",
     settings_day_split: "Yan yana gün görünümü",
     settings_day_split_desc:
       "Gün görünümünde her takvimi kendi sütununda göster",
@@ -11391,6 +11354,8 @@ export const tr = {
     tags: "Etiketler",
     tags_placeholder: "Etiket ekle",
     remove_tag: "Etiketi kaldır",
+    tag_color: "Etiket rengi",
+    change_tag_color: "{{ tag }} rengini değiştir",
     no_tags: "Henüz etiket yok",
     details: "Ayrıntılar",
     details_hint: "Ayrıntıları görmek için bir etkinlik seçin",
@@ -11513,6 +11478,13 @@ export const tr = {
     working_location_home: "Ev",
     working_location_office: "Ofis",
     working_location_other: "Diğer",
+    working_location_none: "Yok",
+    working_location_for_day: "Çalışma yeri: {{location}}",
+    working_location_usual_for_day: "Çalışma yeri: {{location}} (olağan hafta)",
+    working_location_set: "Çalışma yerini ayarla",
+    working_location_use_usual: "Olağanı kullan ({{location}})",
+    working_location_clear: "Temizle",
+    working_location_other_place: "Başka bir yer…",
     out_of_office_note: "Bu dönemde başkaları sizi müsait değil olarak görür.",
     focus_time_note:
       "Odaklanma zamanı takviminizi bloke eder, kimse üzerine plan yapamaz.",
@@ -11598,6 +11570,8 @@ export const tr = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "Kahverengi",
+    color_gray: "Gri",
     event_color: "Renk",
     year: "Yıl",
     custom_view: "Özel görünüm",
@@ -11774,6 +11748,9 @@ export const tr = {
       "Reddettiğiniz etkinlikleri ızgarada görünür tut",
     settings_dim_past_events: "Geçmiş etkinliklerin parlaklığını azalt",
     settings_dim_past_events_desc: "Bitmiş etkinlikleri soluklaştır",
+    settings_working_week: "Olağan çalışma yeri",
+    settings_working_week_desc:
+      "Her günde bir simge olarak gösterilir. Tek bir günü değiştirmek için o günün simgesini kullanın.",
     settings_density: "Bilgi yoğunluğu",
     settings_density_desc: "Her saatin kapladığı dikey alan",
     settings_density_responsive: "Uyarlanabilir",

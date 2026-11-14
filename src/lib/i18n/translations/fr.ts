@@ -585,6 +585,9 @@ export const fr = {
       "Votre paiement n'a pas abouti. L'accès sera limité dans {{days}} jours.",
     billing_alert_action: "Payer",
     dismiss: "Ignorer",
+    web_sandbox_off_title: "Le contenu web s'exécute sans le bac à sable du système",
+    web_sandbox_off_body:
+      "Sur cet ordinateur, Aster Calendar ne peut pas démarrer le bac à sable bubblewrap, donc le contenu web s'exécute sans lui. Pour le réactiver, installez le paquet bubblewrap, autorisez les espaces de noms utilisateur non privilégiés, puis redémarrez Aster Calendar.",
     load_content: "Charger",
     open_link: "Ouvrir le lien",
     no_icon: "Pas d'icône",
@@ -10145,48 +10148,20 @@ export const fr = {
     email_copied: "E-mail copié",
     last_updated: "Dernière mise à jour : {{date}}",
     link_device_cancel: "Annuler",
-    link_device_code_placeholder: "Code à 6 chiffres",
-    link_device_confirm_button: "Confirmer",
-    link_device_confirm_prompt: "Confirmer l'association de l'appareil ?",
-    link_device_confirming: "Confirmation en cours...",
-    link_device_desktop: "Associer un appareil de bureau",
-    device_fingerprint: "Code de vérification",
-    device_code_verify_toggle: "Vérifier cet appareil",
-    link_device_fingerprint_hint:
-      "Saisissez le code de vérification affiché sur votre nouvel appareil. Dans l'app de bureau, sélectionnez Vérifier cet appareil pour l'afficher.",
-    link_device_fingerprint_placeholder: "XXXX XXXX XXXX XXXX XXXX",
-    link_device_fingerprint_incomplete:
-      "Pour associer l'appareil, saisissez le code de vérification complet de votre nouvel appareil.",
-    link_device_fingerprint_mismatch:
-      "Ce code ne correspond pas à votre nouvel appareil. Vérifiez le code sur votre nouvel appareil et saisissez-le de nouveau. S'il ne correspond toujours pas, sélectionnez Annuler.",
-    device_code_fingerprint_hint:
-      "Pour associer cet appareil, saisissez ce code sur l'appareil sur lequel vous êtes déjà connecté.",
-    link_device_change_account: "Changer de compte",
+    device_fingerprint: "Empreinte de l'appareil",
+    device_fingerprint_copy: "Copier l'empreinte de l'appareil",
+    device_code_fingerprint_required_hint:
+      "Votre navigateur demande cette empreinte de l'appareil avant d'associer l'appareil.",
     link_device_choose_account: "Choisissez un compte",
-    link_device_choose_account_description:
-      "Pour associer votre application de bureau",
-    link_device_choose_account_note:
-      "Vos clés de chiffrement restent chiffrées lorsqu'elles passent d'un appareil à l'autre.",
-    link_device_use_another_account: "Utiliser un autre compte",
-    link_device_use_this_account: "Utiliser ce compte",
-    link_device_other_accounts: "Passer à un autre compte",
-    link_device_enter_code: "Entrez le code affiché sur votre autre appareil.",
-    link_device_expired_code:
-      "Ce code a expiré ou ne correspondait pas. Votre application de bureau affiche le code actuel.",
     link_device_failed:
       "L'association n'a pas abouti. Recommencez depuis le début. Votre compte est inchangé.",
-    link_device_invalid_code:
-      "Un code de liaison comporte 8 caractères. Vérifiez le code et réessayez.",
     hub_accounts_or_password: "Ou connectez-vous avec votre mot de passe",
     hub_account_password_required: "Mot de passe requis",
     hub_account_link_failed:
       "Pour continuer avec ce compte, saisissez son mot de passe.",
-    link_device_success: "Appareil lié avec succès",
-    link_device_success_description: "Cet appareil a accès à votre compte.",
     link_device_title: "Lier un appareil",
     link_device_try_again:
       "Cela n'a pas fonctionné. Recommencez depuis le début.",
-    link_device_verify_button: "Vérifier",
     pair_device_cancel: "Annuler",
     pair_device_failed:
       "L'association n'a pas abouti. Recommencez depuis votre application de bureau. Votre compte est inchangé.",
@@ -10247,18 +10222,6 @@ export const fr = {
       "Statut étudiant vérifié. Connectez-vous et votre remise de 30 % sera appliquée au paiement.",
     academic_failed_signin_note:
       "Ce lien de vérification a expiré ou a déjà été utilisé. Connectez-vous et demandez-en un nouveau dans les réglages de facturation.",
-    link_device_upgrade_required_toast:
-      "Associer un appareil Bridge nécessite un abonnement Star ou supérieur. Passez à un abonnement supérieur pour continuer.",
-    link_device_upgrade_title:
-      "Passez à un abonnement supérieur pour associer cet appareil",
-    link_device_upgrade_description:
-      "Connecter un Bridge d’ordinateur à votre compte nécessite un abonnement Star ou supérieur. Choisissez un abonnement ci-dessous et votre appareil sera associé juste après le paiement.",
-    link_device_already_linked:
-      "Cet appareil est déjà associé à un autre compte. Dissociez-le d’abord, puis réessayez.",
-    link_device_rate_limited:
-      "Trop de tentatives. Patientez environ une minute, puis réessayez.",
-    link_device_account_suspended:
-      "Ce compte est suspendu, il n’est donc pas possible d’associer de nouveaux appareils pour l’instant. Contactez l’assistance pour régler la situation.",
     plan_academic_discount_note:
       "Votre remise de 30 % s’applique automatiquement au paiement dès que votre e-mail est vérifié.",
     plan_referral_discount_note:
@@ -11394,6 +11357,7 @@ export const fr = {
     holiday_region_au: "Australie",
     holiday_region_pt: "Portugal",
     holiday_region_br: "Brésil",
+    holiday_region_in: "Inde",
     settings_day_split: "Vue jour côte à côte",
     settings_day_split_desc:
       "Afficher chaque agenda dans sa propre colonne en vue jour",
@@ -11686,6 +11650,8 @@ export const fr = {
     tags: "Étiquettes",
     tags_placeholder: "Ajouter des étiquettes",
     remove_tag: "Supprimer l'étiquette",
+    tag_color: "Couleur de l'étiquette",
+    change_tag_color: "Changer la couleur de {{ tag }}",
     no_tags: "Aucune étiquette pour l'instant",
     details: "Détails",
     details_hint: "Sélectionnez un événement pour voir ses détails",
@@ -11808,6 +11774,14 @@ export const fr = {
     working_location_home: "Domicile",
     working_location_office: "Bureau",
     working_location_other: "Autre",
+    working_location_none: "Aucun",
+    working_location_for_day: "Lieu de travail : {{location}}",
+    working_location_usual_for_day:
+      "Lieu de travail : {{location}} (semaine habituelle)",
+    working_location_set: "Définir le lieu de travail",
+    working_location_use_usual: "Revenir à l'habituel ({{location}})",
+    working_location_clear: "Effacer",
+    working_location_other_place: "Autre lieu…",
     out_of_office_note:
       "Les autres vous verront indisponible pendant cette période.",
     focus_time_note:
@@ -11896,6 +11870,8 @@ export const fr = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "Marron",
+    color_gray: "Gris",
     event_color: "Couleur",
     year: "Année",
     custom_view: "Vue personnalisée",
@@ -12084,6 +12060,9 @@ export const fr = {
       "Garder visibles les événements que vous avez refusés",
     settings_dim_past_events: "Réduire la luminosité des événements passés",
     settings_dim_past_events_desc: "Estompe les événements déjà terminés",
+    settings_working_week: "Lieu de travail habituel",
+    settings_working_week_desc:
+      "Affiché sous forme d'icône sur chaque jour. Pour modifier un seul jour, utilisez son icône.",
     settings_density: "Densité d'affichage",
     settings_density_desc: "Espace vertical occupe par chaque heure",
     settings_density_responsive: "Adaptative",

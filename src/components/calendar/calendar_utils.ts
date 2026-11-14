@@ -28,10 +28,10 @@ import type { CSSProperties } from "react";
 import type { TranslationKey } from "@/lib/i18n/types";
 
 import {
-  TAG_COLOR_PRESETS,
-  type TagColorVariant,
-  tag_color_label_key,
-} from "@/components/ui/email_tag";
+  default_tag_color,
+  resolve_tag_color,
+  type TagColorMap,
+} from "@/services/calendar/tag_colors";
 import { BIRTHDAY_COLOR } from "@/services/calendar/birthdays";
 
 export const MINUTES_PER_DAY = 24 * 60;
@@ -169,16 +169,6 @@ export function build_custom_days(anchor: Date, day_count: number): Date[] {
 
 export const PHONE_DAY_COUNT = 3;
 export const PHONE_CUSTOM_DAY_COUNT = 4;
-export const AGENDA_DAY_COUNT = 30;
-export const AGENDA_MAX_DAY_COUNT = 730;
-
-export function next_agenda_day_count(current: number): number {
-  return Math.min(
-    AGENDA_MAX_DAY_COUNT,
-    Math.max(AGENDA_DAY_COUNT, current * 2),
-  );
-}
-
 export function build_phone_week_days(
   anchor: Date,
   week_start_day: number,
@@ -807,12 +797,16 @@ export function hex_to_readable_ink(color: string): string {
     return READABLE_INK_LIGHT;
   }
 
-  return luminance > 0.42 ? READABLE_INK_DARK : READABLE_INK_LIGHT;
+  const light_ratio = 1.05 / (luminance + 0.05);
+  const dark_ratio =
+    (luminance + 0.05) / ((relative_luminance(READABLE_INK_DARK) ?? 0) + 0.05);
+
+  return dark_ratio > light_ratio ? READABLE_INK_DARK : READABLE_INK_LIGHT;
 }
 
 export function ink_on_fill(color: string): string {
   if (color.startsWith("var(--cal_color_")) {
-    return "var(--calendar_event_text, #ffffff)";
+    return find_event_color_option(color)?.ink ?? READABLE_INK_LIGHT;
   }
 
   return color.startsWith("var(")
@@ -837,119 +831,239 @@ export function contrast_ratio(
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-export type EventColorName = TagColorVariant | "slate";
+export type EventColorName =
+  | "red"
+  | "orange"
+  | "yellow"
+  | "green"
+  | "teal"
+  | "blue"
+  | "purple"
+  | "pink"
+  | "brown"
+  | "gray";
 
 export interface EventColorOption {
   hex: string;
   fill: string;
   dark_fill: string;
+  ink: string;
   name: EventColorName;
   name_key: TranslationKey;
   token: string;
 }
 
-const EVENT_COLOR_FILLS: Record<
-  TagColorVariant,
-  { fill: string; dark_fill?: string }
-> = {
-  red: { fill: "#c4392f" },
-  orange: { fill: "#b4521f" },
-  amber: { fill: "#9a5d10" },
-  yellow: { fill: "#836a12" },
-  lime: { fill: "#5a7a22" },
-  green: { fill: "#2e7d43" },
-  emerald: { fill: "#14775c" },
-  teal: { fill: "#14737c" },
-  cyan: { fill: "#13708f" },
-  sky: { fill: "#2b69ad" },
-  blue: { fill: "#3c62d6" },
-  indigo: { fill: "#5249c4" },
-  violet: { fill: "#6d4bc4" },
-  purple: { fill: "#8642ad" },
-  fuchsia: { fill: "#a33d9a" },
-  pink: { fill: "#b53a70" },
-  rose: { fill: "#b23651" },
-};
+interface EventColorDefinition {
+  name: EventColorName;
+  hex: string;
+  fill: string;
+  name_key: TranslationKey;
+}
 
-export const EVENT_COLOR_OPTIONS: EventColorOption[] = TAG_COLOR_PRESETS.map(
-  (preset) => {
-    const { fill, dark_fill = fill } = EVENT_COLOR_FILLS[preset.variant];
-
-    return {
-      dark_fill,
-      fill,
-      hex: preset.hex,
-      name: preset.variant,
-      name_key: tag_color_label_key(preset.variant),
-      token: `var(--cal_color_${preset.variant})`,
-    };
+const EVENT_COLOR_DEFINITIONS: EventColorDefinition[] = [
+  {
+    name: "red",
+    hex: "#ef4444",
+    fill: "#c62f2f",
+    name_key: "common.color_red",
   },
-);
+  {
+    name: "orange",
+    hex: "#f97316",
+    fill: "#f08a24",
+    name_key: "common.color_orange",
+  },
+  {
+    name: "yellow",
+    hex: "#eab308",
+    fill: "#f2c218",
+    name_key: "common.color_yellow",
+  },
+  {
+    name: "green",
+    hex: "#22c55e",
+    fill: "#2e7d43",
+    name_key: "common.color_green",
+  },
+  {
+    name: "teal",
+    hex: "#14b8a6",
+    fill: "#0b7a8c",
+    name_key: "common.color_teal",
+  },
+  {
+    name: "blue",
+    hex: "#3b82f6",
+    fill: "#3c62d6",
+    name_key: "common.color_blue",
+  },
+  {
+    name: "purple",
+    hex: "#a855f7",
+    fill: "#8642ad",
+    name_key: "common.color_purple",
+  },
+  {
+    name: "pink",
+    hex: "#ec4899",
+    fill: "#b8237a",
+    name_key: "common.color_pink",
+  },
+  {
+    name: "brown",
+    hex: "#8d5a3b",
+    fill: "#86501f",
+    name_key: "calendar.color_brown",
+  },
+  {
+    name: "gray",
+    hex: "#9aa0a6",
+    fill: "#9aa0a6",
+    name_key: "calendar.color_gray",
+  },
+];
 
-export const NEUTRAL_EVENT_COLOR: EventColorOption = {
-  dark_fill: "#56606e",
-  fill: "#56606e",
-  hex: "#64748b",
-  name: "slate",
-  name_key: "calendar.color_slate",
-  token: "var(--cal_color_slate)",
+export const EVENT_COLOR_OPTIONS: EventColorOption[] =
+  EVENT_COLOR_DEFINITIONS.map((definition) => ({
+    dark_fill: definition.fill,
+    fill: definition.fill,
+    hex: definition.hex,
+    ink: hex_to_readable_ink(definition.fill),
+    name: definition.name,
+    name_key: definition.name_key,
+    token: `var(--cal_color_${definition.name})`,
+  }));
+
+function event_color_option_by_name(name: EventColorName): EventColorOption {
+  return (
+    EVENT_COLOR_OPTIONS.find((option) => option.name === name) ??
+    EVENT_COLOR_OPTIONS[0]
+  );
+}
+
+export const NEUTRAL_EVENT_COLOR: EventColorOption =
+  event_color_option_by_name("gray");
+
+export const DEFAULT_EVENT_COLOR: EventColorOption =
+  event_color_option_by_name("blue");
+
+const LEGACY_EVENT_COLORS: Record<string, EventColorName> = {
+  rose: "red",
+  amber: "orange",
+  lime: "green",
+  emerald: "green",
+  cyan: "teal",
+  sky: "blue",
+  indigo: "blue",
+  violet: "purple",
+  fuchsia: "purple",
+  slate: "gray",
+  grey: "gray",
+  "#c4392f": "red",
+  "#f43f5e": "red",
+  "#b23651": "red",
+  "#be123c": "red",
+  "#b4521f": "orange",
+  "#f59e0b": "orange",
+  "#9a5d10": "orange",
+  "#b45309": "orange",
+  "#c2410c": "orange",
+  "#836a12": "yellow",
+  "#84cc16": "green",
+  "#5a7a22": "green",
+  "#10b981": "green",
+  "#14775c": "green",
+  "#15803d": "green",
+  "#0b8043": "green",
+  "#14737c": "teal",
+  "#06b6d4": "teal",
+  "#13708f": "teal",
+  "#0f766e": "teal",
+  "#0ea5e9": "blue",
+  "#2b69ad": "blue",
+  "#0369a1": "blue",
+  "#039be5": "blue",
+  "#6366f1": "blue",
+  "#5249c4": "blue",
+  "#2563eb": "blue",
+  "#1d4ed8": "blue",
+  "#8b5cf6": "purple",
+  "#6d4bc4": "purple",
+  "#d946ef": "purple",
+  "#a33d9a": "purple",
+  "#b53a70": "pink",
+  "#be185d": "pink",
+  "#d81b60": "pink",
+  "#64748b": "gray",
+  "#56606e": "gray",
+  "#475569": "gray",
 };
 
-export const DEFAULT_EVENT_COLOR =
-  EVENT_COLOR_OPTIONS.find((option) => option.name === "blue") ??
-  EVENT_COLOR_OPTIONS[0];
+const EVENT_COLOR_TOKEN_PATTERN = /^var\(--cal_color_([a-z]+)\)$/;
 
-const NEUTRAL_SATURATION_LIMIT = 0.18;
+function legacy_event_color(value: string): EventColorOption | null {
+  const token_match = value.match(EVENT_COLOR_TOKEN_PATTERN);
+  const name = LEGACY_EVENT_COLORS[token_match ? token_match[1] : value];
 
-function color_hue_and_saturation(
-  color: string,
-): { hue: number; saturation: number } | null {
+  return name ? event_color_option_by_name(name) : null;
+}
+
+const NEUTRAL_CHROMA_LIMIT = 0.03;
+
+const LIGHTNESS_WEIGHT = 0.25;
+
+type OklabColor = [number, number, number];
+
+function color_to_oklab(color: string): OklabColor | null {
   const channels = parse_color_channels(color);
 
   if (!channels) {
     return null;
   }
 
-  const red = channels.red / 255;
-  const green = channels.green / 255;
-  const blue = channels.blue / 255;
-  const max = Math.max(red, green, blue);
-  const min = Math.min(red, green, blue);
-  const delta = max - min;
-  const lightness = (max + min) / 2;
-  const saturation =
-    delta === 0 ? 0 : delta / (1 - Math.abs(2 * lightness - 1));
+  const to_linear = (channel: number) => {
+    const scaled = channel / 255;
 
-  let hue = 0;
+    return scaled <= 0.04045
+      ? scaled / 12.92
+      : Math.pow((scaled + 0.055) / 1.055, 2.4);
+  };
 
-  if (delta !== 0) {
-    if (max === red) {
-      hue = ((green - blue) / delta) % 6;
-    } else if (max === green) {
-      hue = (blue - red) / delta + 2;
-    } else {
-      hue = (red - green) / delta + 4;
-    }
+  const red = to_linear(channels.red);
+  const green = to_linear(channels.green);
+  const blue = to_linear(channels.blue);
+  const long = Math.cbrt(
+    0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue,
+  );
+  const medium = Math.cbrt(
+    0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue,
+  );
+  const short = Math.cbrt(
+    0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue,
+  );
 
-    hue *= 60;
-
-    if (hue < 0) {
-      hue += 360;
-    }
-  }
-
-  return { hue, saturation };
+  return [
+    0.2104542553 * long + 0.793617785 * medium - 0.0040720468 * short,
+    1.9779984951 * long - 2.428592205 * medium + 0.4505937099 * short,
+    0.0259040371 * long + 0.7827717662 * medium - 0.808675766 * short,
+  ];
 }
 
-function hue_distance(left: number, right: number): number {
-  const raw = Math.abs(left - right) % 360;
-
-  return raw > 180 ? 360 - raw : raw;
+function oklab_distance(left: OklabColor, right: OklabColor): number {
+  return Math.hypot(
+    LIGHTNESS_WEIGHT * (left[0] - right[0]),
+    left[1] - right[1],
+    left[2] - right[2],
+  );
 }
 
-const CHROMATIC_SWATCHES = EVENT_COLOR_OPTIONS.map((option) => ({
+const CHROMATIC_SWATCHES = EVENT_COLOR_OPTIONS.filter(
+  (option) => option !== NEUTRAL_EVENT_COLOR,
+).map((option) => ({
   option,
-  hue: color_hue_and_saturation(option.hex)?.hue ?? 0,
+  references: [option.hex, option.fill]
+    .map(color_to_oklab)
+    .filter((lab): lab is OklabColor => lab !== null),
 }));
 
 export function find_event_color_option(
@@ -962,14 +1076,14 @@ export function find_event_color_option(
   const value = color.trim().toLowerCase();
 
   return (
-    [...EVENT_COLOR_OPTIONS, NEUTRAL_EVENT_COLOR].find(
+    EVENT_COLOR_OPTIONS.find(
       (option) =>
         option.hex === value ||
         option.fill === value ||
         option.dark_fill === value ||
         option.token === value ||
         option.name === value,
-    ) ?? null
+    ) ?? legacy_event_color(value)
   );
 }
 
@@ -980,29 +1094,31 @@ export function nearest_event_color(color: string): EventColorOption {
     return exact;
   }
 
-  const parsed = color_hue_and_saturation(color);
+  const lab = color_to_oklab(color);
 
-  if (!parsed) {
+  if (!lab) {
     return DEFAULT_EVENT_COLOR;
   }
 
-  if (parsed.saturation < NEUTRAL_SATURATION_LIMIT) {
+  if (Math.hypot(lab[1], lab[2]) < NEUTRAL_CHROMA_LIMIT) {
     return NEUTRAL_EVENT_COLOR;
   }
 
-  let best = CHROMATIC_SWATCHES[0];
+  let best = DEFAULT_EVENT_COLOR;
   let best_distance = Number.POSITIVE_INFINITY;
 
   for (const candidate of CHROMATIC_SWATCHES) {
-    const distance = hue_distance(parsed.hue, candidate.hue);
+    for (const reference of candidate.references) {
+      const distance = oklab_distance(lab, reference);
 
-    if (distance < best_distance) {
-      best = candidate;
-      best_distance = distance;
+      if (distance < best_distance) {
+        best = candidate.option;
+        best_distance = distance;
+      }
     }
   }
 
-  return best.option;
+  return best;
 }
 
 export function event_color_token(color: string | null | undefined): string {
@@ -1041,7 +1157,7 @@ export function build_event_block_style(
     backgroundColor: "var(--cal_color)",
     borderRadius: "var(--calendar_event_radius, 6px)",
     boxShadow: "0 0 0 1px var(--bg-primary)",
-    color: "var(--calendar_event_text, #ffffff)",
+    color: ink_on_fill(event_color_token(color)),
     filter: is_past ? PAST_EVENT_FILTER : undefined,
     outline: is_active ? "2px solid var(--accent-color)" : undefined,
     outlineOffset: is_active ? "-2px" : undefined,
@@ -1079,8 +1195,8 @@ export function build_month_chip_style(
 }
 
 const EVENT_KIND_COLORS: Record<string, string> = {
-  task: "var(--cal_color_sky)",
-  out_of_office: "var(--cal_color_slate)",
+  task: "var(--cal_color_blue)",
+  out_of_office: "var(--cal_color_gray)",
   focus_time: "var(--cal_color_teal)",
   working_location: "var(--cal_color_green)",
   birthday: BIRTHDAY_COLOR,
@@ -1105,8 +1221,6 @@ export function resolve_event_color(
     : "var(--accent-color)";
 }
 
-const TAG_PALETTE = EVENT_COLOR_OPTIONS.map((option) => option.hex);
-
 export function is_offset_in_view(
   offset: number,
   scroll_top: number,
@@ -1124,17 +1238,13 @@ export function grid_contains_day(grid: Date[], day: Date): boolean {
 }
 
 export function tag_color(name: string): string {
-  const key = name.trim().toLowerCase();
-  let hash = 0;
-
-  for (let index = 0; index < key.length; index += 1) {
-    hash = (hash * 31 + key.charCodeAt(index)) >>> 0;
-  }
-
-  return TAG_PALETTE[hash % TAG_PALETTE.length];
+  return default_tag_color(name);
 }
 
-export function collect_tags(events: DecryptedCalendarEvent[]): CalendarTag[] {
+export function collect_tags(
+  events: DecryptedCalendarEvent[],
+  colors?: TagColorMap | null,
+): CalendarTag[] {
   const seen = new Map<string, string>();
 
   for (const event of events) {
@@ -1149,7 +1259,7 @@ export function collect_tags(events: DecryptedCalendarEvent[]): CalendarTag[] {
 
   return [...seen.values()]
     .sort((left, right) => left.localeCompare(right))
-    .map((name) => ({ name, color: tag_color(name) }));
+    .map((name) => ({ name, color: resolve_tag_color(name, colors) }));
 }
 
 export function event_has_any_tag(

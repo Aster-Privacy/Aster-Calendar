@@ -248,15 +248,15 @@ describe("adding a subscription", () => {
     render_card();
 
     const options = open_picker_for(new_color_button());
-    const purple = options.find(
-      (option) => option.dataset.subscriptionColorOption === "purple",
+    const brown = options.find(
+      (option) => option.dataset.subscriptionColorOption === "brown",
     )!;
 
     act(() => {
-      purple.click();
+      brown.click();
     });
 
-    expect(new_color_button().dataset.subscriptionColor).toBe("purple");
+    expect(new_color_button().dataset.subscriptionColor).toBe("brown");
 
     type_into("calendar_subscription_name", "Club");
     type_into("calendar_subscription_url", "https://example.com/club.ics");
@@ -272,7 +272,7 @@ describe("adding a subscription", () => {
     expect(added.name).toBe("Club");
     expect(added.color.toLowerCase()).toBe(
       EVENT_COLOR_OPTIONS.find(
-        (option) => option.name === "purple",
+        (option) => option.name === "brown",
       )!.hex.toLowerCase(),
     );
   });

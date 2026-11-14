@@ -22,6 +22,7 @@ import type { EncryptedVault } from "@/services/crypto/key_manager";
 import type { CustomCategoryRule } from "@/data/category_catalog";
 import type { LanguageCode } from "@/lib/i18n/types";
 import type { ScheduleRange } from "@/services/calendar/schedule_range";
+import type { WorkingWeek } from "@/services/calendar/working_location";
 
 import { api_client } from "./client";
 
@@ -45,6 +46,11 @@ import {
   DEFAULT_SCHEDULE_RANGE,
   resolve_schedule_range,
 } from "@/services/calendar/schedule_range";
+import { sanitize_tag_colors } from "@/services/calendar/tag_colors";
+import {
+  EMPTY_WORKING_WEEK,
+  normalize_working_week,
+} from "@/services/calendar/working_location";
 import { locale_date_format, locale_time_format } from "@/utils/date_format";
 import {
   detect_browser_language,
@@ -250,6 +256,7 @@ export interface UserPreferences {
   calendar_timezone: string;
   calendar_show_declined_events: boolean;
   calendar_dim_past_events: boolean;
+  calendar_working_week: WorkingWeek;
   calendar_density: "responsive" | "compact";
   calendar_speedy_meetings: boolean;
   calendar_auto_add_invitations: "always" | "when_responding";
@@ -275,7 +282,7 @@ export interface UserPreferences {
   calendar_notification_sound: boolean;
   calendar_notify_only_accepted: boolean;
   calendar_holiday_region:
-    "none" | "us" | "uk" | "de" | "fr" | "ca" | "au" | "pt" | "br";
+    "none" | "us" | "uk" | "de" | "fr" | "ca" | "au" | "pt" | "br" | "in";
   calendar_day_split_by_calendar: boolean;
   calendar_show_birthdays: boolean;
   calendar_birthdays_hidden: boolean;
@@ -287,6 +294,7 @@ export interface UserPreferences {
     color: string;
     hidden?: boolean;
   }[];
+  calendar_tag_colors: Record<string, string>;
   task_lists?: { id: string; name: string; sort: "my_order" | "date" }[];
   notification_banner_snooze_until: string;
   storage_format: "aster" | "ipfs";
@@ -713,6 +721,7 @@ export const CACHEABLE_PREFERENCE_KEYS: readonly (keyof UserPreferences)[] = [
   "calendar_secondary_timezone",
   "calendar_show_declined_events",
   "calendar_dim_past_events",
+  "calendar_working_week",
   "calendar_density",
   "calendar_speedy_meetings",
   "calendar_auto_add_invitations",
@@ -1065,6 +1074,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   calendar_timezone: "",
   calendar_show_declined_events: true,
   calendar_dim_past_events: false,
+  calendar_working_week: EMPTY_WORKING_WEEK,
   calendar_density: "responsive",
   calendar_speedy_meetings: false,
   calendar_auto_add_invitations: "when_responding",
@@ -1095,6 +1105,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   calendar_birthdays_hidden: false,
   calendar_tour_completed: false,
   calendar_ics_subscriptions: [],
+  calendar_tag_colors: {},
   encrypt_emails: false,
   warn_external_recipients: true,
   auto_discover_keys: false,
@@ -1382,11 +1393,17 @@ export function build_merged_preferences(
     merged.calendar_schedule_custom_end = "";
   }
 
+  merged.calendar_working_week = normalize_working_week(
+    merged.calendar_working_week,
+  );
+
   merged.calendar_schedule_range = resolve_schedule_range(
     merged.calendar_schedule_range,
     merged.calendar_schedule_custom_start,
     merged.calendar_schedule_custom_end,
   );
+
+  merged.calendar_tag_colors = sanitize_tag_colors(merged.calendar_tag_colors);
 
   merged.custom_categories = sanitize_custom_categories(
     merged.custom_categories,

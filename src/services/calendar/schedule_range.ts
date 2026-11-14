@@ -36,6 +36,15 @@ export type ScheduleCustomError = "invalid" | "end_before_start" | "too_long";
 export const DEFAULT_SCHEDULE_RANGE: ScheduleRange = "upcoming";
 export const SCHEDULE_UPCOMING_DAYS = 30;
 export const SCHEDULE_CUSTOM_MAX_DAYS = 731;
+export const UPCOMING_PAST_DAYS = 30;
+export const UPCOMING_FUTURE_DAYS = 90;
+export const UPCOMING_STEP_DAYS = 90;
+export const UPCOMING_MAX_JUMP_DAYS = 365;
+
+export interface UpcomingWindow {
+  start: Date;
+  end: Date;
+}
 
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const DAY_MS = 86_400_000;
@@ -230,4 +239,71 @@ export function shift_schedule_anchor(
 
 export function is_schedule_range_pageable(range: ScheduleRange): boolean {
   return range !== "custom";
+}
+
+export function initial_upcoming_window(today: Date): UpcomingWindow {
+  const first = day_start(today);
+
+  return {
+    start: plus_days(first, -UPCOMING_PAST_DAYS),
+    end: day_end(plus_days(first, UPCOMING_FUTURE_DAYS)),
+  };
+}
+
+export function extend_upcoming_window(
+  window: UpcomingWindow,
+  direction: -1 | 1,
+): UpcomingWindow {
+  if (direction < 0) {
+    return {
+      start: plus_days(day_start(window.start), -UPCOMING_STEP_DAYS),
+      end: window.end,
+    };
+  }
+
+  return {
+    start: window.start,
+    end: day_end(plus_days(day_start(window.end), UPCOMING_STEP_DAYS)),
+  };
+}
+
+export function include_in_upcoming_window(
+  window: UpcomingWindow,
+  first: Date,
+  last: Date,
+): UpcomingWindow {
+  const start = day_start(first);
+  const end = day_end(last);
+
+  return {
+    start: start.getTime() < window.start.getTime() ? start : window.start,
+    end: end.getTime() > window.end.getTime() ? end : window.end,
+  };
+}
+
+export function jump_upcoming_window(
+  window: UpcomingWindow,
+  target: Date,
+): UpcomingWindow {
+  const start = day_start(target).getTime();
+  const gap = Math.max(
+    window.start.getTime() - start,
+    start - window.end.getTime(),
+  );
+
+  if (gap > UPCOMING_MAX_JUMP_DAYS * DAY_MS) {
+    return initial_upcoming_window(target);
+  }
+
+  return include_in_upcoming_window(window, target, target);
+}
+
+export function month_start_offset(day: Date, delta: number): Date {
+  return new Date(day.getFullYear(), day.getMonth() + delta, 1);
+}
+
+export function first_row_at_or_after(days: Date[], target: Date): number {
+  const target_ms = day_start(target).getTime();
+
+  return days.findIndex((day) => day_start(day).getTime() >= target_ms);
 }

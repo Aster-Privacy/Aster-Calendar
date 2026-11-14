@@ -30,6 +30,8 @@ import type {
   QuickCreateDraft,
   QuickCreatePreview,
 } from "@/components/calendar/quick_create_popover";
+import type { WorkingLocationHandlers } from "@/components/calendar/working_location_badge";
+import type { WeekdayKey } from "@/services/calendar/working_location";
 import type { use_calendar_state } from "@/components/calendar/use_calendar_state";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -286,6 +288,12 @@ export function CalendarContent({
       );
     }
 
+    if (state.is_schedule_endless) {
+      return new Intl.DateTimeFormat(language, { month: "short" }).format(
+        state.agenda_visible_month,
+      );
+    }
+
     if (state.view_mode === "agenda" && is_phone) {
       return new Intl.DateTimeFormat(language, { month: "short" }).format(
         state.range_start,
@@ -337,7 +345,9 @@ export function CalendarContent({
     is_phone,
     language,
     state.anchor_date,
+    state.agenda_visible_month,
     state.custom_view_days,
+    state.is_schedule_endless,
     state.period_end,
     state.range_start,
     state.view_mode,
@@ -359,6 +369,12 @@ export function CalendarContent({
       });
 
       return `${range.format(first)} - ${range.format(last)}`;
+    }
+
+    if (state.is_schedule_endless) {
+      return new Intl.DateTimeFormat(language, { month: "long" }).format(
+        state.agenda_visible_month,
+      );
     }
 
     if (state.view_mode === "agenda") {
@@ -398,7 +414,9 @@ export function CalendarContent({
   }, [
     language,
     state.anchor_date,
+    state.agenda_visible_month,
     state.custom_view_days,
+    state.is_schedule_endless,
     state.period_end,
     state.range_start,
     state.view_mode,
@@ -407,6 +425,10 @@ export function CalendarContent({
 
   const period_year = useMemo(() => {
     const year = new Intl.DateTimeFormat(language, { year: "numeric" });
+
+    if (state.is_schedule_endless) {
+      return year.format(state.agenda_visible_month);
+    }
 
     if (state.view_mode === "agenda") {
       if (state.range_start.getFullYear() !== state.period_end.getFullYear()) {
@@ -433,7 +455,9 @@ export function CalendarContent({
   }, [
     language,
     state.anchor_date,
+    state.agenda_visible_month,
     state.custom_view_days,
+    state.is_schedule_endless,
     state.period_end,
     state.range_start,
     state.view_mode,
@@ -676,7 +700,8 @@ export function CalendarContent({
     !state.is_loading &&
     !is_search_settling &&
     state.events.length === 0 &&
-    (is_searching || (state.view_mode === "agenda" && !state.agenda_has_more));
+    (is_searching ||
+      (state.view_mode === "agenda" && !state.is_schedule_endless));
 
   const has_any_events = useMemo(
     () => calendar_sync_engine.get_events().some((event) => !event.trashed_at),
@@ -1185,6 +1210,26 @@ export function CalendarContent({
     },
   };
 
+  const working_location_handlers = useMemo<WorkingLocationHandlers>(
+    () => ({
+      resolve: state.resolve_working_location,
+      usual_for: (day: Date) =>
+        state.working_week[String(day.getDay()) as WeekdayKey],
+      can_reset: state.can_reset_working_location,
+      on_set: state.set_day_working_location,
+      on_reset: state.reset_day_working_location,
+      on_other: state.open_other_working_location,
+    }),
+    [
+      state.can_reset_working_location,
+      state.open_other_working_location,
+      state.reset_day_working_location,
+      state.resolve_working_location,
+      state.set_day_working_location,
+      state.working_week,
+    ],
+  );
+
   const import_target_calendar_id = (() => {
     const preferred = state.preferences.calendar_default_calendar_id;
 
@@ -1338,7 +1383,7 @@ export function CalendarContent({
               calendar_by_id={state.calendar_by_id}
               calendars={state.calendars}
               event_menu_actions={event_menu_actions}
-              events={state.events}
+              events={state.view_events}
               draft_day={state.quick_range ? state.quick_range.start : null}
               on_day_click={state.handle_day_click}
               on_day_number_click={state.handle_year_day_click}
@@ -1362,6 +1407,7 @@ export function CalendarContent({
               t={state.t}
               time_format={state.preferences.time_format}
               week_start_day={state.week_start_day}
+              working_location={working_location_handlers}
             />
           )}
 
@@ -1373,7 +1419,7 @@ export function CalendarContent({
               calendar_by_id={state.calendar_by_id}
               calendars={state.calendars}
               event_menu_actions={event_menu_actions}
-              events={state.events}
+              events={state.view_events}
               is_phone={is_phone}
               is_single_day={state.view_mode === "day"}
               on_swipe_navigate={(direction) =>
@@ -1448,13 +1494,14 @@ export function CalendarContent({
               working_hours_start={
                 state.preferences.calendar_working_hours_start
               }
+              working_location={working_location_handlers}
             />
           )}
 
           {state.view_mode === "year" && (
             <CalendarYearView
               anchor_date={state.anchor_date}
-              events={state.events}
+              events={state.view_events}
               language={language}
               on_day_click={state.handle_year_day_click}
               on_month_click={state.handle_year_month_click}
@@ -1466,28 +1513,25 @@ export function CalendarContent({
 
           {state.view_mode === "agenda" && !show_empty_state && (
             <CalendarAgendaView
-              anchor_date={state.anchor_date}
               dim_past_events={state.preferences.calendar_dim_past_events}
               calendar_by_id={state.calendar_by_id}
               calendars={state.calendars}
-              day_count={state.agenda_day_count}
               event_menu_actions={event_menu_actions}
-              events={state.events}
-              has_more={state.agenda_has_more}
-              is_loading_more={state.is_agenda_loading_more}
-              on_load_more={state.load_more_agenda}
+              events={state.view_events}
+              endless={
+                state.is_schedule_endless
+                  ? {
+                      is_loading: state.is_agenda_window_loading,
+                      scroll_request: state.agenda_scroll_request,
+                      on_extend: state.extend_agenda_window,
+                      on_visible_month_change: state.set_agenda_visible_month,
+                    }
+                  : undefined
+              }
               on_create_click={state.handle_create_click}
               on_event_click={state.handle_event_click}
-              range_end={
-                state.schedule_range === "upcoming"
-                  ? undefined
-                  : state.period_end
-              }
-              range_start={
-                state.schedule_range === "upcoming"
-                  ? undefined
-                  : state.range_start
-              }
+              range_end={state.period_end}
+              range_start={state.range_start}
               selected_event_id={
                 state.selected_event
                   ? event_occurrence_key(state.selected_event)
@@ -1694,6 +1738,26 @@ export function CalendarContent({
         }}
         title={state.t("calendar.cancel_booking")}
         variant="danger"
+      />
+
+      <ConfirmationModal
+        cancel_text={state.t("common.cancel")}
+        confirm_text={state.t("mail.send")}
+        extra_content={
+          <p className="mt-3 text-[14px] leading-normal font-medium [overflow-wrap:anywhere]">
+            {state.t("calendar.invite_card_reply_to", {
+              email: state.pending_rsvp_reply?.organizer_email ?? "",
+            })}
+          </p>
+        }
+        is_open={!!state.pending_rsvp_reply}
+        message={state.t("calendar.invite_card_reply_target_unverified")}
+        on_cancel={state.cancel_rsvp_reply}
+        on_confirm={() => {
+          void state.confirm_rsvp_reply();
+        }}
+        title={state.t("calendar.invite_your_response")}
+        variant="warning"
       />
 
       <RecurrenceScopeDialog

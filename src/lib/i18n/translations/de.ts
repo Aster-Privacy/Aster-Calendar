@@ -494,6 +494,9 @@ export const de = {
       "Ihre Zahlung war nicht erfolgreich. Der Zugriff wird in {{days}} Tagen eingeschränkt.",
     billing_alert_action: "Bezahlen",
     dismiss: "Verwerfen",
+    web_sandbox_off_title: "Webinhalte laufen ohne die System-Sandbox",
+    web_sandbox_off_body:
+      "Auf diesem Computer kann Aster Calendar die bubblewrap-Sandbox nicht starten, daher laufen Webinhalte ohne sie. Um sie wieder zu aktivieren, installieren Sie das Paket bubblewrap, erlauben Sie unprivilegierte User-Namespaces und starten Sie Aster Calendar neu.",
     load_content: "Laden",
     open_link: "Link öffnen",
     no_icon: "Kein Symbol",
@@ -10138,50 +10141,20 @@ export const de = {
     email_copied: "E-Mail-Adresse kopiert",
     last_updated: "Zuletzt aktualisiert: {{date}}",
     link_device_cancel: "Abbrechen",
-    link_device_code_placeholder: "XXXX-XXXX",
-    link_device_confirm_button: "Gerät verknüpfen",
-    link_device_confirm_prompt:
-      "Möchten Sie dieses Gerät mit Ihrem Konto verknüpfen?",
-    link_device_confirming: "Gerät wird verknüpft...",
-    link_device_desktop: "Desktop-App",
-    device_fingerprint: "Prüfcode",
-    device_code_verify_toggle: "Dieses Gerät überprüfen",
-    link_device_fingerprint_hint:
-      "Gib den Prüfcode ein, den dein neues Gerät anzeigt. Wähle in der Desktop-App „Dieses Gerät überprüfen“, um ihn anzuzeigen.",
-    link_device_fingerprint_placeholder: "XXXX XXXX XXXX XXXX XXXX",
-    link_device_fingerprint_incomplete:
-      "Gib den vollständigen Prüfcode von deinem neuen Gerät ein, um das Gerät zu verknüpfen.",
-    link_device_fingerprint_mismatch:
-      "Dieser Code stimmt nicht mit deinem neuen Gerät überein. Prüfe den Code auf deinem neuen Gerät und gib ihn erneut ein. Wenn er weiterhin nicht übereinstimmt, wähle „Abbrechen“.",
-    device_code_fingerprint_hint:
-      "Gib diesen Code auf dem Gerät ein, auf dem du bereits angemeldet bist, um dieses Gerät zu verknüpfen.",
-    link_device_change_account: "Konto wechseln",
+    device_fingerprint: "Gerätefingerabdruck",
+    device_fingerprint_copy: "Gerätefingerabdruck kopieren",
+    device_code_fingerprint_required_hint:
+      "Ihr Browser fragt nach diesem Gerätefingerabdruck, bevor er das Gerät verknüpft.",
     link_device_choose_account: "Konto auswählen",
-    link_device_choose_account_description: "Um Ihre Desktop-App zu verknüpfen",
-    link_device_choose_account_note:
-      "Ihre Schlüssel bleiben verschlüsselt, während sie zwischen Ihren Geräten übertragen werden.",
-    link_device_use_another_account: "Anderes Konto verwenden",
-    link_device_use_this_account: "Dieses Konto verwenden",
-    link_device_other_accounts: "Zu einem anderen Konto wechseln",
-    link_device_enter_code:
-      "Geben Sie den in Ihrer Desktop-App angezeigten Code ein.",
-    link_device_expired_code:
-      "Dieser Code ist abgelaufen oder stimmte nicht überein. Ihre Desktop-App hat den aktuellen Code.",
     link_device_failed:
       "Die Verknüpfung wurde nicht abgeschlossen. Ein erneuter Versuch löst das Problem in der Regel. Ihr Konto bleibt unverändert.",
-    link_device_invalid_code:
-      "Ein Verknüpfungscode ist 8 Zeichen lang. Prüfen Sie den Code und versuchen Sie es erneut.",
     hub_accounts_or_password: "Oder mit Passwort anmelden",
     hub_account_password_required: "Passwort erforderlich",
     hub_account_link_failed:
       "Zum Fortfahren mit diesem Konto das zugehörige Passwort eingeben.",
-    link_device_success: "Gerät verknüpft",
-    link_device_success_description:
-      "Ihre Desktop-App ist nun verknüpft. Sie können diesen Tab schließen.",
     link_device_title: "Gerät verknüpfen",
     link_device_try_again:
       "Hat nicht geklappt. Ein erneuter Versuch löst das Problem in der Regel.",
-    link_device_verify_button: "Weiter",
     pair_device_cancel: "Abbrechen",
     pair_device_failed:
       "Das Koppeln wurde nicht abgeschlossen. Ein erneuter Versuch aus Ihrer Desktop-App löst das Problem in der Regel. Ihr Konto bleibt unverändert.",
@@ -10244,17 +10217,6 @@ export const de = {
       "Studierendenstatus bestätigt. Melden Sie sich an, und Ihr Rabatt von 30 % wird beim Bezahlen angewendet.",
     academic_failed_signin_note:
       "Dieser Bestätigungslink ist abgelaufen oder wurde bereits verwendet. Melden Sie sich an und fordern Sie in den Abrechnungseinstellungen einen neuen an.",
-    link_device_upgrade_required_toast:
-      "Für ein Bridge-Gerät ist mindestens der Star-Tarif erforderlich. Führen Sie ein Upgrade durch, um fortzufahren.",
-    link_device_upgrade_title: "Upgraden, um dieses Gerät zu verknüpfen",
-    link_device_upgrade_description:
-      "Für die Verbindung eines Desktop-Bridge mit Ihrem Konto ist mindestens der Star-Tarif erforderlich. Wählen Sie unten einen Tarif, und Ihr Gerät wird direkt nach dem Bezahlen verknüpft.",
-    link_device_already_linked:
-      "Dieses Gerät ist bereits mit einem anderen Konto verknüpft. Heben Sie die Verknüpfung dort auf und versuchen Sie es erneut.",
-    link_device_rate_limited:
-      "Zu viele Versuche. Warten Sie etwa eine Minute und versuchen Sie es erneut.",
-    link_device_account_suspended:
-      "Dieses Konto ist gesperrt, daher lassen sich derzeit keine neuen Geräte verknüpfen. Wenden Sie sich an den Support.",
     plan_academic_discount_note:
       "Ihr Rabatt von 30 % wird beim Bezahlen automatisch angewendet, sobald Ihre E-Mail bestätigt ist.",
     plan_referral_discount_note:
@@ -11404,6 +11366,7 @@ export const de = {
     holiday_region_au: "Australien",
     holiday_region_pt: "Portugal",
     holiday_region_br: "Brasilien",
+    holiday_region_in: "Indien",
     settings_day_split: "Tagesansicht nebeneinander",
     settings_day_split_desc:
       "Jeden Kalender in der Tagesansicht in einer eigenen Spalte anzeigen",
@@ -11699,6 +11662,8 @@ export const de = {
     tags: "Tags",
     tags_placeholder: "Tags hinzufügen",
     remove_tag: "Tag entfernen",
+    tag_color: "Tag-Farbe",
+    change_tag_color: "Farbe für {{ tag }} ändern",
     no_tags: "Noch keine Tags",
     details: "Details",
     details_hint: "Wähle einen Termin, um Details zu sehen",
@@ -11820,6 +11785,13 @@ export const de = {
     working_location_home: "Zuhause",
     working_location_office: "Büro",
     working_location_other: "Sonstiges",
+    working_location_none: "Keiner",
+    working_location_for_day: "Arbeitsort: {{location}}",
+    working_location_usual_for_day: "Arbeitsort: {{location}} (übliche Woche)",
+    working_location_set: "Arbeitsort festlegen",
+    working_location_use_usual: "Üblichen verwenden ({{location}})",
+    working_location_clear: "Entfernen",
+    working_location_other_place: "Anderer Ort…",
     out_of_office_note:
       "Andere sehen dich in diesem Zeitraum als nicht verfügbar.",
     focus_time_note:
@@ -11908,6 +11880,8 @@ export const de = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "Braun",
+    color_gray: "Grau",
     event_color: "Farbe",
     year: "Jahr",
     custom_view: "Benutzerdefinierte Ansicht",
@@ -12087,6 +12061,9 @@ export const de = {
     settings_show_declined_desc: "Abgelehnte Termine im Raster sichtbar lassen",
     settings_dim_past_events: "Vergangene Termine abdunkeln",
     settings_dim_past_events_desc: "Bereits beendete Termine abschwächen",
+    settings_working_week: "Üblicher Arbeitsort",
+    settings_working_week_desc:
+      "Wird an jedem Tag als Symbol angezeigt. Einen einzelnen Tag änderst du über sein Symbol.",
     settings_density: "Informationsdichte",
     settings_density_desc: "Wie viel vertikalen Platz jede Stunde einnimmt",
     settings_density_responsive: "Automatisch",

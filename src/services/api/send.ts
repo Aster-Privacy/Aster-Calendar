@@ -64,6 +64,8 @@ interface SimpleSendRequest {
   attachments?: SendAttachmentPayload[];
   forward_original_mail_id?: string;
   in_reply_to?: string;
+  external_pgp_bodies?: Record<string, string>;
+  obscure_subject?: boolean;
 }
 
 interface SimpleSendResponse {

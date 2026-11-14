@@ -566,6 +566,9 @@ export const ar = {
       "لم تتم عملية الدفع. سيتم تقييد الوصول خلال {{days}} يوماً.",
     billing_alert_action: "ادفع",
     dismiss: "تجاهل",
+    web_sandbox_off_title: "يعمل محتوى الويب دون بيئة العزل الخاصة بالنظام",
+    web_sandbox_off_body:
+      "على هذا الكمبيوتر، لا يستطيع Aster Calendar تشغيل بيئة العزل bubblewrap، لذلك يعمل محتوى الويب من دونها. لإعادة تشغيلها، ثبّت حزمة bubblewrap واسمح بمساحات أسماء المستخدمين غير المميزة، ثم أعد تشغيل Aster Calendar.",
     load_content: "تحميل",
     open_link: "فتح الرابط",
     no_icon: "بدون أيقونة",
@@ -9813,44 +9816,16 @@ export const ar = {
     device_code_waiting: "في انتظار التأكيد",
     device_code_expires_in: "ينتهي خلال",
     link_device_title: "ربط الجهاز",
-    link_device_enter_code: "أدخل الرمز المعروض على تطبيق سطح المكتب الخاص بك.",
-    link_device_code_placeholder: "XXXX-XXXX",
-    link_device_verify_button: "متابعة",
-    link_device_confirm_prompt: "هل تريد ربط هذا الجهاز بحسابك؟",
-    link_device_confirm_button: "ربط الجهاز",
-    link_device_confirming: "جارٍ ربط الجهاز...",
     link_device_cancel: "إلغاء",
-    link_device_desktop: "تطبيق سطح المكتب",
-    device_fingerprint: "رمز التحقق",
-    device_code_verify_toggle: "التحقق من هذا الجهاز",
-    link_device_fingerprint_hint:
-      "أدخل رمز التحقق الذي يعرضه جهازك الجديد. في تطبيق سطح المكتب، اختر التحقق من هذا الجهاز لعرضه.",
-    link_device_fingerprint_placeholder: "XXXX XXXX XXXX XXXX XXXX",
-    link_device_fingerprint_incomplete:
-      "لربط الجهاز، أدخل رمز التحقق الكامل من جهازك الجديد.",
-    link_device_fingerprint_mismatch:
-      "هذا الرمز لا يطابق جهازك الجديد. تحقق من الرمز على جهازك الجديد وأدخله مرة أخرى. إذا ظل غير مطابق، فاختر إلغاء.",
-    device_code_fingerprint_hint:
-      "لربط هذا الجهاز، أدخل هذا الرمز على الجهاز الذي سجّلت الدخول عليه بالفعل.",
-    link_device_change_account: "تغيير الحساب",
+    device_fingerprint: "بصمة الجهاز",
+    device_fingerprint_copy: "نسخ بصمة الجهاز",
+    device_code_fingerprint_required_hint:
+      "يطلب متصفحك بصمة الجهاز هذه قبل ربط الجهاز.",
     link_device_choose_account: "اختر حسابًا",
-    link_device_choose_account_description: "لربط تطبيق سطح المكتب",
-    link_device_choose_account_note:
-      "تبقى مفاتيح التشفير الخاصة بك مشفّرة أثناء انتقالها بين أجهزتك.",
-    link_device_use_another_account: "استخدام حساب آخر",
-    link_device_use_this_account: "استخدام هذا الحساب",
-    link_device_other_accounts: "التبديل إلى حساب آخر",
     hub_accounts_or_password: "أو سجّل الدخول باستخدام كلمة المرور",
     hub_account_password_required: "كلمة المرور مطلوبة",
     hub_account_link_failed:
       "للمتابعة بهذا الحساب، أدخل كلمة المرور الخاصة به.",
-    link_device_success: "تم ربط الجهاز",
-    link_device_success_description:
-      "تطبيق سطح المكتب الخاص بك مرتبط الآن. يمكنك إغلاق هذه التبويبة.",
-    link_device_invalid_code:
-      "رمز الربط مكوّن من 8 أحرف. تحقق من الرمز وحاول مجددًا.",
-    link_device_expired_code:
-      "انتهت صلاحية هذا الرمز أو لم يتطابق. تطبيق سطح المكتب الخاص بك لديه الرمز الحالي.",
     link_device_failed:
       "الربط لم يكتمل. البداية من جديد عادةً ما تحل الأمر. حسابك لم يتغير.",
     link_device_try_again: "لم ينجح ذلك. البداية من جديد عادةً ما تحل الأمر.",
@@ -9915,17 +9890,6 @@ export const ar = {
       "تم التحقق من صفة الطالب. سجّل الدخول وسيُطبَّق خصم 30% عند الدفع.",
     academic_failed_signin_note:
       "انتهت صلاحية رابط التحقق هذا أو سبق استخدامه. سجّل الدخول واطلب رابطًا جديدًا من إعدادات الفوترة.",
-    link_device_upgrade_required_toast:
-      "يتطلب ربط جهاز Bridge خطة Star أو أعلى. رقِّ خطتك للمتابعة.",
-    link_device_upgrade_title: "رقِّ خطتك لربط هذا الجهاز",
-    link_device_upgrade_description:
-      "يتطلب ربط Bridge لسطح المكتب بحسابك خطة Star أو أعلى. اختر خطة أدناه وسيُربط جهازك فور إتمام الدفع.",
-    link_device_already_linked:
-      "هذا الجهاز مرتبط بحساب آخر. ألغِ ربطه هناك أولًا ثم حاول مرة أخرى.",
-    link_device_rate_limited:
-      "محاولات كثيرة جدًا. انتظر نحو دقيقة ثم حاول مرة أخرى.",
-    link_device_account_suspended:
-      "هذا الحساب موقوف، لذا لا يمكن ربط أجهزة جديدة الآن. تواصل مع الدعم لحل المشكلة.",
     plan_academic_discount_note:
       "يُطبَّق خصم 30% تلقائيًا عند الدفع بمجرد التحقق من بريدك الإلكتروني.",
     plan_referral_discount_note: "يُطبَّق خصم الإحالة تلقائيًا عند الدفع.",
@@ -10997,6 +10961,7 @@ export const ar = {
     holiday_region_au: "أستراليا",
     holiday_region_pt: "البرتغال",
     holiday_region_br: "البرازيل",
+    holiday_region_in: "الهند",
     settings_day_split: "عرض اليوم جنبًا إلى جنب",
     settings_day_split_desc: "إظهار كل تقويم في عمود خاص به في عرض اليوم",
     settings_info_day_split:
@@ -11270,6 +11235,8 @@ export const ar = {
     tags: "الوسوم",
     tags_placeholder: "أضف وسوماً",
     remove_tag: "إزالة الوسم",
+    tag_color: "لون الوسم",
+    change_tag_color: "تغيير لون {{ tag }}",
     no_tags: "لا توجد وسوم بعد",
     details: "التفاصيل",
     details_hint: "اختر حدثاً لعرض تفاصيله",
@@ -11391,6 +11358,14 @@ export const ar = {
     working_location_home: "المنزل",
     working_location_office: "المكتب",
     working_location_other: "آخر",
+    working_location_none: "لا شيء",
+    working_location_for_day: "موقع العمل: {{location}}",
+    working_location_usual_for_day:
+      "موقع العمل: {{location}} (الأسبوع المعتاد)",
+    working_location_set: "تحديد موقع العمل",
+    working_location_use_usual: "استخدام المعتاد ({{location}})",
+    working_location_clear: "مسح",
+    working_location_other_place: "مكان آخر…",
     out_of_office_note: "سيراك الآخرون غير متاح خلال هذه الفترة.",
     focus_time_note: "وقت التركيز يحجز تقويمك حتى لا يحدد أحد موعدًا فوقه.",
     event_deleted: "تم حذف الحدث",
@@ -11483,6 +11458,8 @@ export const ar = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "بني",
+    color_gray: "رمادي",
     event_color: "اللون",
     year: "سنة",
     custom_view: "عرض مخصص",
@@ -11650,6 +11627,9 @@ export const ar = {
     settings_show_declined_desc: "إبقاء الأحداث التي رفضتها ظاهرة في الشبكة",
     settings_dim_past_events: "تقليل سطوع الأحداث الماضية",
     settings_dim_past_events_desc: "تخفيت الأحداث التي انتهت بالفعل",
+    settings_working_week: "موقع العمل المعتاد",
+    settings_working_week_desc:
+      "يظهر كأيقونة في كل يوم. لتغيير يوم واحد، استخدم أيقونة ذلك اليوم.",
     settings_density: "كثافة المعلومات",
     settings_density_desc: "مقدار المساحة الرأسية لكل ساعة",
     settings_density_responsive: "تلقائي",

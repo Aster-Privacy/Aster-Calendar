@@ -45,35 +45,3 @@ export async function revoke_device(
 ): Promise<ApiResponse<void>> {
   return api_client.delete<void>(`/core/v1/devices/${device_id}`);
 }
-
-export interface DeviceCodeVerifyResponse {
-  ed25519_pk: string;
-  mlkem_pk: string;
-  x25519_pk: string;
-  machine_name: string;
-  envelope_versions?: number[];
-}
-
-export interface DeviceCodeConfirmResponse {
-  device_id: string;
-  machine_name: string;
-}
-
-export async function verify_device_code(
-  code: string,
-): Promise<ApiResponse<DeviceCodeVerifyResponse>> {
-  return api_client.post<DeviceCodeVerifyResponse>(
-    "/core/v1/auth/device/code/verify",
-    { code },
-  );
-}
-
-export async function confirm_device_code(
-  code: string,
-  sealed_envelope: string,
-): Promise<ApiResponse<DeviceCodeConfirmResponse>> {
-  return api_client.post<DeviceCodeConfirmResponse>(
-    "/core/v1/auth/device/code/confirm",
-    { code, sealed_envelope },
-  );
-}

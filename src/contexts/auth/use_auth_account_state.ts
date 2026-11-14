@@ -47,10 +47,6 @@ import {
 import { clear_signed_out_account_caches } from "./signed_out_account_caches";
 
 import {
-  remember_saved_login_accounts,
-  seed_session_login_salt,
-} from "@/services/crypto/login_proof";
-import {
   init_desktop_device_auth,
   forget_device_account,
 } from "@/native/desktop_device_auth";
@@ -109,7 +105,11 @@ import { release_app_lock } from "@/services/app_lock_unlock";
 import { use_i18n } from "@/lib/i18n/context";
 import { ignore_error } from "@/lib/ignore_error";
 import { remember_current_user } from "@/services/current_identity";
-import { flush_pending_login_enrollment } from "@/services/crypto/login_proof";
+import {
+  flush_pending_login_enrollment,
+  remember_saved_login_accounts,
+  seed_session_login_salt,
+} from "@/services/crypto/login_proof";
 
 export function use_auth_account_state() {
   const { t } = use_i18n();

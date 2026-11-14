@@ -36,11 +36,13 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   BellAlertIcon,
+  BuildingOffice2Icon,
   CalendarDaysIcon,
   ClockIcon,
   CommandLineIcon,
   EllipsisHorizontalIcon,
   GlobeAltIcon,
+  HomeIcon,
   PlusIcon,
   Squares2X2Icon,
   ViewColumnsIcon,
@@ -74,14 +76,17 @@ import { TimeZonePicker } from "@/components/settings/appearance/time_zone_picke
 import { InviteSenderSettingRow } from "@/components/settings/invite_sender_setting_row";
 import { use_preferences } from "@/contexts/preferences_context";
 import { use_i18n } from "@/lib/i18n/context";
+import { list_calendars } from "@/services/api/calendar";
 import {
-  list_calendars,
-  set_calendar_visibility,
-} from "@/services/api/calendar";
+  apply_calendar_visibility,
+  set_calendar_hidden,
+} from "@/services/calendar/local_visibility";
+import { use_local_calendar_visibility } from "@/hooks/use_local_calendar_visibility";
 import {
   clamp_custom_view_days,
   CUSTOM_VIEW_DAY_OPTIONS,
   EVENT_COLOR_OPTIONS,
+  find_event_color_option,
   week_start_day_index,
 } from "@/components/calendar/calendar_utils";
 import {
@@ -89,6 +94,11 @@ import {
   DEFAULT_REMINDER_OPTIONS,
   format_default_reminder,
 } from "@/services/calendar/event_reminders";
+import {
+  normalize_working_week,
+  type UsualLocation,
+  type WeekdayKey,
+} from "@/services/calendar/working_location";
 const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120];
 const REMINDER_OPTIONS = DEFAULT_REMINDER_OPTIONS.filter((value) => value >= 0);
 const ALL_DAY_REMINDER_OPTIONS = DEFAULT_ALL_DAY_REMINDER_OPTIONS.filter(
@@ -345,6 +355,24 @@ export function CalendarViewsSection() {
     update_preference("calendar_working_days", next);
   };
 
+  const working_week = normalize_working_week(
+    preferences.calendar_working_week,
+  );
+  const next_usual_location: Record<string, UsualLocation> = {
+    none: "office",
+    office: "home",
+    home: null,
+  };
+
+  const cycle_usual_location = (day_index: number) => {
+    const key = String(day_index) as WeekdayKey;
+
+    update_preference("calendar_working_week", {
+      ...working_week,
+      [key]: next_usual_location[working_week[key] ?? "none"],
+    });
+  };
+
   const add_world_clock = (value: string) => {
     if (
       value === "add" ||
@@ -495,6 +523,7 @@ export function CalendarViewsSection() {
             { value: "au", label: t("calendar.holiday_region_au") },
             { value: "pt", label: t("calendar.holiday_region_pt") },
             { value: "br", label: t("calendar.holiday_region_br") },
+            { value: "in", label: t("calendar.holiday_region_in") },
           ]}
           value={preferences.calendar_holiday_region ?? "none"}
           on_change={(value) =>
@@ -840,6 +869,56 @@ export function CalendarViewsSection() {
           )}
           label={t("calendar.settings_working_days")}
         />
+
+        <SettingControlRow
+          control={ordered_weekdays.map((day_index) => {
+            const usual = working_week[String(day_index) as WeekdayKey];
+            const usual_label = usual
+              ? t(
+                  usual === "home"
+                    ? "calendar.working_location_home"
+                    : "calendar.working_location_office",
+                )
+              : t("calendar.working_location_none");
+
+            return (
+              <button
+                key={day_index}
+                aria-label={`${weekday_short(day_index)}: ${usual_label}`}
+                className="flex h-11 w-8 flex-col items-center justify-center gap-0.5 rounded-full border text-[12px] font-medium transition-colors duration-150 ease-out"
+                style={{
+                  backgroundColor: usual
+                    ? "var(--accent-color)"
+                    : "transparent",
+                  borderColor: usual
+                    ? "var(--accent-color)"
+                    : "var(--border-primary)",
+                  color: usual
+                    ? "var(--accent-fg, #ffffff)"
+                    : "var(--text-secondary)",
+                }}
+                title={usual_label}
+                type="button"
+                onClick={() => cycle_usual_location(day_index)}
+              >
+                <span>{t(WEEKDAY_KEYS[day_index])}</span>
+                {usual === "home" ? (
+                  <HomeIcon aria-hidden="true" className="h-3.5 w-3.5" />
+                ) : usual === "office" ? (
+                  <BuildingOffice2Icon
+                    aria-hidden="true"
+                    className="h-3.5 w-3.5"
+                  />
+                ) : (
+                  <span aria-hidden="true" className="h-3.5 w-3.5" />
+                )}
+              </button>
+            );
+          })}
+          control_width="auto"
+          description={t("calendar.settings_working_week_desc")}
+          label={t("calendar.settings_working_week")}
+        />
       </IslandSection>
     </IslandSections>
   );
@@ -1055,7 +1134,13 @@ export function CalendarEventsSection() {
               label: t(option.name_key),
             })),
           ]}
-          value={preferences.calendar_default_event_color || "calendar"}
+          value={
+            preferences.calendar_default_event_color
+              ? (find_event_color_option(
+                  preferences.calendar_default_event_color,
+                )?.hex ?? preferences.calendar_default_event_color)
+              : "calendar"
+          }
           on_change={(value) =>
             update_preference(
               "calendar_default_event_color",
@@ -1321,7 +1406,17 @@ export { CalendarImportExportSection } from "./calendar_import_export_section";
 export function CalendarListSection() {
   const { t } = use_i18n();
   const { preferences, update_preference } = use_preferences();
-  const [calendars, set_calendars] = useState<DecryptedCalendar[]>([]);
+  const [server_calendars, set_calendars] = useState<DecryptedCalendar[]>([]);
+  const { visibility, update: update_visibility } =
+    use_local_calendar_visibility({
+      calendars: server_calendars,
+      subscriptions: preferences.calendar_ics_subscriptions ?? [],
+      birthdays_hidden: preferences.calendar_birthdays_hidden === true,
+    });
+  const calendars = useMemo(
+    () => apply_calendar_visibility(server_calendars, visibility),
+    [server_calendars, visibility],
+  );
   const [is_loading, set_is_loading] = useState(true);
   const [editor, set_editor] = useState<{
     is_open: boolean;
@@ -1370,29 +1465,10 @@ export function CalendarListSection() {
     calendars[0]?.id ??
     "";
 
-  const toggle_visibility = (calendar: DecryptedCalendar, next: boolean) => {
-    set_calendars((current) =>
-      current.map((entry) =>
-        entry.id === calendar.id ? { ...entry, is_visible: next } : entry,
-      ),
+  const toggle_visibility = (calendar: DecryptedCalendar, next: boolean) =>
+    update_visibility((current) =>
+      set_calendar_hidden(current, calendar.id, !next),
     );
-    const revert = () => {
-      set_calendars((current) =>
-        current.map((entry) =>
-          entry.id === calendar.id ? { ...entry, is_visible: !next } : entry,
-        ),
-      );
-      show_toast(t("calendar.settings_calendar_save_failed"), "error");
-    };
-
-    set_calendar_visibility(calendar.id, next)
-      .then((result) => {
-        if (!result.success) {
-          revert();
-        }
-      })
-      .catch(revert);
-  };
 
   const set_as_default = (calendar: DecryptedCalendar) => {
     void update_preference("calendar_default_calendar_id", calendar.id);

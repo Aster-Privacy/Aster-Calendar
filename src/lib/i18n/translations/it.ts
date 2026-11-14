@@ -580,6 +580,9 @@ export const it = {
       "Il tuo pagamento non è andato a buon fine. L'accesso sarà limitato tra {{days}} giorni.",
     billing_alert_action: "Paga",
     dismiss: "Ignora",
+    web_sandbox_off_title: "I contenuti web vengono eseguiti senza la sandbox di sistema",
+    web_sandbox_off_body:
+      "Su questo computer Aster Calendar non riesce ad avviare la sandbox bubblewrap, quindi i contenuti web vengono eseguiti senza. Per riattivarla, installi il pacchetto bubblewrap, consenta gli spazi dei nomi utente non privilegiati e riavvii Aster Calendar.",
     load_content: "Carica",
     open_link: "Apri link",
     no_icon: "Nessuna icona",
@@ -10064,49 +10067,19 @@ export const it = {
     device_code_waiting: "In attesa di conferma",
     last_updated: "Ultimo aggiornamento: {{date}}",
     link_device_cancel: "Annulla",
-    link_device_code_placeholder: "XXXX-XXXX",
-    link_device_confirm_button: "Collega dispositivo",
-    link_device_confirm_prompt:
-      "Vuoi collegare questo dispositivo al tuo account?",
-    link_device_confirming: "Collegamento dispositivo...",
-    link_device_desktop: "App desktop",
-    device_fingerprint: "Codice di verifica",
-    device_code_verify_toggle: "Verifica questo dispositivo",
-    link_device_fingerprint_hint:
-      "Inserisci il codice di verifica mostrato sul nuovo dispositivo. Nell'app desktop, seleziona Verifica questo dispositivo per visualizzarlo.",
-    link_device_fingerprint_placeholder: "XXXX XXXX XXXX XXXX XXXX",
-    link_device_fingerprint_incomplete:
-      "Per collegare il dispositivo, inserisci il codice di verifica completo del nuovo dispositivo.",
-    link_device_fingerprint_mismatch:
-      "Questo codice non corrisponde al nuovo dispositivo. Controlla il codice sul nuovo dispositivo e inseriscilo di nuovo. Se ancora non corrisponde, seleziona Annulla.",
-    device_code_fingerprint_hint:
-      "Per collegare questo dispositivo, inserisci questo codice sul dispositivo su cui hai già effettuato l'accesso.",
-    link_device_change_account: "Cambia account",
+    device_fingerprint: "Impronta digitale del dispositivo",
+    device_fingerprint_copy: "Copia impronta digitale del dispositivo",
+    device_code_fingerprint_required_hint:
+      "Il browser chiede questa impronta digitale del dispositivo prima di collegare il dispositivo.",
     link_device_choose_account: "Scegli un account",
-    link_device_choose_account_description: "Per collegare la tua app desktop",
-    link_device_choose_account_note:
-      "Le tue chiavi di crittografia restano crittografate mentre passano da un dispositivo all'altro.",
-    link_device_use_another_account: "Usa un altro account",
-    link_device_use_this_account: "Usa questo account",
-    link_device_other_accounts: "Passa a un altro account",
-    link_device_enter_code:
-      "Inserisci il codice mostrato nella tua app desktop.",
-    link_device_expired_code:
-      "Questo codice è scaduto o non corrispondeva. La tua app desktop ha quello attuale.",
     link_device_failed:
       "Il collegamento non si è completato. Ricominciare di solito risolve. Il tuo account è invariato.",
-    link_device_invalid_code:
-      "Un codice di collegamento è lungo 8 caratteri. Controlla il codice e riprova.",
     hub_accounts_or_password: "Oppure accedi con la tua password",
     hub_account_password_required: "Password obbligatoria",
     hub_account_link_failed:
       "Per continuare con questo account, inserisci la sua password.",
-    link_device_success: "Dispositivo collegato",
-    link_device_success_description:
-      "La tua app desktop è ora collegata. Puoi chiudere questa scheda.",
     link_device_title: "Collega dispositivo",
     link_device_try_again: "Non ha funzionato. Ricominciare di solito risolve.",
-    link_device_verify_button: "Continua",
     pair_device_cancel: "Annulla",
     pair_device_failed:
       "L'associazione non si è completata. Ricominciare dalla tua app desktop di solito risolve. Il tuo account è invariato.",
@@ -10172,18 +10145,6 @@ export const it = {
       "Stato di studente verificato. Accedi e lo sconto del 30% verrà applicato al pagamento.",
     academic_failed_signin_note:
       "Il link di verifica è scaduto o è già stato usato. Accedi e richiedine uno nuovo nelle impostazioni di Fatturazione.",
-    link_device_upgrade_required_toast:
-      "Per collegare un dispositivo Bridge serve il piano Star o superiore. Passa a un piano superiore per continuare.",
-    link_device_upgrade_title:
-      "Passa a un piano superiore per collegare questo dispositivo",
-    link_device_upgrade_description:
-      "Per collegare un Bridge desktop al tuo account serve il piano Star o superiore. Scegli un piano qui sotto e il dispositivo verrà collegato subito dopo il pagamento.",
-    link_device_already_linked:
-      "Questo dispositivo è già collegato a un altro account. Scollegalo prima da lì, poi riprova.",
-    link_device_rate_limited:
-      "Troppi tentativi. Attendi circa un minuto e riprova.",
-    link_device_account_suspended:
-      "Questo account è sospeso, quindi al momento non è possibile collegare nuovi dispositivi. Contatta l’assistenza per risolvere.",
     plan_academic_discount_note:
       "Lo sconto del 30% viene applicato automaticamente al pagamento appena la tua e-mail è verificata.",
     plan_referral_discount_note:
@@ -11317,6 +11278,7 @@ export const it = {
     holiday_region_au: "Australia",
     holiday_region_pt: "Portogallo",
     holiday_region_br: "Brasile",
+    holiday_region_in: "India",
     settings_day_split: "Vista giorno affiancata",
     settings_day_split_desc:
       "Mostra ogni calendario in una colonna separata nella vista giorno",
@@ -11604,6 +11566,8 @@ export const it = {
     tags: "Tag",
     tags_placeholder: "Aggiungi tag",
     remove_tag: "Rimuovi tag",
+    tag_color: "Colore del tag",
+    change_tag_color: "Cambia il colore di {{ tag }}",
     no_tags: "Nessun tag",
     details: "Dettagli",
     details_hint: "Seleziona un evento per vederne i dettagli",
@@ -11725,6 +11689,14 @@ export const it = {
     working_location_home: "Casa",
     working_location_office: "Ufficio",
     working_location_other: "Altro",
+    working_location_none: "Nessuno",
+    working_location_for_day: "Luogo di lavoro: {{location}}",
+    working_location_usual_for_day:
+      "Luogo di lavoro: {{location}} (settimana abituale)",
+    working_location_set: "Imposta luogo di lavoro",
+    working_location_use_usual: "Usa quello abituale ({{location}})",
+    working_location_clear: "Cancella",
+    working_location_other_place: "Altro luogo…",
     out_of_office_note:
       "Gli altri ti vedranno non disponibile in questo periodo.",
     focus_time_note:
@@ -11813,6 +11785,8 @@ export const it = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "Marrone",
+    color_gray: "Grigio",
     event_color: "Colore",
     year: "Anno",
     custom_view: "Vista personalizzata",
@@ -11992,6 +11966,9 @@ export const it = {
     settings_show_declined_desc: "Mantieni visibili gli eventi rifiutati",
     settings_dim_past_events: "Riduci la luminosità degli eventi passati",
     settings_dim_past_events_desc: "Sfuma gli eventi già conclusi",
+    settings_working_week: "Luogo di lavoro abituale",
+    settings_working_week_desc:
+      "Viene mostrato come icona su ogni giorno. Per cambiare un solo giorno, usa la sua icona.",
     settings_density: "Densità delle informazioni",
     settings_density_desc: "Quanto spazio verticale occupa ogni ora",
     settings_density_responsive: "Adattiva",

@@ -50,6 +50,10 @@ import {
 import { CalendarEventContextMenu } from "@/components/calendar/calendar_event_context_menu";
 import { event_render_key } from "@/services/calendar/event_render_key";
 import { EventKindIcon } from "@/components/calendar/event_kind_icon";
+import {
+  WorkingLocationBadge,
+  type WorkingLocationHandlers,
+} from "@/components/calendar/working_location_badge";
 import { use_event_tooltip } from "@/components/calendar/calendar_event_tooltip";
 import {
   MINUTES_PER_DAY,
@@ -72,6 +76,7 @@ import {
   resolve_event_color,
   build_event_block_style,
   event_color_token,
+  ink_on_fill,
   event_occurrence_key,
   start_of_day,
 } from "@/components/calendar/calendar_utils";
@@ -297,6 +302,7 @@ interface CalendarTimeGridViewProps {
   default_duration_minutes: number;
   density: "responsive" | "compact";
   dim_past_events: boolean;
+  working_location?: WorkingLocationHandlers;
   secondary_timezone: string;
   draft_range: {
     start: Date;
@@ -480,6 +486,7 @@ export const CalendarTimeGridView = memo(function CalendarTimeGridView({
   default_duration_minutes,
   density,
   dim_past_events,
+  working_location,
   secondary_timezone,
   draft_range,
   on_day_number_click,
@@ -2022,13 +2029,23 @@ export const CalendarTimeGridView = memo(function CalendarTimeGridView({
               return (
                 <div
                   key={day.toISOString()}
-                  className="flex-1 min-w-0 relative flex flex-col"
+                  className="group/working flex-1 min-w-0 relative flex flex-col"
                 >
                   <span
                     aria-hidden="true"
                     className="pointer-events-none absolute bottom-0 left-0 h-2.5 w-px"
                     style={{ backgroundColor: GRID_LINE_COLOR }}
                   />
+                  {working_location && (
+                    <span className="absolute end-1 top-1 z-[2]">
+                      <WorkingLocationBadge
+                        day={day}
+                        handlers={working_location}
+                        t={t}
+                        variant="header"
+                      />
+                    </span>
+                  )}
                   <button
                     aria-current={is_today ? "date" : undefined}
                     className={`relative flex flex-col items-center justify-center gap-0.5 group focus:outline-none ${is_phone ? "h-[58px]" : days.length > 3 ? "h-[68px] sm:h-[76px]" : "h-[76px]"}`}
@@ -2222,6 +2239,11 @@ export const CalendarTimeGridView = memo(function CalendarTimeGridView({
                           backgroundColor: draft_range.color
                             ? event_color_token(draft_range.color)
                             : placeholder_color,
+                          color: ink_on_fill(
+                            draft_range.color
+                              ? event_color_token(draft_range.color)
+                              : placeholder_color,
+                          ),
                         }}
                       >
                         {is_same_day(draft_range.start, day) && (
@@ -2652,6 +2674,11 @@ export const CalendarTimeGridView = memo(function CalendarTimeGridView({
                           backgroundColor: draft_range.color
                             ? event_color_token(draft_range.color)
                             : placeholder_color,
+                          color: ink_on_fill(
+                            draft_range.color
+                              ? event_color_token(draft_range.color)
+                              : placeholder_color,
+                          ),
                           top:
                             (minutes_from_midnight(draft_range.start) / 60) *
                             HOUR_HEIGHT_PX,

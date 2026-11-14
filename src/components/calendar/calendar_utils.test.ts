@@ -36,9 +36,6 @@ import {
   clamp_custom_view_days,
   get_event_day_bounds,
   get_visible_range,
-  next_agenda_day_count,
-  AGENDA_DAY_COUNT,
-  AGENDA_MAX_DAY_COUNT,
   iso_week_number,
   trim_month_grid,
   MAX_CUSTOM_VIEW_DAYS,
@@ -52,8 +49,14 @@ import {
   event_color_token,
   nearest_event_color,
   resolve_event_color,
+  find_event_color_option,
+  DEFAULT_EVENT_COLOR,
+  EVENT_COLOR_OPTIONS,
+  NEUTRAL_EVENT_COLOR,
 } from "@/components/calendar/calendar_utils";
 import { BIRTHDAY_COLOR } from "@/services/calendar/birthdays";
+import { HOLIDAY_COLOR } from "@/services/calendar/holidays";
+import { BOOKING_COLOR } from "@/services/calendar/appointments";
 
 function timed_event(
   id: string,
@@ -256,16 +259,6 @@ describe("get_visible_range", () => {
     );
 
     expect(span_days).toBe(MAX_CUSTOM_VIEW_DAYS - 1);
-  });
-});
-
-describe("next_agenda_day_count", () => {
-  it("doubles the agenda span until it reaches the cap", () => {
-    expect(next_agenda_day_count(AGENDA_DAY_COUNT)).toBe(AGENDA_DAY_COUNT * 2);
-    expect(next_agenda_day_count(600)).toBe(AGENDA_MAX_DAY_COUNT);
-    expect(next_agenda_day_count(AGENDA_MAX_DAY_COUNT)).toBe(
-      AGENDA_MAX_DAY_COUNT,
-    );
   });
 });
 
@@ -641,31 +634,100 @@ describe("ink_on_fill", () => {
     );
   });
 
-  it("picks light ink on saturated colors and dark ink on light ones", () => {
-    expect(ink_on_fill("#039be5")).toBe("#ffffff");
+  it("picks whichever ink contrasts more with the fill", () => {
     expect(ink_on_fill("#3f51b5")).toBe("#ffffff");
+    expect(ink_on_fill("#c62f2f")).toBe("#ffffff");
+    expect(ink_on_fill("#039be5")).toBe("#111827");
     expect(ink_on_fill("#f6bf26")).toBe("#111827");
+    expect(ink_on_fill("#f08a24")).toBe("#111827");
   });
 });
 
 describe("event color palette", () => {
+  it("offers ten swatches with one orange and two blue hues", () => {
+    expect(EVENT_COLOR_OPTIONS.map((option) => option.name)).toEqual([
+      "red",
+      "orange",
+      "yellow",
+      "green",
+      "teal",
+      "blue",
+      "purple",
+      "pink",
+      "brown",
+      "gray",
+    ]);
+    expect(DEFAULT_EVENT_COLOR.name).toBe("blue");
+    expect(NEUTRAL_EVENT_COLOR.name).toBe("gray");
+  });
+
   it("maps a stored swatch hex to its own token", () => {
     expect(event_color_token("#0f766e")).toBe("var(--cal_color_teal)");
     expect(event_color_token("#1D4ED8")).toBe("var(--cal_color_blue)");
     expect(event_color_token("#3b82f6")).toBe("var(--cal_color_blue)");
-    expect(event_color_token("#f43f5e")).toBe("var(--cal_color_rose)");
+    expect(event_color_token("#eab308")).toBe("var(--cal_color_yellow)");
+    expect(event_color_token("#8d5a3b")).toBe("var(--cal_color_brown)");
+    expect(event_color_token("#9aa0a6")).toBe("var(--cal_color_gray)");
   });
 
-  it("maps unknown hexes to the nearest swatch by hue", () => {
+  it.each([
+    ["rose", "red"],
+    ["amber", "orange"],
+    ["lime", "green"],
+    ["emerald", "green"],
+    ["cyan", "teal"],
+    ["sky", "blue"],
+    ["indigo", "blue"],
+    ["violet", "purple"],
+    ["fuchsia", "purple"],
+    ["slate", "gray"],
+    ["#f43f5e", "red"],
+    ["#f59e0b", "orange"],
+    ["#84cc16", "green"],
+    ["#10b981", "green"],
+    ["#06b6d4", "teal"],
+    ["#0ea5e9", "blue"],
+    ["#6366f1", "blue"],
+    ["#8b5cf6", "purple"],
+    ["#d946ef", "purple"],
+    ["#64748b", "gray"],
+    ["#b23651", "red"],
+    ["#9a5d10", "orange"],
+    ["#836a12", "yellow"],
+    ["#56606e", "gray"],
+    ["var(--cal_color_sky)", "blue"],
+    ["var(--cal_color_amber)", "orange"],
+    ["var(--cal_color_slate)", "gray"],
+    ["#0369a1", "blue"],
+    ["#b45309", "orange"],
+    ["#be123c", "red"],
+    ["#be185d", "pink"],
+    ["#475569", "gray"],
+  ])("maps the earlier color %s to %s", (stored, expected) => {
+    expect(find_event_color_option(stored)?.name).toBe(expected);
+    expect(nearest_event_color(stored).name).toBe(expected);
+  });
+
+  it("maps unknown colors to the nearest swatch", () => {
     expect(nearest_event_color("#d50000").name).toBe("red");
-    expect(nearest_event_color("#f4511e").name).toBe("orange");
+    expect(nearest_event_color("#fb8c00").name).toBe("orange");
     expect(nearest_event_color("#f6bf26").name).toBe("yellow");
-    expect(nearest_event_color("#33b679").name).toBe("emerald");
-    expect(nearest_event_color("#039be5").name).toBe("sky");
-    expect(nearest_event_color("#3f51b5").name).toBe("indigo");
-    expect(nearest_event_color("#8e24aa").name).toBe("fuchsia");
-    expect(nearest_event_color("#616161").name).toBe("slate");
+    expect(nearest_event_color("#ffeb3b").name).toBe("yellow");
+    expect(nearest_event_color("#33b679").name).toBe("green");
+    expect(nearest_event_color("#3f51b5").name).toBe("blue");
+    expect(nearest_event_color("#8e24aa").name).toBe("purple");
+    expect(nearest_event_color("#795548").name).toBe("brown");
+    expect(nearest_event_color("#a0522d").name).toBe("brown");
+    expect(nearest_event_color("#616161").name).toBe("gray");
+    expect(nearest_event_color("#9e9e9e").name).toBe("gray");
     expect(nearest_event_color("rgb(190, 24, 93)").name).toBe("pink");
+    expect(nearest_event_color("not a color").name).toBe("blue");
+  });
+
+  it("keeps birthday, holiday, and booking colors on a swatch", () => {
+    expect(nearest_event_color(BIRTHDAY_COLOR).name).toBe("pink");
+    expect(nearest_event_color(HOLIDAY_COLOR).name).toBe("green");
+    expect(nearest_event_color(BOOKING_COLOR).name).toBe("blue");
   });
 
   it("passes css variables through and falls back to the accent", () => {
@@ -676,10 +738,14 @@ describe("event color palette", () => {
     expect(event_color_token(null)).toBe("var(--accent-color)");
   });
 
-  it("uses white text on swatch tokens", () => {
-    expect(ink_on_fill("var(--cal_color_amber)")).toBe(
-      "var(--calendar_event_text, #ffffff)",
-    );
+  it("uses each swatch's own ink on its token", () => {
+    expect(ink_on_fill("var(--cal_color_blue)")).toBe("#ffffff");
+    expect(ink_on_fill("var(--cal_color_yellow)")).toBe("#111827");
+    expect(ink_on_fill("var(--cal_color_orange)")).toBe("#111827");
+    expect(ink_on_fill("var(--cal_color_amber)")).toBe("#111827");
+    expect(ink_on_fill("var(--cal_color_brown)")).toBe("#ffffff");
+    expect(ink_on_fill("var(--cal_color_gray)")).toBe("#111827");
+    expect(ink_on_fill("var(--cal_color_slate)")).toBe("#111827");
   });
 
   it("resolves event colors to tokens", () => {
@@ -692,7 +758,7 @@ describe("event color palette", () => {
     expect(resolve_event_color(explicit, "#2563eb")).toBe(
       "var(--cal_color_red)",
     );
-    expect(resolve_event_color(task, "#2563eb")).toBe("var(--cal_color_sky)");
+    expect(resolve_event_color(task, "#2563eb")).toBe("var(--cal_color_blue)");
     expect(
       resolve_event_color(
         timed_event("d", start, end, { event_kind: "birthday" }),
@@ -708,7 +774,8 @@ describe("event color palette", () => {
   it("builds solid blocks with the shared radius and a past fade", () => {
     const style = build_event_block_style("#be123c", { is_past: true });
 
-    expect(style["--cal_color"]).toBe("var(--cal_color_rose)");
+    expect(style["--cal_color"]).toBe("var(--cal_color_red)");
+    expect(style.color).toBe("#ffffff");
     expect(style.backgroundColor).toBe("var(--cal_color)");
     expect(style.borderRadius).toBe("var(--calendar_event_radius, 6px)");
     expect(style.borderInlineStart).toBeUndefined();

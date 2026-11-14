@@ -20,6 +20,9 @@
 //
 import type { Attachment } from "@/types/attachment";
 import type { TranslationKey } from "@/lib/i18n/types";
+import { discover_external_keys_batch } from "@/services/api/keys";
+import { pinned_guest_key } from "@/services/guest_key_pins";
+import { is_internal_recipient } from "@/services/recipient_classification";
 import { queue_email } from "@/services/send_queue";
 import type {
   CalendarAttendee,
@@ -37,6 +40,7 @@ import {
   type ItipMethod,
   type ItipParty,
 } from "./itip";
+import { sanitize_calendar_email, sanitize_calendar_text } from "./sanitize";
 
 export type Translate = (
   key: TranslationKey,
@@ -176,7 +180,29 @@ function ics_attachment(ics: string, method: ItipMethod): Attachment {
   };
 }
 
-function send_one(
+async function guest_public_key(to: string): Promise<string | undefined> {
+  if (is_internal_recipient(to)) return undefined;
+
+  const pinned = pinned_guest_key(to);
+
+  if (pinned) return pinned;
+
+  try {
+    const address = to.trim().toLowerCase();
+    const response = await discover_external_keys_batch([address]);
+    const info = (response.data ?? []).find(
+      (entry) => entry.email.trim().toLowerCase() === address,
+    );
+
+    return info?.found && info.will_encrypt && info.public_key
+      ? info.public_key
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function send_one(
   to: string,
   subject: string,
   body: string,
@@ -184,6 +210,8 @@ function send_one(
   sender_display_name?: string,
   sender?: InviteSender | null,
 ): Promise<boolean> {
+  const public_key = await guest_public_key(to);
+
   return new Promise((resolve) => {
     const id = queue_email(
       {
@@ -191,6 +219,13 @@ function send_one(
         subject,
         body,
         is_plain_text: true,
+        ...(public_key
+          ? {
+              pgp_recipients: [to],
+              pgp_recipient_keys: { [to]: public_key },
+              obscure_subject: true,
+            }
+          : {}),
         attachments: [attachment],
         sender_display_name,
         sender_email: sender?.email,
@@ -319,6 +354,32 @@ export function reply_target(
   return sender.length > 0 ? sender : null;
 }
 
+export type RsvpReplyDecision =
+  | { kind: "send"; to: string }
+  | { kind: "confirm"; organizer: string }
+  | { kind: "none" };
+
+export function decide_rsvp_reply(
+  organizer_email: string | null | undefined,
+  authenticated_sender: string | null | undefined,
+  confirmed_organizer = false,
+): RsvpReplyDecision {
+  const organizer = sanitize_calendar_email(organizer_email ?? "");
+  const target = reply_target(
+    organizer,
+    sanitize_calendar_email(authenticated_sender ?? ""),
+    confirmed_organizer,
+  );
+
+  if (target !== null) {
+    return { kind: "send", to: target };
+  }
+
+  return organizer.length > 0
+    ? { kind: "confirm", organizer }
+    : { kind: "none" };
+}
+
 export async function send_reply(options: SendReplyOptions): Promise<boolean> {
   const { event, organizer, attendee, response, t, language } = options;
   const ics = build_itip_reply(event, {
@@ -333,7 +394,8 @@ export async function send_reply(options: SendReplyOptions): Promise<boolean> {
     return false;
   }
 
-  const title = event.title.trim() || t("calendar.untitled_event");
+  const title =
+    sanitize_calendar_text(event.title, "title") || t("calendar.untitled_event");
   const range = format_invite_range(event, language);
   const label = response_label(response, t);
   const body = [
@@ -346,7 +408,7 @@ export async function send_reply(options: SendReplyOptions): Promise<boolean> {
     t("calendar.invite_body_when", { when: range }),
   ].join("\n");
 
-  const recipient = (options.to ?? organizer.email).trim();
+  const recipient = sanitize_calendar_email(options.to ?? organizer.email);
 
   if (recipient.length === 0) {
     return false;

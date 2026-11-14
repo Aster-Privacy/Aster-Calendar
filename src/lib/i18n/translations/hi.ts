@@ -563,6 +563,9 @@ export const hi = {
       "आपका भुगतान नहीं हो सका। {{days}} दिन में पहुंच सीमित हो जाएगी।",
     billing_alert_action: "भुगतान करें",
     dismiss: "खारिज करें",
+    web_sandbox_off_title: "वेब सामग्री सिस्टम सैंडबॉक्स के बिना चल रही है",
+    web_sandbox_off_body:
+      "इस कंप्यूटर पर Aster Calendar bubblewrap सैंडबॉक्स शुरू नहीं कर सकता, इसलिए वेब सामग्री उसके बिना चल रही है। इसे फिर से चालू करने के लिए bubblewrap पैकेज इंस्टॉल करें, बिना विशेषाधिकार वाले यूज़र नेमस्पेस की अनुमति दें, और फिर Aster Calendar को रीस्टार्ट करें।",
     load_content: "लोड करें",
     open_link: "लिंक खोलें",
     no_icon: "कोई आइकॉन नहीं",
@@ -9414,60 +9417,20 @@ export const hi = {
     device_code_waiting: "पुष्टि की प्रतीक्षा है",
     device_code_expires_in: "समाप्त होने में",
     link_device_title: "डिवाइस लिंक करें",
-    link_device_enter_code: "अपने डेस्कटॉप ऐप पर दिख रहा कोड डालें।",
-    link_device_code_placeholder: "XXXX-XXXX",
-    link_device_verify_button: "जारी रखें",
-    link_device_confirm_prompt:
-      "क्या आप इस डिवाइस को अपने खाते से लिंक करना चाहते हैं?",
-    link_device_confirm_button: "डिवाइस लिंक करें",
-    link_device_confirming: "डिवाइस लिंक किया जा रहा है...",
     link_device_cancel: "रद्द करें",
-    link_device_desktop: "डेस्कटॉप ऐप",
     hub_accounts_or_password: "या अपने पासवर्ड से साइन इन करें",
     hub_account_password_required: "पासवर्ड आवश्यक है",
     hub_account_link_failed:
       "इस खाते से जारी रखने के लिए, इसका पासवर्ड दर्ज करें।",
-    link_device_success: "डिवाइस लिंक हो गया",
-    link_device_success_description:
-      "आपका डेस्कटॉप ऐप अब लिंक हो गया है। आप यह टैब बंद कर सकते हैं।",
-    link_device_invalid_code:
-      "लिंकिंग कोड 8 वर्ण लंबा होता है। कोड जांचें और फिर से कोशिश करें।",
-    link_device_expired_code:
-      "यह कोड समाप्त हो चुका है या मेल नहीं खाया। मौजूदा कोड आपके डेस्कटॉप ऐप पर है।",
     link_device_failed:
       "लिंक करना पूरा नहीं हुआ। दोबारा शुरू करने से आमतौर पर काम बन जाता है। आपका खाता जस का तस है।",
     link_device_try_again:
       "यह काम नहीं आया। दोबारा शुरू करने से आमतौर पर काम बन जाता है।",
-    link_device_upgrade_required_toast:
-      "Bridge डिवाइस लिंक करने के लिए Star या उससे ऊपर का प्लान चाहिए। जारी रखने के लिए अपग्रेड करें।",
-    link_device_upgrade_title: "यह डिवाइस लिंक करने के लिए अपग्रेड करें",
-    link_device_upgrade_description:
-      "अपने खाते से डेस्कटॉप Bridge जोड़ने के लिए Star या उससे ऊपर का प्लान चाहिए। नीचे कोई प्लान चुनें और चेकआउट के तुरंत बाद आपका डिवाइस लिंक हो जाएगा।",
-    device_fingerprint: "पुष्टि कोड",
-    device_code_verify_toggle: "इस डिवाइस की पुष्टि करें",
-    link_device_fingerprint_hint:
-      "अपने नए डिवाइस पर दिखाया गया पुष्टि कोड डालें। डेस्कटॉप ऐप में, इसे देखने के लिए इस डिवाइस की पुष्टि करें चुनें।",
-    link_device_fingerprint_placeholder: "XXXX XXXX XXXX XXXX XXXX",
-    link_device_fingerprint_incomplete:
-      "डिवाइस लिंक करने के लिए, अपने नए डिवाइस से पूरा पुष्टि कोड डालें।",
-    link_device_fingerprint_mismatch:
-      "यह कोड आपके नए डिवाइस से मेल नहीं खाता। अपने नए डिवाइस पर कोड जाँचें और उसे फिर से डालें। अगर यह अब भी मेल नहीं खाता, तो रद्द करें चुनें।",
-    device_code_fingerprint_hint:
-      "इस डिवाइस को लिंक करने के लिए, यह कोड उस डिवाइस पर डालें जिस पर आप पहले से साइन इन हैं।",
-    link_device_change_account: "खाता बदलें",
+    device_fingerprint: "डिवाइस फ़िंगरप्रिंट",
+    device_fingerprint_copy: "डिवाइस फ़िंगरप्रिंट कॉपी करें",
+    device_code_fingerprint_required_hint:
+      "डिवाइस लिंक करने से पहले आपका ब्राउज़र यह डिवाइस फ़िंगरप्रिंट मांगता है।",
     link_device_choose_account: "कोई खाता चुनें",
-    link_device_choose_account_description: "अपना डेस्कटॉप ऐप लिंक करने के लिए",
-    link_device_choose_account_note:
-      "आपकी एन्क्रिप्शन कुंजियाँ आपके डिवाइसों के बीच जाते समय एन्क्रिप्टेड रहती हैं।",
-    link_device_use_another_account: "दूसरा खाता इस्तेमाल करें",
-    link_device_use_this_account: "यही खाता इस्तेमाल करें",
-    link_device_other_accounts: "दूसरे खाते पर जाएं",
-    link_device_already_linked:
-      "यह डिवाइस पहले से किसी दूसरे खाते से लिंक है। पहले उसे वहां से अनलिंक करें, फिर से कोशिश करें।",
-    link_device_rate_limited:
-      "बहुत ज़्यादा कोशिशें हो गईं। करीब एक मिनट रुकें, फिर से कोशिश करें।",
-    link_device_account_suspended:
-      "यह खाता निलंबित है, इसलिए अभी नए डिवाइस लिंक नहीं किए जा सकते। इसे सुलझाने के लिए सहायता से संपर्क करें।",
     keep_signed_in: "मुझे साइन इन रखें",
     secure_devices_only: "सिर्फ़ सुरक्षित डिवाइस पर",
     back_to_inbox: "इनबॉक्स पर वापस जाएं",
@@ -11047,6 +11010,7 @@ export const hi = {
     holiday_region_au: "ऑस्ट्रेलिया",
     holiday_region_pt: "पुर्तगाल",
     holiday_region_br: "ब्राज़ील",
+    holiday_region_in: "भारत",
     settings_day_split: "साथ-साथ दिन व्यू",
     settings_day_split_desc: "दिन व्यू में हर कैलेंडर को अपने कॉलम में दिखाएं",
     settings_info_day_split:
@@ -11451,6 +11415,13 @@ export const hi = {
     working_location_home: "घर",
     working_location_office: "ऑफ़िस",
     working_location_other: "अन्य",
+    working_location_none: "कोई नहीं",
+    working_location_for_day: "काम की जगह: {{location}}",
+    working_location_usual_for_day: "काम की जगह: {{location}} (सामान्य सप्ताह)",
+    working_location_set: "काम की जगह सेट करें",
+    working_location_use_usual: "सामान्य वाली इस्तेमाल करें ({{location}})",
+    working_location_clear: "हटाएं",
+    working_location_other_place: "कोई और जगह…",
     out_of_office_note: "इस अवधि में दूसरे लोग आपको अनुपलब्ध देखेंगे।",
     focus_time_note:
       "फ़ोकस समय आपके कैलेंडर को ब्लॉक करता है ताकि कोई उस पर कुछ शेड्यूल न करे।",
@@ -11537,6 +11508,8 @@ export const hi = {
     color_rose: "Rose",
     color_pink: "Pink",
     color_slate: "Slate",
+    color_brown: "भूरा",
+    color_gray: "धूसर",
     event_color: "इवेंट का रंग",
     year: "साल",
     custom_view: "कस्टम व्यू",
@@ -11706,6 +11679,9 @@ export const hi = {
     settings_show_declined_desc: "आपके अस्वीकार किए इवेंट ग्रिड में दिखते रहें",
     settings_dim_past_events: "बीते इवेंट की चमक कम करें",
     settings_dim_past_events_desc: "खत्म हो चुके इवेंट फीके करें",
+    settings_working_week: "सामान्य काम की जगह",
+    settings_working_week_desc:
+      "हर दिन पर एक आइकन के रूप में दिखती है। किसी एक दिन को बदलने के लिए उस दिन का आइकन इस्तेमाल करें।",
     settings_density: "जानकारी का घनत्व",
     settings_density_desc: "हर घंटा कितनी लंबवत जगह लेता है",
     settings_density_responsive: "रिस्पॉन्सिव",
@@ -11856,6 +11832,8 @@ export const hi = {
     tags: "टैग",
     tags_placeholder: "टैग जोड़ें",
     remove_tag: "टैग हटाएं",
+    tag_color: "टैग का रंग",
+    change_tag_color: "{{ tag }} का रंग बदलें",
     no_tags: "अभी कोई टैग नहीं",
     details: "विवरण",
     details_hint: "विवरण देखने के लिए कोई इवेंट चुनें",

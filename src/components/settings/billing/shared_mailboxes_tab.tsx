@@ -78,9 +78,9 @@ import {
   generate_shared_mailbox_material,
   fetch_member_public_key,
   seal_grant,
-  get_own_grant_public_key,
   generate_rotated_credential,
   get_grant_signing_keys,
+  get_own_grant_public_key,
   SHARED_MAILBOX_GRANT_VERSION,
 } from "@/services/crypto/shared_mailbox";
 import { decrypt_vault } from "@/services/crypto/key_manager_pgp";

@@ -49,6 +49,7 @@ export const RATCHET_STATE_PREFIX = "ratchet_state_";
 export const RATCHET_PLAINTEXT_PREFIX = "ratchet_plaintext_";
 export const RATCHET_SYNC_FLOOR_PREFIX = "ratchet_sync_floor_";
 export const RATCHET_SYNC_SEALED_PREFIX = "ratchet_sync_sealed_";
+export const CALENDAR_VISIBILITY_PREFIX = "calendar_visibility_";
 
 const SCOPED_PREFIXES: readonly string[] = [
   SENDER_HISTORY_PREFIX,
@@ -61,6 +62,7 @@ const SCOPED_PREFIXES: readonly string[] = [
   RATCHET_PLAINTEXT_PREFIX,
   RATCHET_SYNC_FLOOR_PREFIX,
   RATCHET_SYNC_SEALED_PREFIX,
+  CALENDAR_VISIBILITY_PREFIX,
 ];
 
 const ACCOUNT_EXACT_KEY_PREFIXES: readonly string[] = [

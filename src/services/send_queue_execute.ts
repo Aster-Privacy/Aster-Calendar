@@ -43,6 +43,11 @@ import {
 import { is_internal_email } from "./api/keys";
 import { OBSCURED_SUBJECT_PLACEHOLDER } from "./pgp_protected_mime";
 import {
+  CLIENT_COPY_PLACEHOLDER_BODY,
+  build_client_pgp_copies,
+  is_listed_pgp_recipient,
+} from "./client_pgp_copies";
+import {
   build_signed_mime_payload,
   should_attach_signed_mime,
   should_obscure_outer_subject,
@@ -144,11 +149,64 @@ export async function execute_send(
     email.allow_non_post_quantum === true,
   );
 
+  const internal_copy_is_encrypted = is_encrypted || !!internal_encrypted_body;
+
+  const outside_recipients = all_recipients.filter(
+    (recipient) => !is_internal_recipient(recipient),
+  );
+  const client_copies_expected =
+    !is_encrypted &&
+    outside_recipients.some((recipient) =>
+      is_listed_pgp_recipient(email.pgp_recipients, recipient),
+    );
+
+  if (client_copies_expected && email.expires_at) {
+    throw create_error(
+      "encryption_failed",
+      get_active_translations().errors.failed_pgp_encrypt,
+    );
+  }
+
+  const client_copies = client_copies_expected
+    ? await build_client_pgp_copies({
+        outside_recipients,
+        pgp_recipient_keys: email.pgp_recipient_keys,
+        obscure_subject: email.obscure_subject === true,
+        subject: email.subject || "",
+        body: body_for_recipient,
+        from: sender_email,
+        to: email.to,
+        cc: email.cc ?? [],
+        bcc: email.bcc ?? [],
+        attachments: all_attachments,
+        body_is_text: email.is_plain_text === true,
+      })
+    : undefined;
+
+  if (
+    client_copies &&
+    outside_recipients.some(
+      (recipient) =>
+        !Object.keys(client_copies).some((copied) =>
+          is_listed_pgp_recipient([copied], recipient),
+        ),
+    )
+  ) {
+    throw create_error(
+      "encryption_failed",
+      get_active_translations().errors.failed_pgp_encrypt,
+    );
+  }
+
   const final_recipient_body = is_encrypted
     ? encrypted_body
-    : body_for_recipient;
-  const final_subject = is_encrypted ? "" : email.subject;
-  const internal_copy_is_encrypted = is_encrypted || !!internal_encrypted_body;
+    : client_copies
+      ? CLIENT_COPY_PLACEHOLDER_BODY
+      : body_for_recipient;
+  const final_subject =
+    is_encrypted || (client_copies && email.obscure_subject === true)
+      ? ""
+      : email.subject;
 
   const envelope_data = await create_sent_envelope(email, sender_email);
 
@@ -167,6 +225,7 @@ export async function execute_send(
       all_attachments,
       { to: email.to, cc: email.cc, bcc: email.bcc },
       internal_copy_is_encrypted,
+      client_copies !== undefined,
     );
   }
 
@@ -198,6 +257,12 @@ export async function execute_send(
     attachments: encrypted_attachments,
     forward_original_mail_id: email.forward_original_mail_id,
     in_reply_to: email.in_reply_to,
+    ...(client_copies
+      ? {
+          external_pgp_bodies: client_copies,
+          obscure_subject: email.obscure_subject === true,
+        }
+      : {}),
   };
 
   const result = await send_simple_email(request);

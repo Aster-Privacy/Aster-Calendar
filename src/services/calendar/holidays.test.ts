@@ -76,6 +76,105 @@ describe("holidays_in_range", () => {
     ).toHaveLength(10);
   });
 
+  it("includes fixed national holidays for India in any year", () => {
+    for (const year of [2025, 2030]) {
+      const republic_day = find("in", year, "Republic Day");
+      const independence_day = find("in", year, "Independence Day");
+      const gandhi_jayanti = find("in", year, "Gandhi Jayanti");
+      const christmas = find("in", year, "Christmas Day");
+
+      expect([
+        republic_day?.date.getMonth(),
+        republic_day?.date.getDate(),
+      ]).toEqual([0, 26]);
+      expect([
+        independence_day?.date.getMonth(),
+        independence_day?.date.getDate(),
+      ]).toEqual([7, 15]);
+      expect([
+        gandhi_jayanti?.date.getMonth(),
+        gandhi_jayanti?.date.getDate(),
+      ]).toEqual([9, 2]);
+      expect([christmas?.date.getMonth(), christmas?.date.getDate()]).toEqual([
+        11, 25,
+      ]);
+    }
+  });
+
+  it("computes Good Friday for India", () => {
+    const expected: Array<[number, number, number]> = [
+      [2025, 3, 18],
+      [2026, 3, 3],
+      [2027, 2, 26],
+    ];
+
+    for (const [year, month, day] of expected) {
+      const good_friday = find("in", year, "Good Friday");
+
+      expect(good_friday?.date.getMonth()).toBe(month);
+      expect(good_friday?.date.getDate()).toBe(day);
+    }
+  });
+
+  it("uses the gazetted dates for lunar festivals in India", () => {
+    const expected: Array<[number, string, number, number]> = [
+      [2025, "Holi", 2, 14],
+      [2025, "Id-ul-Fitr", 2, 31],
+      [2025, "Diwali (Deepavali)", 9, 20],
+      [2025, "Guru Nanak Jayanti", 10, 5],
+      [2026, "Holi", 2, 4],
+      [2026, "Ram Navami", 2, 26],
+      [2026, "Id-ul-Zuha (Bakrid)", 4, 27],
+      [2026, "Diwali (Deepavali)", 10, 8],
+      [2027, "Id-ul-Fitr", 2, 10],
+      [2027, "Buddha Purnima", 4, 20],
+      [2027, "Milad-un-Nabi", 7, 15],
+      [2027, "Dussehra", 9, 9],
+    ];
+
+    for (const [year, title, month, day] of expected) {
+      const holiday = find("in", year, title);
+
+      expect(holiday?.date.getMonth()).toBe(month);
+      expect(holiday?.date.getDate()).toBe(day);
+    }
+  });
+
+  it("returns only computable holidays for India outside the table", () => {
+    const titles = holidays_in_range(
+      "in",
+      new Date(2030, 0, 1),
+      new Date(2030, 11, 31),
+    ).map((holiday) => holiday.title);
+
+    expect(titles).toEqual([
+      "Republic Day",
+      "Good Friday",
+      "Independence Day",
+      "Gandhi Jayanti",
+      "Christmas Day",
+    ]);
+  });
+
+  it("returns 17 sorted holidays with unique titles for each India table year", () => {
+    for (const year of [2025, 2026, 2027]) {
+      const holidays = holidays_in_range(
+        "in",
+        new Date(year, 0, 1),
+        new Date(year, 11, 31),
+      );
+      const titles = holidays.map((holiday) => holiday.title);
+      const times = holidays.map((holiday) => holiday.date.getTime());
+
+      expect(holidays).toHaveLength(17);
+      expect(new Set(titles).size).toBe(titles.length);
+      expect(times).toEqual([...times].sort((first, second) => first - second));
+      expect(
+        holidays.every((holiday) => holiday.date.getFullYear() === year),
+      ).toBe(true);
+    }
+  });
+
   it("only returns holidays inside the range", () => {
     const december = holidays_in_range(
       "us",

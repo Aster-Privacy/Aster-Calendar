@@ -749,18 +749,14 @@ pub fn device_set_id(window: tauri::WebviewWindow, device_id: String) -> Result<
     save_stored(&stored)
 }
 
-const DEVICE_LOGIN_NONCE_LEN: usize = 32;
-const DEVICE_LOGIN_SIGNATURE_CONTEXT: &[u8] = b"astermail-device-login-v2\0";
+const DEVICE_LOGIN_SIGNATURE_CONTEXT: &[u8] = b"astermail-device-login-v2 ";
 
 fn challenge_signing_input(nonce: &[u8], signature_version: Option<u8>) -> Result<Vec<u8>, String> {
-    if nonce.len() != DEVICE_LOGIN_NONCE_LEN {
-        return Err("invalid challenge".to_string());
-    }
-
+    let labeled = super::challenge::device_challenge_message(nonce)?;
     match signature_version {
-        None | Some(1) => Ok(nonce.to_vec()),
+        None | Some(1) => Ok(labeled),
         Some(2) => Ok([DEVICE_LOGIN_SIGNATURE_CONTEXT, nonce].concat()),
-        Some(_) => Err("unsupported challenge version".to_string()),
+        Some(_) => Err("unsupported challenge signature version".to_string()),
     }
 }
 
@@ -772,9 +768,9 @@ pub fn device_sign_challenge(
 ) -> Result<String, String> {
     require_primary_webview(&window)?;
     let nonce = b64url_decode(&nonce_b64)?;
-    let input = challenge_signing_input(&nonce, signature_version)?;
+    let message = challenge_signing_input(&nonce, signature_version)?;
     let id = get_or_create_device_identity()?;
-    let sig = id.ed25519_signing_key.sign(&input);
+    let sig = id.ed25519_signing_key.sign(&message);
     Ok(b64url(&sig.to_bytes()))
 }
 
@@ -864,9 +860,27 @@ fn open_device_envelope(data: &[u8], id: &DeviceIdentity) -> Result<Zeroizing<Ve
         .map_err(|e| format!("decrypt: {:?}", e))
 }
 
+fn is_local_app_url(url: &tauri::Url, allow_dev_hosts: bool) -> bool {
+    let host = url.host_str().unwrap_or("");
+    match url.scheme() {
+        "tauri" => host == "localhost",
+        "http" | "https" => {
+            host == "tauri.localhost"
+                || (allow_dev_hosts && matches!(host, "127.0.0.1" | "localhost"))
+        }
+        _ => false,
+    }
+}
+
 fn require_primary_webview(window: &tauri::WebviewWindow) -> Result<(), String> {
     if window.label() != "main" {
         return Err("command not available in this window".to_string());
+    }
+    let url = window
+        .url()
+        .map_err(|_| "command not available in this window".to_string())?;
+    if !is_local_app_url(&url, cfg!(debug_assertions)) {
+        return Err("command not available on this page".to_string());
     }
     Ok(())
 }
@@ -1241,8 +1255,8 @@ pub async fn send_device_http_request(
     body: Option<String>,
     headers: Option<HashMap<String, String>>,
 ) -> Result<ProxyResponse, String> {
-    const ALLOWED_HTTPS_SUFFIXES: &[&str] = &[".astermail.org", ".astermail.com"];
-    const ALLOWED_HTTPS_EXACT: &[&str] = &["astermail.org", "astermail.com"];
+    const ALLOWED_HTTPS_SUFFIXES: &[&str] = &[".astermail.org"];
+    const ALLOWED_HTTPS_EXACT: &[&str] = &["astermail.org"];
     const MAX_REQUEST_BODY_SIZE: usize = 100 * 1024 * 1024;
     const LARGE_BODY_THRESHOLD: usize = 1024 * 1024;
     const LARGE_BODY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(900);
@@ -1348,6 +1362,16 @@ pub async fn send_device_http_request(
     })
 }
 
+const MAX_PBKDF2_BITS: u32 = 4096;
+
+fn hkdf_max_bits(hash: &str) -> Result<u32, String> {
+    match hash.to_uppercase().as_str() {
+        "SHA-256" => Ok(255 * 32 * 8),
+        "SHA-512" => Ok(255 * 64 * 8),
+        _ => Err(format!("unsupported hash: {}", hash)),
+    }
+}
+
 #[tauri::command]
 pub fn crypto_pbkdf2(
     password: Vec<u8>,
@@ -1364,6 +1388,9 @@ pub fn crypto_pbkdf2(
     }
     if iterations > 2_000_000 {
         return Err(format!("iterations {} exceeds maximum of 2000000", iterations));
+    }
+    if bits > MAX_PBKDF2_BITS {
+        return Err(format!("bits {} exceeds maximum of {}", bits, MAX_PBKDF2_BITS));
     }
     let dk_len = (bits / 8) as usize;
     let mut dk = vec![0u8; dk_len];
@@ -1394,6 +1421,10 @@ pub fn crypto_hkdf(
 ) -> Result<Vec<u8>, String> {
     if bits == 0 || bits % 8 != 0 {
         return Err(format!("bits must be a non-zero multiple of 8, got {}", bits));
+    }
+    let max_bits = hkdf_max_bits(&hash)?;
+    if bits > max_bits {
+        return Err(format!("bits {} exceeds maximum of {} for {}", bits, max_bits, hash));
     }
     let dk_len = (bits / 8) as usize;
     let mut okm = vec![0u8; dk_len];
@@ -1555,6 +1586,35 @@ mod tests {
         let v2 = b64url_decode(&vector["envelope_v2"]).unwrap();
         assert!(open_device_envelope(&v2[..4 + ENVELOPE_HEADER_LEN + 15], &id).is_err());
         assert!(open_device_envelope(&[], &id).is_err());
+    }
+
+    #[test]
+    fn local_app_urls_are_accepted() {
+        for url in ["tauri://localhost/", "http://tauri.localhost/", "https://tauri.localhost/calendar"] {
+            assert!(is_local_app_url(&tauri::Url::parse(url).unwrap(), false), "{url}");
+        }
+    }
+
+    #[test]
+    fn remote_and_dev_urls_are_rejected_in_release() {
+        for url in [
+            "https://hooks.stripe.com/",
+            "https://evil.astermail.org/",
+            "https://tauri.localhost.evil.com/",
+            "tauri://evil/",
+            "http://127.0.0.1:1420/",
+            "about:blank",
+        ] {
+            assert!(!is_local_app_url(&tauri::Url::parse(url).unwrap(), false), "{url}");
+        }
+        assert!(is_local_app_url(&tauri::Url::parse("http://127.0.0.1:1420/").unwrap(), true));
+    }
+
+    #[test]
+    fn hkdf_output_limit_matches_rfc5869() {
+        assert_eq!(hkdf_max_bits("SHA-256").unwrap(), 65_280);
+        assert_eq!(hkdf_max_bits("sha-512").unwrap(), 130_560);
+        assert!(hkdf_max_bits("SHA-1").is_err());
     }
 
     fn test_key(seed: u8) -> [u8; 32] {
@@ -1958,6 +2018,24 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn device_http_request_refuses_astermail_com_before_connecting() {
+        for url in [
+            "https://astermail.com/api/health",
+            "https://app.astermail.com/api/health",
+            "https://evil.astermail.com/api/health",
+            "https://APP.ASTERMAIL.COM./api/health",
+        ] {
+            let result =
+                send_device_http_request(url.to_string(), "GET".to_string(), None, None).await;
+            assert_eq!(
+                result.err().as_deref(),
+                Some("host not in device_http_request allowlist"),
+                "{url}"
+            );
+        }
+    }
+
     #[test]
     fn aes_gcm_commands_treat_absent_and_empty_additional_data_alike() {
         let key = test_key(4).to_vec();
@@ -1985,7 +2063,7 @@ mod challenge_signing_tests {
 
     #[test]
     fn binds_the_login_context_when_the_server_asks_for_it() {
-        let nonce = [9u8; DEVICE_LOGIN_NONCE_LEN];
+        let nonce = [9u8; 32];
         let input = challenge_signing_input(&nonce, Some(2)).unwrap();
         assert!(input.starts_with(DEVICE_LOGIN_SIGNATURE_CONTEXT));
         assert!(input.ends_with(&nonce));
@@ -1993,15 +2071,17 @@ mod challenge_signing_tests {
     }
 
     #[test]
-    fn keeps_the_older_server_format() {
-        let nonce = [9u8; DEVICE_LOGIN_NONCE_LEN];
-        assert_eq!(challenge_signing_input(&nonce, None).unwrap(), nonce.to_vec());
-        assert_eq!(challenge_signing_input(&nonce, Some(1)).unwrap(), nonce.to_vec());
+    fn signs_the_labeled_challenge_when_the_server_names_no_version() {
+        let nonce = [9u8; 32];
+        let labeled = crate::device::challenge::device_challenge_message(&nonce).unwrap();
+        assert_ne!(labeled, nonce.to_vec());
+        assert_eq!(challenge_signing_input(&nonce, None).unwrap(), labeled);
+        assert_eq!(challenge_signing_input(&nonce, Some(1)).unwrap(), labeled);
     }
 
     #[test]
     fn refuses_an_unknown_version() {
-        assert!(challenge_signing_input(&[9u8; DEVICE_LOGIN_NONCE_LEN], Some(3)).is_err());
+        assert!(challenge_signing_input(&[9u8; 32], Some(3)).is_err());
     }
 }
 

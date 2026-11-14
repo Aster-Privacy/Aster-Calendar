@@ -50,8 +50,8 @@ const PIN_B64_SET: &[&str] = &[
     "oyD01TTXvpfBro3QSZc1vIlcMjrdLTiL/M9mLCPX+Zo=",
 ];
 
-const PINNED_SUFFIXES: &[&str] = &[".astermail.org", ".astermail.com"];
-const PINNED_EXACT: &[&str] = &["astermail.org", "astermail.com"];
+const PINNED_SUFFIXES: &[&str] = &[".astermail.org"];
+const PINNED_EXACT: &[&str] = &["astermail.org"];
 
 #[derive(Debug)]
 struct PinnedVerifier {
@@ -357,6 +357,29 @@ mod tests {
         assert!(host_requires_pin(&pinned));
         assert!(host_requires_pin(&bare));
         assert!(!host_requires_pin(&github));
+    }
+
+    #[test]
+    fn pin_check_skips_unowned_astermail_com_hosts() {
+        for host in [
+            "astermail.com",
+            "app.astermail.com",
+            "evil.astermail.com",
+            "APP.ASTERMAIL.COM",
+        ] {
+            let name: ServerName<'_> = host.try_into().expect("name");
+            assert!(!host_requires_pin(&name), "{host}");
+        }
+    }
+
+    #[test]
+    fn pinned_host_entries_never_name_astermail_com() {
+        for entry in PINNED_SUFFIXES.iter().chain(PINNED_EXACT) {
+            assert!(!entry.ends_with("astermail.com"), "{entry}");
+        }
+        for suffix in PINNED_SUFFIXES {
+            assert!(suffix.starts_with('.'), "{suffix}");
+        }
     }
 
     #[tokio::test]
