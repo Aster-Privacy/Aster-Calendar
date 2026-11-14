@@ -437,7 +437,15 @@ export interface CalendarTranslations {
   settings_day_split_desc: string;
   settings_info_day_split: string;
   birthday_title: string;
+  anniversary_title: string;
   settings_birthdays: string;
+  remove_birthdays_calendar: string;
+  remove_birthdays_calendar_title: string;
+  remove_birthdays_calendar_message: string;
+  birthdays_removed_toast: string;
+  birthdays_restored_toast: string;
+  birthdays_removed_description: string;
+  add_birthdays_calendar_back: string;
   settings_birthdays_desc: string;
   settings_info_birthdays: string;
   settings_subscriptions: string;

@@ -11364,7 +11364,15 @@ export const fr = {
     settings_info_day_split:
       "Quand deux agendas ou plus sont visibles, la vue jour se divise en une colonne par agenda.",
     birthday_title: "Anniversaire de {{name}}",
+    anniversary_title: "Anniversaire de mariage de {{name}}",
     settings_birthdays: "Anniversaires",
+    remove_birthdays_calendar: "Retirer le calendrier",
+    remove_birthdays_calendar_title: "Retirer {{name}} ?",
+    remove_birthdays_calendar_message: "Les anniversaires de vos contacts n'apparaîtront plus dans votre calendrier sur tous vos appareils. Vos contacts ne changent pas, et vous pouvez rajouter le calendrier dans les Réglages.",
+    birthdays_removed_toast: "Calendrier retiré",
+    birthdays_restored_toast: "Calendrier rajouté",
+    birthdays_removed_description: "Les anniversaires de vos contacts sont masqués sur tous vos appareils.",
+    add_birthdays_calendar_back: "Rajouter",
     settings_birthdays_desc: "Afficher les anniversaires de vos contacts",
     settings_info_birthdays:
       "Ajoute l'anniversaire de chaque contact en entrée journée entière en lecture seule, répétée chaque année.",

@@ -286,6 +286,11 @@ export interface UserPreferences {
   calendar_day_split_by_calendar: boolean;
   calendar_show_birthdays: boolean;
   calendar_birthdays_hidden: boolean;
+  calendar_birthdays_name: string;
+  calendar_birthdays_color: string;
+  calendar_birthdays_removed: boolean;
+  calendar_holidays_color: string;
+  calendar_event_color_overrides: Record<string, string>;
   calendar_tour_completed: boolean;
   calendar_ics_subscriptions: {
     id: string;
@@ -747,6 +752,10 @@ export const CACHEABLE_PREFERENCE_KEYS: readonly (keyof UserPreferences)[] = [
   "calendar_day_split_by_calendar",
   "calendar_show_birthdays",
   "calendar_birthdays_hidden",
+  "calendar_birthdays_name",
+  "calendar_birthdays_color",
+  "calendar_birthdays_removed",
+  "calendar_holidays_color",
   "calendar_tour_completed",
   "encrypt_emails",
   "warn_external_recipients",
@@ -1103,6 +1112,11 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   calendar_day_split_by_calendar: false,
   calendar_show_birthdays: false,
   calendar_birthdays_hidden: false,
+  calendar_birthdays_name: "",
+  calendar_birthdays_color: "",
+  calendar_birthdays_removed: false,
+  calendar_holidays_color: "",
+  calendar_event_color_overrides: {},
   calendar_tour_completed: false,
   calendar_ics_subscriptions: [],
   calendar_tag_colors: {},

@@ -1195,12 +1195,26 @@ export function build_month_chip_style(
 }
 
 const EVENT_KIND_COLORS: Record<string, string> = {
-  task: "var(--cal_color_blue)",
   out_of_office: "var(--cal_color_gray)",
   focus_time: "var(--cal_color_teal)",
   working_location: "var(--cal_color_green)",
   birthday: BIRTHDAY_COLOR,
 };
+
+export function default_event_color(
+  event_kind: string,
+  calendar_color: string | undefined,
+): string {
+  const kind_color = EVENT_KIND_COLORS[event_kind];
+
+  if (kind_color !== undefined) {
+    return event_color_token(kind_color);
+  }
+
+  return calendar_color
+    ? event_color_token(calendar_color)
+    : "var(--accent-color)";
+}
 
 export function resolve_event_color(
   event: DecryptedCalendarEvent,
@@ -1210,15 +1224,7 @@ export function resolve_event_color(
     return event_color_token(event.color);
   }
 
-  const kind_color = EVENT_KIND_COLORS[event.event_kind];
-
-  if (kind_color !== undefined) {
-    return event_color_token(kind_color);
-  }
-
-  return calendar_color
-    ? event_color_token(calendar_color)
-    : "var(--accent-color)";
+  return default_event_color(event.event_kind, calendar_color);
 }
 
 export function is_offset_in_view(

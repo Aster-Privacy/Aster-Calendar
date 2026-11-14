@@ -10934,7 +10934,15 @@ export const en: Translations = {
     settings_info_day_split:
       "When two or more calendars are visible, the day view splits into one column per calendar.",
     birthday_title: "{{name}}'s birthday",
+    anniversary_title: "{{name}}'s anniversary",
     settings_birthdays: "Birthdays",
+    remove_birthdays_calendar: "Remove calendar",
+    remove_birthdays_calendar_title: "Remove {{name}}?",
+    remove_birthdays_calendar_message: "Birthdays from your contacts stop appearing on your calendar on all your devices. Your contacts don't change, and you can add the calendar back in Settings.",
+    birthdays_removed_toast: "Calendar removed",
+    birthdays_restored_toast: "Calendar added back",
+    birthdays_removed_description: "Birthdays from your contacts are hidden on all your devices.",
+    add_birthdays_calendar_back: "Add back",
     settings_birthdays_desc: "Show birthdays from your contacts",
     settings_info_birthdays:
       "Adds each contact's birthday to your calendar as a read-only all-day entry, repeated yearly.",

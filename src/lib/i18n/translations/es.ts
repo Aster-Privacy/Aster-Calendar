@@ -11222,7 +11222,15 @@ export const es = {
     settings_info_day_split:
       "Cuando hay dos o más calendarios visibles, la vista de día se divide en una columna por calendario.",
     birthday_title: "Cumpleaños de {{name}}",
+    anniversary_title: "Aniversario de {{name}}",
     settings_birthdays: "Cumpleaños",
+    remove_birthdays_calendar: "Quitar calendario",
+    remove_birthdays_calendar_title: "¿Quitar {{name}}?",
+    remove_birthdays_calendar_message: "Los cumpleaños de tus contactos dejarán de aparecer en tu calendario en todos tus dispositivos. Tus contactos no cambian y puedes volver a añadir el calendario en Ajustes.",
+    birthdays_removed_toast: "Calendario quitado",
+    birthdays_restored_toast: "Calendario añadido de nuevo",
+    birthdays_removed_description: "Los cumpleaños de tus contactos están ocultos en todos tus dispositivos.",
+    add_birthdays_calendar_back: "Volver a añadir",
     settings_birthdays_desc: "Mostrar los cumpleaños de tus contactos",
     settings_info_birthdays:
       "Añade el cumpleaños de cada contacto como entrada de día completo de solo lectura, repetida cada año.",

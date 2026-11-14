@@ -60,6 +60,7 @@ import { describe_recurrence } from "@/components/calendar/recurrence_field";
 import { ProfileAvatar } from "@/components/ui/profile_avatar";
 import { AttendeeResponseStatus } from "@/components/calendar/attendee_response_status";
 import { use_i18n } from "@/lib/i18n/context";
+import { use_synthetic_calendar_display } from "@/hooks/use_synthetic_calendar_display";
 import { use_should_reduce_motion } from "@/provider";
 import { format_time } from "@/utils/date_format";
 import { calendar_now } from "@/services/calendar/view_zone";
@@ -202,6 +203,7 @@ export function CalendarDetailsPanel({
   on_respond,
 }: CalendarDetailsPanelProps) {
   const { language } = use_i18n();
+  const { birthdays_name } = use_synthetic_calendar_display();
   const { color_for: tag_color_for } = use_tag_colors();
   const { guard_link_click } = use_guarded_link();
 
@@ -470,8 +472,11 @@ export function CalendarDetailsPanel({
 
   const render_event_details = (event: DecryptedCalendarEvent) => {
     const calendar_name = is_birthday_kind(event)
-      ? t("calendar.settings_birthdays")
-      : (calendar_by_id.get(event.calendar_id)?.name ?? t("calendar.calendar"));
+      ? birthdays_name
+      : is_holiday_event(event)
+        ? t("calendar.settings_holidays")
+        : (calendar_by_id.get(event.calendar_id)?.name ??
+          t("calendar.calendar"));
     const kind_label =
       event.event_kind === "default"
         ? null

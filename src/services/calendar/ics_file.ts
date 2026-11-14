@@ -68,6 +68,7 @@ export interface ImportedIcsEvent {
   uid: string | null;
   recurrence_id: string | null;
   dropped_time_zones?: string[];
+  event_kind?: "birthday";
 }
 
 interface ParsedBlock {
@@ -88,6 +89,19 @@ const MAX_UID_LENGTH = 255;
 const MIN_IMPORT_YEAR = 1900;
 const MAX_IMPORT_YEAR = 2200;
 const DEFAULT_DURATION_MS = 60 * 60 * 1000;
+const BIRTHDAY_CATEGORIES = new Set([
+  "BIRTHDAY",
+  "BIRTHDAYS",
+  "ANNIVERSARY",
+  "ANNIVERSARIES",
+]);
+const YEARLY_RULE: RecurrenceRule = {
+  frequency: "yearly",
+  interval: 1,
+  by_weekday: [],
+  count: null,
+  until: null,
+};
 
 const DURATION_PATTERN =
   /^([+-])?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/;
@@ -675,6 +689,60 @@ function is_supported_year(year: number): boolean {
   return year >= MIN_IMPORT_YEAR && year <= MAX_IMPORT_YEAR;
 }
 
+interface EarlyDate {
+  month: number;
+  day: number;
+}
+
+function parse_early_date(value: string): EarlyDate | null {
+  const match = /^(\d{4})(\d{2})(\d{2})$/.exec(value.trim());
+
+  if (!match || Number(match[1]) >= MIN_IMPORT_YEAR) {
+    return null;
+  }
+
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const probe = new Date(2000, month - 1, day);
+
+  if (probe.getMonth() !== month - 1 || probe.getDate() !== day) {
+    return null;
+  }
+
+  return { month, day };
+}
+
+function first_supported_date(early: EarlyDate): Date {
+  for (let year = MIN_IMPORT_YEAR; year < MIN_IMPORT_YEAR + 8; year += 1) {
+    const candidate = new Date(year, early.month - 1, early.day);
+
+    if (candidate.getMonth() === early.month - 1) {
+      return candidate;
+    }
+  }
+
+  return new Date(MIN_IMPORT_YEAR + 4, early.month - 1, early.day);
+}
+
+function is_birthday_category(value: string): boolean {
+  return unescape_text(value)
+    .split(",")
+    .some((entry) => BIRTHDAY_CATEGORIES.has(entry.trim().toUpperCase()));
+}
+
+export function as_birthday_entry(entry: ImportedIcsEvent): ImportedIcsEvent {
+  if (!entry.is_all_day) {
+    return { ...entry, event_kind: "birthday" };
+  }
+
+  return {
+    ...entry,
+    availability: "free",
+    event_kind: "birthday",
+    recurrence: entry.recurrence ?? { ...YEARLY_RULE },
+  };
+}
+
 const MAX_DROPPED_ZONE_LENGTH = 64;
 
 export function resolve_tzid(value: string | undefined): string | undefined {
@@ -794,6 +862,8 @@ function parse_block(block: string): ParsedBlock | null {
   let starts: Date | null = null;
   let ends: Date | null = null;
   let is_all_day = false;
+  let early_start: EarlyDate | null = null;
+  let is_birthday = false;
   let recurrence: RecurrenceRule | null = null;
   let availability: CalendarEventAvailability = "busy";
   let visibility: CalendarEventVisibility = "default";
@@ -897,6 +967,7 @@ function parse_block(block: string): ParsedBlock | null {
       const zone = zone_of(params.TZID, value);
 
       starts = parse_stamp(value, zone);
+      early_start = starts ? null : parse_early_date(value);
 
       if (params.VALUE === "DATE" || /^\d{8}$/.test(value.trim())) {
         is_all_day = true;
@@ -913,6 +984,10 @@ function parse_block(block: string): ParsedBlock | null {
       recurrence_id = parse_stamp(value, zone_of(params.TZID, value));
     } else if (name === "RRULE") {
       recurrence = rrule_to_rule(value);
+    } else if (name === "CATEGORIES") {
+      is_birthday = is_birthday || is_birthday_category(value);
+    } else if (name === "X-APPLE-OMIT-YEAR") {
+      is_birthday = true;
     } else if (name === "EXDATE" || name === "RDATE") {
       const target = name === "EXDATE" ? exception_dates : extra_dates;
       const limit = name === "EXDATE" ? MAX_EXCEPTIONS : MAX_EXTRA_DATES;
@@ -950,6 +1025,21 @@ function parse_block(block: string): ParsedBlock | null {
         });
       }
     }
+  }
+
+  if (
+    !starts &&
+    early_start &&
+    is_all_day &&
+    (is_birthday || recurrence?.frequency === "yearly")
+  ) {
+    starts = first_supported_date(early_start);
+    ends = new Date(
+      starts.getFullYear(),
+      starts.getMonth(),
+      starts.getDate() + 1,
+    );
+    recurrence = recurrence ?? { ...YEARLY_RULE };
   }
 
   if (!starts || Number.isNaN(starts.getTime())) {
@@ -993,34 +1083,37 @@ function parse_block(block: string): ParsedBlock | null {
     };
   }
 
+  const event: ImportedIcsEvent = {
+    title,
+    description,
+    location,
+    starts_at: starts.toISOString(),
+    ends_at: final_end.toISOString(),
+    is_all_day,
+    status,
+    attendees,
+    recurrence,
+    recurrence_exceptions: exception_dates,
+    availability,
+    visibility,
+    conference_url,
+    reminder_minutes: imported_reminders[0] ?? null,
+    ...(imported_reminders.length > 1 ? { reminders: imported_reminders } : {}),
+    uid,
+    ...(dropped_zones.size > 0
+      ? { dropped_time_zones: Array.from(dropped_zones) }
+      : {}),
+    recurrence_id:
+      recurrence_id && !Number.isNaN(recurrence_id.getTime())
+        ? recurrence_id.toISOString()
+        : null,
+  };
+
   return {
-    event: {
-      title,
-      description,
-      location,
-      starts_at: starts.toISOString(),
-      ends_at: final_end.toISOString(),
-      is_all_day,
-      status,
-      attendees,
-      recurrence,
-      recurrence_exceptions: exception_dates,
-      availability,
-      visibility,
-      conference_url,
-      reminder_minutes: imported_reminders[0] ?? null,
-      ...(imported_reminders.length > 1
-        ? { reminders: imported_reminders }
-        : {}),
-      uid,
-      ...(dropped_zones.size > 0
-        ? { dropped_time_zones: Array.from(dropped_zones) }
-        : {}),
-      recurrence_id:
-        recurrence_id && !Number.isNaN(recurrence_id.getTime())
-          ? recurrence_id.toISOString()
-          : null,
-    },
+    event:
+      is_birthday && event.recurrence_id === null
+        ? as_birthday_entry(event)
+        : event,
   };
 }
 

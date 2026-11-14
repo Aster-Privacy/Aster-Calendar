@@ -27,7 +27,11 @@ import {
   delete_events_batch,
   list_events,
 } from "@/services/api/calendar";
-import { parse_ics_events } from "@/services/calendar/ics_file";
+import { BIRTHDAY_CALENDAR_ID } from "@/services/calendar/birthdays";
+import {
+  as_birthday_entry,
+  parse_ics_events,
+} from "@/services/calendar/ics_file";
 
 export interface IcsImportResult {
   parsed: number;
@@ -51,7 +55,7 @@ export async function import_ics_text(
       conference_url: entry.conference_url,
       description: entry.description,
       ends_at: entry.ends_at,
-      event_kind: "default",
+      event_kind: entry.event_kind ?? "default",
       guests_can_invite: true,
       guests_can_modify: false,
       guests_can_see_guests: true,
@@ -202,7 +206,7 @@ export function import_entry_draft(
     conference_url: entry.conference_url,
     description: entry.description,
     ends_at: entry.ends_at,
-    event_kind: "default",
+    event_kind: entry.event_kind ?? "default",
     guests_can_invite: true,
     guests_can_modify: false,
     guests_can_see_guests: true,
@@ -222,6 +226,46 @@ export function import_entry_draft(
     visibility: entry.visibility,
     working_location: null,
   };
+}
+
+export const BIRTHDAYS_IMPORT_TARGET = BIRTHDAY_CALENDAR_ID;
+
+export interface ImportTarget {
+  calendar_id: string;
+  as_birthdays: boolean;
+}
+
+export function resolve_import_target(
+  target_id: string,
+  calendars: Array<{ id: string; is_default?: boolean }>,
+  default_calendar_id: string,
+): ImportTarget | null {
+  if (target_id === BIRTHDAYS_IMPORT_TARGET) {
+    const home =
+      calendars.find((calendar) => calendar.id === default_calendar_id) ??
+      calendars.find((calendar) => calendar.is_default) ??
+      calendars[0];
+
+    return home ? { calendar_id: home.id, as_birthdays: true } : null;
+  }
+
+  return calendars.some((calendar) => calendar.id === target_id)
+    ? { calendar_id: target_id, as_birthdays: false }
+    : null;
+}
+
+export function entries_for_target(
+  entries: ImportedIcsEvent[],
+  target: ImportTarget,
+): ImportedIcsEvent[] {
+  return target.as_birthdays ? entries.map(as_birthday_entry) : entries;
+}
+
+export function is_birthday_import(entries: ImportedIcsEvent[]): boolean {
+  return (
+    entries.length > 0 &&
+    entries.every((entry) => entry.event_kind === "birthday")
+  );
 }
 
 export async function import_entries(

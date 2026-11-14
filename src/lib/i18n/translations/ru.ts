@@ -11410,7 +11410,15 @@ export const ru = {
     settings_info_day_split:
       "Если видно два и более календаря, режим дня делится на столбец для каждого календаря.",
     birthday_title: "День рождения: {{name}}",
+    anniversary_title: "Годовщина: {{name}}",
     settings_birthdays: "Дни рождения",
+    remove_birthdays_calendar: "Удалить календарь",
+    remove_birthdays_calendar_title: "Удалить «{{name}}»?",
+    remove_birthdays_calendar_message: "Дни рождения из ваших контактов перестанут отображаться в календаре на всех ваших устройствах. Контакты не изменятся, а календарь можно вернуть в настройках.",
+    birthdays_removed_toast: "Календарь удален",
+    birthdays_restored_toast: "Календарь возвращен",
+    birthdays_removed_description: "Дни рождения из ваших контактов скрыты на всех ваших устройствах.",
+    add_birthdays_calendar_back: "Вернуть",
     settings_birthdays_desc: "Показывать дни рождения из контактов",
     settings_info_birthdays:
       "Добавляет день рождения каждого контакта как запись на весь день только для чтения, ежегодно.",

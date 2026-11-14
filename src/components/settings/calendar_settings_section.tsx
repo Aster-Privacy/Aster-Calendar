@@ -62,6 +62,7 @@ import {
   CalendarDeleteDialog,
   CalendarEditDialog,
 } from "@/components/calendar/calendar_edit_dialog";
+import type { CalendarSavedPayload } from "@/components/calendar/calendar_edit_dialog";
 
 import { Input } from "@/components/ui/input";
 import {
@@ -82,6 +83,12 @@ import {
   set_calendar_hidden,
 } from "@/services/calendar/local_visibility";
 import { use_local_calendar_visibility } from "@/hooks/use_local_calendar_visibility";
+import { BIRTHDAY_CALENDAR_ID } from "@/services/calendar/birthdays";
+import {
+  normalize_hex,
+  resolve_birthdays_color,
+  resolve_birthdays_name,
+} from "@/services/calendar/display_colors";
 import {
   clamp_custom_view_days,
   CUSTOM_VIEW_DAY_OPTIONS,
@@ -1410,7 +1417,8 @@ export { CalendarImportExportSection } from "./calendar_import_export_section";
 
 export function CalendarListSection() {
   const { t } = use_i18n();
-  const { preferences, update_preference } = use_preferences();
+  const { preferences, update_preference, update_preferences } =
+    use_preferences();
   const [server_calendars, set_calendars] = useState<DecryptedCalendar[]>([]);
   const { visibility, update: update_visibility } =
     use_local_calendar_visibility({
@@ -1430,6 +1438,45 @@ export function CalendarListSection() {
   const [delete_target, set_delete_target] = useState<DecryptedCalendar | null>(
     null,
   );
+  const [is_birthdays_editor_open, set_is_birthdays_editor_open] =
+    useState(false);
+  const birthdays_removed = preferences.calendar_birthdays_removed === true;
+  const default_birthdays_name = t("calendar.settings_birthdays");
+  const { calendar_birthdays_color, calendar_birthdays_name } = preferences;
+  const birthdays_calendar = useMemo<DecryptedCalendar>(
+    () => ({
+      color: resolve_birthdays_color({ calendar_birthdays_color }),
+      icon: "calendar",
+      id: BIRTHDAY_CALENDAR_ID,
+      is_default: false,
+      is_visible: true,
+      name: resolve_birthdays_name(
+        calendar_birthdays_name,
+        default_birthdays_name,
+      ),
+    }),
+    [calendar_birthdays_color, calendar_birthdays_name, default_birthdays_name],
+  );
+  const birthdays_visible = !visibility.birthdays_hidden;
+
+  const save_birthdays_calendar = (saved: CalendarSavedPayload) => {
+    const name = saved.name.trim();
+
+    update_preferences({
+      calendar_birthdays_color: normalize_hex(saved.color) ?? "",
+      calendar_birthdays_name: name === default_birthdays_name ? "" : name,
+    });
+  };
+
+  const set_birthdays_removed = (removed: boolean) => {
+    update_preference("calendar_birthdays_removed", removed);
+    show_toast(
+      removed
+        ? t("calendar.birthdays_removed_toast")
+        : t("calendar.birthdays_restored_toast"),
+      "success",
+    );
+  };
 
   const reload = async () => {
     try {
@@ -1579,7 +1626,89 @@ export function CalendarListSection() {
             }
           />
         ))}
+
+        {birthdays_removed ? (
+          <IslandRow
+            description={t("calendar.birthdays_removed_description")}
+            icon={
+              <span
+                className="block h-3 w-3 rounded-[4px] opacity-50"
+                style={{ backgroundColor: birthdays_calendar.color }}
+              />
+            }
+            label={birthdays_calendar.name}
+            trailing={
+              <Button
+                data-birthdays-restore=""
+                size="md"
+                variant="secondary"
+                onClick={() => set_birthdays_removed(false)}
+              >
+                {t("calendar.add_birthdays_calendar_back")}
+              </Button>
+            }
+          />
+        ) : (
+          <IslandRow
+            description={t("calendar.settings_birthdays_desc")}
+            icon={
+              <span
+                className="block h-3 w-3 rounded-[4px]"
+                style={{ backgroundColor: birthdays_calendar.color }}
+              />
+            }
+            label={birthdays_calendar.name}
+            toggle={{
+              aria_label: birthdays_calendar.name,
+              checked: birthdays_visible,
+              on_change: (next) =>
+                update_visibility((current) => ({
+                  ...current,
+                  birthdays_hidden: !next,
+                })),
+            }}
+            trailing={
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    aria-label={t("calendar.calendar_options")}
+                    className="h-8 w-8 rounded-full"
+                    data-birthdays-options=""
+                    size="icon"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <EllipsisHorizontalIcon className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent align="end" className="min-w-[190px]">
+                  <DropdownMenuItem
+                    onSelect={() => set_is_birthdays_editor_open(true)}
+                  >
+                    {t("calendar.edit_calendar")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-danger focus:text-danger"
+                    onSelect={() => set_birthdays_removed(true)}
+                  >
+                    {t("calendar.remove_birthdays_calendar")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            }
+          />
+        )}
       </IslandSection>
+
+      <CalendarEditDialog
+        calendar={birthdays_calendar}
+        delete_label={t("calendar.remove_birthdays_calendar")}
+        is_open={is_birthdays_editor_open}
+        on_close={() => set_is_birthdays_editor_open(false)}
+        on_delete_request={() => set_birthdays_removed(true)}
+        on_save_local={save_birthdays_calendar}
+      />
 
       <CalendarEditDialog
         calendar={editor.calendar}

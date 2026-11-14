@@ -100,6 +100,7 @@ import {
   CalendarDeleteDialog,
   CalendarEditDialog,
 } from "@/components/calendar/calendar_edit_dialog";
+import type { CalendarSavedPayload } from "@/components/calendar/calendar_edit_dialog";
 import { CalendarWorldClock } from "@/components/calendar/calendar_world_clock";
 import { RailTipLayer } from "@/components/layout/sidebar/rail_tip_layer";
 import { SidebarAccountSwitcher } from "@/components/layout/sidebar/sidebar_account_switcher";
@@ -107,11 +108,15 @@ import { UpNextCard } from "@/components/calendar/up_next_card";
 import { TagColorPicker } from "@/components/calendar/tag_color_picker";
 import { use_tag_colors } from "@/components/calendar/use_tag_colors";
 import { use_preferences } from "@/contexts/preferences_context";
-import { BIRTHDAY_COLOR } from "@/services/calendar/birthdays";
+import { BIRTHDAY_CALENDAR_ID } from "@/services/calendar/birthdays";
+import { HOLIDAY_CALENDAR_ID } from "@/services/calendar/holidays";
 import {
-  HOLIDAY_CALENDAR_ID,
-  HOLIDAY_COLOR,
-} from "@/services/calendar/holidays";
+  normalize_hex,
+  resolve_birthdays_color,
+  resolve_birthdays_name,
+  resolve_holidays_color,
+} from "@/services/calendar/display_colors";
+import { ConfirmationModal } from "@/components/modals/confirmation_modal";
 import {
   apply_subscription_visibility,
   set_subscription_hidden,
@@ -199,7 +204,8 @@ export function CalendarSidebar({
   const [subscriptions_collapsed, set_subscriptions_collapsed] = useState(() =>
     get_cached_sidebar_state(SUBSCRIPTIONS_COLLAPSED_KEY),
   );
-  const { preferences, update_preference } = use_preferences();
+  const { preferences, update_preference, update_preferences } =
+    use_preferences();
   const { set_tag_color } = use_tag_colors();
 
   useEffect(() => {
@@ -543,6 +549,10 @@ export function CalendarSidebar({
   }>({ is_open: false, calendar: null });
   const [calendar_to_delete, set_calendar_to_delete] =
     useState<DecryptedCalendar | null>(null);
+  const [is_birthdays_editor_open, set_is_birthdays_editor_open] =
+    useState(false);
+  const [is_birthdays_remove_open, set_is_birthdays_remove_open] =
+    useState(false);
 
   const open_new_calendar = () =>
     set_calendar_editor({ is_open: true, calendar: null });
@@ -853,6 +863,88 @@ export function CalendarSidebar({
 
   const birthdays_visible = !visibility.birthdays_hidden;
   const holidays_visible = !visibility.holidays_hidden;
+  const birthdays_removed = preferences.calendar_birthdays_removed === true;
+  const birthdays_color = resolve_birthdays_color(preferences);
+  const holidays_color = resolve_holidays_color(preferences);
+  const default_birthdays_name = t("calendar.settings_birthdays");
+  const birthdays_name = resolve_birthdays_name(
+    preferences.calendar_birthdays_name,
+    default_birthdays_name,
+  );
+  const birthdays_calendar = useMemo<DecryptedCalendar>(
+    () => ({
+      color: birthdays_color,
+      icon: "calendar",
+      id: BIRTHDAY_CALENDAR_ID,
+      is_default: false,
+      is_visible: true,
+      name: birthdays_name,
+    }),
+    [birthdays_color, birthdays_name],
+  );
+
+  const change_birthdays_color = (color: string) =>
+    update_preference("calendar_birthdays_color", normalize_hex(color) ?? "");
+  const change_holidays_color = (color: string) =>
+    update_preference("calendar_holidays_color", normalize_hex(color) ?? "");
+  const save_birthdays_calendar = (saved: CalendarSavedPayload) => {
+    const name = saved.name.trim();
+
+    update_preferences({
+      calendar_birthdays_color: normalize_hex(saved.color) ?? "",
+      calendar_birthdays_name: name === default_birthdays_name ? "" : name,
+    });
+  };
+  const remove_birthdays_calendar = () => {
+    set_is_birthdays_remove_open(false);
+    update_preference("calendar_birthdays_removed", true);
+    show_toast(t("calendar.birthdays_removed_toast"), "success");
+  };
+
+  const color_submenu = (current: string, on_pick: (color: string) => void) => (
+    <ContextMenuSub>
+      <ContextMenuSubTrigger>
+        <span
+          aria-hidden="true"
+          className="me-2 inline-flex h-4 w-4 items-center justify-center"
+        >
+          <span
+            className="h-3 w-3 rounded-[3px]"
+            style={{ backgroundColor: event_color_token(current) }}
+          />
+        </span>
+        {t("common.change_color")}
+      </ContextMenuSubTrigger>
+      <ContextMenuSubContent className="w-44">
+        {EVENT_COLOR_OPTIONS.map((option) => {
+          const is_current = nearest_event_color(current).name === option.name;
+
+          return (
+            <ContextMenuItem
+              key={option.hex}
+              aria-checked={is_current}
+              role="menuitemradio"
+              onClick={() => on_pick(option.hex)}
+            >
+              <span
+                aria-hidden="true"
+                className="me-2 inline-flex h-4 w-4 items-center justify-center"
+              >
+                <span
+                  className="h-3 w-3 rounded-[3px]"
+                  style={{ backgroundColor: option.token }}
+                />
+              </span>
+              <span className="flex-1">{t(option.name_key)}</span>
+              {is_current && (
+                <CheckIcon className="ms-2 h-4 w-4 text-txt-secondary" />
+              )}
+            </ContextMenuItem>
+          );
+        })}
+      </ContextMenuSubContent>
+    </ContextMenuSub>
+  );
 
   const toggle_birthdays = () =>
     update_visibility((current) => ({
@@ -878,10 +970,10 @@ export function CalendarSidebar({
           <SidebarTagRow
             rail_tip
             aria-pressed={birthdays_visible}
-            color={BIRTHDAY_COLOR}
-            icon_slot={visibility_box(BIRTHDAY_COLOR, birthdays_visible)}
+            color={birthdays_color}
+            icon_slot={visibility_box(birthdays_color, birthdays_visible)}
             is_collapsed={is_collapsed}
-            label={t("calendar.settings_birthdays")}
+            label={birthdays_name}
             on_click={toggle_birthdays}
             trailing={!is_collapsed ? <span className="w-5" /> : undefined}
           />
@@ -913,6 +1005,19 @@ export function CalendarSidebar({
             ? t("calendar.hide_this_calendar")
             : t("calendar.show_this_calendar")}
         </ContextMenuItem>
+        <ContextMenuSeparator />
+        {color_submenu(birthdays_color, change_birthdays_color)}
+        <ContextMenuItem onClick={() => set_is_birthdays_editor_open(true)}>
+          <PencilIcon className="me-2 h-4 w-4" />
+          {t("calendar.edit_calendar")}
+        </ContextMenuItem>
+        <ContextMenuItem
+          className="text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
+          onClick={() => set_is_birthdays_remove_open(true)}
+        >
+          <TrashIcon className="me-2 h-4 w-4" />
+          {t("calendar.remove_birthdays_calendar")}
+        </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
   );
@@ -929,8 +1034,8 @@ export function CalendarSidebar({
           <SidebarTagRow
             rail_tip
             aria-pressed={holidays_visible}
-            color={HOLIDAY_COLOR}
-            icon_slot={visibility_box(HOLIDAY_COLOR, holidays_visible)}
+            color={holidays_color}
+            icon_slot={visibility_box(holidays_color, holidays_visible)}
             is_collapsed={is_collapsed}
             label={t("calendar.settings_holidays")}
             on_click={toggle_holidays}
@@ -964,6 +1069,8 @@ export function CalendarSidebar({
             ? t("calendar.hide_this_calendar")
             : t("calendar.show_this_calendar")}
         </ContextMenuItem>
+        <ContextMenuSeparator />
+        {color_submenu(holidays_color, change_holidays_color)}
       </ContextMenuContent>
     </ContextMenu>
   );
@@ -1301,7 +1408,7 @@ export function CalendarSidebar({
           {!calendars_collapsed && (
             <div className={is_collapsed ? undefined : "py-1"}>
               {calendar_rows}
-              {calendars.length > 0 && birthday_row}
+              {calendars.length > 0 && !birthdays_removed && birthday_row}
               {has_holidays && holiday_row}
               {calendars.length === 0 && !is_collapsed && (
                 <CalendarEmptyState
@@ -1448,6 +1555,26 @@ export function CalendarSidebar({
       <CalendarDeleteDialog
         calendar={calendar_to_delete}
         on_close={() => set_calendar_to_delete(null)}
+      />
+      <CalendarEditDialog
+        calendar={birthdays_calendar}
+        delete_label={t("calendar.remove_birthdays_calendar")}
+        is_open={is_birthdays_editor_open}
+        on_close={() => set_is_birthdays_editor_open(false)}
+        on_delete_request={() => set_is_birthdays_remove_open(true)}
+        on_save_local={save_birthdays_calendar}
+      />
+      <ConfirmationModal
+        cancel_text={t("common.cancel")}
+        confirm_text={t("calendar.remove_birthdays_calendar")}
+        is_open={is_birthdays_remove_open}
+        message={t("calendar.remove_birthdays_calendar_message")}
+        on_cancel={() => set_is_birthdays_remove_open(false)}
+        on_confirm={remove_birthdays_calendar}
+        title={t("calendar.remove_birthdays_calendar_title", {
+          name: birthdays_name,
+        })}
+        variant="warning"
       />
     </>
   );

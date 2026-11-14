@@ -10967,7 +10967,15 @@ export const ar = {
     settings_info_day_split:
       "عند ظهور تقويمين أو أكثر، ينقسم عرض اليوم إلى عمود لكل تقويم.",
     birthday_title: "عيد ميلاد {{name}}",
+    anniversary_title: "ذكرى {{name}}",
     settings_birthdays: "أعياد الميلاد",
+    remove_birthdays_calendar: "إزالة التقويم",
+    remove_birthdays_calendar_title: "هل تريد إزالة {{name}}؟",
+    remove_birthdays_calendar_message: "لن تظهر أعياد ميلاد جهات اتصالك في التقويم على أي من أجهزتك. لن تتغير جهات اتصالك، ويمكنك إعادة إضافة التقويم من الإعدادات.",
+    birthdays_removed_toast: "تمت إزالة التقويم",
+    birthdays_restored_toast: "تمت إعادة إضافة التقويم",
+    birthdays_removed_description: "أعياد ميلاد جهات اتصالك مخفية على جميع أجهزتك.",
+    add_birthdays_calendar_back: "إعادة الإضافة",
     settings_birthdays_desc: "إظهار أعياد ميلاد جهات اتصالك",
     settings_info_birthdays:
       "يضيف عيد ميلاد كل جهة اتصال إلى تقويمك كإدخال لليوم الكامل للقراءة فقط يتكرر سنويًا.",

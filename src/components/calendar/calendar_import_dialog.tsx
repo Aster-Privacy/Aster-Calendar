@@ -37,11 +37,16 @@ import { CalendarSelect } from "@/components/calendar/calendar_select";
 import { show_action_toast } from "@/components/toast/action_toast";
 import { show_toast } from "@/components/toast/simple_toast";
 import { use_i18n } from "@/lib/i18n/context";
+import { use_synthetic_calendar_display } from "@/hooks/use_synthetic_calendar_display";
 import {
+  BIRTHDAYS_IMPORT_TARGET,
+  entries_for_target,
   type ImportPreview,
   import_entries,
+  is_birthday_import,
   MAX_IMPORT_BYTES,
   read_import_preview,
+  resolve_import_target,
   undo_import,
 } from "@/services/calendar/ics_import";
 
@@ -78,6 +83,7 @@ export function CalendarImportDialog({
   on_imported,
 }: CalendarImportDialogProps) {
   const { t } = use_i18n();
+  const birthdays_display = use_synthetic_calendar_display();
   const [phase, set_phase] = useState<Phase>("reading");
   const [preview, set_preview] = useState<ImportPreview | null>(null);
   const [target_id, set_target_id] = useState(default_calendar_id);
@@ -86,7 +92,10 @@ export function CalendarImportDialog({
   const on_close_ref = useRef(on_close);
   const cancel_requested = useRef(false);
 
+  const birthdays_removed_ref = useRef(birthdays_display.birthdays_removed);
+
   on_close_ref.current = on_close;
+  birthdays_removed_ref.current = birthdays_display.birthdays_removed;
 
   useEffect(() => {
     if (!is_open) {
@@ -116,6 +125,12 @@ export function CalendarImportDialog({
         }
 
         set_preview(result);
+        if (
+          !birthdays_removed_ref.current &&
+          is_birthday_import(result.parsed)
+        ) {
+          set_target_id(BIRTHDAYS_IMPORT_TARGET);
+        }
         set_phase("preview");
       })
       .catch(() => {
@@ -137,7 +152,11 @@ export function CalendarImportDialog({
       ? preview.new_entries
       : preview.parsed
     : [];
-  const target = calendars.find((calendar) => calendar.id === target_id);
+  const target = resolve_import_target(
+    target_id,
+    calendars,
+    default_calendar_id,
+  );
   const can_import =
     phase === "preview" && entries_to_import.length > 0 && target !== undefined;
 
@@ -159,10 +178,13 @@ export function CalendarImportDialog({
         break;
       }
 
-      const batch = entries_to_import.slice(index, index + IMPORT_BATCH_SIZE);
+      const batch = entries_for_target(
+        entries_to_import.slice(index, index + IMPORT_BATCH_SIZE),
+        target,
+      );
 
       try {
-        created.push(...(await import_entries(batch, target.id)));
+        created.push(...(await import_entries(batch, target.calendar_id)));
       } catch {
         failed = true;
         break;
@@ -334,10 +356,20 @@ export function CalendarImportDialog({
                         aria_label={t("calendar.import_target")}
                         class_name="max-w-[60%]"
                         disabled={phase === "importing"}
-                        options={calendars.map((calendar) => ({
-                          value: calendar.id,
-                          label: calendar.name,
-                        }))}
+                        options={[
+                          ...calendars.map((calendar) => ({
+                            value: calendar.id,
+                            label: calendar.name,
+                          })),
+                          ...(birthdays_display.birthdays_removed
+                            ? []
+                            : [
+                                {
+                                  value: BIRTHDAYS_IMPORT_TARGET,
+                                  label: birthdays_display.birthdays_name,
+                                },
+                              ]),
+                        ]}
                         placeholder={t("calendar.import_target")}
                         value={target_id}
                         on_change={set_target_id}

@@ -98,21 +98,30 @@ import {
   HOLIDAY_COLOR,
   HOLIDAY_EVENT_PREFIX,
   holidays_in_range,
-  is_holiday_event,
 } from "@/services/calendar/holidays";
 import {
   BIRTHDAY_CALENDAR_ID,
   BIRTHDAY_COLOR,
   BIRTHDAY_EVENT_PREFIX,
   birthdays_in_range,
-  is_birthday_event,
+  contact_birthday_sources,
   is_event_shown,
 } from "@/services/calendar/birthdays";
 import type { BirthdaySource } from "@/services/calendar/birthdays";
+import {
+  apply_display_colors,
+  event_color_override,
+  is_read_only_event,
+  resolve_birthdays_color,
+  resolve_holidays_color,
+  sanitize_event_color_overrides,
+  with_event_color_override,
+} from "@/services/calendar/display_colors";
 import { decrypt_contact, list_contacts } from "@/services/api/contacts";
 import {
   fetch_subscription_events,
-  is_subscription_event,
+  subscription_calendar_id,
+  subscription_color,
   SUBSCRIPTION_EXPANSION_BUDGET,
   with_subscription_colors,
   without_hidden_subscriptions,
@@ -198,12 +207,7 @@ const VIEW_SWITCH_INPUT_GUARD_MS = 450;
 const TRASH_PURGE_DELAY_MS = 6000;
 
 function is_readonly_event(event: DecryptedCalendarEvent): boolean {
-  return (
-    is_holiday_event(event) ||
-    is_birthday_event(event) ||
-    is_subscription_event(event) ||
-    is_booking_event(event)
-  );
+  return is_read_only_event(event);
 }
 
 function has_recurrence(event: DecryptedCalendarEvent): boolean {
@@ -887,7 +891,9 @@ export function use_calendar_state() {
   );
 
   const holiday_region = preferences.calendar_holiday_region ?? "none";
-  const show_birthdays = !visibility.birthdays_hidden;
+  const birthdays_removed = preferences.calendar_birthdays_removed === true;
+  const show_birthdays = !visibility.birthdays_hidden && !birthdays_removed;
+  const birthday_kind_shown = birthdays_removed ? null : show_birthdays;
   const [birthday_sources, set_birthday_sources] = useState<BirthdaySource[]>(
     [],
   );
@@ -919,16 +925,8 @@ export function use_calendar_state() {
           for (const contact of response.data.items) {
             try {
               const decrypted = await decrypt_contact(contact);
-              const name =
-                `${decrypted.first_name} ${decrypted.last_name}`.trim();
 
-              if (decrypted.birthday && name.length > 0) {
-                sources.push({
-                  birthday: decrypted.birthday,
-                  id: decrypted.id,
-                  name,
-                });
-              }
+              sources.push(...contact_birthday_sources(decrypted));
             } catch {
               continue;
             }
@@ -993,7 +991,12 @@ export function use_calendar_state() {
           starts_at: day_start.toISOString(),
           status: "confirmed",
           tags: [],
-          title: t("calendar.birthday_title", { name: occurrence.name }),
+          title: t(
+            occurrence.kind === "anniversary"
+              ? "calendar.anniversary_title"
+              : "calendar.birthday_title",
+            { name: occurrence.name },
+          ),
           updated_at: day_start.toISOString(),
           visibility: "default",
           working_location: null,
@@ -1269,28 +1272,78 @@ export function use_calendar_state() {
     );
   }, [holiday_region, visibility.holidays_hidden, range_start, range_end]);
 
+  const event_color_overrides = useMemo(
+    () =>
+      sanitize_event_color_overrides(
+        preferences.calendar_event_color_overrides,
+      ),
+    [preferences.calendar_event_color_overrides],
+  );
+  const display_color_preferences = useMemo(
+    () => ({
+      calendar_birthdays_color: preferences.calendar_birthdays_color,
+      calendar_holidays_color: preferences.calendar_holidays_color,
+      calendar_event_color_overrides: event_color_overrides,
+    }),
+    [
+      preferences.calendar_birthdays_color,
+      preferences.calendar_holidays_color,
+      event_color_overrides,
+    ],
+  );
+
+  const read_only_event_color = useCallback(
+    (event: DecryptedCalendarEvent) => {
+      const subscription = displayed_subscriptions.find(
+        (entry) => subscription_calendar_id(entry.id) === event.calendar_id,
+      );
+      let fallback = event.color ?? "";
+
+      if (event.calendar_id === BIRTHDAY_CALENDAR_ID) {
+        fallback = resolve_birthdays_color(display_color_preferences);
+      } else if (event.calendar_id === HOLIDAY_CALENDAR_ID) {
+        fallback = resolve_holidays_color(display_color_preferences);
+      } else if (event.calendar_id === BOOKING_CALENDAR_ID) {
+        fallback = BOOKING_COLOR;
+      } else if (subscription) {
+        fallback = subscription_color(subscription);
+      }
+
+      return {
+        override: event_color_override(event_color_overrides, event),
+        fallback,
+      };
+    },
+    [displayed_subscriptions, display_color_preferences, event_color_overrides],
+  );
+
   const calendar_filtered_events = useMemo(
     () =>
-      searchable_events
-        .filter((event) =>
-          is_event_shown(event, visible_calendar_ids, show_birthdays),
-        )
-        .filter((event) => event_has_any_tag(event, selected_tags))
-        .filter(
-          (event) => show_declined_events || !is_declined_by(event, self_email),
-        )
-        .concat(holiday_events)
-        .concat(birthday_events)
-        .concat(visible_subscription_events)
-        .concat(booking_events),
+      apply_display_colors(
+        searchable_events
+          .filter((event) =>
+            is_event_shown(event, visible_calendar_ids, birthday_kind_shown),
+          )
+          .filter((event) => event_has_any_tag(event, selected_tags))
+          .filter(
+            (event) =>
+              show_declined_events || !is_declined_by(event, self_email),
+          )
+          .concat(holiday_events)
+          .concat(birthday_events)
+          .concat(visible_subscription_events)
+          .concat(booking_events),
+        display_color_preferences,
+      ),
     [
+      display_color_preferences,
       holiday_events,
       birthday_events,
       visible_subscription_events,
       booking_events,
       searchable_events,
       visible_calendar_ids,
-      show_birthdays,
+      birthday_kind_shown,
       selected_tags,
       show_declined_events,
       self_email,
@@ -1302,14 +1355,14 @@ export function use_calendar_state() {
     () =>
       collect_tags(
         events.filter((event) =>
-          is_event_shown(event, visible_calendar_ids, show_birthdays),
+          is_event_shown(event, visible_calendar_ids, birthday_kind_shown),
         ),
         preferences.calendar_tag_colors,
       ),
     [
       events,
       visible_calendar_ids,
-      show_birthdays,
+      birthday_kind_shown,
       preferences.calendar_tag_colors,
     ],
   );
@@ -2157,9 +2210,9 @@ export function use_calendar_state() {
       searchable_events.filter(
         (event) =>
           is_working_location_event(event) &&
-          is_event_shown(event, visible_calendar_ids, show_birthdays),
+          is_event_shown(event, visible_calendar_ids, birthday_kind_shown),
       ),
-    [searchable_events, show_birthdays, visible_calendar_ids],
+    [searchable_events, birthday_kind_shown, visible_calendar_ids],
   );
 
   const resolve_working_location = useCallback(
@@ -2475,6 +2528,20 @@ export function use_calendar_state() {
 
   const handle_set_event_color = useCallback(
     async (event: DecryptedCalendarEvent, color: string | null) => {
+      if (is_readonly_event(event)) {
+        const next_overrides = with_event_color_override(
+          event_color_overrides,
+          event,
+          color,
+        );
+        update_preference("calendar_event_color_overrides", next_overrides);
+
+        return apply_display_colors([event], {
+          ...display_color_preferences,
+          calendar_event_color_overrides: next_overrides,
+        })[0];
+      }
+
       if (event.color === color) {
         return event;
       }
@@ -2499,7 +2566,13 @@ export function use_calendar_state() {
 
       return updated;
     },
-    [apply_saved_event, reload],
+    [
+      apply_saved_event,
+      display_color_preferences,
+      event_color_overrides,
+      reload,
+      update_preference,
+    ],
   );
 
   const handle_toggle_task_done = useCallback(
@@ -3120,6 +3193,8 @@ export function use_calendar_state() {
     handle_toggle_task_done,
     handle_move_event_to_calendar,
     handle_set_event_color,
+    read_only_event_color,
+    birthdays_removed,
     handle_confirm_delete,
     pending_scope_edit,
     handle_scope_edit_cancel,

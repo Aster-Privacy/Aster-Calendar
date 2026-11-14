@@ -833,6 +833,10 @@ export const CalendarMonthView = memo(function CalendarMonthView({
           chip_latest_ref.current.event_menu_actions.on_set_color(event, color),
         on_toggle_task_done: (event) =>
           chip_latest_ref.current.event_menu_actions.on_toggle_task_done(event),
+        read_only_color: (event) =>
+          chip_latest_ref.current.event_menu_actions.read_only_color?.(
+            event,
+          ) ?? { override: null, fallback: event.color ?? "" },
       },
       bind_tooltip: (event) => chip_latest_ref.current.bind_tooltip(event),
       chip_pointer_down: (pointer, event) =>

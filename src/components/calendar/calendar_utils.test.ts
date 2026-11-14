@@ -49,6 +49,7 @@ import {
   event_color_token,
   nearest_event_color,
   resolve_event_color,
+  default_event_color,
   find_event_color_option,
   DEFAULT_EVENT_COLOR,
   EVENT_COLOR_OPTIONS,
@@ -758,7 +759,10 @@ describe("event color palette", () => {
     expect(resolve_event_color(explicit, "#2563eb")).toBe(
       "var(--cal_color_red)",
     );
-    expect(resolve_event_color(task, "#2563eb")).toBe("var(--cal_color_blue)");
+    expect(resolve_event_color(task, "#d50000")).toBe("var(--cal_color_red)");
+    expect(
+      resolve_event_color({ ...task, color: "#0b8043" }, "#d50000"),
+    ).toBe("var(--cal_color_green)");
     expect(
       resolve_event_color(
         timed_event("d", start, end, { event_kind: "birthday" }),
@@ -769,6 +773,34 @@ describe("event color palette", () => {
       "var(--cal_color_green)",
     );
     expect(resolve_event_color(plain, undefined)).toBe("var(--accent-color)");
+  });
+
+  it("paints the default swatch with the color the event renders with", () => {
+    const start = new Date(2026, 0, 5, 9);
+    const end = new Date(2026, 0, 5, 10);
+
+    for (const kind of [
+      "default",
+      "task",
+      "out_of_office",
+      "focus_time",
+      "working_location",
+      "birthday",
+    ] as const) {
+      const event = timed_event(kind, start, end, { event_kind: kind });
+
+      expect(default_event_color(kind, "#d50000")).toBe(
+        resolve_event_color(event, "#d50000"),
+      );
+    }
+
+    expect(default_event_color("task", "#d50000")).toBe(
+      "var(--cal_color_red)",
+    );
+    expect(default_event_color("focus_time", "#d50000")).toBe(
+      "var(--cal_color_teal)",
+    );
+    expect(default_event_color("task", undefined)).toBe("var(--accent-color)");
   });
 
   it("builds solid blocks with the shared radius and a past fade", () => {

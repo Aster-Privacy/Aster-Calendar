@@ -38,9 +38,11 @@ import {
 } from "@heroicons/react/24/outline";
 
 import {
+  default_event_color,
   EVENT_COLOR_OPTIONS,
   nearest_event_color,
 } from "@/components/calendar/calendar_utils";
+import { is_read_only_event } from "@/services/calendar/display_colors";
 
 import {
   ContextMenu,
@@ -65,6 +67,12 @@ export interface CalendarEventMenuActions {
   on_open: (event: DecryptedCalendarEvent) => void;
   on_set_color: (event: DecryptedCalendarEvent, color: string | null) => void;
   on_toggle_task_done: (event: DecryptedCalendarEvent) => void;
+  read_only_color?: (event: DecryptedCalendarEvent) => ReadOnlyEventColor;
+}
+
+export interface ReadOnlyEventColor {
+  override: string | null;
+  fallback: string;
 }
 
 interface CalendarEventContextMenuProps {
@@ -93,12 +101,22 @@ export function CalendarEventContextMenu({
     return <>{children}</>;
   }
 
+  const is_read_only = is_read_only_event(event);
+  const read_only_color = is_read_only
+    ? actions.read_only_color?.(event)
+    : undefined;
   const event_calendar = calendars?.find(
     (calendar) => calendar.id === event.calendar_id,
   );
-  const targets = (calendars ?? []).filter(
-    (calendar) => calendar.id !== event.calendar_id,
-  );
+  const default_color = read_only_color
+    ? read_only_color.fallback
+    : default_event_color(event.event_kind, event_calendar?.color);
+  const chosen_color = is_read_only
+    ? (read_only_color?.override ?? null)
+    : event.color;
+  const targets = is_read_only
+    ? []
+    : (calendars ?? []).filter((calendar) => calendar.id !== event.calendar_id);
 
   return (
     <ContextMenu>
@@ -108,13 +126,15 @@ export function CalendarEventContextMenu({
           <ArrowTopRightOnSquareIcon aria-hidden="true" />
           <span>{t("calendar.menu_open")}</span>
         </ContextMenuItem>
-        <ContextMenuItem onSelect={() => actions.on_edit(event)}>
-          <PencilSquareIcon aria-hidden="true" />
-          <span>{t("common.edit")}</span>
-          <span aria-hidden="true" className={SHORTCUT_CLASS}>
-            E
-          </span>
-        </ContextMenuItem>
+        {!is_read_only && (
+          <ContextMenuItem onSelect={() => actions.on_edit(event)}>
+            <PencilSquareIcon aria-hidden="true" />
+            <span>{t("common.edit")}</span>
+            <span aria-hidden="true" className={SHORTCUT_CLASS}>
+              E
+            </span>
+          </ContextMenuItem>
+        )}
         <ContextMenuItem onSelect={() => actions.on_duplicate(event)}>
           <Square2StackIcon aria-hidden="true" />
           <span>{t("calendar.menu_duplicate")}</span>
@@ -187,12 +207,12 @@ export function CalendarEventContextMenu({
               <span
                 aria-hidden="true"
                 className="h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: event_calendar?.color }}
+                style={{ backgroundColor: default_color }}
               />
               <span className="truncate">
                 {t("calendar.color_calendar_default")}
               </span>
-              {event.color === null && (
+              {chosen_color === null && (
                 <CheckIcon
                   aria-hidden="true"
                   className="ms-auto text-[var(--calendar_accent_text,var(--accent-color))]"
@@ -210,8 +230,8 @@ export function CalendarEventContextMenu({
                   style={{ backgroundColor: option.hex }}
                 />
                 <span className="truncate">{t(option.name_key)}</span>
-                {event.color !== null &&
-                  nearest_event_color(event.color).name === option.name && (
+                {chosen_color !== null &&
+                  nearest_event_color(chosen_color).name === option.name && (
                     <CheckIcon
                       aria-hidden="true"
                       className="ms-auto text-[var(--calendar_accent_text,var(--accent-color))]"
@@ -222,17 +242,21 @@ export function CalendarEventContextMenu({
           </ContextMenuSubContent>
         </ContextMenuSub>
 
-        <ContextMenuSeparator />
-        <ContextMenuItem
-          className={DESTRUCTIVE_CLASS}
-          onSelect={() => actions.on_delete_request(event)}
-        >
-          <TrashIcon aria-hidden="true" />
-          <span>{t("common.delete")}</span>
-          <span aria-hidden="true" className={SHORTCUT_CLASS}>
-            Del
-          </span>
-        </ContextMenuItem>
+        {!is_read_only && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              className={DESTRUCTIVE_CLASS}
+              onSelect={() => actions.on_delete_request(event)}
+            >
+              <TrashIcon aria-hidden="true" />
+              <span>{t("common.delete")}</span>
+              <span aria-hidden="true" className={SHORTCUT_CLASS}>
+                Del
+              </span>
+            </ContextMenuItem>
+          </>
+        )}
       </ContextMenuContent>
     </ContextMenu>
   );

@@ -11209,7 +11209,15 @@ export const nl = {
     settings_info_day_split:
       "Als twee of meer agenda's zichtbaar zijn, splitst de dagweergave in een kolom per agenda.",
     birthday_title: "Verjaardag van {{name}}",
+    anniversary_title: "Trouwdag van {{name}}",
     settings_birthdays: "Verjaardagen",
+    remove_birthdays_calendar: "Agenda verwijderen",
+    remove_birthdays_calendar_title: "{{name}} verwijderen?",
+    remove_birthdays_calendar_message: "Verjaardagen van je contacten verschijnen op geen van je apparaten meer in je agenda. Je contacten veranderen niet en je kunt de agenda terugzetten via Instellingen.",
+    birthdays_removed_toast: "Agenda verwijderd",
+    birthdays_restored_toast: "Agenda teruggezet",
+    birthdays_removed_description: "Verjaardagen van je contacten zijn verborgen op al je apparaten.",
+    add_birthdays_calendar_back: "Terugzetten",
     settings_birthdays_desc: "Toon verjaardagen uit je contacten",
     settings_info_birthdays:
       "Voegt de verjaardag van elk contact toe als alleen-lezen hele-dag-item, jaarlijks herhaald.",

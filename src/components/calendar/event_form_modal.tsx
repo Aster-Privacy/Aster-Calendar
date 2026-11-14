@@ -66,6 +66,7 @@ import { use_visible_viewport } from "@/components/calendar/use_visible_viewport
 import { TagColorPicker } from "@/components/calendar/tag_color_picker";
 import { use_tag_colors } from "@/components/calendar/use_tag_colors";
 import {
+  default_event_color,
   EVENT_COLOR_OPTIONS,
   nearest_event_color,
   ink_on_fill,
@@ -103,10 +104,8 @@ import { use_preferences } from "@/contexts/preferences_context";
 import { use_i18n } from "@/lib/i18n/context";
 import { use_should_reduce_motion } from "@/provider";
 import { safe_http_url_from_input } from "@/services/calendar/safe_url";
-import {
-  BIRTHDAY_CALENDAR_ID,
-  BIRTHDAY_COLOR,
-} from "@/services/calendar/birthdays";
+import { BIRTHDAY_CALENDAR_ID } from "@/services/calendar/birthdays";
+import { use_synthetic_calendar_display } from "@/hooks/use_synthetic_calendar_display";
 import {
   ALL_DAY_EVENT_REMINDER_CHOICES,
   EVENT_REMINDER_CHOICES,
@@ -300,6 +299,8 @@ export function EventFormModal({
 }: EventFormModalProps) {
   const { t, language } = use_i18n();
   const { preferences } = use_preferences();
+  const { birthdays_name, birthdays_color, birthdays_removed } =
+    use_synthetic_calendar_display();
   const { color_for: tag_color_for, set_tag_color } = use_tag_colors();
   const reduce_motion = use_should_reduce_motion();
   const { is_phone } = use_calendar_breakpoint();
@@ -793,8 +794,11 @@ export function EventFormModal({
   const selected_calendar =
     calendars.find((calendar) => calendar.id === calendar_id) ?? calendars[0];
   const accent_color = is_birthday
-    ? BIRTHDAY_COLOR
+    ? birthdays_color
     : (selected_calendar?.color ?? "var(--accent-color)");
+  const default_color = is_birthday
+    ? birthdays_color
+    : default_event_color(event_kind, selected_calendar?.color);
 
   const attendee_candidate_error = (
     candidate: string,
@@ -1633,11 +1637,15 @@ export function EventFormModal({
                   class_name="min-w-[12rem]"
                   options={[
                     ...calendars,
-                    {
-                      color: BIRTHDAY_COLOR,
-                      id: BIRTHDAY_CALENDAR_ID,
-                      name: t("calendar.settings_birthdays"),
-                    },
+                    ...(birthdays_removed && !is_birthday
+                      ? []
+                      : [
+                          {
+                            color: birthdays_color,
+                            id: BIRTHDAY_CALENDAR_ID,
+                            name: birthdays_name,
+                          },
+                        ]),
                   ].map((calendar) => ({
                     value: calendar.id,
                     text: calendar.name,
@@ -1661,7 +1669,7 @@ export function EventFormModal({
                       />
                       <span className="truncate">
                         {is_birthday
-                          ? t("calendar.settings_birthdays")
+                          ? birthdays_name
                           : (selected_calendar?.name ?? t("calendar.calendar"))}
                       </span>
                     </span>
@@ -1790,11 +1798,12 @@ export function EventFormModal({
                               aria-label={t("calendar.color_calendar_default")}
                               aria-pressed={color === null}
                               className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-full transition-shadow duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--aster-dialog-bg)]"
+                              data-testid="event-form-default-color"
                               style={{
-                                backgroundColor: accent_color,
+                                backgroundColor: default_color,
                                 boxShadow:
                                   color === null
-                                    ? `0 0 0 2px var(--aster-dialog-bg), 0 0 0 4px ${accent_color}`
+                                    ? `0 0 0 2px var(--aster-dialog-bg), 0 0 0 4px ${default_color}`
                                     : "none",
                               }}
                               title={t("calendar.color_calendar_default")}
@@ -1804,7 +1813,7 @@ export function EventFormModal({
                               {color === null && (
                                 <CheckIcon
                                   className="h-3 w-3"
-                                  style={{ color: ink_on_fill(accent_color) }}
+                                  style={{ color: ink_on_fill(default_color) }}
                                 />
                               )}
                             </button>

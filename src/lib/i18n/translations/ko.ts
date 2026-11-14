@@ -10757,7 +10757,15 @@ export const ko = {
     settings_info_day_split:
       "두 개 이상의 캘린더가 표시되면 일간 보기가 캘린더별 열로 나뉩니다.",
     birthday_title: "{{name}}님의 생일",
+    anniversary_title: "{{name}}님의 기념일",
     settings_birthdays: "생일",
+    remove_birthdays_calendar: "캘린더 제거",
+    remove_birthdays_calendar_title: "{{name}}을(를) 제거하시겠습니까?",
+    remove_birthdays_calendar_message: "모든 기기의 캘린더에 연락처의 생일이 더 이상 표시되지 않습니다. 연락처는 변경되지 않으며 설정에서 캘린더를 다시 추가할 수 있습니다.",
+    birthdays_removed_toast: "캘린더가 제거됨",
+    birthdays_restored_toast: "캘린더가 다시 추가됨",
+    birthdays_removed_description: "연락처의 생일이 모든 기기에서 숨겨져 있습니다.",
+    add_birthdays_calendar_back: "다시 추가",
     settings_birthdays_desc: "연락처의 생일 표시",
     settings_info_birthdays:
       "각 연락처의 생일을 읽기 전용 종일 항목으로 매년 캘린더에 추가합니다.",

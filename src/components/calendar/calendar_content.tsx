@@ -64,6 +64,7 @@ import {
   event_occurrence_key,
 } from "@/components/calendar/calendar_utils";
 import { calendar_now } from "@/services/calendar/view_zone";
+import { is_read_only_event } from "@/services/calendar/display_colors";
 import { build_event_link } from "@/components/calendar/event_link";
 import { CalendarHeader } from "@/components/calendar/calendar_header";
 import { CalendarImportDialog } from "@/components/calendar/calendar_import_dialog";
@@ -1190,8 +1191,11 @@ export function CalendarContent({
       }
     },
     on_open: state.handle_event_click,
+    read_only_color: state.read_only_event_color,
     on_set_color: async (event, color) => {
-      const previous_color = event.color;
+      const previous_color = is_read_only_event(event)
+        ? state.read_only_event_color(event).override
+        : event.color;
 
       try {
         const recolored = await state.handle_set_event_color(event, color);

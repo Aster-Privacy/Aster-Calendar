@@ -59,11 +59,15 @@ import { use_i18n } from "@/lib/i18n/context";
 import { format_bytes } from "@/lib/utils";
 import { list_calendars } from "@/services/api/calendar";
 import {
+  BIRTHDAYS_IMPORT_TARGET,
+  entries_for_target,
   import_entries,
   import_span,
+  is_birthday_import,
   is_ics_file,
   MAX_IMPORT_BYTES,
   read_import_preview,
+  resolve_import_target,
   undo_import,
 } from "@/services/calendar/ics_import";
 import {
@@ -72,8 +76,7 @@ import {
   pick_subscription_color,
   subscription_color,
 } from "@/services/calendar/subscriptions";
-import { HOLIDAY_COLOR } from "@/services/calendar/holidays";
-import { BIRTHDAY_COLOR } from "@/services/calendar/birthdays";
+import { use_synthetic_calendar_display } from "@/hooks/use_synthetic_calendar_display";
 
 type ImportPhase = "idle" | "reading" | "preview" | "importing" | "done";
 
@@ -104,7 +107,9 @@ function is_https_url(value: string): boolean {
   }
 }
 
-function calendar_option(calendar: DecryptedCalendar) {
+function calendar_option(
+  calendar: Pick<DecryptedCalendar, "id" | "name" | "color">,
+) {
   return {
     value: calendar.id,
     text: calendar.name,
@@ -183,6 +188,9 @@ function CalendarImportCard({
 }) {
   const { t, language } = use_i18n();
   const navigate = useNavigate();
+  const { birthdays_color, birthdays_name, birthdays_removed } =
+    use_synthetic_calendar_display();
+  const birthdays_removed_ref = useRef(birthdays_removed);
   const file_input = useRef<HTMLInputElement | null>(null);
   const cancel_requested = useRef(false);
   const read_token = useRef(0);
@@ -246,6 +254,9 @@ function CalendarImportCard({
         }
 
         set_preview(loaded);
+        if (!birthdays_removed_ref.current && is_birthday_import(loaded.parsed)) {
+          set_target_id(BIRTHDAYS_IMPORT_TARGET);
+        }
         set_phase("preview");
       })
       .catch(() => {
@@ -295,7 +306,28 @@ function CalendarImportCard({
     return start === end ? start : t("calendar.ie_date_range", { start, end });
   }, [language, preview, t]);
 
-  const target = calendars.find((calendar) => calendar.id === target_id);
+  birthdays_removed_ref.current = birthdays_removed;
+
+  const target = resolve_import_target(
+    target_id,
+    calendars,
+    default_calendar_id,
+  );
+  const target_name = target?.as_birthdays
+    ? birthdays_name
+    : calendars.find((calendar) => calendar.id === target?.calendar_id)?.name;
+  const target_options = [
+    ...calendars.map(calendar_option),
+    ...(birthdays_removed
+      ? []
+      : [
+          calendar_option({
+            id: BIRTHDAYS_IMPORT_TARGET,
+            name: birthdays_name,
+            color: birthdays_color,
+          }),
+        ]),
+  ];
   const new_count = preview?.new_entries.length ?? 0;
   const skipped_in_file = preview ? preview.parsed.length - new_count : 0;
   const can_import =
@@ -320,10 +352,13 @@ function CalendarImportCard({
         break;
       }
 
-      const batch = entries.slice(index, index + IMPORT_BATCH_SIZE);
+      const batch = entries_for_target(
+        entries.slice(index, index + IMPORT_BATCH_SIZE),
+        target,
+      );
 
       try {
-        created.push(...(await import_entries(batch, target.id)));
+        created.push(...(await import_entries(batch, target.calendar_id)));
       } catch {
         failed = true;
         break;
@@ -542,7 +577,7 @@ function CalendarImportCard({
                           aria_labelledby="calendar_import_target_label"
                           class_name="min-w-[200px]"
                           data_testid="calendar_import_target"
-                          options={calendars.map(calendar_option)}
+                          options={target_options}
                           value={target_id}
                           on_change={set_target_id}
                         />
@@ -630,8 +665,8 @@ function CalendarImportCard({
               label={
                 result.failed > 0
                   ? t("calendar.ie_result_partial_title")
-                  : target
-                    ? t("calendar.ie_result_target", { name: target.name })
+                  : target_name
+                    ? t("calendar.ie_result_target", { name: target_name })
                     : t("calendar.ie_result_title")
               }
               trailing={
@@ -841,6 +876,7 @@ function SubscriptionColorButton({
 export function CalendarSubscriptionsCard() {
   const { t } = use_i18n();
   const { preferences, update_preference } = use_preferences();
+  const { birthdays_color, holidays_color } = use_synthetic_calendar_display();
   const [name, set_name] = useState("");
   const [url, set_url] = useState("");
   const [show_errors, set_show_errors] = useState(false);
@@ -851,8 +887,8 @@ export function CalendarSubscriptionsCard() {
     preferences.calendar_ics_subscriptions ?? [];
   const suggested_color = pick_subscription_color([
     ...subscriptions.map((subscription) => subscription.color),
-    HOLIDAY_COLOR,
-    BIRTHDAY_COLOR,
+    holidays_color,
+    birthdays_color,
   ]);
   const new_color = picked_color ?? suggested_color;
 
