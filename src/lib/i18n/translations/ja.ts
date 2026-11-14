@@ -11604,6 +11604,9 @@ export const ja = {
       "ブラウザがこのサイトの通知をブロックしています。リマインダーはアプリ内に表示されます。",
     settings_notification_permission_granted:
       "デスクトップ通知は許可されています",
+    notification_permission_banner:
+      "このブラウザではデスクトップ通知がオフになっています。再び許可するまで、リマインダーはこのタブに表示されます。",
+    notification_permission_banner_allow: "許可",
     settings_timezone: "タイムゾーン",
     settings_primary_timezone: "メインのタイムゾーン",
     settings_primary_timezone_desc: "このデバイスから取得",

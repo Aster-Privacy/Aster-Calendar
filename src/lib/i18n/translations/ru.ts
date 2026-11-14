@@ -12080,6 +12080,9 @@ export const ru = {
       "Браузер блокирует уведомления для этого сайта. Напоминания останутся в приложении.",
     settings_notification_permission_granted:
       "Уведомления на рабочем столе разрешены",
+    notification_permission_banner:
+      "Уведомления на рабочем столе отключены в этом браузере. Пока вы снова их не разрешите, напоминания появляются в этой вкладке.",
+    notification_permission_banner_allow: "Разрешить",
     settings_timezone: "Часовой пояс",
     settings_primary_timezone: "Основной часовой пояс",
     settings_primary_timezone_desc: "Берётся с этого устройства",

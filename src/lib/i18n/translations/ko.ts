@@ -11381,6 +11381,9 @@ export const ko = {
     settings_notification_permission_blocked:
       "브라우저가 이 사이트의 알림을 차단 중입니다. 미리 알림은 앱 안에 계속 표시됩니다.",
     settings_notification_permission_granted: "데스크톱 알림이 허용되었습니다",
+    notification_permission_banner:
+      "이 브라우저에서 데스크톱 알림이 꺼져 있습니다. 다시 허용할 때까지 알림은 이 탭에 표시됩니다.",
+    notification_permission_banner_allow: "허용",
     settings_timezone: "시간대",
     settings_primary_timezone: "기본 시간대",
     settings_primary_timezone_desc: "이 기기에서 가져옴",

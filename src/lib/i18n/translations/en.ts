@@ -11582,6 +11582,9 @@ export const en: Translations = {
       "Your browser is blocking notifications for this site. Reminders will show as in-app alerts instead.",
     settings_notification_permission_granted:
       "Desktop notifications are allowed",
+    notification_permission_banner:
+      "Desktop notifications are off in this browser. Until you allow them again, reminders appear in this tab.",
+    notification_permission_banner_allow: "Allow",
     settings_timezone: "Time zone",
     settings_primary_timezone: "Primary time zone",
     settings_primary_timezone_desc: "Taken from this device",

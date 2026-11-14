@@ -11732,6 +11732,9 @@ export const tr = {
       "Tarayıcınız bu site için bildirimleri engelliyor. Hatırlatıcılar uygulamada görünmeye devam eder.",
     settings_notification_permission_granted:
       "Masaüstü bildirimlerine izin verildi",
+    notification_permission_banner:
+      "Bu tarayıcıda masaüstü bildirimleri kapalı. Yeniden izin verene kadar hatırlatıcılar bu sekmede görünür.",
+    notification_permission_banner_allow: "İzin ver",
     settings_timezone: "Saat dilimi",
     settings_primary_timezone: "Birincil saat dilimi",
     settings_primary_timezone_desc: "Bu cihazdan alınır",

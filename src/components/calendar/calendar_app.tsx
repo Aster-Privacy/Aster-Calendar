@@ -38,6 +38,7 @@ import { AppRail } from "@/components/layout/app_rail";
 import { CalendarShortcutsModal } from "@/components/calendar/calendar_shortcuts_modal";
 import { CalendarConflictDialog } from "@/components/calendar/calendar_conflict_dialog";
 import { CalendarDecryptBanner } from "@/components/calendar/calendar_decrypt_banner";
+import { CalendarNotificationPermissionBanner } from "@/components/calendar/calendar_notification_permission_banner";
 import { use_calendar_sync_status } from "@/components/calendar/use_calendar_sync_status";
 import { TopBar } from "@/components/layout/top_bar";
 import { CalendarQuickSettingsRows } from "@/components/calendar/calendar_quick_settings_rows";
@@ -494,6 +495,8 @@ export function CalendarApp({ on_open_settings }: CalendarAppProps) {
       />
 
       <CalendarDecryptBanner />
+
+      <CalendarNotificationPermissionBanner hidden={show_skeleton} />
 
       {!show_skeleton && !has_load_error && !is_mobile && (
         <CalendarTour has_existing_events={state.events.length > 0} />

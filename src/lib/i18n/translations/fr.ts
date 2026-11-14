@@ -12043,6 +12043,9 @@ export const fr = {
       "Votre navigateur bloque les notifications pour ce site. Les rappels resteront dans l'application.",
     settings_notification_permission_granted:
       "Les notifications de bureau sont autorisées",
+    notification_permission_banner:
+      "Les notifications de bureau sont désactivées dans ce navigateur. Tant que vous ne les autorisez pas à nouveau, les rappels s'affichent dans cet onglet.",
+    notification_permission_banner_allow: "Autoriser",
     settings_timezone: "Fuseau horaire",
     settings_primary_timezone: "Fuseau horaire principal",
     settings_primary_timezone_desc: "Récupéré depuis cet appareil",

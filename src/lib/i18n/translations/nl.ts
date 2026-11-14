@@ -11877,6 +11877,9 @@ export const nl = {
       "Je browser blokkeert meldingen voor deze site. Herinneringen blijven in de app verschijnen.",
     settings_notification_permission_granted:
       "Bureaubladmeldingen zijn toegestaan",
+    notification_permission_banner:
+      "Bureaubladmeldingen staan uit in deze browser. Totdat je ze weer toestaat, verschijnen herinneringen in dit tabblad.",
+    notification_permission_banner_allow: "Toestaan",
     settings_timezone: "Tijdzone",
     settings_primary_timezone: "Primaire tijdzone",
     settings_primary_timezone_desc: "Overgenomen van dit apparaat",
