@@ -749,7 +749,7 @@ pub fn device_set_id(window: tauri::WebviewWindow, device_id: String) -> Result<
     save_stored(&stored)
 }
 
-const DEVICE_LOGIN_SIGNATURE_CONTEXT: &[u8] = b"astermail-device-login-v2 ";
+const DEVICE_LOGIN_SIGNATURE_CONTEXT: &[u8] = b"astermail-device-login-v2\0";
 
 fn challenge_signing_input(nonce: &[u8], signature_version: Option<u8>) -> Result<Vec<u8>, String> {
     let labeled = super::challenge::device_challenge_message(nonce)?;
