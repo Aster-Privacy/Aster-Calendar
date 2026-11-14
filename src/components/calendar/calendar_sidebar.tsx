@@ -825,7 +825,7 @@ export function CalendarSidebar({
       >
         <CustomColorDot color={is_custom ? color : null} />
       </span>
-      <span className="flex-1">{t("common.custom_color")}</span>
+      <span className="flex-1 whitespace-nowrap">{t("common.custom_color")}</span>
       {is_custom && <CheckIcon className="ms-2 h-4 w-4 text-txt-secondary" />}
     </ContextMenuItem>
   );
