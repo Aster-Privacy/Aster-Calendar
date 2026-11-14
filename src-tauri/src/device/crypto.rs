@@ -1655,9 +1655,9 @@ mod tests {
 
     #[test]
     fn aead_open_rejects_the_wrong_key() {
-        let sealed = aead_seal(&test_key(1), MAGIC_PP, b"secret").unwrap();
+        let sealed = aead_seal(&fresh_key(), MAGIC_PP, b"secret").unwrap();
 
-        assert!(aead_open(&test_key(2), MAGIC_PP, &sealed).is_err());
+        assert!(aead_open(&fresh_key(), MAGIC_PP, &sealed).is_err());
     }
 
     #[test]
