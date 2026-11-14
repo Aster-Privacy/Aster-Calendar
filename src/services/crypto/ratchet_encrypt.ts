@@ -18,7 +18,10 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import { get_recipient_public_key } from "../api/keys";
+import {
+  extract_username_from_email,
+  get_recipient_public_key,
+} from "../api/keys";
 
 import { array_to_base64, base64_to_array } from "./base64";
 import { DoubleRatchet, type BootstrapData } from "./double_ratchet";
@@ -178,6 +181,31 @@ async function verify_recipient_bundle(
     (await is_recipient_bundle_accepted(pin_id, bundle));
 
   return { ...verification, owner_pin, flagged_untrusted, accepted_by_user };
+}
+
+export async function is_identity_bound_by_current_bundle(
+  peer_email: string,
+  identity_key: string,
+): Promise<boolean> {
+  const peer = peer_email.toLowerCase();
+  const username = extract_username_from_email(peer);
+
+  if (!username || !identity_key) return false;
+
+  try {
+    const bundle = await fetch_prekey_bundle(username, peer);
+
+    if (!bundle || bundle.kem_identity_key !== identity_key) return false;
+
+    const verification = await verify_recipient_bundle(bundle, username, peer);
+
+    return (
+      verification.verdict === "verified" &&
+      (verification.owner_pin === "ok" || verification.owner_pin === "first")
+    );
+  } catch {
+    return false;
+  }
 }
 
 function is_bundle_untrusted(verification: BundleVerification): boolean {
