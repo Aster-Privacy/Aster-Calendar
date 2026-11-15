@@ -21,6 +21,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  birthday_sources_from_contacts,
   birthdays_in_range,
   is_birthday_kind,
   is_event_shown,
@@ -137,5 +138,47 @@ describe("birthdays_in_range", () => {
     );
 
     expect(result).toHaveLength(0);
+  });
+});
+
+describe("birthdays of trashed contacts", () => {
+  const active = {
+    birthday: "1990-03-14",
+    first_name: "Ana",
+    id: "active",
+  };
+  const trashed = {
+    birthday: "1990-03-14",
+    deleted_at: "2026-11-01T10:00:00.000Z",
+    first_name: "Ben",
+    id: "trashed",
+  };
+
+  it("leaves out a contact that is in the trash", () => {
+    const sources = birthday_sources_from_contacts([active, trashed]);
+
+    expect(sources.map((source) => source.id)).toEqual(["active"]);
+  });
+
+  it("shows one entry on a date shared with a trashed contact", () => {
+    const result = birthdays_in_range(
+      birthday_sources_from_contacts([active, trashed]),
+      new Date(2026, 2, 1),
+      new Date(2026, 2, 31),
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe("Ana");
+  });
+
+  it("leaves out the anniversaries of a trashed contact", () => {
+    const sources = birthday_sources_from_contacts([
+      {
+        ...trashed,
+        date_entries: [{ type: "anniversary", value: "2015-06-20" }],
+      },
+    ]);
+
+    expect(sources).toEqual([]);
   });
 });

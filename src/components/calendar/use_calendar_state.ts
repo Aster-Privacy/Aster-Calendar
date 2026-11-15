@@ -104,10 +104,10 @@ import {
   BIRTHDAY_COLOR,
   BIRTHDAY_EVENT_PREFIX,
   birthdays_in_range,
-  contact_birthday_sources,
   is_event_shown,
 } from "@/services/calendar/birthdays";
 import type { BirthdaySource } from "@/services/calendar/birthdays";
+import { watch_birthday_sources } from "@/services/calendar/birthday_sources";
 import {
   apply_display_colors,
   event_color_override,
@@ -905,55 +905,10 @@ export function use_calendar_state() {
       return;
     }
 
-    let cancelled = false;
-
-    const load_contacts = async () => {
-      try {
-        const sources: BirthdaySource[] = [];
-        let cursor: string | null = null;
-
-        for (let page = 0; page < 20; page += 1) {
-          const response = await list_contacts({
-            cursor: cursor ?? undefined,
-            limit: 200,
-          });
-
-          if (!response.data) {
-            break;
-          }
-
-          for (const contact of response.data.items) {
-            try {
-              const decrypted = await decrypt_contact(contact);
-
-              sources.push(...contact_birthday_sources(decrypted));
-            } catch {
-              continue;
-            }
-          }
-
-          if (!response.data.has_more || !response.data.next_cursor) {
-            break;
-          }
-
-          cursor = response.data.next_cursor;
-        }
-
-        if (!cancelled) {
-          set_birthday_sources(sources);
-        }
-      } catch {
-        if (!cancelled) {
-          set_birthday_sources([]);
-        }
-      }
-    };
-
-    void load_contacts();
-
-    return () => {
-      cancelled = true;
-    };
+    return watch_birthday_sources(
+      { decrypt_contact, list_contacts },
+      set_birthday_sources,
+    );
   }, [show_birthdays]);
 
   const birthday_events = useMemo(() => {
