@@ -54,6 +54,7 @@ import {
 } from "@/services/calendar/mutation_queue";
 import {
   expand_events,
+  normalize_recurrence,
   occurrence_starts,
 } from "@/services/calendar/recurrence";
 import {
@@ -572,6 +573,54 @@ export async function create_event(
   };
 }
 
+export function plan_completed_repeat(
+  existing: DecryptedCalendarEvent,
+  draft: CalendarEventDraft,
+): EventOperationPlan | null {
+  if (
+    !draft.is_completed ||
+    draft.recurrence_cleared === true ||
+    normalize_recurrence(existing.recurrence) !== null ||
+    normalize_recurrence(draft.recurrence) === null
+  ) {
+    return null;
+  }
+
+  const uid =
+    draft.uid ?? existing.uid ?? `${crypto.randomUUID()}@aster.calendar`;
+
+  return {
+    operations: [
+      {
+        op: "update",
+        event_id: existing.id,
+        draft: {
+          ...draft,
+          uid,
+          is_completed: false,
+          recurrence_exceptions: [
+            ...draft.recurrence_exceptions,
+            draft.starts_at,
+          ],
+        },
+      },
+      {
+        op: "create",
+        client_ref: DETACHED_OCCURRENCE_REF,
+        draft: {
+          ...draft,
+          uid,
+          is_completed: true,
+          recurrence: null,
+          recurrence_exceptions: [],
+          recurrence_id: draft.starts_at,
+        },
+      },
+    ],
+    primary_index: 0,
+  };
+}
+
 export async function update_event(
   event_id: string,
   input_draft: CalendarEventDraft,
@@ -579,6 +628,12 @@ export async function update_event(
   const vault = require_vault();
   const existing = calendar_sync_engine.get_event(event_id);
   const draft = with_invite_identity(input_draft, existing);
+  const repeat_plan = existing ? plan_completed_repeat(existing, draft) : null;
+
+  if (repeat_plan) {
+    return run_primary(repeat_plan, vault, existing);
+  }
+
   const blob = draft_to_blob(draft);
   const expected_version = event_row_version(event_id);
   const bound_event_id = calendar_mutation_queue.bound_id(event_id);
@@ -885,6 +940,7 @@ export function plan_occurrence_update(
           event_id: master.id,
           draft: {
             ...with_invite_identity(draft, master),
+            is_completed: master.is_completed,
             starts_at: next_start.toISOString(),
             ends_at: new Date(next_start.getTime() + duration).toISOString(),
             recurrence: resolved_recurrence(draft, master),
@@ -936,6 +992,7 @@ export function plan_occurrence_update(
           event_id: master.id,
           draft: {
             ...with_invite_identity(draft, master),
+            is_completed: master.is_completed,
             recurrence: rule,
             recurrence_exceptions: cleared
               ? []
@@ -964,6 +1021,7 @@ export function plan_occurrence_update(
         client_ref: TAIL_SERIES_REF,
         draft: {
           ...draft,
+          is_completed: false,
           recurrence: tail_recurrence(rule, master, boundary),
           recurrence_exceptions: cleared
             ? []
@@ -1004,9 +1062,14 @@ export async function update_event_occurrence(
   draft: CalendarEventDraft,
   scope: RecurrenceEditScope,
 ): Promise<{ data: DecryptedCalendarEvent | null }> {
-  const master_id = occurrence.recurrence_master_id;
+  const is_bare_master =
+    !occurrence.recurrence_master_id &&
+    scope !== "series" &&
+    normalize_recurrence(occurrence.recurrence) !== null;
+  const master_id =
+    occurrence.recurrence_master_id ?? (is_bare_master ? occurrence.id : null);
 
-  if (!master_id || !occurrence.occurrence_start) {
+  if (!master_id || (!occurrence.occurrence_start && !is_bare_master)) {
     return update_event(occurrence.id, draft);
   }
 
@@ -1017,7 +1080,18 @@ export async function update_event_occurrence(
     return { data: null };
   }
 
-  const plan = plan_occurrence_update(master, occurrence, draft, scope);
+  return run_primary(
+    plan_occurrence_update(master, occurrence, draft, scope),
+    vault,
+    master,
+  );
+}
+
+async function run_primary(
+  plan: EventOperationPlan,
+  vault: EncryptedVault,
+  existing: DecryptedCalendarEvent | null | undefined,
+): Promise<{ data: DecryptedCalendarEvent | null }> {
   const results = await run_plan(plan.operations, vault);
   const primary = plan.operations[plan.primary_index];
   const outcome = results?.[plan.primary_index];
@@ -1028,7 +1102,7 @@ export async function update_event_occurrence(
 
   const primary_draft =
     primary.op === "update"
-      ? with_invite_identity(primary.draft, master)
+      ? with_invite_identity(primary.draft, existing)
       : primary.draft;
 
   return {
