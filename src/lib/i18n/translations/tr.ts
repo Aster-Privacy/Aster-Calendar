@@ -1064,7 +1064,7 @@ export const tr = {
     email_data_missing:
       "Bu e-postanın içeriğini yükleyemedik. Gelen kutunuzdan tekrar açmak onu geri getirir. Gelen kutunuz olduğu gibi.",
     later: "Daha Sonra",
-    welcome_to_aster: "Aster Mail'e Hoş Geldiniz",
+    welcome_to_aster: "Aster Calendar'e Hoş Geldiniz",
     purchase_thank_you:
       "Satın aldığınız için teşekkürler. Aboneliğiniz artık aktif.",
     view_billing_settings: "Fatura ayarlarını görüntüle",
@@ -1736,9 +1736,9 @@ export const tr = {
     print_date: "Tarih:",
     print_no_subject: "(Konu yok)",
     print_email_title: "E-posta",
-    save_recovery_codes_title: "Aster Mail Kurtarma Kodları",
+    save_recovery_codes_title: "Aster Calendar Kurtarma Kodları",
     save_recovery_codes_dialog: "Kurtarma Kodlarını Kaydet",
-    recovery_pdf_title: "Aster Mail Kurtarma Kodları",
+    recovery_pdf_title: "Aster Calendar Kurtarma Kodları",
     recovery_pdf_keep_safe: "BU BELGEYİ GÜVENLİ VE SAKLI TUTUN",
     recovery_pdf_account: "Hesap:",
     recovery_pdf_generated: "Oluşturulma tarihi:",
@@ -3856,9 +3856,9 @@ export const tr = {
     updates_never_checked: "Hiç denetlenmedi",
     updates_auto_label: "Güncellemeleri otomatik denetle",
     updates_auto_description:
-      "Aster Mail yeni sürümleri arar ve biri kuruluma hazır olduğunda size bildirir.",
+      "Aster Calendar yeni sürümleri arar ve biri kuruluma hazır olduğunda size bildirir.",
     updates_release_notes: "Sürüm notları",
-    updates_banner_title: "Aster Mail {{version}} kullanıma hazır",
+    updates_banner_title: "Aster Calendar {{version}} kullanıma hazır",
     updates_banner_action: "Şimdi yükle",
     updates_unsupported:
       "Güncellemeleri işletim sisteminiz veya tarayıcınız yönetir",
@@ -3952,13 +3952,13 @@ export const tr = {
     contact_reencrypt_failed:
       "Kişilerinizden biri güvenli bir şekilde yeniden şifrelenemedi. Parolanız değiştirilmedi. Lütfen destek ekibiyle iletişime geçin veya etkilenen kişiyi kaldırıp tekrar deneyin.",
     password_change_client_upgrade_required:
-      "Aster Mail uygulamasının bu sürümü parolanızı değiştiremiyor. En son sürüme güncelleyin, sonra tekrar deneyin.",
+      "Aster Calendar uygulamasının bu sürümü parolanızı değiştiremiyor. En son sürüme güncelleyin, sonra tekrar deneyin.",
     password_change_reencryption_incomplete:
       "Bazı diğer adlarınızın yeniden şifrelenmesi tamamlanmadı, bu nedenle parolanız değişmedi. Tekrar deneyin, sorun devam ederse destek ekibiyle iletişime geçin.",
     password_change_fingerprint_mismatch:
-      "Bu oturum farklı bir ağda veya tarayıcıda başlatıldı, bu nedenle Aster Mail parolanızı değiştirmedi. Parolanızı değiştirmek için oturumu kapatın, yeniden oturum açın ve tekrar deneyin.",
+      "Bu oturum farklı bir ağda veya tarayıcıda başlatıldı, bu nedenle Aster Calendar parolanızı değiştirmedi. Parolanızı değiştirmek için oturumu kapatın, yeniden oturum açın ve tekrar deneyin.",
     password_change_identity_continuity_required:
-      "Bu değişiklik eski iletilerinizin ihtiyaç duyduğu şifreleme anahtarlarını kaldıracağı için Aster Mail parolanızı değiştirmedi. Tekrar denemek için oturumu kapatın, yeniden oturum açın ve parolanızı değiştirin.",
+      "Bu değişiklik eski iletilerinizin ihtiyaç duyduğu şifreleme anahtarlarını kaldıracağı için Aster Calendar parolanızı değiştirmedi. Tekrar denemek için oturumu kapatın, yeniden oturum açın ve parolanızı değiştirin.",
     password_change_vault_out_of_date:
       "Parolanız başka bir cihazda değiştirildi, bu nedenle bu oturum güncel değil. Parolanızı değiştirmek için oturumu kapatın ve mevcut parolanızla yeniden oturum açın.",
     update_password: "Parolayı Güncelle",
@@ -4543,7 +4543,7 @@ export const tr = {
       "Bağlantıyı kaybettik ve kendi başımıza yeniden deniyoruz.",
     "connection.status_disconnected": "Bağlantı kesildi",
     "connection.tor_unavailable_fallback":
-      "Tor, Aster Mail'de kullanılamıyor, bu nedenle artık doğrudan bağlanıyorsunuz. Tor'u kullanmak için Aster Mail'i Tor Browser'da açın.",
+      "Tor, Aster Calendar'de kullanılamıyor, bu nedenle artık doğrudan bağlanıyorsunuz. Tor'u kullanmak için Aster Calendar'i Tor Browser'da açın.",
     "connection.tor_blocked":
       "Tor kapalı ve trafiğinizin sızmaması için bu isteği engelledik. Tor'u açmak onun geçmesine olanak verir.",
     "connection.tor_blocked_connecting":
@@ -4847,7 +4847,7 @@ export const tr = {
     address_change_unavailable: "{{email}} kullanılamaz",
     address_change_same_as_current: "Bu zaten sizin adresiniz",
     address_change_check_failed:
-      "Aster Mail bu adresi kontrol edemedi. Birazdan yeniden deneyin.",
+      "Aster Calendar bu adresi kontrol edemedi. Birazdan yeniden deneyin.",
     address_change_review_title: "Değişikliği gözden geçirin",
     address_change_from: "Şimdi",
     address_change_to: "Sonra",
@@ -4861,7 +4861,7 @@ export const tr = {
     address_change_type_to_confirm: "Onaylamak için {{email}} yazın",
     address_change_password_title: "Siz olduğunuzu doğrulayın",
     address_change_password_body: "Devam etmek için parolanızı girin.",
-    address_change_code_resent: "Aster Mail yeni bir kod gönderdi.",
+    address_change_code_resent: "Aster Calendar yeni bir kod gönderdi.",
     address_change_code_title: "Onay kodunu girin",
     address_change_code_body:
       "{{email}} adresinde 6 haneli bir kod var. Kod 15 dakika içinde geçerliliğini yitirir.",
@@ -4894,7 +4894,7 @@ export const tr = {
     address_change_resend_too_soon:
       "Yeni bir kod istemeden önce biraz bekleyin.",
     address_change_send_failed:
-      "Aster Mail kodu gönderemedi. Birkaç dakika sonra yeniden dene.",
+      "Aster Calendar kodu gönderemedi. Birkaç dakika sonra yeniden dene.",
     address_change_invalid_address:
       "Bu adres geçerli değil. Başka bir adres seç.",
     address_change_locked_account_kind:
@@ -4904,7 +4904,7 @@ export const tr = {
     address_change_locked_unavailable:
       "Adres değiştirme şu anda kullanılamıyor.",
     address_change_eligibility_failed:
-      "Aster Mail adresinizi değiştirip değiştiremeyeceğinizi denetleyemedi.",
+      "Aster Calendar adresinizi değiştirip değiştiremeyeceğinizi denetleyemedi.",
     address_change_domain_label: "Alan adı",
     primary_address_set: "Birincil adres güncellendi",
     primary_address_reset: "Varsayılan adresine sıfırla",
@@ -9740,7 +9740,7 @@ export const tr = {
     reset_link_sent_title: "E-postanızı kontrol edin",
     resend_reset_link: "Bağlantıyı yeniden gönder",
     reset_link_sent_desc:
-      "Bu hesabın doğrulanmış bir kurtarma e-postası varsa Aster Mail oraya bir sıfırlama bağlantısı gönderdi. Bağlantının süresi 30 dakika içinde dolar. E-postayı görmüyorsanız spam klasörünüzü kontrol edin.",
+      "Bu hesabın doğrulanmış bir kurtarma e-postası varsa Aster Calendar oraya bir sıfırlama bağlantısı gönderdi. Bağlantının süresi 30 dakika içinde dolar. E-postayı görmüyorsanız spam klasörünüzü kontrol edin.",
     sending_reset_link: "Sıfırlama bağlantısı gönderiliyor...",
     reset_your_password: "Parolanızı sıfırlayın",
     reset_choose_new_password: "Hesabınız için yeni bir parola seçin.",
@@ -9786,7 +9786,7 @@ export const tr = {
     change_account_desc: "Başka bir Aster Mail hesabını kurtarın.",
     support_step_title: "Destek ile iletişime geçin",
     support_step_desc:
-      "Aster Mail şifreli verilerinizi okuyamaz, bu yüzden kurtarma kodu veya kurtarma e-postanız olmadan kimse bunları açamaz. Destek ekibi hesabınızı kontrol edip sonraki adımlarda yardımcı olabilir.",
+      "Aster Calendar şifreli verilerinizi okuyamaz, bu yüzden kurtarma kodu veya kurtarma e-postanız olmadan kimse bunları açamaz. Destek ekibi hesabınızı kontrol edip sonraki adımlarda yardımcı olabilir.",
     support_email_action: "Desteğe e-posta gönder",
     support_help_center: "Yardım merkezini aç",
     other_ways_title: "Bir kurtarma yöntemi seçin",
@@ -9795,13 +9795,13 @@ export const tr = {
     other_way_code_desc: "Kaydettiğiniz kodlardan birini girin.",
     other_way_email_title: "Kurtarma e-postanızla sıfırlayın",
     other_way_email_desc:
-      "Aster Mail, yeni bir parola seçebilmeniz için kurtarma e-postanıza bir bağlantı gönderir.",
+      "Aster Calendar, yeni bir parola seçebilmeniz için kurtarma e-postanıza bir bağlantı gönderir.",
     other_way_none_title: "Bunların hiçbiri bende yok",
     other_way_none_desc:
       "Destek ile iletişime geçin, sonraki adımlarda yardımcı olalım.",
     reset_account_title: "Kurtarma e-postanızla sıfırlayın",
     reset_account_desc:
-      "Aster Mail kurtarma e-postanıza bir bağlantı gönderir. Yeni bir parola seçmek için bağlantıyı açın. Önceki postalarınız, bir kurtarma kodu veya önceki parolanızla kilidini açana kadar şifreli kalır.",
+      "Aster Calendar kurtarma e-postanıza bir bağlantı gönderir. Yeni bir parola seçmek için bağlantıyı açın. Önceki postalarınız, bir kurtarma kodu veya önceki parolanızla kilidini açana kadar şifreli kalır.",
     send_reset_link: "Sıfırlama bağlantısı gönder",
     print_codes: "Yazdır",
     codes_copied: "Kodlar kopyalandı.",
@@ -10146,11 +10146,11 @@ export const tr = {
     invalid_unsubscribe_address:
       "Bu göndericinin abonelikten çıkma adresi hatalı görünüyor. E-postanın içindeki bağlantı, göndericinin sitesinde abonelikten çıkmanıza olanak tanır.",
     tor_unsupported_platform:
-      "Tor, Aster Mail'de kullanılamıyor. Tor'u kullanmak için Aster Mail'i Tor Browser'da açın.",
+      "Tor, Aster Calendar'de kullanılamıyor. Tor'u kullanmak için Aster Calendar'i Tor Browser'da açın.",
     tor_native_only:
-      "Tor, Aster Mail'de kullanılamıyor. Tor'u kullanmak için Aster Mail'i Tor Browser'da açın.",
+      "Tor, Aster Calendar'de kullanılamıyor. Tor'u kullanmak için Aster Calendar'i Tor Browser'da açın.",
     tor_plugin_missing:
-      "Tor, Aster Mail'de kullanılamıyor. Tor'u kullanmak için Aster Mail'i Tor Browser'da açın.",
+      "Tor, Aster Calendar'de kullanılamıyor. Tor'u kullanmak için Aster Calendar'i Tor Browser'da açın.",
     cdn_relay_misconfigured:
       "CDN aktarıcısı bu derleme için yapılandırılmamış. Ayarlar'dan doğrudan bağlantıya geçin. Yardıma ihtiyacınız olursa hello@astermail.org ile iletişime geçin.",
     device_repair_required:

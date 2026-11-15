@@ -1091,7 +1091,7 @@ export const fr = {
     email_data_missing:
       "Nous n'avons pas pu charger le contenu de ce message. L'ouvrir à nouveau depuis votre boîte de réception devrait le ramener. Votre boîte de réception est inchangée.",
     later: "Plus tard",
-    welcome_to_aster: "Bienvenue sur Aster Mail",
+    welcome_to_aster: "Bienvenue sur Aster Calendar",
     purchase_thank_you:
       "Merci pour votre achat. Votre abonnement est maintenant actif.",
     view_billing_settings: "Voir les paramètres de facturation",
@@ -3951,9 +3951,9 @@ export const fr = {
     updates_never_checked: "Jamais verifiee",
     updates_auto_label: "Rechercher les mises a jour automatiquement",
     updates_auto_description:
-      "Aster Mail recherche les nouvelles versions et vous previent quand l'une est prete a installer.",
+      "Aster Calendar recherche les nouvelles versions et vous previent quand l'une est prete a installer.",
     updates_release_notes: "Notes de version",
-    updates_banner_title: "Aster Mail {{version}} est disponible",
+    updates_banner_title: "Aster Calendar {{version}} est disponible",
     updates_banner_action: "Installer maintenant",
     updates_unsupported:
       "Les mises a jour sont gerees par votre systeme d'exploitation ou navigateur",
@@ -4053,13 +4053,13 @@ export const fr = {
     contact_reencrypt_failed:
       "Impossible de rechiffrer en toute sécurité l'un de vos contacts. Votre mot de passe n'a pas été modifié. Veuillez contacter le support ou supprimer le contact concerné, puis réessayer.",
     password_change_client_upgrade_required:
-      "Cette version d'Aster Mail ne peut pas modifier votre mot de passe. Installez la dernière version, puis réessayez.",
+      "Cette version d'Aster Calendar ne peut pas modifier votre mot de passe. Installez la dernière version, puis réessayez.",
     password_change_reencryption_incomplete:
       "Certains de vos alias n'ont pas fini d'être rechiffrés, votre mot de passe n'a donc pas été modifié. Réessayez et contactez l'assistance si le problème persiste.",
     password_change_fingerprint_mismatch:
-      "Cette session a démarré sur un autre réseau ou un autre navigateur, donc Aster Mail n'a pas modifié votre mot de passe. Pour le modifier, déconnectez-vous, reconnectez-vous, puis réessayez.",
+      "Cette session a démarré sur un autre réseau ou un autre navigateur, donc Aster Calendar n'a pas modifié votre mot de passe. Pour le modifier, déconnectez-vous, reconnectez-vous, puis réessayez.",
     password_change_identity_continuity_required:
-      "Aster Mail n'a pas modifié votre mot de passe, car la modification supprimerait des clés de chiffrement dont vos anciens messages ont besoin. Pour réessayer, déconnectez-vous, reconnectez-vous, puis modifiez votre mot de passe.",
+      "Aster Calendar n'a pas modifié votre mot de passe, car la modification supprimerait des clés de chiffrement dont vos anciens messages ont besoin. Pour réessayer, déconnectez-vous, reconnectez-vous, puis modifiez votre mot de passe.",
     password_change_vault_out_of_date:
       "Votre mot de passe a été modifié sur un autre appareil, donc cette session n'est plus à jour. Pour modifier votre mot de passe, déconnectez-vous et reconnectez-vous avec votre mot de passe actuel.",
     update_password: "Mettre à jour le mot de passe",
@@ -4663,7 +4663,7 @@ export const fr = {
       "Nous avons perdu la connexion, et nous réessayons de notre côté.",
     "connection.status_disconnected": "Déconnecté",
     "connection.tor_unavailable_fallback":
-      "Tor n'est pas disponible dans Aster Mail, votre connexion est donc désormais directe. Pour utiliser Tor, ouvrez Aster Mail dans Tor Browser.",
+      "Tor n'est pas disponible dans Aster Calendar, votre connexion est donc désormais directe. Pour utiliser Tor, ouvrez Aster Calendar dans Tor Browser.",
     "connection.tor_blocked":
       "Tor est désactivé, et nous avons bloqué cette requête pour empêcher votre trafic de fuir. Activer Tor le laissera passer.",
     "connection.tor_blocked_connecting":
@@ -4972,7 +4972,7 @@ export const fr = {
     address_change_unavailable: "{{email}} n'est pas disponible",
     address_change_same_as_current: "C'est déjà votre adresse",
     address_change_check_failed:
-      "Aster Mail n’a pas pu vérifier cette adresse. Réessayez dans un instant.",
+      "Aster Calendar n’a pas pu vérifier cette adresse. Réessayez dans un instant.",
     address_change_review_title: "Vérifiez le changement",
     address_change_from: "Maintenant",
     address_change_to: "Après",
@@ -4987,7 +4987,7 @@ export const fr = {
     address_change_password_title: "Confirmez qu'il s'agit bien de vous",
     address_change_password_body:
       "Pour continuer, saisissez votre mot de passe.",
-    address_change_code_resent: "Aster Mail a envoyé un nouveau code.",
+    address_change_code_resent: "Aster Calendar a envoyé un nouveau code.",
     address_change_code_title: "Saisissez votre code de confirmation",
     address_change_code_body:
       "Cherchez un code à 6 chiffres dans {{email}}. Il expire dans 15 minutes.",
@@ -5023,7 +5023,7 @@ export const fr = {
     address_change_resend_too_soon:
       "Patientez un instant avant de demander un autre code.",
     address_change_send_failed:
-      "Aster Mail n'a pas pu envoyer le code. Réessayez dans quelques minutes.",
+      "Aster Calendar n'a pas pu envoyer le code. Réessayez dans quelques minutes.",
     address_change_invalid_address:
       "Cette adresse n'est pas valide. Choisissez-en une autre.",
     address_change_locked_account_kind:
@@ -5033,7 +5033,7 @@ export const fr = {
     address_change_locked_unavailable:
       "Le changement d'adresse n'est pas disponible pour le moment.",
     address_change_eligibility_failed:
-      "Aster Mail n'a pas pu vérifier si vous pouvez changer votre adresse.",
+      "Aster Calendar n'a pas pu vérifier si vous pouvez changer votre adresse.",
     address_change_domain_label: "Domaine",
     primary_address_set: "Adresse principale mise à jour",
     primary_address_reset: "Rétablir votre adresse par défaut",
@@ -9984,7 +9984,7 @@ export const fr = {
     reset_link_sent_title: "Consultez vos e-mails",
     resend_reset_link: "Renvoyer le lien",
     reset_link_sent_desc:
-      "Si ce compte a un e-mail de récupération vérifié, Aster Mail y a envoyé un lien de réinitialisation. Le lien expire dans 30 minutes. Si vous ne voyez pas l'e-mail, vérifiez votre dossier de courrier indésirable.",
+      "Si ce compte a un e-mail de récupération vérifié, Aster Calendar y a envoyé un lien de réinitialisation. Le lien expire dans 30 minutes. Si vous ne voyez pas l'e-mail, vérifiez votre dossier de courrier indésirable.",
     sending_reset_link: "Envoi du lien de réinitialisation...",
     reset_your_password: "Réinitialiser votre mot de passe",
     reset_choose_new_password:
@@ -10028,7 +10028,7 @@ export const fr = {
     change_account_desc: "Récupérez un autre compte Aster Mail.",
     support_step_title: "Contacter le support",
     support_step_desc:
-      "Aster Mail ne peut pas lire vos données chiffrées, donc personne ne peut les déverrouiller sans un code de récupération ou votre e-mail de récupération. Le support peut vérifier votre compte et vous aider pour la suite.",
+      "Aster Calendar ne peut pas lire vos données chiffrées, donc personne ne peut les déverrouiller sans un code de récupération ou votre e-mail de récupération. Le support peut vérifier votre compte et vous aider pour la suite.",
     support_email_action: "Écrire au support",
     support_help_center: "Ouvrir le centre d'aide",
     other_ways_title: "Choisissez une méthode de récupération",
@@ -10037,13 +10037,13 @@ export const fr = {
     other_way_code_desc: "Saisissez l'un des codes que vous avez enregistrés.",
     other_way_email_title: "Réinitialiser avec votre e-mail de récupération",
     other_way_email_desc:
-      "Aster Mail envoie un lien à votre e-mail de récupération pour que vous puissiez choisir un nouveau mot de passe.",
+      "Aster Calendar envoie un lien à votre e-mail de récupération pour que vous puissiez choisir un nouveau mot de passe.",
     other_way_none_title: "Je n'ai aucun de ces éléments",
     other_way_none_desc:
       "Contactez le support et nous vous aidons pour la suite.",
     reset_account_title: "Réinitialiser avec votre e-mail de récupération",
     reset_account_desc:
-      "Aster Mail envoie un lien à votre e-mail de récupération. Ouvrez-le pour choisir un nouveau mot de passe. Vos anciens e-mails restent chiffrés jusqu'à ce que vous les déverrouilliez avec un code de récupération ou votre ancien mot de passe.",
+      "Aster Calendar envoie un lien à votre e-mail de récupération. Ouvrez-le pour choisir un nouveau mot de passe. Vos anciens e-mails restent chiffrés jusqu'à ce que vous les déverrouilliez avec un code de récupération ou votre ancien mot de passe.",
     send_reset_link: "Envoyer le lien de réinitialisation",
     print_codes: "Imprimer",
     codes_copied: "Codes copiés.",
@@ -10405,11 +10405,11 @@ export const fr = {
     invalid_unsubscribe_address:
       "L'adresse de désabonnement de cet expéditeur semble mal formée. Le lien dans l'e-mail lui-même vous permettra de vous désabonner sur le site de l'expéditeur.",
     tor_unsupported_platform:
-      "Tor n'est pas disponible dans Aster Mail. Pour utiliser Tor, ouvrez Aster Mail dans Tor Browser.",
+      "Tor n'est pas disponible dans Aster Calendar. Pour utiliser Tor, ouvrez Aster Calendar dans Tor Browser.",
     tor_native_only:
-      "Tor n'est pas disponible dans Aster Mail. Pour utiliser Tor, ouvrez Aster Mail dans Tor Browser.",
+      "Tor n'est pas disponible dans Aster Calendar. Pour utiliser Tor, ouvrez Aster Calendar dans Tor Browser.",
     tor_plugin_missing:
-      "Tor n'est pas disponible dans Aster Mail. Pour utiliser Tor, ouvrez Aster Mail dans Tor Browser.",
+      "Tor n'est pas disponible dans Aster Calendar. Pour utiliser Tor, ouvrez Aster Calendar dans Tor Browser.",
     cdn_relay_misconfigured:
       "Le relais CDN n'est pas configuré pour cette version. Passez à une connexion directe dans Paramètres. Si vous avez besoin d'aide, contactez hello@astermail.org.",
     device_repair_required:

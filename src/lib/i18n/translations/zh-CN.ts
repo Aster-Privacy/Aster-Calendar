@@ -937,7 +937,7 @@ export const zh_CN = {
     email_data_missing:
       "我们无法加载这封邮件的内容，从收件箱中再打开一次应该可以恢复。您的收件箱未发生变化。",
     later: "稍后",
-    welcome_to_aster: "欢迎使用 Aster Mail",
+    welcome_to_aster: "欢迎使用 Aster Calendar",
     purchase_thank_you: "感谢您的购买。您的订阅现已激活。",
     view_billing_settings: "查看账单设置",
     welcome_description: "这个导览约需一分钟，介绍让第一天更轻松的四件事。",
@@ -1612,9 +1612,9 @@ export const zh_CN = {
     print_date: "日期：",
     print_no_subject: "（无主题）",
     print_email_title: "邮件",
-    save_recovery_codes_title: "Aster Mail 恢复代码",
+    save_recovery_codes_title: "Aster Calendar 恢复代码",
     save_recovery_codes_dialog: "保存恢复代码",
-    recovery_pdf_title: "Aster Mail 恢复代码",
+    recovery_pdf_title: "Aster Calendar 恢复代码",
     recovery_pdf_keep_safe: "请安全妥善保管此文件",
     recovery_pdf_account: "账户：",
     recovery_pdf_generated: "生成时间：",
@@ -3555,9 +3555,9 @@ export const zh_CN = {
     updates_last_checked: "上次检查：{{when}}",
     updates_never_checked: "从未检查",
     updates_auto_label: "自动检查更新",
-    updates_auto_description: "Aster Mail 会查找新版本，并在可以安装时通知您。",
+    updates_auto_description: "Aster Calendar 会查找新版本，并在可以安装时通知您。",
     updates_release_notes: "版本说明",
-    updates_banner_title: "Aster Mail {{version}} 已发布",
+    updates_banner_title: "Aster Calendar {{version}} 已发布",
     updates_banner_action: "立即安装",
     updates_unsupported: "更新由您的操作系统或浏览器管理",
     updates_dismiss: "稍后",
@@ -3643,13 +3643,13 @@ export const zh_CN = {
     contact_reencrypt_failed:
       "无法安全地重新加密您的一个联系人。您的密码未更改。请联系支持团队，或移除受影响的联系人后重试。",
     password_change_client_upgrade_required:
-      "此版本的 Aster Mail 无法更改您的密码。请更新到最新版本，然后再试一次。",
+      "此版本的 Aster Calendar 无法更改您的密码。请更新到最新版本，然后再试一次。",
     password_change_reencryption_incomplete:
       "部分别名未完成重新加密，因此您的密码未更改。请再试一次；如果问题仍然存在，请联系支持团队。",
     password_change_fingerprint_mismatch:
-      "此会话是在其他网络或浏览器中开始的，因此 Aster Mail 未更改您的密码。若要更改密码，请退出登录后重新登录，然后再试一次。",
+      "此会话是在其他网络或浏览器中开始的，因此 Aster Calendar 未更改您的密码。若要更改密码，请退出登录后重新登录，然后再试一次。",
     password_change_identity_continuity_required:
-      "此更改会移除您较早邮件所需的加密密钥，因此 Aster Mail 未更改您的密码。若要重试，请退出登录后重新登录，然后更改密码。",
+      "此更改会移除您较早邮件所需的加密密钥，因此 Aster Calendar 未更改您的密码。若要重试，请退出登录后重新登录，然后更改密码。",
     password_change_vault_out_of_date:
       "您的密码已在其他设备上更改，因此此会话已过期。若要更改密码，请退出登录，然后使用当前密码重新登录。",
     update_password: "更新密码",
@@ -4168,7 +4168,7 @@ export const zh_CN = {
     "connection.status_error": "连接已断开，我们正在自动重试。",
     "connection.status_disconnected": "已断开",
     "connection.tor_unavailable_fallback":
-      "Aster Mail 不支持 Tor，因此您现在使用的是直连。如需使用 Tor，请在 Tor Browser 中打开 Aster Mail。",
+      "Aster Calendar 不支持 Tor，因此您现在使用的是直连。如需使用 Tor，请在 Tor Browser 中打开 Aster Calendar。",
     "connection.tor_blocked":
       "Tor 已关闭，为防止流量泄露，我们已拦截此请求。请启用 Tor 后再继续。",
     "connection.tor_blocked_connecting":
@@ -4444,7 +4444,7 @@ export const zh_CN = {
     address_change_available: "{{email}} 可以使用",
     address_change_unavailable: "{{email}} 不可使用",
     address_change_same_as_current: "这已经是您的地址",
-    address_change_check_failed: "Aster Mail 无法检查该地址。请稍后重试。",
+    address_change_check_failed: "Aster Calendar 无法检查该地址。请稍后重试。",
     address_change_review_title: "确认更改内容",
     address_change_from: "当前",
     address_change_to: "更改后",
@@ -4456,7 +4456,7 @@ export const zh_CN = {
     address_change_type_to_confirm: "输入 {{email}} 以确认",
     address_change_password_title: "确认是您本人",
     address_change_password_body: "若要继续，请输入密码。",
-    address_change_code_resent: "Aster Mail 已发送新的验证码。",
+    address_change_code_resent: "Aster Calendar 已发送新的验证码。",
     address_change_code_title: "输入确认码",
     address_change_code_body:
       "请在 {{email}} 中查看 6 位数确认码。它将在 15 分钟后失效。",
@@ -4483,13 +4483,13 @@ export const zh_CN = {
     address_change_too_many_requests:
       "您发起的地址更改次数过多。请在一小时后重试。",
     address_change_resend_too_soon: "请稍候再申请新的验证码。",
-    address_change_send_failed: "Aster Mail 无法发送验证码。请几分钟后重试。",
+    address_change_send_failed: "Aster Calendar 无法发送验证码。请几分钟后重试。",
     address_change_invalid_address: "该地址无效。请选择其他地址。",
     address_change_locked_account_kind: "只有个人账户可以更改地址。",
     address_change_locked_custom_domain: "自有域名下的地址无法在此更改。",
     address_change_locked_unavailable: "目前无法更改地址。",
     address_change_eligibility_failed:
-      "Aster Mail 无法确认您是否可以更改地址。",
+      "Aster Calendar 无法确认您是否可以更改地址。",
     address_change_domain_label: "域名",
     primary_address_set: "主地址已更新",
     primary_address_reset: "重置为默认地址",
@@ -8765,7 +8765,7 @@ export const zh_CN = {
     reset_link_sent_title: "查看您的邮箱",
     resend_reset_link: "重新发送链接",
     reset_link_sent_desc:
-      "如果此账户有已验证的恢复邮箱，Aster Mail 已向其发送重置链接。链接将在 30 分钟后失效。如果没有看到邮件，请检查垃圾邮件文件夹。",
+      "如果此账户有已验证的恢复邮箱，Aster Calendar 已向其发送重置链接。链接将在 30 分钟后失效。如果没有看到邮件，请检查垃圾邮件文件夹。",
     sending_reset_link: "正在发送重置链接...",
     reset_your_password: "重置您的密码",
     reset_choose_new_password: "为您的账户选择一个新密码。",
@@ -8804,7 +8804,7 @@ export const zh_CN = {
     change_account_desc: "恢复其他 Aster Mail 账户。",
     support_step_title: "联系支持团队",
     support_step_desc:
-      "Aster Mail 无法读取你的加密数据，因此没有恢复代码或恢复邮箱，任何人都无法解锁。支持团队可以检查你的账户并说明后续步骤。",
+      "Aster Calendar 无法读取你的加密数据，因此没有恢复代码或恢复邮箱，任何人都无法解锁。支持团队可以检查你的账户并说明后续步骤。",
     support_email_action: "给支持团队发邮件",
     support_help_center: "打开帮助中心",
     other_ways_title: "选择恢复方式",
@@ -8813,12 +8813,12 @@ export const zh_CN = {
     other_way_code_desc: "输入你保存的其中一个代码。",
     other_way_email_title: "使用恢复邮箱重置",
     other_way_email_desc:
-      "Aster Mail 会向您的恢复邮箱发送一个链接，供您设置新密码。",
+      "Aster Calendar 会向您的恢复邮箱发送一个链接，供您设置新密码。",
     other_way_none_title: "这些我都没有",
     other_way_none_desc: "联系支持团队，我们会协助你完成后续步骤。",
     reset_account_title: "使用恢复邮箱重置",
     reset_account_desc:
-      "Aster Mail 会向您的恢复邮箱发送一个链接。打开链接即可设置新密码。在您使用恢复代码或先前的密码解锁之前，之前的邮件会一直保持加密。",
+      "Aster Calendar 会向您的恢复邮箱发送一个链接。打开链接即可设置新密码。在您使用恢复代码或先前的密码解锁之前，之前的邮件会一直保持加密。",
     send_reset_link: "发送重置链接",
     print_codes: "打印",
     codes_copied: "已复制代码。",
@@ -9131,11 +9131,11 @@ export const zh_CN = {
     invalid_unsubscribe_address:
       "此发件人提供的退订地址格式异常。可使用邮件正文中的链接，在发件人网站上完成退订。",
     tor_unsupported_platform:
-      "Aster Mail 不支持 Tor。如需使用 Tor，请在 Tor Browser 中打开 Aster Mail。",
+      "Aster Calendar 不支持 Tor。如需使用 Tor，请在 Tor Browser 中打开 Aster Calendar。",
     tor_native_only:
-      "Aster Mail 不支持 Tor。如需使用 Tor，请在 Tor Browser 中打开 Aster Mail。",
+      "Aster Calendar 不支持 Tor。如需使用 Tor，请在 Tor Browser 中打开 Aster Calendar。",
     tor_plugin_missing:
-      "Aster Mail 不支持 Tor。如需使用 Tor，请在 Tor Browser 中打开 Aster Mail。",
+      "Aster Calendar 不支持 Tor。如需使用 Tor，请在 Tor Browser 中打开 Aster Calendar。",
     cdn_relay_misconfigured:
       "此构建版本未配置 CDN 中继。请在“设置”中切换为直连。如需帮助，请联系 hello@astermail.org。",
     device_repair_required:

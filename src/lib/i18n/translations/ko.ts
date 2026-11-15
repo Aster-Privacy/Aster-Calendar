@@ -1124,7 +1124,7 @@ export const ko = {
     email_data_missing:
       "이 이메일의 내용을 불러올 수 없었습니다. 받은편지함에서 다시 열면 돌아옵니다. 받은편지함은 그대로입니다.",
     later: "나중에",
-    welcome_to_aster: "Aster Mail에 오신 것을 환영합니다",
+    welcome_to_aster: "Aster Calendar에 오신 것을 환영합니다",
     purchase_thank_you: "구매해 주셔서 감사합니다. 구독이 활성화되었습니다.",
     view_billing_settings: "결제 설정 보기",
     welcome_description:
@@ -1652,7 +1652,7 @@ export const ko = {
     print_date: "날짜:",
     print_no_subject: "(제목 없음)",
     print_email_title: "이메일",
-    recovery_pdf_title: "Aster Mail 복구 코드",
+    recovery_pdf_title: "Aster Calendar 복구 코드",
     recovery_pdf_keep_safe: "이 문서를 안전하게 보관하세요",
     recovery_pdf_account: "계정:",
     recovery_pdf_generated: "생성일:",
@@ -1871,7 +1871,7 @@ export const ko = {
     account_suspended: "계정이 정지된 상태입니다.",
     account_limit_reached:
       "이 네트워크의 계정 제한에 도달했습니다. 잘못된 표시로 보이면 hello@astermail.org에서 도움을 받을 수 있습니다.",
-    save_recovery_codes_title: "Aster Mail 복구 코드",
+    save_recovery_codes_title: "Aster Calendar 복구 코드",
     save_recovery_codes_dialog: "복구 코드 저장",
     click_to_add_value: "값을 추가하려면 클릭...",
     import_one_contact: "연락처 1개 가져오기",
@@ -3932,9 +3932,9 @@ export const ko = {
     updates_never_checked: "확인한 적 없음",
     updates_auto_label: "업데이트 자동 확인",
     updates_auto_description:
-      "Aster Mail이 새 버전을 찾아 설치할 수 있을 때 알려줍니다.",
+      "Aster Calendar이 새 버전을 찾아 설치할 수 있을 때 알려줍니다.",
     updates_release_notes: "릴리스 노트",
-    updates_banner_title: "Aster Mail {{version}}을 사용할 수 있습니다",
+    updates_banner_title: "Aster Calendar {{version}}을 사용할 수 있습니다",
     updates_banner_action: "지금 설치",
     updates_unsupported: "업데이트는 운영 체제 또는 브라우저에서 관리합니다",
     updates_dismiss: "나중에",
@@ -4026,13 +4026,13 @@ export const ko = {
     contact_reencrypt_failed:
       "연락처 중 하나를 안전하게 재암호화할 수 없습니다. 비밀번호가 변경되지 않았습니다. 지원팀에 문의하시거나 해당 연락처를 제거한 후 다시 시도해 주세요.",
     password_change_client_upgrade_required:
-      "이 버전의 Aster Mail에서는 비밀번호를 변경할 수 없습니다. 최신 버전으로 업데이트한 다음 다싈 시도해 주세요.",
+      "이 버전의 Aster Calendar에서는 비밀번호를 변경할 수 없습니다. 최신 버전으로 업데이트한 다음 다싈 시도해 주세요.",
     password_change_reencryption_incomplete:
       "일부 별칭의 재암호화가 완료되지 않아 비밀번호가 변경되지 않았습니다. 다시 시도하고, 계속 발생하면 지원팀에 문의해 주세요.",
     password_change_fingerprint_mismatch:
-      "이 세션은 다른 네트워크 또는 브라우저에서 시작되었으므로 Aster Mail이 비밀번호를 변경하지 않았습니다. 비밀번호를 변경하려면 로그아웃한 후 다시 로그인하고 시도해 주세요.",
+      "이 세션은 다른 네트워크 또는 브라우저에서 시작되었으므로 Aster Calendar이 비밀번호를 변경하지 않았습니다. 비밀번호를 변경하려면 로그아웃한 후 다시 로그인하고 시도해 주세요.",
     password_change_identity_continuity_required:
-      "변경하면 이전 메시지에 필요한 암호화 키가 제거되므로 Aster Mail이 비밀번호를 변경하지 않았습니다. 다시 시도하려면 로그아웃한 후 다시 로그인하고 비밀번호를 변경해 주세요.",
+      "변경하면 이전 메시지에 필요한 암호화 키가 제거되므로 Aster Calendar이 비밀번호를 변경하지 않았습니다. 다시 시도하려면 로그아웃한 후 다시 로그인하고 비밀번호를 변경해 주세요.",
     password_change_vault_out_of_date:
       "다른 기기에서 비밀번호가 변경되어 이 세션은 최신 상태가 아닙니다. 비밀번호를 변경하려면 로그아웃한 후 현재 비밀번호로 다시 로그인해 주세요.",
     update_password: "비밀번호 업데이트",
@@ -4584,7 +4584,7 @@ export const ko = {
       "연결이 끊겼습니다. 자동으로 다시 연결하는 중입니다.",
     "connection.status_disconnected": "연결 끊김",
     "connection.tor_unavailable_fallback":
-      "Aster Mail에서는 Tor를 사용할 수 없어 현재 직접 연결되어 있습니다. Tor를 사용하려면 Tor Browser에서 Aster Mail을 여세요.",
+      "Aster Calendar에서는 Tor를 사용할 수 없어 현재 직접 연결되어 있습니다. Tor를 사용하려면 Tor Browser에서 Aster Calendar을 여세요.",
     "connection.tor_blocked":
       "Tor가 활성화되지 않았습니다. 익명성 보호를 위해 요청이 차단되었습니다.",
     "connection.tor_blocked_connecting":
@@ -4882,7 +4882,7 @@ export const ko = {
     address_change_unavailable: "{{email}}은 사용할 수 없습니다",
     address_change_same_as_current: "이미 사용 중인 주소입니다",
     address_change_check_failed:
-      "Aster Mail이 이 주소를 확인하지 못했습니다. 잠시 후 다시 시도하세요.",
+      "Aster Calendar이 이 주소를 확인하지 못했습니다. 잠시 후 다시 시도하세요.",
     address_change_review_title: "변경 내용 확인",
     address_change_from: "현재",
     address_change_to: "변경 후",
@@ -4895,7 +4895,7 @@ export const ko = {
     address_change_type_to_confirm: "확인하려면 {{email}}을 입력하세요",
     address_change_password_title: "본인 확인",
     address_change_password_body: "계속하려면 비밀번호를 입력하세요.",
-    address_change_code_resent: "Aster Mail에서 새 코드를 보냈습니다.",
+    address_change_code_resent: "Aster Calendar에서 새 코드를 보냈습니다.",
     address_change_code_title: "확인 코드 입력",
     address_change_code_body:
       "{{email}}에서 6자리 코드를 확인하세요. 15분 후에 만료됩니다.",
@@ -4928,7 +4928,7 @@ export const ko = {
     address_change_resend_too_soon:
       "다른 코드를 요청하기 전에 잠시 기다리세요.",
     address_change_send_failed:
-      "Aster Mail에서 코드를 보내지 못했습니다. 몇 분 후에 다시 시도하세요.",
+      "Aster Calendar에서 코드를 보내지 못했습니다. 몇 분 후에 다시 시도하세요.",
     address_change_invalid_address:
       "사용할 수 없는 주소입니다. 다른 주소를 선택하세요.",
     address_change_locked_account_kind:
@@ -4937,7 +4937,7 @@ export const ko = {
       "직접 소유한 도메인의 주소는 여기서 변경할 수 없습니다.",
     address_change_locked_unavailable: "지금은 주소 변경을 사용할 수 없습니다.",
     address_change_eligibility_failed:
-      "Aster Mail에서 주소를 변경할 수 있는지 확인하지 못했습니다.",
+      "Aster Calendar에서 주소를 변경할 수 있는지 확인하지 못했습니다.",
     address_change_domain_label: "도메인",
     primary_address_set: "기본 주소가 업데이트되었습니다",
     primary_address_reset: "기본 주소로 재설정",
@@ -9463,7 +9463,7 @@ export const ko = {
     reset_link_sent_title: "이메일을 확인하세요",
     resend_reset_link: "링크 다시 보내기",
     reset_link_sent_desc:
-      "이 계정에 인증된 복구 이메일이 있으면 Aster Mail이 재설정 링크를 보냈습니다. 링크는 30분 후에 만료됩니다. 이메일이 보이지 않으면 스팸 폴더를 확인하세요.",
+      "이 계정에 인증된 복구 이메일이 있으면 Aster Calendar이 재설정 링크를 보냈습니다. 링크는 30분 후에 만료됩니다. 이메일이 보이지 않으면 스팸 폴더를 확인하세요.",
     sending_reset_link: "재설정 링크 전송 중...",
     reset_your_password: "비밀번호 재설정",
     reset_choose_new_password: "계정의 새 비밀번호를 선택하세요.",
@@ -9504,7 +9504,7 @@ export const ko = {
     change_account_desc: "다른 Aster Mail 계정을 복구합니다.",
     support_step_title: "고객 지원에 문의",
     support_step_desc:
-      "Aster Mail은 암호화된 데이터를 읽을 수 없으므로 복구 코드나 복구 이메일 없이는 누구도 잠금을 해제할 수 없습니다. 고객 지원이 계정을 확인하고 다음 단계를 안내합니다.",
+      "Aster Calendar은 암호화된 데이터를 읽을 수 없으므로 복구 코드나 복구 이메일 없이는 누구도 잠금을 해제할 수 없습니다. 고객 지원이 계정을 확인하고 다음 단계를 안내합니다.",
     support_email_action: "고객 지원에 이메일 보내기",
     support_help_center: "도움말 센터 열기",
     other_ways_title: "복구 방법 선택",
@@ -9513,12 +9513,12 @@ export const ko = {
     other_way_code_desc: "저장한 코드 중 하나를 입력하세요.",
     other_way_email_title: "복구 이메일로 재설정",
     other_way_email_desc:
-      "Aster Mail이 복구 이메일로 링크를 보내 새 비밀번호를 선택할 수 있게 합니다.",
+      "Aster Calendar이 복구 이메일로 링크를 보내 새 비밀번호를 선택할 수 있게 합니다.",
     other_way_none_title: "해당하는 항목이 없음",
     other_way_none_desc: "고객 지원에 문의하면 다음 단계를 안내해 드립니다.",
     reset_account_title: "복구 이메일로 재설정",
     reset_account_desc:
-      "Aster Mail이 복구 이메일로 링크를 보냅니다. 링크를 열어 새 비밀번호를 선택하세요. 이전 메일은 복구 코드나 이전 비밀번호로 잠금을 해제할 때까지 암호화된 상태로 유지됩니다.",
+      "Aster Calendar이 복구 이메일로 링크를 보냅니다. 링크를 열어 새 비밀번호를 선택하세요. 이전 메일은 복구 코드나 이전 비밀번호로 잠금을 해제할 때까지 암호화된 상태로 유지됩니다.",
     send_reset_link: "재설정 링크 보내기",
     print_codes: "인쇄",
     codes_copied: "코드를 복사했습니다.",
@@ -9861,11 +9861,11 @@ export const ko = {
     invalid_unsubscribe_address:
       "발신자의 수신거부 주소가 잘못된 형식으로 보입니다. 이메일 본문의 링크로 발신자 사이트에서 수신거부할 수 있습니다.",
     tor_unsupported_platform:
-      "Aster Mail에서는 Tor를 사용할 수 없습니다. Tor를 사용하려면 Tor Browser에서 Aster Mail을 여세요.",
+      "Aster Calendar에서는 Tor를 사용할 수 없습니다. Tor를 사용하려면 Tor Browser에서 Aster Calendar을 여세요.",
     tor_native_only:
-      "Aster Mail에서는 Tor를 사용할 수 없습니다. Tor를 사용하려면 Tor Browser에서 Aster Mail을 여세요.",
+      "Aster Calendar에서는 Tor를 사용할 수 없습니다. Tor를 사용하려면 Tor Browser에서 Aster Calendar을 여세요.",
     tor_plugin_missing:
-      "Aster Mail에서는 Tor를 사용할 수 없습니다. Tor를 사용하려면 Tor Browser에서 Aster Mail을 여세요.",
+      "Aster Calendar에서는 Tor를 사용할 수 없습니다. Tor를 사용하려면 Tor Browser에서 Aster Calendar을 여세요.",
     cdn_relay_misconfigured:
       "이 빌드에는 CDN 릴레이가 구성되어 있지 않습니다. 설정에서 직접 연결로 전환하세요. 도움이 필요하면 hello@astermail.org로 문의하세요.",
     device_repair_required:

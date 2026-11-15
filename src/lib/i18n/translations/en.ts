@@ -1087,7 +1087,7 @@ export const en: Translations = {
     email_data_missing:
       "We could not load the contents of this email. Opening it again from your inbox should bring it back. Your inbox is unchanged.",
     later: "Later",
-    welcome_to_aster: "Welcome to Aster Mail",
+    welcome_to_aster: "Welcome to Aster Calendar",
     purchase_thank_you:
       "Thank you for your purchase. Your subscription is now active.",
     purchase_congrats_title: "Congratulations!",
@@ -1656,9 +1656,9 @@ export const en: Translations = {
     print_date: "Date:",
     print_no_subject: "(No subject)",
     print_email_title: "Email",
-    save_recovery_codes_title: "Aster Mail Recovery Codes",
+    save_recovery_codes_title: "Aster Calendar Recovery Codes",
     save_recovery_codes_dialog: "Save Recovery Codes",
-    recovery_pdf_title: "Aster Mail Recovery Codes",
+    recovery_pdf_title: "Aster Calendar Recovery Codes",
     recovery_pdf_keep_safe: "KEEP THIS DOCUMENT SAFE AND SECURE",
     recovery_pdf_account: "Account:",
     recovery_pdf_generated: "Generated:",
@@ -2622,9 +2622,9 @@ export const en: Translations = {
     updates_never_checked: "Never checked",
     updates_auto_label: "Check for updates automatically",
     updates_auto_description:
-      "Aster Mail looks for new versions and tells you when one is ready to install.",
+      "Aster Calendar looks for new versions and tells you when one is ready to install.",
     updates_release_notes: "Release notes",
-    updates_banner_title: "Aster Mail {{version}} is available",
+    updates_banner_title: "Aster Calendar {{version}} is available",
     updates_banner_action: "Install now",
     updates_unsupported:
       "Updates are managed by your operating system or browser",
@@ -2733,13 +2733,13 @@ export const en: Translations = {
     contact_reencrypt_failed:
       "Could not safely re-encrypt one of your contacts. Your password was not changed. Please contact support or remove the affected contact and try again.",
     password_change_client_upgrade_required:
-      "This version of Aster Mail can't change your password. Update to the latest version, then try again.",
+      "This version of Aster Calendar can't change your password. Update to the latest version, then try again.",
     password_change_reencryption_incomplete:
       "Some of your aliases didn't finish re-encrypting, so your password didn't change. Try again, and contact support if this keeps happening.",
     password_change_fingerprint_mismatch:
-      "This session started on a different network or browser, so Aster Mail didn't change your password. To change it, sign out, sign back in, and try again.",
+      "This session started on a different network or browser, so Aster Calendar didn't change your password. To change it, sign out, sign back in, and try again.",
     password_change_identity_continuity_required:
-      "Aster Mail didn't change your password because the change would remove encryption keys your older messages need. To try again, sign out, sign back in, and change your password.",
+      "Aster Calendar didn't change your password because the change would remove encryption keys your older messages need. To try again, sign out, sign back in, and change your password.",
     password_change_vault_out_of_date:
       "Your password was changed on another device, so this session is out of date. To change your password, sign out and sign back in with your current password.",
     update_password: "Update Password",
@@ -5462,7 +5462,7 @@ export const en: Translations = {
       "We lost the connection, and we are retrying on our own.",
     "connection.status_disconnected": "Disconnected",
     "connection.tor_unavailable_fallback":
-      "Tor isn't available in Aster Mail, so your connection is now direct. To use Tor, open Aster Mail in Tor Browser.",
+      "Tor isn't available in Aster Calendar, so your connection is now direct. To use Tor, open Aster Calendar in Tor Browser.",
     "connection.tor_blocked":
       "Tor is turned off, and we blocked this request to keep your traffic from leaking. Turning Tor on will let it through.",
     "connection.tor_blocked_connecting":
@@ -5786,7 +5786,7 @@ export const en: Translations = {
     address_change_unavailable: "{{email}} is not available",
     address_change_same_as_current: "That is already your address",
     address_change_check_failed:
-      "Aster Mail could not check that address. Try again in a moment.",
+      "Aster Calendar could not check that address. Try again in a moment.",
     address_change_review_title: "Review the change",
     address_change_from: "Now",
     address_change_to: "After",
@@ -5799,7 +5799,7 @@ export const en: Translations = {
     address_change_type_to_confirm: "Type {{email}} to confirm",
     address_change_password_title: "Confirm it is you",
     address_change_password_body: "To continue, enter your password.",
-    address_change_code_resent: "Aster Mail sent a new code.",
+    address_change_code_resent: "Aster Calendar sent a new code.",
     address_change_code_title: "Enter your confirmation code",
     address_change_code_body:
       "Check {{email}} for a 6-digit code. It expires in 15 minutes.",
@@ -5832,7 +5832,7 @@ export const en: Translations = {
     address_change_resend_too_soon:
       "Wait a moment before you ask for another code.",
     address_change_send_failed:
-      "Aster Mail could not send the code. Try again in a few minutes.",
+      "Aster Calendar could not send the code. Try again in a few minutes.",
     address_change_invalid_address:
       "That address is not valid. Pick another one.",
     address_change_locked_account_kind:
@@ -5842,7 +5842,7 @@ export const en: Translations = {
     address_change_locked_unavailable:
       "Changing your address is not available right now.",
     address_change_eligibility_failed:
-      "Aster Mail could not check whether you can change your address.",
+      "Aster Calendar could not check whether you can change your address.",
     address_change_domain_label: "Domain",
     primary_address_set: "Primary address updated",
     primary_address_reset: "Reset to your default address",
@@ -9660,7 +9660,7 @@ export const en: Translations = {
     reset_link_sent_title: "Check your email",
     resend_reset_link: "Resend link",
     reset_link_sent_desc:
-      "If this account has a verified recovery email, Aster Mail sent a reset link to it. The link expires in 30 minutes. If you don't see the email, check your spam folder.",
+      "If this account has a verified recovery email, Aster Calendar sent a reset link to it. The link expires in 30 minutes. If you don't see the email, check your spam folder.",
     sending_reset_link: "Sending reset link...",
     reset_your_password: "Reset your password",
     reset_choose_new_password: "Choose a new password for your account.",
@@ -9702,7 +9702,7 @@ export const en: Translations = {
     change_account_desc: "Recover a different Aster Mail account.",
     support_step_title: "Contact support",
     support_step_desc:
-      "Aster Mail cannot read your encrypted data, so no one can unlock it without a recovery code or your recovery email. Support can check your account and help you with what comes next.",
+      "Aster Calendar cannot read your encrypted data, so no one can unlock it without a recovery code or your recovery email. Support can check your account and help you with what comes next.",
     support_email_action: "Email support",
     support_help_center: "Visit the help center",
     other_ways_title: "Choose a recovery method",
@@ -9711,12 +9711,12 @@ export const en: Translations = {
     other_way_code_desc: "Enter one of the codes you saved.",
     other_way_email_title: "Reset with your recovery email",
     other_way_email_desc:
-      "Aster Mail sends a link to your recovery email so you can choose a new password.",
+      "Aster Calendar sends a link to your recovery email so you can choose a new password.",
     other_way_none_title: "I do not have any of these",
     other_way_none_desc: "Contact support for help with what comes next.",
     reset_account_title: "Reset with your recovery email",
     reset_account_desc:
-      "Aster Mail sends a link to your recovery email. Open it to choose a new password. Your earlier mail stays encrypted until you unlock it with a recovery code or your previous password.",
+      "Aster Calendar sends a link to your recovery email. Open it to choose a new password. Your earlier mail stays encrypted until you unlock it with a recovery code or your previous password.",
     send_reset_link: "Send reset link",
     print_codes: "Print",
     codes_copied: "Codes copied.",
@@ -10192,11 +10192,11 @@ export const en: Translations = {
     invalid_unsubscribe_address:
       "The unsubscribe address from this sender looks malformed. The link in the email itself will let you unsubscribe on the sender's site.",
     tor_unsupported_platform:
-      "Tor isn't available in Aster Mail. To use Tor, open Aster Mail in Tor Browser.",
+      "Tor isn't available in Aster Calendar. To use Tor, open Aster Calendar in Tor Browser.",
     tor_native_only:
-      "Tor isn't available in Aster Mail. To use Tor, open Aster Mail in Tor Browser.",
+      "Tor isn't available in Aster Calendar. To use Tor, open Aster Calendar in Tor Browser.",
     tor_plugin_missing:
-      "Tor isn't available in Aster Mail. To use Tor, open Aster Mail in Tor Browser.",
+      "Tor isn't available in Aster Calendar. To use Tor, open Aster Calendar in Tor Browser.",
     cdn_relay_misconfigured:
       "The CDN relay is not configured for this build. Switch to a direct connection in Settings. If you need help, contact hello@astermail.org.",
     device_repair_required:
