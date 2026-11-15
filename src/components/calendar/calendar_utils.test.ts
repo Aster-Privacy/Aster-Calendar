@@ -737,7 +737,7 @@ describe("event color palette", () => {
 
   it("keeps a custom hex as the event color instead of snapping it", () => {
     expect(event_color_token("#123456")).toBe("#123456");
-    expect(event_color_token("#D50000")).toBe("#d50000");
+    expect(event_color_token("#ABCDEF")).toBe("#abcdef");
     expect(event_color_token("#abc")).toBe("#aabbcc");
     expect(is_custom_event_color("#123456")).toBe(true);
     expect(is_custom_event_color("#3b82f6")).toBe(false);
