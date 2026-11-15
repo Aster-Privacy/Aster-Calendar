@@ -993,6 +993,7 @@ const LEGACY_EVENT_COLORS: Record<string, EventColorName> = {
   "#3f51b5": "blue",
   "#8e24aa": "purple",
   "#f4511e": "red",
+  "#d50000": "red",
   "#14737c": "teal",
   "#06b6d4": "teal",
   "#13708f": "teal",
