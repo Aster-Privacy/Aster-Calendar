@@ -948,6 +948,8 @@ export function expand_event(
         ends_at: ends.toISOString(),
         recurrence_master_id: event.id,
         occurrence_start: occurrence_iso,
+        is_completed:
+          event.is_completed && occurrence.getTime() === start.getTime(),
       };
     },
   );
