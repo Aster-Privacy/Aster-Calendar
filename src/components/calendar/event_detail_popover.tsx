@@ -205,6 +205,8 @@ interface EventDetailPopoverProps {
     event: DecryptedCalendarEvent,
     response: CalendarAttendeeResponse,
   ) => void;
+  variant?: "floating" | "inline";
+  read_only?: boolean;
 }
 
 function PopoverRow({
@@ -263,7 +265,10 @@ export function EventDetailPopover({
   on_delete_request,
   self_email = "",
   on_respond,
+  variant = "floating",
+  read_only = false,
 }: EventDetailPopoverProps) {
+  const is_inline = variant === "inline";
   const { guard_link_click, open_guarded_link } = use_guarded_link();
   const { birthdays_name } = use_synthetic_calendar_display();
   const card_ref = useRef<HTMLDivElement>(null);
@@ -272,9 +277,10 @@ export function EventDetailPopover({
   const restore_ref = useRef<HTMLElement | null>(null);
 
   const [position, set_position] = useState<PopoverPosition | null>(null);
-  const [is_mobile, set_is_mobile] = useState(
+  const [matches_mobile, set_is_mobile] = useState(
     () => window.matchMedia(MOBILE_QUERY).matches,
   );
+  const is_mobile = matches_mobile && !is_inline;
   const [guests_expanded, set_guests_expanded] = useState(false);
   const [description_expanded, set_description_expanded] = useState(false);
   const [description_overflows, set_description_overflows] = useState(false);
@@ -299,7 +305,7 @@ export function EventDetailPopover({
   }, [event_id]);
 
   const update_position = useCallback(() => {
-    if (!event_id || is_mobile) {
+    if (!event_id || is_mobile || is_inline) {
       return;
     }
 
@@ -390,7 +396,7 @@ export function EventDetailPopover({
       left: centered_left,
       placement: "below",
     });
-  }, [event_id, is_mobile]);
+  }, [event_id, is_mobile, is_inline]);
 
   useLayoutEffect(() => {
     if (!event_id) {
@@ -413,7 +419,7 @@ export function EventDetailPopover({
   }, [event_id, description_expanded]);
 
   useEffect(() => {
-    if (!event_id || is_mobile) {
+    if (!event_id || is_mobile || is_inline) {
       return;
     }
 
@@ -462,10 +468,10 @@ export function EventDetailPopover({
       window.removeEventListener("resize", handle);
       window.removeEventListener("scroll", handle, true);
     };
-  }, [event_id, is_mobile, update_position, on_dismiss]);
+  }, [event_id, is_mobile, is_inline, update_position, on_dismiss]);
 
   useEffect(() => {
-    if (!event_id) {
+    if (!event_id || is_inline) {
       return;
     }
 
@@ -485,10 +491,10 @@ export function EventDetailPopover({
         target.focus();
       }
     };
-  }, [event_id]);
+  }, [event_id, is_inline]);
 
   useEffect(() => {
-    if (!event_id) {
+    if (!event_id || is_inline) {
       return;
     }
 
@@ -548,7 +554,7 @@ export function EventDetailPopover({
       document.removeEventListener("keydown", handle_key);
       document.removeEventListener("mousedown", handle_outside);
     };
-  }, [event_id, on_dismiss]);
+  }, [event_id, is_inline, on_dismiss]);
 
   if (!event) {
     return null;
@@ -760,11 +766,15 @@ export function EventDetailPopover({
       <div
         ref={card_ref}
         aria-labelledby={title_id}
-        className="aster_floating aster_floating_anim fixed z-50 flex flex-col overflow-hidden rounded-[var(--aster-radius-floating)]"
+        className={
+          is_inline
+            ? "flex flex-col"
+            : "aster_floating aster_floating_anim fixed z-50 flex flex-col overflow-hidden rounded-[var(--aster-radius-floating)]"
+        }
         data-calendar-surface=""
         data-state="open"
-        role="dialog"
-        style={card_style}
+        role={is_inline ? "region" : "dialog"}
+        style={is_inline ? undefined : card_style}
       >
         <div className="flex items-start gap-3 px-4 pt-3">
           <div className="flex min-w-0 flex-1 items-start gap-2.5 pt-1.5">
@@ -793,7 +803,7 @@ export function EventDetailPopover({
             </div>
           </div>
           <div className="-me-1.5 flex flex-shrink-0 items-center">
-            {!is_booking && (
+            {!is_booking && !read_only && (
               <Tooltip tip={t("common.edit")}>
                 <IslandIconButton
                   className={icon_button_class}
@@ -805,16 +815,18 @@ export function EventDetailPopover({
                 </IslandIconButton>
               </Tooltip>
             )}
-            <Tooltip tip={delete_label}>
-              <IslandIconButton
-                className={icon_button_class}
-                label={delete_label}
-                size="sm"
-                onClick={() => on_delete_request(event)}
-              >
-                <TrashIcon />
-              </IslandIconButton>
-            </Tooltip>
+            {!read_only && (
+              <Tooltip tip={delete_label}>
+                <IslandIconButton
+                  className={icon_button_class}
+                  label={delete_label}
+                  size="sm"
+                  onClick={() => on_delete_request(event)}
+                >
+                  <TrashIcon />
+                </IslandIconButton>
+              </Tooltip>
+            )}
             {has_more_actions && (
               <DropdownMenu>
                 <Tooltip tip={t("calendar.detail_more_actions")}>
@@ -858,21 +870,29 @@ export function EventDetailPopover({
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
-            <Tooltip tip={t("common.close")}>
-              <IslandIconButton
-                ref={close_ref}
-                className={icon_button_class}
-                label={t("common.close")}
-                size="sm"
-                onClick={on_dismiss}
-              >
-                <XMarkIcon />
-              </IslandIconButton>
-            </Tooltip>
+            {!is_inline && (
+              <Tooltip tip={t("common.close")}>
+                <IslandIconButton
+                  ref={close_ref}
+                  className={icon_button_class}
+                  label={t("common.close")}
+                  size="sm"
+                  onClick={on_dismiss}
+                >
+                  <XMarkIcon />
+                </IslandIconButton>
+              </Tooltip>
+            )}
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 overflow-y-auto px-4 pb-4 pt-3">
+        <div
+          className={
+            is_inline
+              ? "flex flex-col gap-3 px-4 pb-4 pt-3"
+              : "flex flex-col gap-3 overflow-y-auto px-4 pb-4 pt-3"
+          }
+        >
           <PopoverRow icon={<ClockIcon />}>
             <span className="block text-txt-primary">{day_label}</span>
             <span className="block">{time_label}</span>

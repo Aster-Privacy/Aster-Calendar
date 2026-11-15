@@ -278,6 +278,13 @@ export interface CalendarTranslations {
   up_next_in_minutes: string;
   up_next_tomorrow: string;
   up_next_empty: string;
+  panel_beta: string;
+  panel_open_calendar: string;
+  panel_open_in_calendar: string;
+  panel_signed_out: string;
+  panel_locked_hint: string;
+  panel_load_failed: string;
+  panel_nothing_today: string;
   menu_copy_link: string;
   event_link_copied: string;
   event_link_copy_failed: string;

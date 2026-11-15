@@ -47,6 +47,22 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const THEME_STORAGE_KEY = "astermail_theme";
+const THEME_OVERRIDE_EVENT = "aster:theme_override";
+
+let theme_override: Theme | null = null;
+
+export function set_theme_override(next: Theme | null): void {
+  if (theme_override === next) return;
+  theme_override = next;
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(THEME_OVERRIDE_EVENT));
+  }
+}
+
+export function get_theme_override(): Theme | null {
+  return theme_override;
+}
 
 function get_system_theme(): Theme {
   if (typeof window === "undefined" || !window.matchMedia) return "dark";
@@ -84,9 +100,20 @@ function resolve_theme(pref: ThemePreference): Theme {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme_preference, set_theme_preference_state] =
     useState<ThemePreference>(get_initial_preference);
-  const [theme, set_theme_state] = useState<Theme>(() =>
+  const [preferred_theme, set_theme_state] = useState<Theme>(() =>
     resolve_theme(get_initial_preference()),
   );
+  const [override, set_override] = useState<Theme | null>(theme_override);
+  const theme = override ?? preferred_theme;
+
+  useEffect(() => {
+    const sync = () => set_override(theme_override);
+
+    sync();
+    window.addEventListener(THEME_OVERRIDE_EVENT, sync);
+
+    return () => window.removeEventListener(THEME_OVERRIDE_EVENT, sync);
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
