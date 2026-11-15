@@ -554,7 +554,7 @@ export const CalendarMonthView = memo(function CalendarMonthView({
   on_wheel_navigate,
   on_range_select,
   default_duration_minutes,
-  dim_past_events = false,
+  dim_past_events = true,
   working_location,
 }: CalendarMonthViewProps) {
   const [overflow_day, set_overflow_day] = useState<{

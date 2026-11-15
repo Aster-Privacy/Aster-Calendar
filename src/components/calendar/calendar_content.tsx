@@ -1381,7 +1381,7 @@ export function CalendarContent({
           {state.view_mode === "month" && (
             <CalendarMonthView
               anchor_date={state.anchor_date}
-              dim_past_events={state.preferences.calendar_dim_past_events}
+              dim_past_events={state.preferences.calendar_fade_past_events}
               is_phone={is_phone}
               max_events_per_cell={state.preferences.calendar_month_max_events}
               calendar_by_id={state.calendar_by_id}
@@ -1442,7 +1442,7 @@ export function CalendarContent({
               }
               default_duration_minutes={effective_default_duration}
               density={state.preferences.calendar_density}
-              dim_past_events={state.preferences.calendar_dim_past_events}
+              dim_past_events={state.preferences.calendar_fade_past_events}
               secondary_timezone={state.preferences.calendar_secondary_timezone}
               draft_range={
                 state.quick_range &&
@@ -1517,7 +1517,7 @@ export function CalendarContent({
 
           {state.view_mode === "agenda" && !show_empty_state && (
             <CalendarAgendaView
-              dim_past_events={state.preferences.calendar_dim_past_events}
+              dim_past_events={state.preferences.calendar_fade_past_events}
               calendar_by_id={state.calendar_by_id}
               calendars={state.calendars}
               event_menu_actions={event_menu_actions}
