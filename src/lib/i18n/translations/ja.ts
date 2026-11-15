@@ -1119,7 +1119,7 @@ export const ja = {
     email_data_missing:
       "このメールの内容を読み込めませんでした。受信箱から再度開き直すと戻ってきます。受信箱には変更ありません。",
     later: "後で",
-    welcome_to_aster: "Aster Mailへようこそ",
+    welcome_to_aster: "Aster Calendarへようこそ",
     purchase_thank_you:
       "ご購入ありがとうございます。サブスクリプションが有効になりました。",
     view_billing_settings: "請求設定を表示",
@@ -1812,7 +1812,7 @@ export const ja = {
     recovery_pdf_no_digital: "デジタルで保存したり他人と共有しないでください",
     recovery_pdf_store_secure:
       "この書類を安全な場所（金庫、貸金庫など）に保管してください",
-    recovery_pdf_title: "Aster Mail リカバリーコード",
+    recovery_pdf_title: "Aster Calendar リカバリーコード",
     recovery_pdf_unrecoverable:
       "これらのコードがないと、パスワードを忘れた場合にアカウントに戻ることができず、暗号化されたメールは永久に失われます。",
     recovery_pdf_used: "使用済み",
@@ -1827,7 +1827,7 @@ export const ja = {
       "これらのコードがないと、パスワードを忘れた場合にアカウントに戻ることができません。",
     recovery_text_your_codes: "リカバリーコード：",
     save_recovery_codes_dialog: "リカバリーコードを保存",
-    save_recovery_codes_title: "Aster Mail リカバリーコード",
+    save_recovery_codes_title: "Aster Calendar リカバリーコード",
     scheduled_category: "予約済み",
     search_failed_try_again:
       "検索が完了しませんでした。しばらくしてからもう一度試すと、解決することが多いです。",
@@ -3870,9 +3870,9 @@ export const ja = {
     updates_never_checked: "未確認",
     updates_auto_label: "アップデートを自動的に確認",
     updates_auto_description:
-      "Aster Mail が新しいバージョンを探し、インストールできるときにお知らせします。",
+      "Aster Calendar が新しいバージョンを探し、インストールできるときにお知らせします。",
     updates_release_notes: "リリースノート",
-    updates_banner_title: "Aster Mail {{version}} が利用できます",
+    updates_banner_title: "Aster Calendar {{version}} が利用できます",
     updates_banner_action: "今すぐインストール",
     updates_unsupported: "アップデートは OS またはブラウザが管理します",
     updates_dismiss: "あとで",
@@ -3967,13 +3967,13 @@ export const ja = {
     contact_reencrypt_failed:
       "連絡先の一つを安全に再暗号化できませんでした。パスワードは変更されていません。サポートまでお問い合わせいただくか、該当の連絡先を削除してから再度お試しください。",
     password_change_client_upgrade_required:
-      "このバージョンの Aster Mail ではパスワードを変更できません。最新バージョンに更新してから、もう一度お試しください。",
+      "このバージョンの Aster Calendar ではパスワードを変更できません。最新バージョンに更新してから、もう一度お試しください。",
     password_change_reencryption_incomplete:
       "一部のエイリアスの再暗号化が完了しなかったため、パスワードは変更されませんでした。もう一度お試しいただき、解決しない場合はサポートにご連絡ください。",
     password_change_fingerprint_mismatch:
-      "このセッションは別のネットワークまたはブラウザで開始されたため、Aster Mail はパスワードを変更しませんでした。変更するには、サインアウトしてから再度サインインし、もう一度お試しください。",
+      "このセッションは別のネットワークまたはブラウザで開始されたため、Aster Calendar はパスワードを変更しませんでした。変更するには、サインアウトしてから再度サインインし、もう一度お試しください。",
     password_change_identity_continuity_required:
-      "変更すると以前のメッセージに必要な暗号鍵が削除されるため、Aster Mail はパスワードを変更しませんでした。もう一度試すには、サインアウトしてから再度サインインし、パスワードを変更してください。",
+      "変更すると以前のメッセージに必要な暗号鍵が削除されるため、Aster Calendar はパスワードを変更しませんでした。もう一度試すには、サインアウトしてから再度サインインし、パスワードを変更してください。",
     password_change_vault_out_of_date:
       "パスワードが別のデバイスで変更されたため、このセッションは最新ではありません。パスワードを変更するには、サインアウトしてから現在のパスワードで再度サインインしてください。",
     update_password: "パスワードを更新",
@@ -4548,7 +4548,7 @@ export const ja = {
     "connection.status_error": "接続が切れたため、自動的に再試行しています。",
     "connection.status_disconnected": "切断済み",
     "connection.tor_unavailable_fallback":
-      "Aster Mail では Tor を利用できないため、現在は直接接続しています。Tor を使うには、Tor Browser で Aster Mail を開いてください。",
+      "Aster Calendar では Tor を利用できないため、現在は直接接続しています。Tor を使うには、Tor Browser で Aster Calendar を開いてください。",
     "connection.tor_blocked":
       "Tor が無効になっており、トラフィックの漏洩を防ぐためこのリクエストをブロックしました。Tor を有効にすると通ります。",
     "connection.tor_blocked_connecting":
@@ -4848,7 +4848,7 @@ export const ja = {
     address_change_unavailable: "{{email}} は利用できません",
     address_change_same_as_current: "すでにお使いのアドレスです",
     address_change_check_failed:
-      "Aster Mail はこのアドレスを確認できませんでした。しばらくしてからもう一度お試しください。",
+      "Aster Calendar はこのアドレスを確認できませんでした。しばらくしてからもう一度お試しください。",
     address_change_review_title: "変更内容を確認する",
     address_change_from: "現在",
     address_change_to: "変更後",
@@ -4862,7 +4862,7 @@ export const ja = {
     address_change_type_to_confirm: "確認のため {{email}} と入力してください",
     address_change_password_title: "本人確認",
     address_change_password_body: "続けるには、パスワードを入力してください。",
-    address_change_code_resent: "Aster Mail が新しいコードを送信しました。",
+    address_change_code_resent: "Aster Calendar が新しいコードを送信しました。",
     address_change_code_title: "確認コードを入力",
     address_change_code_body:
       "{{email}} に届いた 6 桁のコードを確認してください。15 分で期限が切れます。",
@@ -4894,7 +4894,7 @@ export const ja = {
     address_change_resend_too_soon:
       "次のコードをリクエストする前に少しお待ちください。",
     address_change_send_failed:
-      "Aster Mail はコードを送信できませんでした。数分後にもう一度お試しください。",
+      "Aster Calendar はコードを送信できませんでした。数分後にもう一度お試しください。",
     address_change_invalid_address:
       "このアドレスは使用できません。別のアドレスを選んでください。",
     address_change_locked_account_kind:
@@ -4903,7 +4903,7 @@ export const ja = {
       "独自ドメインのアドレスはここでは変更できません。",
     address_change_locked_unavailable: "アドレスの変更は現在利用できません。",
     address_change_eligibility_failed:
-      "Aster Mail はアドレスを変更できるかどうかを確認できませんでした。",
+      "Aster Calendar はアドレスを変更できるかどうかを確認できませんでした。",
     address_change_domain_label: "ドメイン",
     primary_address_set: "プライマリアドレスを更新しました",
     primary_address_reset: "既定のアドレスに戻す",
@@ -9646,7 +9646,7 @@ export const ja = {
     reset_link_sent_title: "メールを確認してください",
     resend_reset_link: "リンクを再送信",
     reset_link_sent_desc:
-      "このアカウントに確認済みのリカバリーメールがある場合、Aster Mailがリセット用のリンクを送信しました。リンクは30分で期限切れになります。メールが見つからない場合は、迷惑メールフォルダを確認してください。",
+      "このアカウントに確認済みのリカバリーメールがある場合、Aster Calendarがリセット用のリンクを送信しました。リンクは30分で期限切れになります。メールが見つからない場合は、迷惑メールフォルダを確認してください。",
     sending_reset_link: "リセットリンクを送信中...",
     reset_your_password: "パスワードをリセット",
     reset_choose_new_password:
@@ -9689,7 +9689,7 @@ export const ja = {
     change_account_desc: "別の Aster Mail アカウントを復元します。",
     support_step_title: "サポートに問い合わせる",
     support_step_desc:
-      "Aster Mail は暗号化されたデータを読み取れないため、リカバリーコードまたは復旧用メールなしで解除できる人はいません。サポートがアカウントを確認し、次の手順を案内します。",
+      "Aster Calendar は暗号化されたデータを読み取れないため、リカバリーコードまたは復旧用メールなしで解除できる人はいません。サポートがアカウントを確認し、次の手順を案内します。",
     support_email_action: "サポートにメールする",
     support_help_center: "ヘルプセンターを開く",
     other_ways_title: "リカバリー方法を選択",
@@ -9698,13 +9698,13 @@ export const ja = {
     other_way_code_desc: "保存したコードのいずれかを入力します。",
     other_way_email_title: "リカバリーメールでリセットする",
     other_way_email_desc:
-      "Aster Mailがリカバリーメールにリンクを送信し、新しいパスワードを選択できるようにします。",
+      "Aster Calendarがリカバリーメールにリンクを送信し、新しいパスワードを選択できるようにします。",
     other_way_none_title: "どれも持っていない",
     other_way_none_desc:
       "サポートにお問い合わせください。次の手順をご案内します。",
     reset_account_title: "リカバリーメールでリセットする",
     reset_account_desc:
-      "Aster Mailがリカバリーメールにリンクを送信します。リンクを開いて新しいパスワードを選択してください。以前のメールは、リカバリーコードまたは以前のパスワードでロックを解除するまで暗号化されたままです。",
+      "Aster Calendarがリカバリーメールにリンクを送信します。リンクを開いて新しいパスワードを選択してください。以前のメールは、リカバリーコードまたは以前のパスワードでロックを解除するまで暗号化されたままです。",
     send_reset_link: "リセットリンクを送信",
     print_codes: "印刷",
     codes_copied: "コードをコピーしました。",
@@ -10057,11 +10057,11 @@ export const ja = {
     invalid_unsubscribe_address:
       "この送信者の配信停止アドレスは形式に問題があるようです。メール本文内のリンクから、送信者のサイト上で配信停止することができます。",
     tor_unsupported_platform:
-      "Aster Mail では Tor を利用できません。Tor を使うには、Tor Browser で Aster Mail を開いてください。",
+      "Aster Calendar では Tor を利用できません。Tor を使うには、Tor Browser で Aster Calendar を開いてください。",
     tor_native_only:
-      "Aster Mail では Tor を利用できません。Tor を使うには、Tor Browser で Aster Mail を開いてください。",
+      "Aster Calendar では Tor を利用できません。Tor を使うには、Tor Browser で Aster Calendar を開いてください。",
     tor_plugin_missing:
-      "Aster Mail では Tor を利用できません。Tor を使うには、Tor Browser で Aster Mail を開いてください。",
+      "Aster Calendar では Tor を利用できません。Tor を使うには、Tor Browser で Aster Calendar を開いてください。",
     cdn_relay_misconfigured:
       "このビルドでは CDN リレーが設定されていません。設定で直接接続に切り替えてください。サポートが必要な場合は、hello@astermail.org までご連絡ください。",
     device_repair_required:

@@ -1082,7 +1082,7 @@ export const pl = {
     email_data_missing:
       "Nie udało się załadować treści tej wiadomości. Ponowne otwarcie ze skrzynki odbiorczej powinno ją przywrócić. Skrzynka pozostaje bez zmian.",
     later: "Później",
-    welcome_to_aster: "Witamy w Aster Mail",
+    welcome_to_aster: "Witamy w Aster Calendar",
     purchase_thank_you:
       "Dziękujemy za zakup. Twoja subskrypcja jest teraz aktywna.",
     view_billing_settings: "Zobacz ustawienia rozliczeń",
@@ -1776,9 +1776,9 @@ export const pl = {
     print_date: "Data:",
     print_no_subject: "(Brak tematu)",
     print_email_title: "E-mail",
-    save_recovery_codes_title: "Kody odzyskiwania Aster Mail",
+    save_recovery_codes_title: "Kody odzyskiwania Aster Calendar",
     save_recovery_codes_dialog: "Zapisz kody odzyskiwania",
-    recovery_pdf_title: "Kody odzyskiwania Aster Mail",
+    recovery_pdf_title: "Kody odzyskiwania Aster Calendar",
     recovery_pdf_keep_safe: "PRZECHOWUJ TEN DOKUMENT W BEZPIECZNYM MIEJSCU",
     recovery_pdf_account: "Konto:",
     recovery_pdf_generated: "Wygenerowano:",
@@ -4079,9 +4079,9 @@ export const pl = {
     updates_never_checked: "Nigdy nie sprawdzano",
     updates_auto_label: "Automatycznie sprawdzaj aktualizacje",
     updates_auto_description:
-      "Aster Mail szuka nowych wersji i informuje Cię, gdy któraś jest gotowa do instalacji.",
+      "Aster Calendar szuka nowych wersji i informuje Cię, gdy któraś jest gotowa do instalacji.",
     updates_release_notes: "Informacje o wydaniu",
-    updates_banner_title: "Aster Mail {{version}} jest dostępny",
+    updates_banner_title: "Aster Calendar {{version}} jest dostępny",
     updates_banner_action: "Zainstaluj teraz",
     updates_unsupported:
       "Aktualizacjami zarządza system operacyjny lub przeglądarka",
@@ -4179,13 +4179,13 @@ export const pl = {
     contact_reencrypt_failed:
       "Nie udało się bezpiecznie ponownie zaszyfrować jednego z kontaktów. Hasło nie zostało zmienione. Skontaktuj się z pomocą techniczną lub usuń problematyczny kontakt i spróbuj ponownie.",
     password_change_client_upgrade_required:
-      "Ta wersja Aster Mail nie może zmienić Twojego hasła. Zaktualizuj do najnowszej wersji, a następnie spróbuj ponownie.",
+      "Ta wersja Aster Calendar nie może zmienić Twojego hasła. Zaktualizuj do najnowszej wersji, a następnie spróbuj ponownie.",
     password_change_reencryption_incomplete:
       "Część Twoich aliasów nie została w pełni ponownie zaszyfrowana, więc Twoje hasło nie zostało zmienione. Spróbuj ponownie, a jeśli problem się powtarza, skontaktuj się z pomocą techniczną.",
     password_change_fingerprint_mismatch:
-      "Ta sesja rozpoczęła się w innej sieci lub przeglądarce, więc Aster Mail nie zmienił Twojego hasła. Aby je zmienić, wyloguj się, zaloguj ponownie i spróbuj jeszcze raz.",
+      "Ta sesja rozpoczęła się w innej sieci lub przeglądarce, więc Aster Calendar nie zmienił Twojego hasła. Aby je zmienić, wyloguj się, zaloguj ponownie i spróbuj jeszcze raz.",
     password_change_identity_continuity_required:
-      "Aster Mail nie zmienił Twojego hasła, ponieważ zmiana usunęłaby klucze szyfrowania potrzebne Twoim starszym wiadomościom. Aby spróbować ponownie, wyloguj się, zaloguj ponownie i zmień hasło.",
+      "Aster Calendar nie zmienił Twojego hasła, ponieważ zmiana usunęłaby klucze szyfrowania potrzebne Twoim starszym wiadomościom. Aby spróbować ponownie, wyloguj się, zaloguj ponownie i zmień hasło.",
     password_change_vault_out_of_date:
       "Twoje hasło zostało zmienione na innym urządzeniu, więc ta sesja jest nieaktualna. Aby zmienić hasło, wyloguj się i zaloguj ponownie, używając obecnego hasła.",
     update_password: "Zaktualizuj hasło",
@@ -4776,7 +4776,7 @@ export const pl = {
       "Utracono połączenie, a my próbujemy ponownie samodzielnie.",
     "connection.status_disconnected": "Rozłączono",
     "connection.tor_unavailable_fallback":
-      "Tor nie jest dostępny w Aster Mail, więc łączysz się teraz bezpośrednio. Aby korzystać z Tor, otwórz Aster Mail w Tor Browser.",
+      "Tor nie jest dostępny w Aster Calendar, więc łączysz się teraz bezpośrednio. Aby korzystać z Tor, otwórz Aster Calendar w Tor Browser.",
     "connection.tor_blocked":
       "Tor jest wyłączony, a to żądanie zostało zablokowane, aby ruch nie wyciekł. Włączenie Tora pozwoli mu przejść.",
     "connection.tor_blocked_connecting":
@@ -5079,7 +5079,7 @@ export const pl = {
     address_change_unavailable: "{{email}} jest niedostępny",
     address_change_same_as_current: "To już jest Twój adres",
     address_change_check_failed:
-      "Aster Mail nie mógł sprawdzić tego adresu. Spróbuj ponownie za chwilę.",
+      "Aster Calendar nie mógł sprawdzić tego adresu. Spróbuj ponownie za chwilę.",
     address_change_review_title: "Sprawdź zmianę",
     address_change_from: "Teraz",
     address_change_to: "Po zmianie",
@@ -5093,7 +5093,7 @@ export const pl = {
     address_change_type_to_confirm: "Wpisz {{email}}, aby potwierdzić",
     address_change_password_title: "Potwierdź, że to Ty",
     address_change_password_body: "Aby kontynuować, wprowadź hasło.",
-    address_change_code_resent: "Aster Mail wysłał nowy kod.",
+    address_change_code_resent: "Aster Calendar wysłał nowy kod.",
     address_change_code_title: "Wprowadź kod potwierdzający",
     address_change_code_body:
       "Sprawdź {{email}} i znajdź 6-cyfrowy kod. Wygasa po 15 minutach.",
@@ -5124,7 +5124,7 @@ export const pl = {
     address_change_resend_too_soon:
       "Odczekaj chwilę, zanim poprosisz o kolejny kod.",
     address_change_send_failed:
-      "Aster Mail nie mógł wysłać kodu. Spróbuj ponownie za kilka minut.",
+      "Aster Calendar nie mógł wysłać kodu. Spróbuj ponownie za kilka minut.",
     address_change_invalid_address:
       "Ten adres jest nieprawidłowy. Wybierz inny.",
     address_change_locked_account_kind:
@@ -5133,7 +5133,7 @@ export const pl = {
       "Adresów w Twojej własnej domenie nie można zmienić w tym miejscu.",
     address_change_locked_unavailable: "Zmiana adresu jest teraz niedostępna.",
     address_change_eligibility_failed:
-      "Aster Mail nie mógł sprawdzić, czy możesz zmienić swój adres.",
+      "Aster Calendar nie mógł sprawdzić, czy możesz zmienić swój adres.",
     address_change_domain_label: "Domena",
     primary_address_set: "Zaktualizowano adres główny",
     primary_address_reset: "Przywróć domyślny adres",
@@ -10076,7 +10076,7 @@ export const pl = {
     reset_link_sent_title: "Sprawdź pocztę",
     resend_reset_link: "Wyślij link ponownie",
     reset_link_sent_desc:
-      "Jeśli to konto ma zweryfikowany adres odzyskiwania, Aster Mail wysłał na niego link do resetowania. Link wygasa po 30 minutach. Jeśli nie widzisz wiadomości, sprawdź folder ze spamem.",
+      "Jeśli to konto ma zweryfikowany adres odzyskiwania, Aster Calendar wysłał na niego link do resetowania. Link wygasa po 30 minutach. Jeśli nie widzisz wiadomości, sprawdź folder ze spamem.",
     sending_reset_link: "Wysyłanie linku resetującego...",
     reset_your_password: "Zresetuj swoje hasło",
     reset_choose_new_password: "Wybierz nowe hasło do swojego konta.",
@@ -10117,7 +10117,7 @@ export const pl = {
     change_account_desc: "Odzyskaj inne konto Aster Mail.",
     support_step_title: "Skontaktuj się z pomocą",
     support_step_desc:
-      "Aster Mail nie odczytuje Twoich zaszyfrowanych danych, więc nikt ich nie odblokuje bez kodu odzyskiwania ani adresu odzyskiwania. Pomoc techniczna sprawdzi konto i podpowie, co dalej.",
+      "Aster Calendar nie odczytuje Twoich zaszyfrowanych danych, więc nikt ich nie odblokuje bez kodu odzyskiwania ani adresu odzyskiwania. Pomoc techniczna sprawdzi konto i podpowie, co dalej.",
     support_email_action: "Napisz do pomocy",
     support_help_center: "Otwórz centrum pomocy",
     other_ways_title: "Wybierz metodę odzyskiwania",
@@ -10126,12 +10126,12 @@ export const pl = {
     other_way_code_desc: "Wpisz jeden z zapisanych kodów.",
     other_way_email_title: "Zresetuj przy użyciu adresu odzyskiwania",
     other_way_email_desc:
-      "Aster Mail wysyła link na Twój adres odzyskiwania, aby można było wybrać nowe hasło.",
+      "Aster Calendar wysyła link na Twój adres odzyskiwania, aby można było wybrać nowe hasło.",
     other_way_none_title: "Nie mam żadnej z tych opcji",
     other_way_none_desc: "Skontaktuj się z pomocą, a podpowiemy, co dalej.",
     reset_account_title: "Zresetuj przy użyciu adresu odzyskiwania",
     reset_account_desc:
-      "Aster Mail wysyła link na Twój adres odzyskiwania. Otwórz go, aby wybrać nowe hasło. Twoja wcześniejsza poczta pozostaje zaszyfrowana, dopóki nie odblokujesz jej kodem odzyskiwania lub poprzednim hasłem.",
+      "Aster Calendar wysyła link na Twój adres odzyskiwania. Otwórz go, aby wybrać nowe hasło. Twoja wcześniejsza poczta pozostaje zaszyfrowana, dopóki nie odblokujesz jej kodem odzyskiwania lub poprzednim hasłem.",
     send_reset_link: "Wyślij link resetujący",
     print_codes: "Drukuj",
     codes_copied: "Skopiowano kody.",
@@ -10488,11 +10488,11 @@ export const pl = {
     invalid_unsubscribe_address:
       "Adres rezygnacji od tego nadawcy wygląda na nieprawidłowy. Link wewnątrz samej wiadomości pozwoli Ci zrezygnować na stronie nadawcy.",
     tor_unsupported_platform:
-      "Tor nie jest dostępny w Aster Mail. Aby korzystać z Tor, otwórz Aster Mail w Tor Browser.",
+      "Tor nie jest dostępny w Aster Calendar. Aby korzystać z Tor, otwórz Aster Calendar w Tor Browser.",
     tor_native_only:
-      "Tor nie jest dostępny w Aster Mail. Aby korzystać z Tor, otwórz Aster Mail w Tor Browser.",
+      "Tor nie jest dostępny w Aster Calendar. Aby korzystać z Tor, otwórz Aster Calendar w Tor Browser.",
     tor_plugin_missing:
-      "Tor nie jest dostępny w Aster Mail. Aby korzystać z Tor, otwórz Aster Mail w Tor Browser.",
+      "Tor nie jest dostępny w Aster Calendar. Aby korzystać z Tor, otwórz Aster Calendar w Tor Browser.",
     cdn_relay_misconfigured:
       "Przekaźnik CDN nie jest skonfigurowany w tej kompilacji. Przełącz się na połączenie bezpośrednie w Ustawieniach. Jeśli potrzebujesz pomocy, napisz na hello@astermail.org.",
     device_repair_required:

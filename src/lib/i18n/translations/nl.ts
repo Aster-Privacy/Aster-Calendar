@@ -1047,7 +1047,7 @@ export const nl = {
     email_data_missing:
       "We konden de inhoud van deze e-mail niet laden. Hem opnieuw openen vanuit je inbox zou hem moeten terugbrengen. Je inbox is ongewijzigd.",
     later: "Later",
-    welcome_to_aster: "Welkom bij Aster Mail",
+    welcome_to_aster: "Welkom bij Aster Calendar",
     purchase_thank_you: "Bedankt voor je aankoop. Je abonnement is nu actief.",
     view_billing_settings: "Factuurinstellingen bekijken",
     welcome_description:
@@ -1768,7 +1768,7 @@ export const nl = {
     recovery_pdf_no_digital:
       "Sla dit niet digitaal op als je niet zeker bent van de beveiliging",
     recovery_pdf_store_secure: "Bewaar op een veilige, offline locatie",
-    recovery_pdf_title: "Herstelcodes voor Aster Mail",
+    recovery_pdf_title: "Herstelcodes voor Aster Calendar",
     recovery_pdf_unrecoverable:
       "Zonder deze codes kan niemand je weer toegang tot je account geven als je je wachtwoord vergeet, en is je versleutelde e-mail voorgoed verloren.",
     recovery_pdf_used: "Gebruikt op:",
@@ -3900,9 +3900,9 @@ export const nl = {
     updates_never_checked: "Nooit gecontroleerd",
     updates_auto_label: "Automatisch controleren op updates",
     updates_auto_description:
-      "Aster Mail zoekt naar nieuwe versies en laat het je weten zodra er een klaarstaat om te installeren.",
+      "Aster Calendar zoekt naar nieuwe versies en laat het je weten zodra er een klaarstaat om te installeren.",
     updates_release_notes: "Releaseopmerkingen",
-    updates_banner_title: "Aster Mail {{version}} is beschikbaar",
+    updates_banner_title: "Aster Calendar {{version}} is beschikbaar",
     updates_banner_action: "Nu installeren",
     updates_unsupported:
       "Updates worden beheerd door je besturingssysteem of browser",
@@ -3992,13 +3992,13 @@ export const nl = {
     contact_reencrypt_failed:
       "Een van je contacten kon niet veilig opnieuw worden versleuteld. Je wachtwoord is niet gewijzigd. Neem contact op met support of verwijder het betreffende contact en probeer het opnieuw.",
     password_change_client_upgrade_required:
-      "Deze versie van Aster Mail kan je wachtwoord niet wijzigen. Werk bij naar de nieuwste versie en probeer het opnieuw.",
+      "Deze versie van Aster Calendar kan je wachtwoord niet wijzigen. Werk bij naar de nieuwste versie en probeer het opnieuw.",
     password_change_reencryption_incomplete:
       "Sommige van je aliassen zijn niet volledig opnieuw versleuteld, dus je wachtwoord is niet gewijzigd. Probeer het opnieuw en neem contact op met de ondersteuning als dit blijft gebeuren.",
     password_change_fingerprint_mismatch:
-      "Deze sessie is gestart op een ander netwerk of een andere browser, dus Aster Mail heeft je wachtwoord niet gewijzigd. Om het te wijzigen, meld je je af, meld je je opnieuw aan en probeer je het opnieuw.",
+      "Deze sessie is gestart op een ander netwerk of een andere browser, dus Aster Calendar heeft je wachtwoord niet gewijzigd. Om het te wijzigen, meld je je af, meld je je opnieuw aan en probeer je het opnieuw.",
     password_change_identity_continuity_required:
-      "Aster Mail heeft je wachtwoord niet gewijzigd, omdat de wijziging versleutelingssleutels zou verwijderen die je oudere berichten nodig hebben. Om het opnieuw te proberen, meld je je af, meld je je opnieuw aan en wijzig je je wachtwoord.",
+      "Aster Calendar heeft je wachtwoord niet gewijzigd, omdat de wijziging versleutelingssleutels zou verwijderen die je oudere berichten nodig hebben. Om het opnieuw te proberen, meld je je af, meld je je opnieuw aan en wijzig je je wachtwoord.",
     password_change_vault_out_of_date:
       "Je wachtwoord is op een ander apparaat gewijzigd, dus deze sessie is niet meer actueel. Om je wachtwoord te wijzigen, meld je je af en meld je je opnieuw aan met je huidige wachtwoord.",
     update_password: "Wachtwoord bijwerken",
@@ -4537,7 +4537,7 @@ export const nl = {
       "We zijn de verbinding kwijtgeraakt, en we proberen het zelf opnieuw.",
     "connection.status_disconnected": "Niet verbonden",
     "connection.tor_unavailable_fallback":
-      "Tor is niet beschikbaar in Aster Mail, dus je maakt nu rechtstreeks verbinding. Open Aster Mail in Tor Browser om Tor te gebruiken.",
+      "Tor is niet beschikbaar in Aster Calendar, dus je maakt nu rechtstreeks verbinding. Open Aster Calendar in Tor Browser om Tor te gebruiken.",
     "connection.tor_blocked":
       "Tor staat uit, en we hebben dit verzoek geblokkeerd om je verkeer niet te laten weglekken. Tor inschakelen laat het door.",
     "connection.tor_blocked_connecting":
@@ -4836,7 +4836,7 @@ export const nl = {
     address_change_unavailable: "{{email}} is niet beschikbaar",
     address_change_same_as_current: "Dat is al je adres",
     address_change_check_failed:
-      "Aster Mail kon dit adres niet controleren. Probeer het zo meteen opnieuw.",
+      "Aster Calendar kon dit adres niet controleren. Probeer het zo meteen opnieuw.",
     address_change_review_title: "Controleer de wijziging",
     address_change_from: "Nu",
     address_change_to: "Daarna",
@@ -4850,7 +4850,7 @@ export const nl = {
     address_change_type_to_confirm: "Typ {{email}} om te bevestigen",
     address_change_password_title: "Bevestig dat jij het bent",
     address_change_password_body: "Voer je wachtwoord in om door te gaan.",
-    address_change_code_resent: "Aster Mail heeft een nieuwe code verstuurd.",
+    address_change_code_resent: "Aster Calendar heeft een nieuwe code verstuurd.",
     address_change_code_title: "Voer je bevestigingscode in",
     address_change_code_body:
       "Zoek in {{email}} naar een code van 6 cijfers. Die verloopt over 15 minuten.",
@@ -4884,7 +4884,7 @@ export const nl = {
     address_change_resend_too_soon:
       "Wacht even voordat je een nieuwe code aanvraagt.",
     address_change_send_failed:
-      "Aster Mail kon de code niet verzenden. Probeer het over een paar minuten opnieuw.",
+      "Aster Calendar kon de code niet verzenden. Probeer het over een paar minuten opnieuw.",
     address_change_invalid_address:
       "Dat adres is niet geldig. Kies een ander adres.",
     address_change_locked_account_kind:
@@ -4894,7 +4894,7 @@ export const nl = {
     address_change_locked_unavailable:
       "Je adres wijzigen is nu niet beschikbaar.",
     address_change_eligibility_failed:
-      "Aster Mail kon niet controleren of je je adres kunt wijzigen.",
+      "Aster Calendar kon niet controleren of je je adres kunt wijzigen.",
     address_change_domain_label: "Domein",
     primary_address_set: "Primair adres bijgewerkt",
     primary_address_reset: "Terugzetten naar je standaardadres",
@@ -9824,7 +9824,7 @@ export const nl = {
     reset_link_sent_title: "Controleer je e-mail",
     resend_reset_link: "Link opnieuw sturen",
     reset_link_sent_desc:
-      "Als dit account een geverifieerde herstel-e-mail heeft, heeft Aster Mail daar een link naartoe gestuurd. De link verloopt over 30 minuten. Zie je de e-mail niet, controleer dan je spammap.",
+      "Als dit account een geverifieerde herstel-e-mail heeft, heeft Aster Calendar daar een link naartoe gestuurd. De link verloopt over 30 minuten. Zie je de e-mail niet, controleer dan je spammap.",
     sending_reset_link: "Resetlink verzenden...",
     reset_your_password: "Stel je wachtwoord opnieuw in",
     reset_choose_new_password: "Kies een nieuw wachtwoord voor je account.",
@@ -9866,7 +9866,7 @@ export const nl = {
     change_account_desc: "Herstel een ander Aster Mail-account.",
     support_step_title: "Contact opnemen met support",
     support_step_desc:
-      "Aster Mail kan je versleutelde gegevens niet lezen, dus niemand kan ze ontgrendelen zonder een herstelcode of je herstel-e-mail. Support kan je account controleren en je helpen met de volgende stappen.",
+      "Aster Calendar kan je versleutelde gegevens niet lezen, dus niemand kan ze ontgrendelen zonder een herstelcode of je herstel-e-mail. Support kan je account controleren en je helpen met de volgende stappen.",
     support_email_action: "Support mailen",
     support_help_center: "Naar het helpcentrum",
     other_ways_title: "Kies een herstelmethode",
@@ -9875,13 +9875,13 @@ export const nl = {
     other_way_code_desc: "Voer een van de codes in die je hebt opgeslagen.",
     other_way_email_title: "Opnieuw instellen met je herstel-e-mail",
     other_way_email_desc:
-      "Aster Mail stuurt een link naar je herstel-e-mail, zodat je een nieuw wachtwoord kunt kiezen.",
+      "Aster Calendar stuurt een link naar je herstel-e-mail, zodat je een nieuw wachtwoord kunt kiezen.",
     other_way_none_title: "Ik heb hier niets van",
     other_way_none_desc:
       "Neem contact op met support, dan helpen we je met de volgende stappen.",
     reset_account_title: "Opnieuw instellen met je herstel-e-mail",
     reset_account_desc:
-      "Aster Mail stuurt een link naar je herstel-e-mail. Open de link om een nieuw wachtwoord te kiezen. Je eerdere e-mail blijft versleuteld totdat je die ontgrendelt met een herstelcode of je vorige wachtwoord.",
+      "Aster Calendar stuurt een link naar je herstel-e-mail. Open de link om een nieuw wachtwoord te kiezen. Je eerdere e-mail blijft versleuteld totdat je die ontgrendelt met een herstelcode of je vorige wachtwoord.",
     send_reset_link: "Herstellink sturen",
     print_codes: "Afdrukken",
     codes_copied: "Codes gekopieerd.",
@@ -10254,11 +10254,11 @@ export const nl = {
     invalid_unsubscribe_address:
       "Het afmeldadres van deze afzender lijkt onjuist opgemaakt. De link in de e-mail zelf laat je je afmelden op de site van de afzender.",
     tor_unsupported_platform:
-      "Tor is niet beschikbaar in Aster Mail. Open Aster Mail in Tor Browser om Tor te gebruiken.",
+      "Tor is niet beschikbaar in Aster Calendar. Open Aster Calendar in Tor Browser om Tor te gebruiken.",
     tor_native_only:
-      "Tor is niet beschikbaar in Aster Mail. Open Aster Mail in Tor Browser om Tor te gebruiken.",
+      "Tor is niet beschikbaar in Aster Calendar. Open Aster Calendar in Tor Browser om Tor te gebruiken.",
     tor_plugin_missing:
-      "Tor is niet beschikbaar in Aster Mail. Open Aster Mail in Tor Browser om Tor te gebruiken.",
+      "Tor is niet beschikbaar in Aster Calendar. Open Aster Calendar in Tor Browser om Tor te gebruiken.",
     cdn_relay_misconfigured:
       "De CDN-relay is niet geconfigureerd voor deze build. Schakel over naar een directe verbinding in Instellingen. Als je hulp nodig hebt, neem dan contact op met hello@astermail.org.",
     device_repair_required:

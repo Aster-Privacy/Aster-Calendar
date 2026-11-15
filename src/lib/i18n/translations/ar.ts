@@ -1036,7 +1036,7 @@ export const ar = {
     email_data_missing:
       "تعذّر تحميل محتوى هذا البريد. فتحه مجددًا من صندوق الوارد يستعيده. صندوق وارداتك لم يتغير.",
     later: "لاحقًا",
-    welcome_to_aster: "مرحبًا بك في Aster Mail",
+    welcome_to_aster: "مرحبًا بك في Aster Calendar",
     purchase_thank_you: "شكرًا لشرائك. اشتراكك نشط الآن.",
     view_billing_settings: "عرض إعدادات الفوترة",
     welcome_description:
@@ -1587,9 +1587,9 @@ export const ar = {
     print_date: "التاريخ:",
     print_no_subject: "(بدون موضوع)",
     print_email_title: "بريد إلكتروني",
-    save_recovery_codes_title: "رموز استرداد Aster Mail",
+    save_recovery_codes_title: "رموز استرداد Aster Calendar",
     save_recovery_codes_dialog: "حفظ رموز الاسترداد",
-    recovery_pdf_title: "رموز استرداد Aster Mail",
+    recovery_pdf_title: "رموز استرداد Aster Calendar",
     recovery_pdf_keep_safe: "احتفظ بهذا المستند في مكان آمن ومحمي",
     recovery_pdf_account: "الحساب:",
     recovery_pdf_generated: "تم الإنشاء:",
@@ -4050,9 +4050,9 @@ export const ar = {
     updates_never_checked: "لم يتم الفحص أبدا",
     updates_auto_label: "البحث عن التحديثات تلقائيا",
     updates_auto_description:
-      "يبحث Aster Mail عن الإصدارات الجديدة ويخبرك عند جاهزية إصدار للتثبيت.",
+      "يبحث Aster Calendar عن الإصدارات الجديدة ويخبرك عند جاهزية إصدار للتثبيت.",
     updates_release_notes: "ملاحظات الإصدار",
-    updates_banner_title: "Aster Mail {{version}} متاح",
+    updates_banner_title: "Aster Calendar {{version}} متاح",
     updates_banner_action: "تثبيت الآن",
     updates_unsupported: "تتم إدارة التحديثات بواسطة نظام التشغيل أو المتصفح",
     updates_dismiss: "لاحقا",
@@ -4142,13 +4142,13 @@ export const ar = {
     contact_reencrypt_failed:
       "تعذّر إعادة تشفير إحدى جهات الاتصال بأمان. لم يتم تغيير كلمة المرور. يُرجى التواصل مع الدعم أو إزالة جهة الاتصال المتأثرة والمحاولة مرة أخرى.",
     password_change_client_upgrade_required:
-      "لا يمكن لهذه النسخة من Aster Mail تغيير كلمة المرور. حدّث إلى أحدث إصدار، ثم حاول مرة أخرى.",
+      "لا يمكن لهذه النسخة من Aster Calendar تغيير كلمة المرور. حدّث إلى أحدث إصدار، ثم حاول مرة أخرى.",
     password_change_reencryption_incomplete:
       "لم تكتمل إعادة تشفير بعض الأسماء المستعارة، لذا لم تتغير كلمة المرور. حاول مرة أخرى، وتواصل مع الدعم إذا تكرر ذلك.",
     password_change_fingerprint_mismatch:
-      "بدأت هذه الجلسة على شبكة أو متصفح مختلف، لذا لم يغيّر Aster Mail كلمة المرور. لتغييرها، سجّل الخروج ثم سجّل الدخول مرة أخرى وحاول مجددًا.",
+      "بدأت هذه الجلسة على شبكة أو متصفح مختلف، لذا لم يغيّر Aster Calendar كلمة المرور. لتغييرها، سجّل الخروج ثم سجّل الدخول مرة أخرى وحاول مجددًا.",
     password_change_identity_continuity_required:
-      "لم يغيّر Aster Mail كلمة المرور لأن التغيير سيزيل مفاتيح تشفير تحتاجها رسائلك الأقدم. للمحاولة مرة أخرى، سجّل الخروج ثم سجّل الدخول مرة أخرى وغيّر كلمة المرور.",
+      "لم يغيّر Aster Calendar كلمة المرور لأن التغيير سيزيل مفاتيح تشفير تحتاجها رسائلك الأقدم. للمحاولة مرة أخرى، سجّل الخروج ثم سجّل الدخول مرة أخرى وغيّر كلمة المرور.",
     password_change_vault_out_of_date:
       "تم تغيير كلمة المرور على جهاز آخر، لذا هذه الجلسة لم تعد محدّثة. لتغيير كلمة المرور، سجّل الخروج ثم سجّل الدخول مرة أخرى باستخدام كلمة المرور الحالية.",
     update_password: "تحديث كلمة المرور",
@@ -4703,7 +4703,7 @@ export const ar = {
       "فقدنا الاتصال، ونحن نعيد المحاولة من تلقاء أنفسنا.",
     "connection.status_disconnected": "غير متصل",
     "connection.tor_unavailable_fallback":
-      "Tor غير متاحة في Aster Mail، لذا أصبح اتصالك الآن مباشرًا. لاستخدام Tor، افتح Aster Mail في Tor Browser.",
+      "Tor غير متاحة في Aster Calendar، لذا أصبح اتصالك الآن مباشرًا. لاستخدام Tor، افتح Aster Calendar في Tor Browser.",
     "connection.tor_blocked":
       "Tor متوقف، وقد حُجب هذا الطلب لمنع تسرّب تنقّلك. تفعيل Tor يتيح مروره.",
     "connection.tor_blocked_connecting":
@@ -4999,7 +4999,7 @@ export const ar = {
     address_change_unavailable: "{{email}} غير متاح",
     address_change_same_as_current: "هذا عنوانك الحالي بالفعل",
     address_change_check_failed:
-      "تعذّر على Aster Mail التحقق من هذا العنوان. حاول مرة أخرى بعد قليل.",
+      "تعذّر على Aster Calendar التحقق من هذا العنوان. حاول مرة أخرى بعد قليل.",
     address_change_review_title: "راجع التغيير",
     address_change_from: "الآن",
     address_change_to: "بعد التغيير",
@@ -5011,7 +5011,7 @@ export const ar = {
     address_change_type_to_confirm: "اكتب {{email}} للتأكيد",
     address_change_password_title: "أكّد أنك أنت",
     address_change_password_body: "للمتابعة، أدخل كلمة المرور.",
-    address_change_code_resent: "أرسل Aster Mail رمزًا جديدًا.",
+    address_change_code_resent: "أرسل Aster Calendar رمزًا جديدًا.",
     address_change_code_title: "أدخل رمز التأكيد",
     address_change_code_body:
       "ابحث في {{email}} عن رمز من 6 أرقام. تنتهي صلاحيته خلال 15 دقيقة.",
@@ -5041,7 +5041,7 @@ export const ar = {
       "بدأت عمليات تغيير عنوان كثيرة. حاول مرة أخرى بعد ساعة.",
     address_change_resend_too_soon: "انتظر لحظة قبل طلب رمز آخر.",
     address_change_send_failed:
-      "تعذّر على Aster Mail إرسال الرمز. أعد المحاولة بعد بضع دقائق.",
+      "تعذّر على Aster Calendar إرسال الرمز. أعد المحاولة بعد بضع دقائق.",
     address_change_invalid_address: "هذا العنوان غير صالح. اختر عنوانًا آخر.",
     address_change_locked_account_kind:
       "الحسابات الشخصية وحدها يمكنها تغيير عنوانها.",
@@ -5049,7 +5049,7 @@ export const ar = {
       "لا يمكن تغيير العناوين على نطاقك الخاص من هنا.",
     address_change_locked_unavailable: "تغيير العنوان غير متاح الآن.",
     address_change_eligibility_failed:
-      "تعذّر على Aster Mail التحقق مما إذا كان بإمكانك تغيير عنوانك.",
+      "تعذّر على Aster Calendar التحقق مما إذا كان بإمكانك تغيير عنوانك.",
     address_change_domain_label: "النطاق",
     primary_address_set: "تم تحديث العنوان الأساسي",
     primary_address_reset: "إعادة التعيين إلى عنوانك الافتراضي",
@@ -9659,7 +9659,7 @@ export const ar = {
     reset_link_sent_title: "تحقق من بريدك الإلكتروني",
     resend_reset_link: "إعادة إرسال الرابط",
     reset_link_sent_desc:
-      "إذا كان لهذا الحساب بريد استرداد موثّق، فقد أرسل Aster Mail رابط إعادة التعيين إليه. تنتهي صلاحية الرابط خلال 30 دقيقة. إذا لم تجد الرسالة، فتحقق من مجلد البريد العشوائي.",
+      "إذا كان لهذا الحساب بريد استرداد موثّق، فقد أرسل Aster Calendar رابط إعادة التعيين إليه. تنتهي صلاحية الرابط خلال 30 دقيقة. إذا لم تجد الرسالة، فتحقق من مجلد البريد العشوائي.",
     sending_reset_link: "جارٍ إرسال رابط إعادة التعيين...",
     reset_your_password: "إعادة تعيين كلمة المرور",
     reset_choose_new_password: "اختر كلمة مرور جديدة لحسابك.",
@@ -9700,7 +9700,7 @@ export const ar = {
     change_account_desc: "استعد حسابًا آخر في Aster Mail.",
     support_step_title: "التواصل مع الدعم",
     support_step_desc:
-      "لا يستطيع Aster Mail قراءة بياناتك المشفرة، لذلك لا أحد يفتحها بدون رمز استرداد أو بريد الاسترداد. يمكن للدعم مراجعة حسابك ومساعدتك في الخطوات التالية.",
+      "لا يستطيع Aster Calendar قراءة بياناتك المشفرة، لذلك لا أحد يفتحها بدون رمز استرداد أو بريد الاسترداد. يمكن للدعم مراجعة حسابك ومساعدتك في الخطوات التالية.",
     support_email_action: "مراسلة الدعم",
     support_help_center: "فتح مركز المساعدة",
     other_ways_title: "اختر طريقة الاسترداد",
@@ -9709,12 +9709,12 @@ export const ar = {
     other_way_code_desc: "أدخل أحد الرموز التي حفظتها.",
     other_way_email_title: "إعادة التعيين ببريد الاسترداد",
     other_way_email_desc:
-      "يرسل Aster Mail رابطًا إلى بريد الاسترداد لتتمكن من اختيار كلمة مرور جديدة.",
+      "يرسل Aster Calendar رابطًا إلى بريد الاسترداد لتتمكن من اختيار كلمة مرور جديدة.",
     other_way_none_title: "لا أملك أيًا من هذه",
     other_way_none_desc: "تواصل مع الدعم وسنساعدك في الخطوات التالية.",
     reset_account_title: "إعادة التعيين ببريد الاسترداد",
     reset_account_desc:
-      "يرسل Aster Mail رابطًا إلى بريد الاسترداد. افتحه لاختيار كلمة مرور جديدة. يبقى بريدك السابق مشفّرًا إلى أن تفتحه برمز استرداد أو بكلمة المرور السابقة.",
+      "يرسل Aster Calendar رابطًا إلى بريد الاسترداد. افتحه لاختيار كلمة مرور جديدة. يبقى بريدك السابق مشفّرًا إلى أن تفتحه برمز استرداد أو بكلمة المرور السابقة.",
     send_reset_link: "إرسال رابط إعادة التعيين",
     print_codes: "طباعة",
     codes_copied: "تم نسخ الرموز.",
@@ -10058,11 +10058,11 @@ export const ar = {
     invalid_unsubscribe_address:
       "عنوان إلغاء الاشتراك من هذا المرسل يبدو غير سليم. يتيح الرابط داخل البريد نفسه إلغاء الاشتراك على موقع المرسل.",
     tor_unsupported_platform:
-      "Tor غير متاحة في Aster Mail. لاستخدام Tor، افتح Aster Mail في Tor Browser.",
+      "Tor غير متاحة في Aster Calendar. لاستخدام Tor، افتح Aster Calendar في Tor Browser.",
     tor_native_only:
-      "Tor غير متاحة في Aster Mail. لاستخدام Tor، افتح Aster Mail في Tor Browser.",
+      "Tor غير متاحة في Aster Calendar. لاستخدام Tor، افتح Aster Calendar في Tor Browser.",
     tor_plugin_missing:
-      "Tor غير متاحة في Aster Mail. لاستخدام Tor، افتح Aster Mail في Tor Browser.",
+      "Tor غير متاحة في Aster Calendar. لاستخدام Tor، افتح Aster Calendar في Tor Browser.",
     cdn_relay_misconfigured:
       "مرحّل CDN غير مهيأ في هذا الإصدار. انتقل إلى الاتصال المباشر من الإعدادات. إذا احتجت إلى مساعدة، تواصل مع hello@astermail.org.",
     device_repair_required:

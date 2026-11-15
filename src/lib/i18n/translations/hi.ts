@@ -1092,7 +1092,7 @@ export const hi = {
     email_data_missing:
       "हम इस ईमेल की सामग्री लोड नहीं कर सके। इसे अपने इनबॉक्स से दोबारा खोलने पर यह वापस आ जानी चाहिए। आपका इनबॉक्स जस का तस है।",
     later: "बाद में",
-    welcome_to_aster: "Aster Mail में आपका स्वागत है",
+    welcome_to_aster: "Aster Calendar में आपका स्वागत है",
     purchase_thank_you: "आपकी खरीद के लिए धन्यवाद। आपकी सदस्यता अब सक्रिय है।",
     purchase_congrats_title: "बधाई हो",
     go_to_inbox: "इनबॉक्स पर जाएं",
@@ -1645,9 +1645,9 @@ export const hi = {
     print_date: "तारीख:",
     print_no_subject: "(कोई विषय नहीं)",
     print_email_title: "ईमेल",
-    save_recovery_codes_title: "Aster Mail रिकवरी कोड",
+    save_recovery_codes_title: "Aster Calendar रिकवरी कोड",
     save_recovery_codes_dialog: "रिकवरी कोड सहेजें",
-    recovery_pdf_title: "Aster Mail रिकवरी कोड",
+    recovery_pdf_title: "Aster Calendar रिकवरी कोड",
     recovery_pdf_keep_safe: "इस दस्तावेज़ को सुरक्षित जगह पर रखें",
     recovery_pdf_account: "खाता:",
     recovery_pdf_generated: "बनाया गया:",
@@ -2759,9 +2759,9 @@ export const hi = {
     updates_never_checked: "कभी नहीं देखा गया",
     updates_auto_label: "अपडेट अपने आप देखें",
     updates_auto_description:
-      "Aster Mail नए संस्करण देखता रहता है और कोई इंस्टॉल के लिए तैयार होने पर आपको बताता है।",
+      "Aster Calendar नए संस्करण देखता रहता है और कोई इंस्टॉल के लिए तैयार होने पर आपको बताता है।",
     updates_release_notes: "रिलीज़ नोट",
-    updates_banner_title: "Aster Mail {{version}} उपलब्ध है",
+    updates_banner_title: "Aster Calendar {{version}} उपलब्ध है",
     updates_banner_action: "अभी इंस्टॉल करें",
     updates_unsupported: "अपडेट आपका ऑपरेटिंग सिस्टम या ब्राउज़र संभालता है",
     updates_dismiss: "बाद में",
@@ -2869,13 +2869,13 @@ export const hi = {
     contact_reencrypt_failed:
       "आपके एक संपर्क को सुरक्षित तरीके से दोबारा एन्क्रिप्ट नहीं किया जा सका। आपका पासवर्ड नहीं बदला गया। सहायता टीम से संपर्क करें, या उस संपर्क को हटाकर फिर से कोशिश करें।",
     password_change_client_upgrade_required:
-      "Aster Mail का यह संस्करण आपका पासवर्ड नहीं बदल सकता। नए संस्करण पर अपडेट करें, फिर कोशिश करें।",
+      "Aster Calendar का यह संस्करण आपका पासवर्ड नहीं बदल सकता। नए संस्करण पर अपडेट करें, फिर कोशिश करें।",
     password_change_reencryption_incomplete:
       "आपके कुछ एलियास दोबारा एन्क्रिप्ट होना पूरा नहीं कर पाए, इसलिए आपका पासवर्ड नहीं बदला। फिर से कोशिश करें, और अगर यह बार-बार हो तो सहायता से संपर्क करें।",
     password_change_fingerprint_mismatch:
-      "यह सत्र किसी दूसरे नेटवर्क या ब्राउज़र पर शुरू हुआ था, इसलिए Aster Mail ने आपका पासवर्ड नहीं बदला। इसे बदलने के लिए साइन आउट करें, फिर साइन इन करके कोशिश करें।",
+      "यह सत्र किसी दूसरे नेटवर्क या ब्राउज़र पर शुरू हुआ था, इसलिए Aster Calendar ने आपका पासवर्ड नहीं बदला। इसे बदलने के लिए साइन आउट करें, फिर साइन इन करके कोशिश करें।",
     password_change_identity_continuity_required:
-      "Aster Mail ने आपका पासवर्ड नहीं बदला, क्योंकि इस बदलाव से वे एन्क्रिप्शन कुंजियां हट जातीं जिनकी आपके पुराने संदेशों को ज़रूरत है। फिर से कोशिश करने के लिए साइन आउट करें, फिर साइन इन करें और अपना पासवर्ड बदलें।",
+      "Aster Calendar ने आपका पासवर्ड नहीं बदला, क्योंकि इस बदलाव से वे एन्क्रिप्शन कुंजियां हट जातीं जिनकी आपके पुराने संदेशों को ज़रूरत है। फिर से कोशिश करने के लिए साइन आउट करें, फिर साइन इन करें और अपना पासवर्ड बदलें।",
     password_change_vault_out_of_date:
       "आपका पासवर्ड किसी दूसरे डिवाइस पर बदला गया था, इसलिए यह सत्र अब अद्यतित नहीं है। अपना पासवर्ड बदलने के लिए साइन आउट करें और अपने मौजूदा पासवर्ड से फिर से साइन इन करें।",
     update_password: "पासवर्ड अपडेट करें",
@@ -5591,7 +5591,7 @@ export const hi = {
       "कनेक्शन टूट गया, और हम अपने आप फिर से कोशिश कर रहे हैं।",
     "connection.status_disconnected": "अलग हो गया",
     "connection.tor_unavailable_fallback":
-      "Aster Mail में Tor उपलब्ध नहीं है, इसलिए अब आपका कनेक्शन डायरेक्ट है। Tor इस्तेमाल करने के लिए, Aster Mail को Tor Browser में खोलें।",
+      "Aster Calendar में Tor उपलब्ध नहीं है, इसलिए अब आपका कनेक्शन डायरेक्ट है। Tor इस्तेमाल करने के लिए, Aster Calendar को Tor Browser में खोलें।",
     "connection.tor_blocked":
       "Tor बंद है, और आपका ट्रैफ़िक लीक होने से बचाने के लिए हमने यह अनुरोध रोक दिया। Tor चालू करने पर यह आगे बढ़ जाएगा।",
     "connection.tor_blocked_connecting":
@@ -5914,7 +5914,7 @@ export const hi = {
     address_change_unavailable: "{{email}} उपलब्ध नहीं है",
     address_change_same_as_current: "यह पहले से ही आपका पता है",
     address_change_check_failed:
-      "Aster Mail यह पता जाँच नहीं सका। थोड़ी देर बाद फिर कोशिश करें।",
+      "Aster Calendar यह पता जाँच नहीं सका। थोड़ी देर बाद फिर कोशिश करें।",
     address_change_review_title: "बदलाव की समीक्षा करें",
     address_change_from: "अभी",
     address_change_to: "बाद में",
@@ -5927,7 +5927,7 @@ export const hi = {
     address_change_type_to_confirm: "पुष्टि के लिए {{email}} टाइप करें",
     address_change_password_title: "पुष्टि करें कि यह आप हैं",
     address_change_password_body: "जारी रखने के लिए, अपना पासवर्ड डालें।",
-    address_change_code_resent: "Aster Mail ने नया कोड भेजा।",
+    address_change_code_resent: "Aster Calendar ने नया कोड भेजा।",
     address_change_code_title: "अपना पुष्टिकरण कोड डालें",
     address_change_code_body:
       "{{email}} में 6 अंकों का कोड देखें। यह 15 मिनट में समाप्त हो जाता है।",
@@ -5958,7 +5958,7 @@ export const hi = {
       "आपने बहुत सारे पता बदलाव शुरू किए। एक घंटे बाद फिर कोशिश करें।",
     address_change_resend_too_soon: "दूसरा कोड मांगने से पहले थोड़ा रुकें.",
     address_change_send_failed:
-      "Aster Mail कोड नहीं भेज सका. कुछ मिनट बाद फिर से कोशिश करें.",
+      "Aster Calendar कोड नहीं भेज सका. कुछ मिनट बाद फिर से कोशिश करें.",
     address_change_invalid_address: "यह पता मान्य नहीं है. कोई दूसरा चुनें.",
     address_change_locked_account_kind:
       "केवल व्यक्तिगत खाते ही अपना पता बदल सकते हैं।",
@@ -5966,7 +5966,7 @@ export const hi = {
       "आपके अपने डोमेन के पते यहां नहीं बदले जा सकते।",
     address_change_locked_unavailable: "पता बदलना अभी उपलब्ध नहीं है.",
     address_change_eligibility_failed:
-      "Aster Mail यह जांच नहीं सका कि आप अपना पता बदल सकते हैं या नहीं.",
+      "Aster Calendar यह जांच नहीं सका कि आप अपना पता बदल सकते हैं या नहीं.",
     address_change_domain_label: "डोमेन",
     primary_address_set: "मुख्य पता अपडेट हो गया",
     primary_address_reset: "अपने डिफ़ॉल्ट पते पर लौटें",
@@ -9706,7 +9706,7 @@ export const hi = {
     reset_link_sent_title: "अपना ईमेल देखें",
     resend_reset_link: "लिंक फिर से भेजें",
     reset_link_sent_desc:
-      "अगर इस खाते में सत्यापित रिकवरी ईमेल है, तो Aster Mail ने उस पर रीसेट लिंक भेजा है। लिंक 30 मिनट में समाप्त हो जाता है। अगर आपको ईमेल नहीं दिखता, तो अपना स्पैम फ़ोल्डर देखें।",
+      "अगर इस खाते में सत्यापित रिकवरी ईमेल है, तो Aster Calendar ने उस पर रीसेट लिंक भेजा है। लिंक 30 मिनट में समाप्त हो जाता है। अगर आपको ईमेल नहीं दिखता, तो अपना स्पैम फ़ोल्डर देखें।",
     sending_reset_link: "रीसेट लिंक भेजा जा रहा है...",
     reset_your_password: "अपना पासवर्ड रीसेट करें",
     reset_choose_new_password: "अपने खाते के लिए नया पासवर्ड चुनें।",
@@ -9748,7 +9748,7 @@ export const hi = {
     change_account_desc: "कोई दूसरा Aster Mail खाता पुनर्प्राप्त करें।",
     support_step_title: "सहायता से संपर्क करें",
     support_step_desc:
-      "Aster Mail आपका एन्क्रिप्टेड डेटा नहीं पढ़ सकता, इसलिए रिकवरी कोड या रिकवरी ईमेल के बिना कोई उसे नहीं खोल सकता। सहायता टीम आपका खाता देख सकती है और आगे के कदमों में मदद कर सकती है।",
+      "Aster Calendar आपका एन्क्रिप्टेड डेटा नहीं पढ़ सकता, इसलिए रिकवरी कोड या रिकवरी ईमेल के बिना कोई उसे नहीं खोल सकता। सहायता टीम आपका खाता देख सकती है और आगे के कदमों में मदद कर सकती है।",
     support_email_action: "सहायता को ईमेल करें",
     support_help_center: "सहायता केंद्र खोलें",
     other_ways_title: "रिकवरी का तरीका चुनें",
@@ -9757,13 +9757,13 @@ export const hi = {
     other_way_code_desc: "सेव किए गए कोड में से कोई एक डालें।",
     other_way_email_title: "रिकवरी ईमेल से रीसेट करें",
     other_way_email_desc:
-      "Aster Mail आपके रिकवरी ईमेल पर एक लिंक भेजता है, ताकि आप नया पासवर्ड चुन सकें।",
+      "Aster Calendar आपके रिकवरी ईमेल पर एक लिंक भेजता है, ताकि आप नया पासवर्ड चुन सकें।",
     other_way_none_title: "मेरे पास इनमें से कुछ नहीं है",
     other_way_none_desc:
       "सहायता से संपर्क करें, हम आगे के कदमों में मदद करेंगे।",
     reset_account_title: "रिकवरी ईमेल से रीसेट करें",
     reset_account_desc:
-      "Aster Mail आपके रिकवरी ईमेल पर एक लिंक भेजता है। नया पासवर्ड चुनने के लिए उसे खोलें। आपके पहले के ईमेल तब तक एन्क्रिप्टेड रहते हैं, जब तक आप उन्हें रिकवरी कोड या अपने पिछले पासवर्ड से अनलॉक नहीं करते।",
+      "Aster Calendar आपके रिकवरी ईमेल पर एक लिंक भेजता है। नया पासवर्ड चुनने के लिए उसे खोलें। आपके पहले के ईमेल तब तक एन्क्रिप्टेड रहते हैं, जब तक आप उन्हें रिकवरी कोड या अपने पिछले पासवर्ड से अनलॉक नहीं करते।",
     send_reset_link: "रीसेट लिंक भेजें",
     print_codes: "प्रिंट करें",
     codes_copied: "कोड कॉपी हो गए।",
@@ -10242,11 +10242,11 @@ export const hi = {
     invalid_unsubscribe_address:
       "इस प्रेषक का सदस्यता रद्द करने वाला पता गलत बना हुआ लगता है। ईमेल में मौजूद लिंक से आप प्रेषक की साइट पर जाकर सदस्यता रद्द कर सकते हैं।",
     tor_unsupported_platform:
-      "Aster Mail में Tor उपलब्ध नहीं है। Tor इस्तेमाल करने के लिए, Aster Mail को Tor Browser में खोलें।",
+      "Aster Calendar में Tor उपलब्ध नहीं है। Tor इस्तेमाल करने के लिए, Aster Calendar को Tor Browser में खोलें।",
     tor_native_only:
-      "Aster Mail में Tor उपलब्ध नहीं है। Tor इस्तेमाल करने के लिए, Aster Mail को Tor Browser में खोलें।",
+      "Aster Calendar में Tor उपलब्ध नहीं है। Tor इस्तेमाल करने के लिए, Aster Calendar को Tor Browser में खोलें।",
     tor_plugin_missing:
-      "Aster Mail में Tor उपलब्ध नहीं है। Tor इस्तेमाल करने के लिए, Aster Mail को Tor Browser में खोलें।",
+      "Aster Calendar में Tor उपलब्ध नहीं है। Tor इस्तेमाल करने के लिए, Aster Calendar को Tor Browser में खोलें।",
     cdn_relay_misconfigured:
       "इस बिल्ड के लिए CDN रिले कॉन्फ़िगर नहीं है। सेटिंग में डायरेक्ट कनेक्शन पर स्विच करें। मदद चाहिए तो hello@astermail.org से संपर्क करें।",
     device_repair_required:
