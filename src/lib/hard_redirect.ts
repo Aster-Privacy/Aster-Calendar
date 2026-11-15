@@ -24,6 +24,7 @@
 // paints nothing over the dark window background. Routes there live in the
 // fragment, so the path must be moved into the hash before reloading.
 import { ignore_error } from "@/lib/ignore_error";
+import { is_mail_panel_path } from "@/pages/mail_panel/mail_panel_bridge";
 
 function uses_hash_router(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -42,6 +43,12 @@ function safe_internal_url(path: string): URL {
 }
 
 export function hard_redirect(path: string): void {
+  if (is_mail_panel_path(window.location.pathname)) {
+    window.location.reload();
+
+    return;
+  }
+
   const url = safe_internal_url(path);
 
   if (uses_hash_router()) {

@@ -120,25 +120,19 @@ describe("app rail apps", () => {
     container.remove();
   });
 
-  it("puts Mail first, then Calendar, Contacts, and Security", async () => {
+  it("leaves Mail out of the rail because the app launcher lists it", async () => {
     await render_rail();
 
     expect(rail_labels()).toEqual([
-      "common.app_name_mail",
       "common.app_name_calendar",
       "common.contacts",
       "common.security_center",
     ]);
+    expect(rail_item("common.app_name_mail")).toBeUndefined();
   });
 
-  it("shows the app icons for Mail and Calendar", async () => {
+  it("shows the Calendar app icon", async () => {
     await render_rail();
-
-    expect(
-      rail_item("common.app_name_mail")
-        ?.querySelector("img")
-        ?.getAttribute("src"),
-    ).toMatch(/^data:image\/png/);
 
     const calendar_icon = rail_item("common.app_name_calendar")?.querySelector(
       'svg[data-dated-calendar-icon="app"]',
@@ -152,29 +146,40 @@ describe("app rail apps", () => {
     ).toBeNull();
   });
 
-  it("never marks the app shortcuts as open panels", async () => {
+  it("shows the Contacts and Security Center app logos", async () => {
+    await render_rail();
+
+    const contacts_logo = rail_item("common.contacts")?.querySelector("img");
+    const security_logo = rail_item("common.security_center")?.querySelector(
+      "img",
+    );
+
+    expect(contacts_logo?.getAttribute("src")).toBe(
+      "/icons/contacts/contacts_rail_24.png",
+    );
+    expect(contacts_logo?.getAttribute("srcset")).toContain(
+      "/icons/contacts/contacts_rail_72.png 3x",
+    );
+    expect(security_logo?.getAttribute("src")).toBe(
+      "/icons/security/security_rail_24.png",
+    );
+    expect(security_logo?.getAttribute("srcset")).toContain(
+      "/icons/security/security_rail_48.png 2x",
+    );
+    expect(
+      rail_item("common.contacts")?.querySelector(".app_rail_icon"),
+    ).toBeNull();
+    expect(
+      rail_item("common.security_center")?.querySelector(".app_rail_icon"),
+    ).toBeNull();
+  });
+
+  it("never marks the Calendar shortcut as an open panel", async () => {
     await render_rail();
 
     expect(
-      rail_item("common.app_name_mail")?.getAttribute("aria-expanded"),
-    ).toBe("false");
-    expect(
       rail_item("common.app_name_calendar")?.getAttribute("aria-expanded"),
     ).toBe("false");
-  });
-
-  it("opens Mail on its own site without touching the route or panels", async () => {
-    await render_rail("/settings/appearance", true);
-
-    await act(async () => {
-      rail_item("common.app_name_mail")?.click();
-    });
-
-    expect(open_external).toHaveBeenCalledTimes(1);
-    expect(open_external).toHaveBeenCalledWith("https://app.astermail.org");
-    expect(path()).toBe("/settings/appearance");
-    expect(on_contacts_open_change).not.toHaveBeenCalledWith(false);
-    expect(on_security_open_change).not.toHaveBeenCalled();
   });
 
   it("returns to today in the calendar when Calendar is chosen", async () => {
@@ -193,7 +198,7 @@ describe("app rail apps", () => {
     expect(open_external).not.toHaveBeenCalled();
   });
 
-  it("still toggles Contacts after the app shortcuts were added", async () => {
+  it("toggles Contacts from the rail", async () => {
     await render_rail();
 
     await act(async () => {

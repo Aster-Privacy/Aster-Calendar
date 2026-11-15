@@ -61,8 +61,22 @@ import { ignore_error } from "@/lib/ignore_error";
 import { safe_local_get } from "@/lib/safe_storage";
 import { capture_support_return } from "@/lib/support_return";
 import { lazy_with_retry } from "@/utils/lazy_with_retry";
+import {
+  is_mail_panel_path,
+  read_initial_panel_theme,
+} from "@/pages/mail_panel/mail_panel_bridge";
+import { set_theme_override } from "@/contexts/theme_context";
 
 const App = lazy_with_retry(() => import("@/App"));
+const MailPanelPage = lazy_with_retry(
+  () => import("@/pages/mail_panel/mail_panel_page"),
+);
+
+const is_mail_panel = is_mail_panel_path(app_pathname());
+
+if (is_mail_panel) {
+  set_theme_override(read_initial_panel_theme(window.location.search));
+}
 
 function warm_shell_chunk(): void {
   import("@/App").catch((caught) =>
@@ -88,11 +102,11 @@ function warm_startup_route_chunk(): void {
 
 const browser_supported = typeof window.crypto?.subtle === "object";
 
-if (browser_supported) {
+if (browser_supported && !is_mail_panel) {
   warm_shell_chunk();
 }
 
-if (preload_initial_language()) {
+if (preload_initial_language() && !is_mail_panel) {
   warm_startup_route_chunk();
 }
 
@@ -351,6 +365,14 @@ const router_basename = resolve_account_basename();
 
 function RootShell(): JSX.Element {
   if (!browser_supported) return <UnsupportedBrowserPage />;
+
+  if (is_mail_panel) {
+    return (
+      <Suspense fallback={null}>
+        <MailPanelPage />
+      </Suspense>
+    );
+  }
 
   return (
     <Suspense fallback={<FullPageLoader />}>
