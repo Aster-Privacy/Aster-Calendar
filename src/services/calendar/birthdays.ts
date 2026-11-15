@@ -18,6 +18,7 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
+import { is_contact_trashed } from "@/lib/contact_trash";
 import { parse_contact_date } from "@/utils/date_utils";
 
 export const BIRTHDAY_EVENT_PREFIX = "birthday-";
@@ -52,6 +53,7 @@ export interface BirthdayContact {
   last_name?: string;
   birthday?: string;
   date_entries?: { value: string; type: string }[];
+  deleted_at?: string;
 }
 
 export function contact_birthday_sources(
@@ -86,6 +88,14 @@ export function contact_birthday_sources(
   });
 
   return sources;
+}
+
+export function birthday_sources_from_contacts(
+  contacts: BirthdayContact[],
+): BirthdaySource[] {
+  return contacts
+    .filter((contact) => !is_contact_trashed(contact))
+    .flatMap((contact) => contact_birthday_sources(contact));
 }
 
 export function birthdays_in_range(
