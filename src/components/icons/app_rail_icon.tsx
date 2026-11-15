@@ -27,6 +27,20 @@ import {
 
 import { AsterSecurityMark } from "@/components/icons/aster_security_mark";
 
+type AppRailLogoName = "contacts" | "security";
+
+export function app_rail_logo(name: AppRailLogoName): {
+  icon_src: string;
+  icon_src_set: string;
+} {
+  const base = `/icons/${name}/${name}_rail`;
+
+  return {
+    icon_src: `${base}_24.png`,
+    icon_src_set: `${base}_24.png 1x, ${base}_48.png 2x, ${base}_72.png 3x`,
+  };
+}
+
 interface AppRailIconProps {
   name: "calendar" | "contacts" | "security" | "tasks";
 }
