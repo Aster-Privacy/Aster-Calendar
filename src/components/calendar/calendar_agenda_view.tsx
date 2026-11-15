@@ -208,7 +208,7 @@ export const CalendarAgendaView = memo(function CalendarAgendaView({
   selected_event_id,
   on_event_click,
   on_create_click,
-  dim_past_events = false,
+  dim_past_events = true,
   range_start,
   range_end,
   endless,

@@ -579,11 +579,11 @@ export function CalendarViewsSection() {
         />
 
         <SettingToggleRow
-          checked={preferences.calendar_dim_past_events}
+          checked={preferences.calendar_fade_past_events}
           description={t("calendar.settings_dim_past_events_desc")}
           label={t("calendar.settings_dim_past_events")}
           on_change={(next) =>
-            update_preference("calendar_dim_past_events", next)
+            update_preference("calendar_fade_past_events", next)
           }
         />
 

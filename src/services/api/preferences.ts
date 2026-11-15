@@ -255,7 +255,7 @@ export interface UserPreferences {
   calendar_secondary_timezone: string;
   calendar_timezone: string;
   calendar_show_declined_events: boolean;
-  calendar_dim_past_events: boolean;
+  calendar_fade_past_events: boolean;
   calendar_working_week: WorkingWeek;
   calendar_density: "responsive" | "compact";
   calendar_speedy_meetings: boolean;
@@ -725,7 +725,7 @@ export const CACHEABLE_PREFERENCE_KEYS: readonly (keyof UserPreferences)[] = [
   "calendar_show_event_location",
   "calendar_secondary_timezone",
   "calendar_show_declined_events",
-  "calendar_dim_past_events",
+  "calendar_fade_past_events",
   "calendar_working_week",
   "calendar_density",
   "calendar_speedy_meetings",
@@ -1082,7 +1082,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   calendar_secondary_timezone: "",
   calendar_timezone: "",
   calendar_show_declined_events: true,
-  calendar_dim_past_events: false,
+  calendar_fade_past_events: true,
   calendar_working_week: EMPTY_WORKING_WEEK,
   calendar_density: "responsive",
   calendar_speedy_meetings: false,
