@@ -403,8 +403,14 @@ describe("CalendarSidebar subscriptions", () => {
       ),
     );
 
-    expect(swatches).toHaveLength(EVENT_COLOR_OPTIONS.length);
+    expect(swatches).toHaveLength(9);
     expect(swatches[0].getAttribute("aria-checked")).toBe("true");
+    expect(swatches[swatches.length - 1].textContent).toContain(
+      "common.custom_color",
+    );
+    expect(swatches[swatches.length - 1].getAttribute("aria-checked")).toBe(
+      "false",
+    );
 
     act(() => swatches[0].click());
     expect(update_preference).not.toHaveBeenCalled();

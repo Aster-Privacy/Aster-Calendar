@@ -216,7 +216,7 @@ vi.mock("framer-motion", async () => {
 });
 
 import { CalendarSidebar } from "@/components/calendar/calendar_sidebar";
-import { EVENT_COLOR_OPTIONS } from "@/components/calendar/calendar_utils";
+import { PICKER_COLOR_OPTIONS } from "@/components/calendar/calendar_utils";
 import { BIRTHDAY_CALENDAR_ID } from "@/services/calendar/birthdays";
 import { forget_local_visibility_cache } from "@/services/calendar/local_visibility";
 
@@ -340,13 +340,13 @@ describe("CalendarSidebar birthdays calendar", () => {
 
     const options = swatches(birthday_row()!);
 
-    expect(options).toHaveLength(EVENT_COLOR_OPTIONS.length);
+    expect(options).toHaveLength(PICKER_COLOR_OPTIONS.length + 1);
 
     act(() => options[3].click());
 
     expect(update_preference).toHaveBeenCalledWith(
       "calendar_birthdays_color",
-      EVENT_COLOR_OPTIONS[3].hex.toLowerCase(),
+      PICKER_COLOR_OPTIONS[3].hex.toLowerCase(),
     );
   });
 
@@ -411,19 +411,34 @@ describe("CalendarSidebar birthdays calendar", () => {
 describe("CalendarSidebar holidays calendar", () => {
   it("uses the saved holiday color and changes it from the row menu", () => {
     preferences_state.calendar_holiday_region = "us";
-    preferences_state.calendar_holidays_color = EVENT_COLOR_OPTIONS[5].hex;
+    preferences_state.calendar_holidays_color = PICKER_COLOR_OPTIONS[5].hex;
     render();
 
     const options = swatches(holiday_row()!);
 
-    expect(options).toHaveLength(EVENT_COLOR_OPTIONS.length);
+    expect(options).toHaveLength(PICKER_COLOR_OPTIONS.length + 1);
     expect(options[5].getAttribute("aria-checked")).toBe("true");
 
     act(() => options[1].click());
 
     expect(update_preference).toHaveBeenCalledWith(
       "calendar_holidays_color",
-      EVENT_COLOR_OPTIONS[1].hex.toLowerCase(),
+      PICKER_COLOR_OPTIONS[1].hex.toLowerCase(),
     );
+  });
+
+  it("marks a color outside the presets as the custom color", () => {
+    preferences_state.calendar_holiday_region = "us";
+    preferences_state.calendar_holidays_color = "#795548";
+    render();
+
+    const options = swatches(holiday_row()!);
+    const checked = options.filter(
+      (option) => option.getAttribute("aria-checked") === "true",
+    );
+
+    expect(checked).toHaveLength(1);
+    expect(checked[0]).toBe(options.at(-1));
+    expect(checked[0].textContent).toContain("common.custom_color");
   });
 });

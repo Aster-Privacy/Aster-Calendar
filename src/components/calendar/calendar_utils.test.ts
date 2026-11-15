@@ -47,13 +47,17 @@ import {
   grid_contains_day,
   is_offset_in_view,
   event_color_token,
+  is_custom_event_color,
   nearest_event_color,
+  normalize_event_color,
+  selected_event_color_name,
   resolve_event_color,
   default_event_color,
   find_event_color_option,
   DEFAULT_EVENT_COLOR,
   EVENT_COLOR_OPTIONS,
   NEUTRAL_EVENT_COLOR,
+  PICKER_COLOR_OPTIONS,
 } from "@/components/calendar/calendar_utils";
 import { BIRTHDAY_COLOR } from "@/services/calendar/birthdays";
 import { HOLIDAY_COLOR } from "@/services/calendar/holidays";
@@ -731,6 +735,80 @@ describe("event color palette", () => {
     expect(nearest_event_color(BOOKING_COLOR).name).toBe("blue");
   });
 
+  it("keeps a custom hex as the event color instead of snapping it", () => {
+    expect(event_color_token("#123456")).toBe("#123456");
+    expect(event_color_token("#ABCDEF")).toBe("#abcdef");
+    expect(event_color_token("#abc")).toBe("#aabbcc");
+    expect(is_custom_event_color("#123456")).toBe(true);
+    expect(is_custom_event_color("#3b82f6")).toBe(false);
+    expect(is_custom_event_color("#6366f1")).toBe(false);
+    expect(is_custom_event_color("indigo")).toBe(false);
+    expect(is_custom_event_color(null)).toBe(false);
+  });
+
+  it("names the selected swatch only for presets and legacy colors", () => {
+    expect(selected_event_color_name("#3B82F6")).toBe("blue");
+    expect(selected_event_color_name("#6366f1")).toBe("blue");
+    expect(selected_event_color_name("violet")).toBe("purple");
+    expect(selected_event_color_name("#123456")).toBeNull();
+    expect(selected_event_color_name(null)).toBeNull();
+  });
+
+  it("shows brown and gray as the custom swatch while keeping them in the palette", () => {
+    expect(PICKER_COLOR_OPTIONS.map((option) => option.name)).toEqual([
+      "red",
+      "orange",
+      "yellow",
+      "green",
+      "teal",
+      "blue",
+      "purple",
+      "pink",
+    ]);
+    expect(EVENT_COLOR_OPTIONS).toHaveLength(10);
+    expect(selected_event_color_name("gray")).toBeNull();
+    expect(selected_event_color_name("slate")).toBeNull();
+    expect(selected_event_color_name(NEUTRAL_EVENT_COLOR.hex)).toBeNull();
+    expect(find_event_color_option("brown")?.name).toBe("brown");
+    expect(event_color_token(find_event_color_option("gray")!.hex)).toBe(
+      find_event_color_option("gray")!.token,
+    );
+  });
+
+  it.each([
+    ["#8e24aa", "purple"],
+    ["#3f51b5", "blue"],
+    ["#039be5", "blue"],
+    ["#f4511e", "red"],
+    ["#d81b60", "pink"],
+    ["#0b8043", "green"],
+  ])("keeps the subscription color %s on the %s swatch", (stored, name) => {
+    expect(selected_event_color_name(stored)).toBe(name);
+    expect(event_color_token(stored)).toBe(`var(--cal_color_${name})`);
+  });
+
+  it("normalizes stored colors to lowercase six digit hex", () => {
+    expect(normalize_event_color("#ABCDEF")).toBe("#abcdef");
+    expect(normalize_event_color("rgb(1, 2, 3)")).toBe("#010203");
+    expect(normalize_event_color("not a color")).toBeNull();
+  });
+
+  it("round trips a custom event color through storage", () => {
+    const start = new Date(2026, 0, 5, 9);
+    const end = new Date(2026, 0, 5, 10);
+    const stored = JSON.parse(
+      JSON.stringify(timed_event("x", start, end, { color: "#1a2b3c" })),
+    ) as DecryptedCalendarEvent;
+
+    expect(stored.color).toBe("#1a2b3c");
+    expect(resolve_event_color(stored, "#2563eb")).toBe("#1a2b3c");
+    expect(resolve_event_color(timed_event("y", start, end), "#7c2d12")).toBe(
+      "#7c2d12",
+    );
+    expect(build_event_block_style("#fafafa").color).toBe("#111827");
+    expect(build_event_block_style("#1a2b3c").color).toBe("#ffffff");
+  });
+
   it("passes css variables through and falls back to the accent", () => {
     expect(event_color_token("var(--cal_color_sky)")).toBe(
       "var(--cal_color_sky)",
@@ -752,7 +830,7 @@ describe("event color palette", () => {
   it("resolves event colors to tokens", () => {
     const start = new Date(2026, 0, 5, 9);
     const end = new Date(2026, 0, 5, 10);
-    const explicit = timed_event("a", start, end, { color: "#d50000" });
+    const explicit = timed_event("a", start, end, { color: "#be123c" });
     const task = timed_event("b", start, end, { event_kind: "task" });
     const plain = timed_event("c", start, end);
 

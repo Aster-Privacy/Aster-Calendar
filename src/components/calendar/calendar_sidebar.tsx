@@ -72,8 +72,8 @@ import {
   grid_contains_day,
   is_same_day,
   event_color_token,
-  EVENT_COLOR_OPTIONS,
-  nearest_event_color,
+  PICKER_COLOR_OPTIONS,
+  selected_event_color_name,
   ink_on_fill,
 } from "@/components/calendar/calendar_utils";
 import { calendar_now } from "@/services/calendar/view_zone";
@@ -106,6 +106,11 @@ import { RailTipLayer } from "@/components/layout/sidebar/rail_tip_layer";
 import { SidebarAccountSwitcher } from "@/components/layout/sidebar/sidebar_account_switcher";
 import { UpNextCard } from "@/components/calendar/up_next_card";
 import { TagColorPicker } from "@/components/calendar/tag_color_picker";
+import {
+  AnchoredColorWheel,
+  ColorWheelAnchor,
+  CustomColorDot,
+} from "@/components/ui/color_wheel";
 import { use_tag_colors } from "@/components/calendar/use_tag_colors";
 import { use_preferences } from "@/contexts/preferences_context";
 import { BIRTHDAY_CALENDAR_ID } from "@/services/calendar/birthdays";
@@ -785,6 +790,55 @@ export function CalendarSidebar({
     </div>
   );
 
+  const [color_wheel_target, set_color_wheel_target] = useState<string | null>(
+    null,
+  );
+  const pending_color_wheel_ref = useRef<string | null>(null);
+
+  const open_pending_color_wheel = (focus_event: Event) => {
+    const target = pending_color_wheel_ref.current;
+
+    if (target === null) {
+      return;
+    }
+
+    focus_event.preventDefault();
+    pending_color_wheel_ref.current = null;
+    set_color_wheel_target(target);
+  };
+
+  const custom_color_menu_item = (
+    target: string,
+    color: string,
+    is_custom: boolean,
+  ) => (
+    <ContextMenuItem
+      aria-checked={is_custom}
+      role="menuitemradio"
+      onSelect={() => {
+        pending_color_wheel_ref.current = target;
+      }}
+    >
+      <span
+        aria-hidden="true"
+        className="me-2 inline-flex h-4 w-4 items-center justify-center"
+      >
+        <CustomColorDot color={is_custom ? color : null} />
+      </span>
+      <span className="flex-1 whitespace-nowrap">{t("common.custom_color")}</span>
+      {is_custom && <CheckIcon className="ms-2 h-4 w-4 text-txt-secondary" />}
+    </ContextMenuItem>
+  );
+
+  const color_wheel_anchor = (
+    <ColorWheelAnchor asChild>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+      />
+    </ColorWheelAnchor>
+  );
+
   const change_calendar_color = async (
     calendar: DecryptedCalendar,
     color: string,
@@ -901,50 +955,59 @@ export function CalendarSidebar({
     show_toast(t("calendar.birthdays_removed_toast"), "success");
   };
 
-  const color_submenu = (current: string, on_pick: (color: string) => void) => (
-    <ContextMenuSub>
-      <ContextMenuSubTrigger>
-        <span
-          aria-hidden="true"
-          className="me-2 inline-flex h-4 w-4 items-center justify-center"
-        >
-          <span
-            className="h-3 w-3 rounded-[3px]"
-            style={{ backgroundColor: event_color_token(current) }}
-          />
-        </span>
-        {t("common.change_color")}
-      </ContextMenuSubTrigger>
-      <ContextMenuSubContent className="w-44">
-        {EVENT_COLOR_OPTIONS.map((option) => {
-          const is_current = nearest_event_color(current).name === option.name;
+  const color_submenu = (
+    target: string,
+    current: string,
+    on_pick: (color: string) => void,
+  ) => {
+    const current_color_name = selected_event_color_name(current);
 
-          return (
-            <ContextMenuItem
-              key={option.hex}
-              aria-checked={is_current}
-              role="menuitemradio"
-              onClick={() => on_pick(option.hex)}
-            >
-              <span
-                aria-hidden="true"
-                className="me-2 inline-flex h-4 w-4 items-center justify-center"
+    return (
+      <ContextMenuSub>
+        <ContextMenuSubTrigger>
+          <span
+            aria-hidden="true"
+            className="me-2 inline-flex h-4 w-4 items-center justify-center"
+          >
+            <span
+              className="h-3 w-3 rounded-[3px]"
+              style={{ backgroundColor: event_color_token(current) }}
+            />
+          </span>
+          {t("common.change_color")}
+        </ContextMenuSubTrigger>
+        <ContextMenuSubContent className="w-44">
+          {PICKER_COLOR_OPTIONS.map((option) => {
+            const is_current = current_color_name === option.name;
+
+            return (
+              <ContextMenuItem
+                key={option.hex}
+                aria-checked={is_current}
+                role="menuitemradio"
+                onClick={() => on_pick(option.hex)}
               >
                 <span
-                  className="h-3 w-3 rounded-[3px]"
-                  style={{ backgroundColor: option.token }}
-                />
-              </span>
-              <span className="flex-1">{t(option.name_key)}</span>
-              {is_current && (
-                <CheckIcon className="ms-2 h-4 w-4 text-txt-secondary" />
-              )}
-            </ContextMenuItem>
-          );
-        })}
-      </ContextMenuSubContent>
-    </ContextMenuSub>
-  );
+                  aria-hidden="true"
+                  className="me-2 inline-flex h-4 w-4 items-center justify-center"
+                >
+                  <span
+                    className="h-3 w-3 rounded-[3px]"
+                    style={{ backgroundColor: option.token }}
+                  />
+                </span>
+                <span className="flex-1">{t(option.name_key)}</span>
+                {is_current && (
+                  <CheckIcon className="ms-2 h-4 w-4 text-txt-secondary" />
+                )}
+              </ContextMenuItem>
+            );
+          })}
+          {custom_color_menu_item(target, current, current_color_name === null)}
+        </ContextMenuSubContent>
+      </ContextMenuSub>
+    );
+  };
 
   const toggle_birthdays = () =>
     update_visibility((current) => ({
@@ -959,283 +1022,28 @@ export function CalendarSidebar({
     }));
 
   const birthday_row = (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <div
-          className={`group relative rounded-[var(--aster-radius-item,8px)] data-[state=open]:[&>button]:bg-[var(--aster-hover)] ${
-            birthdays_visible ? "" : "[&>button_span.flex-1]:opacity-55"
-          }`}
-          data-visibility-row="birthdays"
-        >
-          <SidebarTagRow
-            rail_tip
-            aria-pressed={birthdays_visible}
-            color={birthdays_color}
-            icon_slot={visibility_box(birthdays_color, birthdays_visible)}
-            is_collapsed={is_collapsed}
-            label={birthdays_name}
-            on_click={toggle_birthdays}
-            trailing={!is_collapsed ? <span className="w-5" /> : undefined}
-          />
-          {!is_collapsed && (
-            <button
-              aria-haspopup="menu"
-              aria-label={t("calendar.calendar_options")}
-              className={`absolute end-1.5 top-1/2 z-[2] inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-[8px] text-[var(--icon-muted)] opacity-0 transition-[opacity,background-color,color] duration-150 hover:bg-[var(--aster-hover)] hover:text-[var(--icon-active)] group-hover:opacity-100 group-data-[state=open]:opacity-100 focus-visible:opacity-100 ${focus_ring}`}
-              type="button"
-              onClick={open_calendar_menu}
-            >
-              <EllipsisHorizontalIcon className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      </ContextMenuTrigger>
-      <ContextMenuContent className="w-52">
-        <ContextMenuItem onClick={() => show_only({ kind: "birthdays" })}>
-          <EyeIcon className="me-2 h-4 w-4" />
-          {t("calendar.show_only_this_calendar")}
-        </ContextMenuItem>
-        <ContextMenuItem onClick={toggle_birthdays}>
-          {birthdays_visible ? (
-            <EyeSlashIcon className="me-2 h-4 w-4" />
-          ) : (
-            <EyeIcon className="me-2 h-4 w-4" />
-          )}
-          {birthdays_visible
-            ? t("calendar.hide_this_calendar")
-            : t("calendar.show_this_calendar")}
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        {color_submenu(birthdays_color, change_birthdays_color)}
-        <ContextMenuItem onClick={() => set_is_birthdays_editor_open(true)}>
-          <PencilIcon className="me-2 h-4 w-4" />
-          {t("calendar.edit_calendar")}
-        </ContextMenuItem>
-        <ContextMenuItem
-          className="text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
-          onClick={() => set_is_birthdays_remove_open(true)}
-        >
-          <TrashIcon className="me-2 h-4 w-4" />
-          {t("calendar.remove_birthdays_calendar")}
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
-  );
-
-  const holiday_row = (
-    <ContextMenu key={HOLIDAY_CALENDAR_ID}>
-      <ContextMenuTrigger asChild>
-        <div
-          className={`group relative rounded-[var(--aster-radius-item,8px)] data-[state=open]:[&>button]:bg-[var(--aster-hover)] ${
-            holidays_visible ? "" : "[&>button_span.flex-1]:opacity-55"
-          }`}
-          data-visibility-row="holidays"
-        >
-          <SidebarTagRow
-            rail_tip
-            aria-pressed={holidays_visible}
-            color={holidays_color}
-            icon_slot={visibility_box(holidays_color, holidays_visible)}
-            is_collapsed={is_collapsed}
-            label={t("calendar.settings_holidays")}
-            on_click={toggle_holidays}
-            trailing={!is_collapsed ? <span className="w-5" /> : undefined}
-          />
-          {!is_collapsed && (
-            <button
-              aria-haspopup="menu"
-              aria-label={t("calendar.calendar_options")}
-              className={`absolute end-1.5 top-1/2 z-[2] inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-[8px] text-[var(--icon-muted)] opacity-0 transition-[opacity,background-color,color] duration-150 hover:bg-[var(--aster-hover)] hover:text-[var(--icon-active)] group-hover:opacity-100 group-data-[state=open]:opacity-100 focus-visible:opacity-100 ${focus_ring}`}
-              type="button"
-              onClick={open_calendar_menu}
-            >
-              <EllipsisHorizontalIcon className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      </ContextMenuTrigger>
-      <ContextMenuContent className="w-52">
-        <ContextMenuItem onClick={() => show_only({ kind: "holidays" })}>
-          <EyeIcon className="me-2 h-4 w-4" />
-          {t("calendar.show_only_this_calendar")}
-        </ContextMenuItem>
-        <ContextMenuItem onClick={toggle_holidays}>
-          {holidays_visible ? (
-            <EyeSlashIcon className="me-2 h-4 w-4" />
-          ) : (
-            <EyeIcon className="me-2 h-4 w-4" />
-          )}
-          {holidays_visible
-            ? t("calendar.hide_this_calendar")
-            : t("calendar.show_this_calendar")}
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        {color_submenu(holidays_color, change_holidays_color)}
-      </ContextMenuContent>
-    </ContextMenu>
-  );
-
-  const calendar_rows = calendars.map((calendar) => (
-    <ContextMenu key={calendar.id}>
-      <ContextMenuTrigger asChild>
-        <div
-          className={`group relative rounded-[var(--aster-radius-item,8px)] data-[state=open]:[&>button]:bg-[var(--aster-hover)] ${
-            calendar.is_visible ? "" : "[&>button_span.flex-1]:opacity-55"
-          }`}
-        >
-          <SidebarTagRow
-            rail_tip
-            color={calendar.color}
-            icon_slot={visibility_box(calendar.color, calendar.is_visible)}
-            aria-pressed={calendar.is_visible}
-            is_collapsed={is_collapsed}
-            label={calendar.name}
-            on_click={() =>
-              on_toggle_calendar(calendar.id, !calendar.is_visible)
-            }
-            trailing={!is_collapsed ? <span className="w-5" /> : undefined}
-          />
-          {!is_collapsed && (
-            <button
-              aria-haspopup="menu"
-              aria-label={t("calendar.calendar_options")}
-              className={`absolute end-1.5 top-1/2 z-[2] inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-[8px] text-[var(--icon-muted)] opacity-0 transition-[opacity,background-color,color] duration-150 hover:bg-[var(--aster-hover)] hover:text-[var(--icon-active)] group-hover:opacity-100 group-data-[state=open]:opacity-100 focus-visible:opacity-100 ${focus_ring}`}
-              type="button"
-              onClick={open_calendar_menu}
-            >
-              <EllipsisHorizontalIcon className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      </ContextMenuTrigger>
-      <ContextMenuContent className="w-52">
-        <ContextMenuItem onClick={() => on_create_in_calendar(calendar.id)}>
-          <PlusIcon className="me-2 h-4 w-4" />
-          {t("calendar.new_event")}
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem
-          onClick={() => show_only({ kind: "calendar", id: calendar.id })}
-        >
-          <EyeIcon className="me-2 h-4 w-4" />
-          {t("calendar.show_only_this_calendar")}
-        </ContextMenuItem>
-        <ContextMenuItem
-          onClick={() => on_toggle_calendar(calendar.id, !calendar.is_visible)}
-        >
-          {calendar.is_visible ? (
-            <EyeSlashIcon className="me-2 h-4 w-4" />
-          ) : (
-            <EyeIcon className="me-2 h-4 w-4" />
-          )}
-          {calendar.is_visible
-            ? t("calendar.hide_this_calendar")
-            : t("calendar.show_this_calendar")}
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <span
-              aria-hidden="true"
-              className="me-2 inline-flex h-4 w-4 items-center justify-center"
-            >
-              <span
-                className="h-3 w-3 rounded-[3px]"
-                style={{ backgroundColor: event_color_token(calendar.color) }}
-              />
-            </span>
-            {t("common.change_color")}
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="w-44">
-            {EVENT_COLOR_OPTIONS.map((option) => {
-              const is_current =
-                nearest_event_color(calendar.color).name === option.name;
-
-              return (
-                <ContextMenuItem
-                  key={option.hex}
-                  aria-checked={is_current}
-                  role="menuitemradio"
-                  onClick={() =>
-                    void change_calendar_color(calendar, option.hex)
-                  }
-                >
-                  <span
-                    aria-hidden="true"
-                    className="me-2 inline-flex h-4 w-4 items-center justify-center"
-                  >
-                    <span
-                      className="h-3 w-3 rounded-[3px]"
-                      style={{ backgroundColor: option.token }}
-                    />
-                  </span>
-                  <span className="flex-1">{t(option.name_key)}</span>
-                  {is_current && (
-                    <CheckIcon className="ms-2 h-4 w-4 text-txt-secondary" />
-                  )}
-                </ContextMenuItem>
-              );
-            })}
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-        <ContextMenuItem onClick={() => open_edit_calendar(calendar)}>
-          <PencilIcon className="me-2 h-4 w-4" />
-          {t("calendar.edit_calendar")}
-        </ContextMenuItem>
-        {calendar.id !== effective_default_calendar_id && (
-          <ContextMenuItem
-            onClick={() => {
-              update_preference("calendar_default_calendar_id", calendar.id);
-              show_toast(
-                t("calendar.settings_default_calendar_set"),
-                "success",
-              );
-            }}
-          >
-            <StarIcon className="me-2 h-4 w-4" />
-            {t("calendar.settings_set_default_calendar")}
-          </ContextMenuItem>
-        )}
-        {!calendar.is_default && (
-          <>
-            <ContextMenuSeparator />
-            <ContextMenuItem
-              className={DESTRUCTIVE_MENU_CLASS}
-              onClick={() => set_calendar_to_delete(calendar)}
-            >
-              <TrashIcon className="me-2 h-4 w-4" />
-              {t("calendar.settings_delete_calendar")}
-            </ContextMenuItem>
-          </>
-        )}
-      </ContextMenuContent>
-    </ContextMenu>
-  ));
-
-  const subscription_rows = subscriptions.map((subscription) => {
-    const color = subscription_color(subscription);
-    const current_color_name = nearest_event_color(color).name;
-    const is_visible = subscription.hidden !== true;
-
-    return (
-      <ContextMenu key={subscription.id}>
+    <AnchoredColorWheel
+      open={color_wheel_target === "birthdays"}
+      value={birthdays_color}
+      on_close={() => set_color_wheel_target(null)}
+      on_commit={change_birthdays_color}
+    >
+      <ContextMenu>
         <ContextMenuTrigger asChild>
           <div
             className={`group relative rounded-[var(--aster-radius-item,8px)] data-[state=open]:[&>button]:bg-[var(--aster-hover)] ${
-              is_visible ? "" : "[&>button_span.flex-1]:opacity-55"
+              birthdays_visible ? "" : "[&>button_span.flex-1]:opacity-55"
             }`}
-            data-subscription-row={subscription.id}
+            data-visibility-row="birthdays"
           >
             <SidebarTagRow
               rail_tip
-              aria-pressed={is_visible}
-              color={color}
-              icon_slot={visibility_box(color, is_visible)}
+              aria-pressed={birthdays_visible}
+              color={birthdays_color}
+              icon_slot={visibility_box(birthdays_color, birthdays_visible)}
               is_collapsed={is_collapsed}
-              label={subscription.name}
-              on_click={() =>
-                set_subscription_visible(subscription, !is_visible)
-              }
+              label={birthdays_name}
+              on_click={toggle_birthdays}
               trailing={!is_collapsed ? <span className="w-5" /> : undefined}
             />
             {!is_collapsed && (
@@ -1249,90 +1057,416 @@ export function CalendarSidebar({
                 <EllipsisHorizontalIcon className="h-4 w-4" />
               </button>
             )}
+            {color_wheel_anchor}
           </div>
         </ContextMenuTrigger>
-        <ContextMenuContent className="w-52">
-          <ContextMenuItem
-            onClick={() =>
-              show_only({ kind: "subscription", id: subscription.id })
-            }
-          >
+        <ContextMenuContent
+          className="w-52"
+          onCloseAutoFocus={open_pending_color_wheel}
+        >
+          <ContextMenuItem onClick={() => show_only({ kind: "birthdays" })}>
             <EyeIcon className="me-2 h-4 w-4" />
             {t("calendar.show_only_this_calendar")}
           </ContextMenuItem>
-          <ContextMenuItem
-            onClick={() => set_subscription_visible(subscription, !is_visible)}
-          >
-            {is_visible ? (
+          <ContextMenuItem onClick={toggle_birthdays}>
+            {birthdays_visible ? (
               <EyeSlashIcon className="me-2 h-4 w-4" />
             ) : (
               <EyeIcon className="me-2 h-4 w-4" />
             )}
-            {is_visible
+            {birthdays_visible
               ? t("calendar.hide_this_calendar")
               : t("calendar.show_this_calendar")}
           </ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuSub>
-            <ContextMenuSubTrigger>
-              <span
-                aria-hidden="true"
-                className="me-2 inline-flex h-4 w-4 items-center justify-center"
-              >
-                <span
-                  className="h-3 w-3 rounded-[3px]"
-                  style={{ backgroundColor: event_color_token(color) }}
-                />
-              </span>
-              {t("common.change_color")}
-            </ContextMenuSubTrigger>
-            <ContextMenuSubContent className="w-44">
-              {EVENT_COLOR_OPTIONS.map((option) => {
-                const is_current = option.name === current_color_name;
-
-                return (
-                  <ContextMenuItem
-                    key={option.hex}
-                    aria-checked={is_current}
-                    role="menuitemradio"
-                    onClick={() =>
-                      change_subscription_color(subscription, option.hex)
-                    }
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="me-2 inline-flex h-4 w-4 items-center justify-center"
-                    >
-                      <span
-                        className="h-3 w-3 rounded-[3px]"
-                        style={{ backgroundColor: option.token }}
-                      />
-                    </span>
-                    <span className="flex-1">{t(option.name_key)}</span>
-                    {is_current && (
-                      <CheckIcon className="ms-2 h-4 w-4 text-txt-secondary" />
-                    )}
-                  </ContextMenuItem>
-                );
-              })}
-            </ContextMenuSubContent>
-          </ContextMenuSub>
-          <ContextMenuItem
-            onClick={() => on_settings_click("calendar_import_export")}
-          >
-            <Cog6ToothIcon className="me-2 h-4 w-4" />
-            {t("calendar.subscription_settings")}
+          {color_submenu("birthdays", birthdays_color, change_birthdays_color)}
+          <ContextMenuItem onClick={() => set_is_birthdays_editor_open(true)}>
+            <PencilIcon className="me-2 h-4 w-4" />
+            {t("calendar.edit_calendar")}
           </ContextMenuItem>
-          <ContextMenuSeparator />
           <ContextMenuItem
-            className={DESTRUCTIVE_MENU_CLASS}
-            onClick={() => unsubscribe(subscription)}
+            className="text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
+            onClick={() => set_is_birthdays_remove_open(true)}
           >
             <TrashIcon className="me-2 h-4 w-4" />
-            {t("calendar.ie_sub_remove")}
+            {t("calendar.remove_birthdays_calendar")}
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
+    </AnchoredColorWheel>
+  );
+
+  const holiday_row = (
+    <AnchoredColorWheel
+      key={HOLIDAY_CALENDAR_ID}
+      open={color_wheel_target === "holidays"}
+      value={holidays_color}
+      on_close={() => set_color_wheel_target(null)}
+      on_commit={change_holidays_color}
+    >
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <div
+            className={`group relative rounded-[var(--aster-radius-item,8px)] data-[state=open]:[&>button]:bg-[var(--aster-hover)] ${
+              holidays_visible ? "" : "[&>button_span.flex-1]:opacity-55"
+            }`}
+            data-visibility-row="holidays"
+          >
+            <SidebarTagRow
+              rail_tip
+              aria-pressed={holidays_visible}
+              color={holidays_color}
+              icon_slot={visibility_box(holidays_color, holidays_visible)}
+              is_collapsed={is_collapsed}
+              label={t("calendar.settings_holidays")}
+              on_click={toggle_holidays}
+              trailing={!is_collapsed ? <span className="w-5" /> : undefined}
+            />
+            {!is_collapsed && (
+              <button
+                aria-haspopup="menu"
+                aria-label={t("calendar.calendar_options")}
+                className={`absolute end-1.5 top-1/2 z-[2] inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-[8px] text-[var(--icon-muted)] opacity-0 transition-[opacity,background-color,color] duration-150 hover:bg-[var(--aster-hover)] hover:text-[var(--icon-active)] group-hover:opacity-100 group-data-[state=open]:opacity-100 focus-visible:opacity-100 ${focus_ring}`}
+                type="button"
+                onClick={open_calendar_menu}
+              >
+                <EllipsisHorizontalIcon className="h-4 w-4" />
+              </button>
+            )}
+            {color_wheel_anchor}
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent
+          className="w-52"
+          onCloseAutoFocus={open_pending_color_wheel}
+        >
+          <ContextMenuItem onClick={() => show_only({ kind: "holidays" })}>
+            <EyeIcon className="me-2 h-4 w-4" />
+            {t("calendar.show_only_this_calendar")}
+          </ContextMenuItem>
+          <ContextMenuItem onClick={toggle_holidays}>
+            {holidays_visible ? (
+              <EyeSlashIcon className="me-2 h-4 w-4" />
+            ) : (
+              <EyeIcon className="me-2 h-4 w-4" />
+            )}
+            {holidays_visible
+              ? t("calendar.hide_this_calendar")
+              : t("calendar.show_this_calendar")}
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          {color_submenu("holidays", holidays_color, change_holidays_color)}
+        </ContextMenuContent>
+      </ContextMenu>
+    </AnchoredColorWheel>
+  );
+
+  const calendar_rows = calendars.map((calendar) => {
+    const wheel_target = `calendar:${calendar.id}`;
+    const current_color_name = selected_event_color_name(calendar.color);
+
+    return (
+      <AnchoredColorWheel
+        key={calendar.id}
+        open={color_wheel_target === wheel_target}
+        value={calendar.color}
+        on_close={() => set_color_wheel_target(null)}
+        on_commit={(hex) => void change_calendar_color(calendar, hex)}
+      >
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <div
+              className={`group relative rounded-[var(--aster-radius-item,8px)] data-[state=open]:[&>button]:bg-[var(--aster-hover)] ${
+                calendar.is_visible ? "" : "[&>button_span.flex-1]:opacity-55"
+              }`}
+            >
+              <SidebarTagRow
+                rail_tip
+                color={calendar.color}
+                icon_slot={visibility_box(calendar.color, calendar.is_visible)}
+                aria-pressed={calendar.is_visible}
+                is_collapsed={is_collapsed}
+                label={calendar.name}
+                on_click={() =>
+                  on_toggle_calendar(calendar.id, !calendar.is_visible)
+                }
+                trailing={!is_collapsed ? <span className="w-5" /> : undefined}
+              />
+              {!is_collapsed && (
+                <button
+                  aria-haspopup="menu"
+                  aria-label={t("calendar.calendar_options")}
+                  className={`absolute end-1.5 top-1/2 z-[2] inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-[8px] text-[var(--icon-muted)] opacity-0 transition-[opacity,background-color,color] duration-150 hover:bg-[var(--aster-hover)] hover:text-[var(--icon-active)] group-hover:opacity-100 group-data-[state=open]:opacity-100 focus-visible:opacity-100 ${focus_ring}`}
+                  type="button"
+                  onClick={open_calendar_menu}
+                >
+                  <EllipsisHorizontalIcon className="h-4 w-4" />
+                </button>
+              )}
+              {color_wheel_anchor}
+            </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent
+            className="w-52"
+            onCloseAutoFocus={open_pending_color_wheel}
+          >
+            <ContextMenuItem onClick={() => on_create_in_calendar(calendar.id)}>
+              <PlusIcon className="me-2 h-4 w-4" />
+              {t("calendar.new_event")}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              onClick={() => show_only({ kind: "calendar", id: calendar.id })}
+            >
+              <EyeIcon className="me-2 h-4 w-4" />
+              {t("calendar.show_only_this_calendar")}
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() =>
+                on_toggle_calendar(calendar.id, !calendar.is_visible)
+              }
+            >
+              {calendar.is_visible ? (
+                <EyeSlashIcon className="me-2 h-4 w-4" />
+              ) : (
+                <EyeIcon className="me-2 h-4 w-4" />
+              )}
+              {calendar.is_visible
+                ? t("calendar.hide_this_calendar")
+                : t("calendar.show_this_calendar")}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>
+                <span
+                  aria-hidden="true"
+                  className="me-2 inline-flex h-4 w-4 items-center justify-center"
+                >
+                  <span
+                    className="h-3 w-3 rounded-[3px]"
+                    style={{
+                      backgroundColor: event_color_token(calendar.color),
+                    }}
+                  />
+                </span>
+                {t("common.change_color")}
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent className="w-44">
+                {PICKER_COLOR_OPTIONS.map((option) => {
+                  const is_current = current_color_name === option.name;
+
+                  return (
+                    <ContextMenuItem
+                      key={option.hex}
+                      aria-checked={is_current}
+                      role="menuitemradio"
+                      onClick={() =>
+                        void change_calendar_color(calendar, option.hex)
+                      }
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="me-2 inline-flex h-4 w-4 items-center justify-center"
+                      >
+                        <span
+                          className="h-3 w-3 rounded-[3px]"
+                          style={{ backgroundColor: option.token }}
+                        />
+                      </span>
+                      <span className="flex-1">{t(option.name_key)}</span>
+                      {is_current && (
+                        <CheckIcon className="ms-2 h-4 w-4 text-txt-secondary" />
+                      )}
+                    </ContextMenuItem>
+                  );
+                })}
+                {custom_color_menu_item(
+                  wheel_target,
+                  calendar.color,
+                  current_color_name === null,
+                )}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+            <ContextMenuItem onClick={() => open_edit_calendar(calendar)}>
+              <PencilIcon className="me-2 h-4 w-4" />
+              {t("calendar.edit_calendar")}
+            </ContextMenuItem>
+            {calendar.id !== effective_default_calendar_id && (
+              <ContextMenuItem
+                onClick={() => {
+                  update_preference(
+                    "calendar_default_calendar_id",
+                    calendar.id,
+                  );
+                  show_toast(
+                    t("calendar.settings_default_calendar_set"),
+                    "success",
+                  );
+                }}
+              >
+                <StarIcon className="me-2 h-4 w-4" />
+                {t("calendar.settings_set_default_calendar")}
+              </ContextMenuItem>
+            )}
+            {!calendar.is_default && (
+              <>
+                <ContextMenuSeparator />
+                <ContextMenuItem
+                  className={DESTRUCTIVE_MENU_CLASS}
+                  onClick={() => set_calendar_to_delete(calendar)}
+                >
+                  <TrashIcon className="me-2 h-4 w-4" />
+                  {t("calendar.settings_delete_calendar")}
+                </ContextMenuItem>
+              </>
+            )}
+          </ContextMenuContent>
+        </ContextMenu>
+      </AnchoredColorWheel>
+    );
+  });
+
+  const subscription_rows = subscriptions.map((subscription) => {
+    const color = subscription_color(subscription);
+    const current_color_name = selected_event_color_name(color);
+    const is_visible = subscription.hidden !== true;
+    const wheel_target = `subscription:${subscription.id}`;
+
+    return (
+      <AnchoredColorWheel
+        key={subscription.id}
+        open={color_wheel_target === wheel_target}
+        value={color}
+        on_close={() => set_color_wheel_target(null)}
+        on_commit={(hex) => change_subscription_color(subscription, hex)}
+      >
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <div
+              className={`group relative rounded-[var(--aster-radius-item,8px)] data-[state=open]:[&>button]:bg-[var(--aster-hover)] ${
+                is_visible ? "" : "[&>button_span.flex-1]:opacity-55"
+              }`}
+              data-subscription-row={subscription.id}
+            >
+              <SidebarTagRow
+                rail_tip
+                aria-pressed={is_visible}
+                color={color}
+                icon_slot={visibility_box(color, is_visible)}
+                is_collapsed={is_collapsed}
+                label={subscription.name}
+                on_click={() =>
+                  set_subscription_visible(subscription, !is_visible)
+                }
+                trailing={!is_collapsed ? <span className="w-5" /> : undefined}
+              />
+              {!is_collapsed && (
+                <button
+                  aria-haspopup="menu"
+                  aria-label={t("calendar.calendar_options")}
+                  className={`absolute end-1.5 top-1/2 z-[2] inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-[8px] text-[var(--icon-muted)] opacity-0 transition-[opacity,background-color,color] duration-150 hover:bg-[var(--aster-hover)] hover:text-[var(--icon-active)] group-hover:opacity-100 group-data-[state=open]:opacity-100 focus-visible:opacity-100 ${focus_ring}`}
+                  type="button"
+                  onClick={open_calendar_menu}
+                >
+                  <EllipsisHorizontalIcon className="h-4 w-4" />
+                </button>
+              )}
+              {color_wheel_anchor}
+            </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent
+            className="w-52"
+            onCloseAutoFocus={open_pending_color_wheel}
+          >
+            <ContextMenuItem
+              onClick={() =>
+                show_only({ kind: "subscription", id: subscription.id })
+              }
+            >
+              <EyeIcon className="me-2 h-4 w-4" />
+              {t("calendar.show_only_this_calendar")}
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() =>
+                set_subscription_visible(subscription, !is_visible)
+              }
+            >
+              {is_visible ? (
+                <EyeSlashIcon className="me-2 h-4 w-4" />
+              ) : (
+                <EyeIcon className="me-2 h-4 w-4" />
+              )}
+              {is_visible
+                ? t("calendar.hide_this_calendar")
+                : t("calendar.show_this_calendar")}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>
+                <span
+                  aria-hidden="true"
+                  className="me-2 inline-flex h-4 w-4 items-center justify-center"
+                >
+                  <span
+                    className="h-3 w-3 rounded-[3px]"
+                    style={{ backgroundColor: event_color_token(color) }}
+                  />
+                </span>
+                {t("common.change_color")}
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent className="w-44">
+                {PICKER_COLOR_OPTIONS.map((option) => {
+                  const is_current = option.name === current_color_name;
+
+                  return (
+                    <ContextMenuItem
+                      key={option.hex}
+                      aria-checked={is_current}
+                      role="menuitemradio"
+                      onClick={() =>
+                        change_subscription_color(subscription, option.hex)
+                      }
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="me-2 inline-flex h-4 w-4 items-center justify-center"
+                      >
+                        <span
+                          className="h-3 w-3 rounded-[3px]"
+                          style={{ backgroundColor: option.token }}
+                        />
+                      </span>
+                      <span className="flex-1">{t(option.name_key)}</span>
+                      {is_current && (
+                        <CheckIcon className="ms-2 h-4 w-4 text-txt-secondary" />
+                      )}
+                    </ContextMenuItem>
+                  );
+                })}
+                {custom_color_menu_item(
+                  wheel_target,
+                  color,
+                  current_color_name === null,
+                )}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+            <ContextMenuItem
+              onClick={() => on_settings_click("calendar_import_export")}
+            >
+              <Cog6ToothIcon className="me-2 h-4 w-4" />
+              {t("calendar.subscription_settings")}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              className={DESTRUCTIVE_MENU_CLASS}
+              onClick={() => unsubscribe(subscription)}
+            >
+              <TrashIcon className="me-2 h-4 w-4" />
+              {t("calendar.ie_sub_remove")}
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+      </AnchoredColorWheel>
     );
   });
 

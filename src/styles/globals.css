@@ -2655,7 +2655,7 @@ button.press_scale:active {
 .contact_group_swatch[data-selected="true"] {
   box-shadow:
     0 0 0 2px var(--modal-bg),
-    0 0 0 4px var(--swatch-ring, var(--accent-color));
+    0 0 0 4px var(--text-primary);
 }
 
 .quick_contacts_footer {

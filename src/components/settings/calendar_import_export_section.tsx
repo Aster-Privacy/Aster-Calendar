@@ -45,9 +45,14 @@ import { Input } from "@/components/ui/input";
 import { show_toast } from "@/components/toast/simple_toast";
 import { CalendarSelect } from "@/components/calendar/calendar_select";
 import {
-  EVENT_COLOR_OPTIONS,
-  nearest_event_color,
+  PICKER_COLOR_OPTIONS,
+  event_color_token,
+  selected_event_color_name,
 } from "@/components/calendar/calendar_utils";
+import {
+  CustomColorSwatch,
+  selected_swatch_shadow,
+} from "@/components/ui/color_wheel";
 import {
   Popover,
   PopoverContent,
@@ -792,6 +797,8 @@ function CalendarExportCard({ calendars }: { calendars: DecryptedCalendar[] }) {
   );
 }
 
+const SUBSCRIPTION_SWATCH_RING = "var(--aster-floating-bg, var(--bg-primary))";
+
 function SubscriptionColorButton({
   color,
   label,
@@ -803,7 +810,8 @@ function SubscriptionColorButton({
 }) {
   const { t } = use_i18n();
   const [open, set_open] = useState(false);
-  const current = nearest_event_color(subscription_color({ color }));
+  const resolved_color = subscription_color({ color });
+  const current_name = selected_event_color_name(resolved_color);
 
   return (
     <Popover open={open} onOpenChange={set_open}>
@@ -811,13 +819,13 @@ function SubscriptionColorButton({
         <button
           aria-label={label}
           className="flex h-8 w-8 items-center justify-center rounded-full transition-colors duration-150 hover:bg-[var(--aster-island-hover,rgba(127,127,127,0.12))] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] motion-reduce:transition-none"
-          data-subscription-color={current.name}
+          data-subscription-color={current_name ?? "custom"}
           title={t("calendar.ie_sub_color")}
           type="button"
         >
           <span
             className="block h-3 w-3 rounded-full"
-            style={{ backgroundColor: current.token }}
+            style={{ backgroundColor: event_color_token(resolved_color) }}
           />
         </button>
       </PopoverTrigger>
@@ -828,24 +836,24 @@ function SubscriptionColorButton({
       >
         <div
           aria-label={label}
-          className="grid grid-cols-6 gap-2"
+          className="flex flex-nowrap items-center gap-1.5 sm:gap-2"
           role="radiogroup"
         >
-          {EVENT_COLOR_OPTIONS.map((option) => {
-            const is_selected = current.name === option.name;
+          {PICKER_COLOR_OPTIONS.map((option) => {
+            const is_selected = current_name === option.name;
 
             return (
               <button
                 key={option.hex}
                 aria-checked={is_selected}
                 aria-label={t(option.name_key)}
-                className="flex h-7 w-7 items-center justify-center rounded-full transition-[box-shadow] duration-150 motion-reduce:transition-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] focus-visible:ring-offset-2"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-[box-shadow] duration-150 motion-reduce:transition-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] focus-visible:ring-offset-2"
                 data-subscription-color-option={option.name}
                 role="radio"
                 style={{
                   backgroundColor: option.token,
                   boxShadow: is_selected
-                    ? `0 0 0 2px var(--aster-island-fill), 0 0 0 4px ${option.token}`
+                    ? selected_swatch_shadow(SUBSCRIPTION_SWATCH_RING)
                     : "none",
                 }}
                 title={t(option.name_key)}
@@ -867,6 +875,17 @@ function SubscriptionColorButton({
               </button>
             );
           })}
+          <CustomColorSwatch
+            check_class="h-4 w-4"
+            is_selected={current_name === null}
+            ring_background={SUBSCRIPTION_SWATCH_RING}
+            role="radio"
+            value={resolved_color}
+            on_commit={(hex) => {
+              on_change(hex);
+              set_open(false);
+            }}
+          />
         </div>
       </PopoverContent>
     </Popover>

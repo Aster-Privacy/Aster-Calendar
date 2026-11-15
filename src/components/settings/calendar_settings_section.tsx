@@ -49,6 +49,7 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 
+import { DefaultEventColorPicker } from "./default_event_color_picker";
 import { SettingsSaveIndicatorInline } from "./settings_save_indicator";
 
 import {} from "@/components/ui/modal";
@@ -92,8 +93,6 @@ import {
 import {
   clamp_custom_view_days,
   CUSTOM_VIEW_DAY_OPTIONS,
-  EVENT_COLOR_OPTIONS,
-  find_event_color_option,
   week_start_day_index,
 } from "@/components/calendar/calendar_utils";
 import {
@@ -1128,32 +1127,22 @@ export function CalendarEventsSection() {
           }
         />
 
-        <SelectRow
+        <SettingControlRow
+          control={
+            <DefaultEventColorPicker
+              calendar_color={
+                calendars.find((calendar) => calendar.is_default)?.color
+              }
+              value={preferences.calendar_default_event_color ?? ""}
+              on_change={(value) =>
+                update_preference("calendar_default_event_color", value)
+              }
+            />
+          }
+          control_width="auto"
           description={t("calendar.settings_default_event_color_desc")}
           label={t("calendar.settings_default_event_color")}
-          options={[
-            {
-              value: "calendar",
-              label: t("calendar.color_calendar_default"),
-            },
-            ...EVENT_COLOR_OPTIONS.map((option) => ({
-              value: option.hex,
-              label: t(option.name_key),
-            })),
-          ]}
-          value={
-            preferences.calendar_default_event_color
-              ? (find_event_color_option(
-                  preferences.calendar_default_event_color,
-                )?.hex ?? preferences.calendar_default_event_color)
-              : "calendar"
-          }
-          on_change={(value) =>
-            update_preference(
-              "calendar_default_event_color",
-              value === "calendar" ? "" : value,
-            )
-          }
+          layout="stacked"
         />
 
         <SettingToggleRow

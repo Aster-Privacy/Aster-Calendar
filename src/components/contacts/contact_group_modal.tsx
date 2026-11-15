@@ -18,12 +18,11 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import type { CSSProperties } from "react";
 import type { ContactGroup } from "@/types/contacts";
 import type { TagIconName } from "@/components/ui/email_tag";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { UserGroupIcon } from "@heroicons/react/24/outline";
+import { CheckIcon, UserGroupIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 
 import {
@@ -37,8 +36,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { ContactGroupGlyph } from "@/components/common/contacts/contact_group_glyph";
 import { TagIconPicker } from "@/components/tags/tag_icon_picker";
+import { CustomColorSwatch } from "@/components/ui/color_wheel";
+import { hex_to_readable_ink } from "@/components/calendar/calendar_utils";
 import {
-  TAG_COLOR_PRESETS,
+  PICKER_TAG_COLOR_PRESETS,
   tag_color_label_key,
 } from "@/components/ui/email_tag";
 import {
@@ -71,7 +72,7 @@ export function ContactGroupModal({
   const is_editing = Boolean(group);
   const group_count = existing_count ?? groups.length;
   const default_color =
-    TAG_COLOR_PRESETS[group_count % TAG_COLOR_PRESETS.length].hex;
+    PICKER_TAG_COLOR_PRESETS[group_count % PICKER_TAG_COLOR_PRESETS.length].hex;
 
   const [name, set_name] = useState("");
   const [color, set_color] = useState<string>(default_color);
@@ -89,6 +90,9 @@ export function ContactGroupModal({
   }, [default_color, group, is_open]);
 
   const trimmed_name = name.trim();
+  const is_custom_color = !PICKER_TAG_COLOR_PRESETS.some(
+    (preset) => preset.hex.toLowerCase() === color.toLowerCase(),
+  );
 
   const validation_error = useMemo(() => {
     if (!trimmed_name) return null;
@@ -241,24 +245,42 @@ export function ContactGroupModal({
               className="contact_group_color_grid"
               role="group"
             >
-              {TAG_COLOR_PRESETS.map((preset) => (
-                <button
-                  key={preset.hex}
-                  aria-label={t(tag_color_label_key(preset.variant))}
-                  aria-pressed={preset.hex === color}
-                  className="contact_group_swatch aspect-square w-full rounded-full"
-                  data-selected={preset.hex === color}
-                  style={
-                    {
-                      backgroundColor: preset.hex,
-                      "--swatch-ring": preset.hex,
-                    } as CSSProperties
-                  }
-                  title={t(tag_color_label_key(preset.variant))}
-                  type="button"
-                  onClick={() => set_color(preset.hex)}
-                />
-              ))}
+              {PICKER_TAG_COLOR_PRESETS.map((preset) => {
+                const is_selected =
+                  preset.hex.toLowerCase() === color.toLowerCase();
+
+                return (
+                  <button
+                    key={preset.hex}
+                    aria-label={t(tag_color_label_key(preset.variant))}
+                    aria-pressed={is_selected}
+                    className="contact_group_swatch flex aspect-square w-full items-center justify-center rounded-full"
+                    data-selected={is_selected}
+                    style={{ backgroundColor: preset.hex }}
+                    title={t(tag_color_label_key(preset.variant))}
+                    type="button"
+                    onClick={() => set_color(preset.hex)}
+                  >
+                    {is_selected && (
+                      <CheckIcon
+                        aria-hidden="true"
+                        className="h-3.5 w-3.5"
+                        strokeWidth={2.5}
+                        style={{ color: hex_to_readable_ink(preset.hex) }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+              <CustomColorSwatch
+                check_class="h-3.5 w-3.5"
+                is_selected={is_custom_color}
+                ring_background="var(--modal-bg)"
+                size_class="aspect-square w-full"
+                value={color}
+                on_change={set_color}
+                on_commit={set_color}
+              />
             </div>
           </div>
 

@@ -2232,6 +2232,10 @@ export interface CommonTranslations {
   icon_group_work: string;
   icon_group_school: string;
   color_red: string;
+  custom_color: string;
+  brightness: string;
+  hex_color: string;
+  hex_color_invalid: string;
   color_orange: string;
   color_amber: string;
   color_yellow: string;

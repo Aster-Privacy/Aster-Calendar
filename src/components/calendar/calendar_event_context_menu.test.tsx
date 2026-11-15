@@ -67,7 +67,7 @@ vi.mock("@/components/ui/context_menu", () => {
 
 import { CalendarEventContextMenu } from "@/components/calendar/calendar_event_context_menu";
 import {
-  EVENT_COLOR_OPTIONS,
+  PICKER_COLOR_OPTIONS,
   resolve_event_color,
 } from "@/components/calendar/calendar_utils";
 
@@ -183,19 +183,19 @@ describe("CalendarEventContextMenu color", () => {
 
     expect(item("common.edit")).toBeDefined();
     expect(item("common.delete")).toBeDefined();
-    expect(color_items()).toHaveLength(EVENT_COLOR_OPTIONS.length + 1);
+    expect(color_items()).toHaveLength(PICKER_COLOR_OPTIONS.length + 2);
 
     act(() => color_items()[3].click());
 
     expect(actions.on_set_color).toHaveBeenCalledWith(
       event,
-      EVENT_COLOR_OPTIONS[2].hex,
+      PICKER_COLOR_OPTIONS[2].hex,
     );
   });
 
   it("offers a color for a holiday without edit, move, or delete", () => {
     const read_only_color = vi.fn(() => ({
-      override: EVENT_COLOR_OPTIONS[4].hex,
+      override: PICKER_COLOR_OPTIONS[4].hex,
       fallback: "#0b8043",
     }));
     const actions = make_actions(read_only_color);
@@ -211,12 +211,12 @@ describe("CalendarEventContextMenu color", () => {
     expect(item("common.edit")).toBeUndefined();
     expect(item("common.delete")).toBeUndefined();
     expect(item("Work")).toBeUndefined();
-    expect(checked_label()).toContain(EVENT_COLOR_OPTIONS[4].name_key);
+    expect(checked_label()).toContain(PICKER_COLOR_OPTIONS[4].name_key);
 
     act(() => color_items()[2].click());
     expect(actions.on_set_color).toHaveBeenCalledWith(
       holiday,
-      EVENT_COLOR_OPTIONS[1].hex,
+      PICKER_COLOR_OPTIONS[1].hex,
     );
 
     act(() => color_items()[0].click());
@@ -254,7 +254,7 @@ describe("CalendarEventContextMenu color", () => {
     act(() => color_items()[2].click());
     expect(actions.on_set_color).toHaveBeenCalledWith(
       task,
-      EVENT_COLOR_OPTIONS[1].hex,
+      PICKER_COLOR_OPTIONS[1].hex,
     );
   });
 

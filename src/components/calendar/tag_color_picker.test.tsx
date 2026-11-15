@@ -41,7 +41,10 @@ vi.mock("@/contexts/preferences_context", () => ({
   }),
 }));
 
-import { EVENT_COLOR_OPTIONS } from "@/components/calendar/calendar_utils";
+import {
+  EVENT_COLOR_OPTIONS,
+  PICKER_COLOR_OPTIONS,
+} from "@/components/calendar/calendar_utils";
 import {
   TagColorPicker,
   TagColorSwatches,
@@ -131,10 +134,11 @@ describe("TagColorSwatches", () => {
 
     const buttons = swatch_buttons();
 
-    expect(buttons).toHaveLength(EVENT_COLOR_OPTIONS.length);
-    expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual(
-      EVENT_COLOR_OPTIONS.map((option) => option.name_key),
-    );
+    expect(buttons).toHaveLength(9);
+    expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
+      ...PICKER_COLOR_OPTIONS.map((option) => option.name_key),
+      "common.custom_color",
+    ]);
     expect(
       buttons.filter(
         (button) => button.getAttribute("aria-pressed") === "true",
@@ -143,6 +147,43 @@ describe("TagColorSwatches", () => {
     expect(buttons[3].tabIndex).toBe(0);
     expect(buttons[0].tabIndex).toBe(-1);
   });
+
+  it("marks a custom tag color on the custom swatch", () => {
+    render(<TagColorSwatches color="#1A2B3C" on_select={vi.fn()} />);
+
+    const buttons = swatch_buttons();
+    const custom = buttons[buttons.length - 1];
+
+    expect(custom.dataset.testid).toBe("custom-color-swatch");
+    expect(custom.getAttribute("aria-pressed")).toBe("true");
+    expect(custom.dataset.color).toBe("#1a2b3c");
+    expect(custom.tabIndex).toBe(0);
+    expect(
+      buttons
+        .slice(0, -1)
+        .some((button) => button.getAttribute("aria-pressed") === "true"),
+    ).toBe(false);
+  });
+
+  it.each(["brown", "gray"])(
+    "shows the %s palette color on the custom swatch",
+    (name) => {
+      const option = EVENT_COLOR_OPTIONS.find((entry) => entry.name === name);
+
+      render(<TagColorSwatches color={option!.hex} on_select={vi.fn()} />);
+
+      const buttons = swatch_buttons();
+      const custom = buttons[buttons.length - 1];
+
+      expect(custom.getAttribute("aria-pressed")).toBe("true");
+      expect(custom.dataset.color).toBe(option!.hex);
+      expect(
+        buttons
+          .slice(0, -1)
+          .some((button) => button.getAttribute("aria-pressed") === "true"),
+      ).toBe(false);
+    },
+  );
 
   it("calls on_select with the chosen hex", () => {
     const on_select = vi.fn();
@@ -284,7 +325,7 @@ describe("use_tag_colors", () => {
     render(<Probe />);
 
     act(() => api?.set_tag_color("Gym", default_tag_color("Gym")));
-    act(() => api?.set_tag_color("Gym", "#123456"));
+    act(() => api?.set_tag_color("Gym", "not-a-color"));
 
     expect(update_preference).not.toHaveBeenCalled();
   });
