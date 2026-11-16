@@ -67,6 +67,7 @@ import { calendar_now } from "@/services/calendar/view_zone";
 import { is_read_only_event } from "@/services/calendar/display_colors";
 import { build_event_link } from "@/components/calendar/event_link";
 import { CalendarHeader } from "@/components/calendar/calendar_header";
+import { build_compact_period_title } from "@/components/calendar/calendar_period_title";
 import { CalendarImportDialog } from "@/components/calendar/calendar_import_dialog";
 import { CalendarPrintDialog } from "@/components/calendar/calendar_print_dialog";
 import { CalendarMonthView } from "@/components/calendar/calendar_month_view";
@@ -271,89 +272,33 @@ export function CalendarContent({
     return () => media.removeEventListener("change", handle);
   }, []);
 
-  const period_month_short = useMemo(() => {
-    if (state.view_mode === "day") {
-      return new Intl.DateTimeFormat(language, {
-        day: "numeric",
-        month: "short",
-      }).format(state.anchor_date);
-    }
-
-    if (state.view_mode === "year") {
-      return "";
-    }
-
-    if (state.view_mode === "month") {
-      return new Intl.DateTimeFormat(language, { month: "short" }).format(
-        state.anchor_date,
-      );
-    }
-
-    if (state.is_schedule_endless) {
-      return new Intl.DateTimeFormat(language, { month: "short" }).format(
-        state.agenda_visible_month,
-      );
-    }
-
-    if (state.view_mode === "agenda" && is_phone) {
-      return new Intl.DateTimeFormat(language, { month: "short" }).format(
-        state.range_start,
-      );
-    }
-
-    const span =
-      state.view_mode === "agenda"
-        ? [state.range_start, state.period_end]
-        : state.view_mode === "custom"
-          ? build_custom_days(
-              state.anchor_date,
-              is_phone
-                ? Math.min(state.custom_view_days, PHONE_CUSTOM_DAY_COUNT)
-                : state.custom_view_days,
-            )
-          : is_phone
-            ? build_phone_week_days(state.anchor_date, state.week_start_day)
-            : build_week_days(state.anchor_date, state.week_start_day);
-    const first = span[0];
-    const last = span[span.length - 1];
-
-    if (is_phone && state.view_mode !== "agenda") {
-      const range = new Intl.DateTimeFormat(language, {
-        day: "numeric",
-        month: "short",
-      });
-      const day_only = new Intl.DateTimeFormat(language, { day: "numeric" });
-      const same_month =
-        first.getMonth() === last.getMonth() &&
-        first.getFullYear() === last.getFullYear();
-
-      return same_month
-        ? `${range.format(first)} - ${day_only.format(last)}`
-        : `${range.format(first)} - ${range.format(last)}`;
-    }
-
-    if (
-      first.getMonth() === last.getMonth() &&
-      first.getFullYear() === last.getFullYear()
-    ) {
-      return new Intl.DateTimeFormat(language, { month: "long" }).format(first);
-    }
-
-    const month = new Intl.DateTimeFormat(language, { month: "short" });
-
-    return `${month.format(first)} - ${month.format(last)}`;
-  }, [
-    is_phone,
-    language,
-    state.anchor_date,
-    state.agenda_visible_month,
-    state.custom_view_days,
-    state.is_schedule_endless,
-    state.period_end,
-    state.range_start,
-    state.view_mode,
-    state.week_start_day,
-  ]);
+  const period_month_short = useMemo(
+    () =>
+      build_compact_period_title({
+        language,
+        view_mode: state.view_mode,
+        anchor_date: state.anchor_date,
+        range_start: state.range_start,
+        period_end: state.period_end,
+        agenda_visible_month: state.agenda_visible_month,
+        is_schedule_endless: state.is_schedule_endless,
+        custom_view_days: state.custom_view_days,
+        week_start_day: state.week_start_day,
+        is_phone,
+      }),
+    [
+      is_phone,
+      language,
+      state.anchor_date,
+      state.agenda_visible_month,
+      state.custom_view_days,
+      state.is_schedule_endless,
+      state.period_end,
+      state.range_start,
+      state.view_mode,
+      state.week_start_day,
+    ],
+  );
 
   const period_month = useMemo(() => {
     if (state.view_mode === "year") {

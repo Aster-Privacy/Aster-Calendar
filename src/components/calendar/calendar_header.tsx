@@ -21,6 +21,7 @@
 import type { TranslationKey } from "@/lib/i18n";
 import type { CalendarViewMode } from "@/types/calendar";
 
+import { Fragment } from "react";
 import {
   CalendarIcon,
   CalendarDaysIcon,
@@ -35,6 +36,9 @@ import {
   ViewColumnsIcon,
 } from "@heroicons/react/24/outline";
 import { PillButton, SegmentedToggle, Tooltip } from "@aster/ui";
+
+import { use_i18n } from "@/lib/i18n/context";
+import { use_calendar_today } from "@/components/calendar/use_calendar_now_tick";
 
 import { blur_segment_after_pointer } from "@/components/calendar/segment_pointer_blur";
 import { CalendarOfflinePill } from "@/components/calendar/calendar_offline_pill";
@@ -140,46 +144,26 @@ export function CalendarHeader({
   }));
 
   const title_content = (
-    <span className="flex min-w-0 items-baseline gap-1.5">
-      {period_month_short ? (
-        <>
-          <span className="min-w-0 truncate sm:hidden">
-            {period_month_short}
-          </span>
-          <span className="hidden min-w-0 truncate sm:inline">
-            {period_month}
-          </span>
-        </>
-      ) : (
-        <span className="min-w-0 truncate">{period_month}</span>
+    <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-start">
+      {render_period_parts(period_month)}
+      {period_year && " "}
+      {period_year && (
+        <span data-period-part="" className="font-normal text-txt-muted">
+          {period_year}
+        </span>
       )}
-      <span className="hidden flex-shrink-0 font-normal text-txt-muted min-[400px]:inline">
-        {period_year}
-      </span>
     </span>
   );
 
   if (is_phone) {
-    const phone_title_text = period_month_short || period_month;
-    const phone_title_wraps = phone_title_text.length > 10;
+    const show_phone_year =
+      Boolean(period_year) && (view_mode === "month" || view_mode === "year");
     const phone_title = (
-      <span className="flex min-w-0 items-baseline gap-1">
-        <span
-          className={
-            phone_title_wraps
-              ? "line-clamp-2 min-w-0 whitespace-normal text-start text-[13px] leading-[1.15]"
-              : "min-w-0 truncate"
-          }
-        >
-          {phone_title_wraps
-            ? phone_title_text
-                .split(" - ")
-                .map((part) => part.replace(/ /g, "\u00a0"))
-                .join("\u00a0- ")
-            : phone_title_text}
-        </span>
-        {period_year && (view_mode === "month" || view_mode === "year") && (
-          <span className="flex-shrink-0 font-normal text-txt-muted">
+      <span className="flex min-w-0 flex-wrap items-baseline gap-x-1 text-start">
+        {render_period_parts(period_month_short || period_month)}
+        {show_phone_year && " "}
+        {show_phone_year && (
+          <span data-period-part="" className="font-normal text-txt-muted">
             {period_year}
           </span>
         )}
@@ -191,16 +175,11 @@ export function CalendarHeader({
         className="flex flex-shrink-0 select-none items-center gap-0.5 ps-1.5 pe-1.5 py-0.5 min-h-[52px] overflow-hidden"
         data-calendar-toolbar
       >
-        <PillButton
-          aria-current={is_current_period ? "date" : undefined}
-          className="min-h-11 flex-shrink-0 px-2.5"
-          size="sm"
-          type="button"
-          variant="outline"
-          onClick={on_today}
-        >
-          {t("calendar.today")}
-        </PillButton>
+        <PhoneTodayButton
+          is_current_period={is_current_period}
+          label={t("calendar.today")}
+          on_today={on_today}
+        />
 
         <CalendarOfflinePill />
 
@@ -225,11 +204,11 @@ export function CalendarHeader({
           </button>
         </div>
 
-        <h1 className="flex min-w-0 flex-1 overflow-hidden whitespace-nowrap text-[14px] font-semibold leading-tight tabular-nums text-txt-primary">
+        <h1 className="flex min-w-0 flex-1 text-[15px] font-semibold leading-tight tabular-nums text-txt-primary">
           {on_period_click ? (
             <button
               aria-label={t("calendar.go_to_date_title")}
-              className="flex min-h-11 min-w-11 max-w-full items-center rounded-[var(--aster-radius-item,8px)] px-0.5 transition-colors hover:bg-[var(--aster-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)]"
+              className="flex min-h-11 min-w-11 max-w-full items-center rounded-[var(--aster-radius-item,8px)] px-1 py-0.5 transition-colors hover:bg-[var(--aster-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)]"
               type="button"
               onClick={on_period_click}
             >
@@ -244,9 +223,19 @@ export function CalendarHeader({
 
         <CalendarSelect
           aria_label={t("calendar.change_view")}
-          class_name="h-11 max-w-[128px] ps-2.5 pe-1.5"
+          class_name="h-11 flex-shrink-0 ps-2.5 pe-1.5"
           options={segment_options}
-          render_value={() => view_label(active_view.mode, active_view.label)}
+          render_value={() => (
+            <>
+              <active_view.icon
+                aria-hidden="true"
+                className="h-[18px] w-[18px] text-[var(--icon-secondary)]"
+              />
+              <span className="sr-only">
+                {view_label(active_view.mode, active_view.label)}
+              </span>
+            </>
+          )}
           trigger_attributes={{ "data-view-select": "" }}
           value={view_mode}
           on_change={(value) => on_view_mode_change(value as CalendarViewMode)}
@@ -298,7 +287,7 @@ export function CalendarHeader({
           </Tooltip>
         </div>
 
-        <h1 className="flex min-w-0 overflow-hidden whitespace-nowrap text-base font-semibold leading-tight tabular-nums text-txt-primary">
+        <h1 className="flex min-w-0 text-base font-semibold leading-tight tabular-nums text-txt-primary">
           {on_period_click ? (
             <Tooltip tip={`${t("calendar.go_to_date_title")} (G)`}>
               <button
@@ -353,8 +342,8 @@ export function CalendarHeader({
                   type="button"
                   variant="outline"
                 >
-                  <active_view.icon className="h-4 w-4 text-[var(--icon-secondary)] sm:hidden" />
-                  <span className="hidden min-w-[62px] text-start sm:inline">
+                  <active_view.icon className="h-4 w-4 text-[var(--icon-secondary)] @min-[600px]/toolbar:hidden" />
+                  <span className="hidden min-w-[62px] text-start @min-[600px]/toolbar:inline">
                     {view_label(active_view.mode, active_view.label)}
                   </span>
                 </PillButton>
@@ -434,4 +423,52 @@ export function CalendarHeader({
       </div>
     </div>
   );
+}
+
+function PhoneTodayButton({
+  is_current_period,
+  label,
+  on_today,
+}: {
+  is_current_period: boolean;
+  label: string;
+  on_today: () => void;
+}) {
+  const { language } = use_i18n();
+  const today = use_calendar_today();
+  const day_number = new Intl.DateTimeFormat(language, {
+    day: "numeric",
+  }).format(today);
+
+  return (
+    <button
+      aria-current={is_current_period ? "date" : undefined}
+      aria-label={label}
+      className={`relative flex-shrink-0 ${PHONE_ICON_BUTTON}`}
+      title={label}
+      type="button"
+      onClick={on_today}
+    >
+      <CalendarIcon aria-hidden="true" className="absolute h-6 w-6" />
+      <span
+        aria-hidden="true"
+        className="relative mt-[5px] text-[9px] font-semibold leading-none tabular-nums text-[var(--icon-active)]"
+      >
+        {day_number}
+      </span>
+    </button>
+  );
+}
+
+function render_period_parts(text: string) {
+  const parts = text.split(" - ").filter(Boolean);
+
+  return parts.map((part, index) => (
+    <Fragment key={`${index}_${part}`}>
+      {index > 0 && " "}
+      <span data-period-part="">
+        {index < parts.length - 1 ? `${part} -` : part}
+      </span>
+    </Fragment>
+  ));
 }
