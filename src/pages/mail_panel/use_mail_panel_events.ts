@@ -64,6 +64,7 @@ import {
 } from "@/services/calendar/view_zone";
 
 const REFRESH_MS = 5 * 60_000;
+export const PANEL_LOAD_TIMEOUT_MS = 8_000;
 const DAY_MS = 86_400_000;
 const UP_NEXT_BEFORE_MS = DAY_MS;
 const UP_NEXT_AFTER_MS = 9 * DAY_MS;
@@ -186,6 +187,11 @@ export function use_mail_panel_events(range_start: Date, range_end: Date) {
     let cancelled = false;
     const is_current = () =>
       !cancelled && generation === generation_ref.current;
+    const load_timer = window.setTimeout(() => {
+      if (is_current()) {
+        set_status((current) => (current === "ready" ? current : "failed"));
+      }
+    }, PANEL_LOAD_TIMEOUT_MS);
 
     const load = async () => {
       try {
@@ -244,6 +250,8 @@ export function use_mail_panel_events(range_start: Date, range_end: Date) {
         if (is_current()) {
           set_status((current) => (current === "ready" ? current : "failed"));
         }
+      } finally {
+        window.clearTimeout(load_timer);
       }
     };
 
@@ -251,6 +259,7 @@ export function use_mail_panel_events(range_start: Date, range_end: Date) {
 
     return () => {
       cancelled = true;
+      window.clearTimeout(load_timer);
     };
   }, [account_id, start_ms, end_ms, zone, reload_token, reload]);
 
