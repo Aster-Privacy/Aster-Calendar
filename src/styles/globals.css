@@ -5350,8 +5350,6 @@ button[data-event-id][data-state="open"] {
   --calendar_accent_text: var(--calendar_accent_strong);
   --calendar_today_marker_bg: color-mix(in srgb, var(--accent-color) 60%, #000000);
   --calendar_today_marker_text: #ffffff;
-  --calendar_today_tint: color-mix(in srgb, var(--accent-color) 12%, transparent);
-  --calendar_today_text: color-mix(in srgb, var(--accent-color) 60%, #000000);
   --calendar_weekend_bg: transparent;
   --calendar_cell_hover_bg: var(--aster-hover);
   --calendar_cell_selected_bg: transparent;
@@ -5420,8 +5418,6 @@ button[data-event-id][data-state="open"] {
   --calendar_shadow_hard: rgba(0, 0, 0, 0.58);
   --calendar_shadow_hairline: rgba(255, 255, 255, 0.08);
   --calendar_accent_text: color-mix(in srgb, var(--accent-color) 72%, #ffffff);
-  --calendar_today_tint: color-mix(in srgb, var(--accent-color) 20%, transparent);
-  --calendar_today_text: color-mix(in srgb, var(--accent-color) 62%, #ffffff);
 }
 
 :is(.calendar_surface, [data-calendar-surface]) :is(.aster_seg, .aster_segmented) {

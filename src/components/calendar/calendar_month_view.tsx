@@ -1249,7 +1249,7 @@ export const CalendarMonthView = memo(function CalendarMonthView({
                     aria-current={is_today ? "date" : undefined}
                     aria-label={day_label_format.format(day)}
                     data-selected={is_selected ? "" : undefined}
-                    className={`inline-flex h-6 items-center justify-center gap-1 rounded-[var(--aster-radius-item,8px)] ${is_month_start ? "px-2" : "min-w-6 px-1"} text-[12px] leading-none tabular-nums transition-[background-color,color] duration-150 ease-out focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-color)] max-sm:text-[12px] ${is_today ? "" : "hover:bg-[var(--aster-hover)]"}`}
+                    className={`inline-flex h-6 items-center justify-center gap-1 rounded-full ${is_month_start ? "px-2" : "min-w-6 px-1"} text-[12px] leading-none tabular-nums transition-[background-color,color] duration-150 ease-out focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-color)] max-sm:text-[12px] ${is_today ? "" : "hover:bg-[var(--aster-hover)]"}`}
                     style={{
                       backgroundColor: is_today
                         ? "var(--calendar_today_marker_bg, var(--accent-color))"

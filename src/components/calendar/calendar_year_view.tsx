@@ -257,7 +257,7 @@ export const CalendarYearView = memo(function CalendarYearView({
                         aria-label={t("calendar.open_day", {
                           date: day_label_formatter.format(day),
                         })}
-                        className="relative flex h-7 w-7 items-center justify-center rounded-[var(--aster-radius-item,8px)] text-[12px] min-[1700px]:h-8 min-[1700px]:w-8 min-[1700px]:text-[13px] tabular-nums transition-colors duration-150 ease-out hover:bg-[var(--aster-hover)] focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-[color:var(--accent-color)]"
+                        className="relative flex h-7 w-7 items-center justify-center rounded-full text-[12px] min-[1700px]:h-8 min-[1700px]:w-8 min-[1700px]:text-[13px] tabular-nums transition-colors duration-150 ease-out hover:bg-[var(--aster-hover)] focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-[color:var(--accent-color)]"
                         style={{
                           backgroundColor: is_today
                             ? "var(--calendar_today_marker_bg, var(--accent-color))"

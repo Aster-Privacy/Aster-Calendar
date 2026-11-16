@@ -268,7 +268,7 @@ export const MailPanelMiniMonth = memo(function MailPanelMiniMonth({
                     <span
                       className={`relative flex h-7 w-7 items-center justify-center rounded-[8px] text-[12px] leading-none tabular-nums transition-colors duration-150 ease-out ${
                         is_today
-                          ? "bg-[var(--calendar_today_marker_bg,var(--accent-color))] font-semibold text-[var(--calendar_today_marker_text,var(--accent-fg,#ffffff))]"
+                          ? "font-semibold text-[var(--calendar_accent_text,var(--accent-color))] group-hover/day:bg-[var(--aster-hover)]"
                           : is_selected
                             ? "bg-[var(--aster-selected)] font-semibold text-txt-primary"
                             : is_current_month
@@ -280,11 +280,9 @@ export const MailPanelMiniMonth = memo(function MailPanelMiniMonth({
                       {has_events && (
                         <span
                           aria-hidden="true"
-                          className={`pointer-events-none absolute bottom-[3px] left-1/2 h-[3px] w-[3px] -translate-x-1/2 rounded-full ${
-                            is_today
-                              ? "bg-[var(--accent-fg,#ffffff)]"
-                              : "bg-[var(--accent-color)]"
-                          } ${is_current_month ? "" : "opacity-50"}`}
+                          className={`pointer-events-none absolute bottom-[3px] left-1/2 h-[3px] w-[3px] -translate-x-1/2 rounded-full bg-[var(--accent-color)] ${
+                            is_current_month ? "" : "opacity-50"
+                          }`}
                         />
                       )}
                     </span>

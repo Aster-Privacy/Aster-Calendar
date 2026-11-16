@@ -68,7 +68,7 @@ import {
 import { format_time } from "@/utils/date_format";
 import { use_i18n } from "@/lib/i18n/context";
 
-const MONTH_HEADER_HEIGHT = "32px";
+const MONTH_HEADER_HEIGHT = "44px";
 const RENDER_BATCH = 60;
 const NOW_COLOR = "var(--calendar_now_line, var(--accent-color))";
 const RELATIVE_LABEL_MAX_LENGTH = 9;
@@ -186,6 +186,26 @@ function format_weekday_label(day: Date, language: string): string {
   return new Intl.DateTimeFormat(language, { weekday: "short" }).format(day);
 }
 
+const date_column_width_cache = new Map<string, number>();
+
+function date_column_width(language: string): number {
+  const cached = date_column_width_cache.get(language);
+
+  if (cached !== undefined) return cached;
+  let longest = 0;
+
+  for (let offset = 0; offset < 7; offset++) {
+    const label = format_weekday_label(new Date(2026, 0, 4 + offset), language);
+
+    longest = Math.max(longest, label.length);
+  }
+  const width = Math.max(64, 32 + longest * 8);
+
+  date_column_width_cache.set(language, width);
+
+  return width;
+}
+
 function format_full_day_label(day: Date, language: string): string {
   return new Intl.DateTimeFormat(language, {
     weekday: "long",
@@ -201,6 +221,7 @@ interface AgendaDateColumnProps {
   is_past_day: boolean;
   language: string;
   today_label: string;
+  sticky_top?: string;
 }
 
 export function AgendaDateColumn({
@@ -209,39 +230,40 @@ export function AgendaDateColumn({
   is_past_day,
   language,
   today_label,
+  sticky_top,
 }: AgendaDateColumnProps) {
+  const today_color = "var(--calendar_accent_text, var(--accent-color))";
   const number_color = is_today
-    ? "var(--calendar_today_text, var(--accent-color))"
+    ? today_color
     : is_past_day
       ? "var(--text-muted)"
       : "var(--text-primary)";
-  const weekday_color = is_today
-    ? "var(--calendar_today_text, var(--accent-color))"
-    : "var(--text-muted)";
+  const weekday_color = is_today ? today_color : "var(--text-muted)";
 
   return (
-    <div className="w-[68px] flex-shrink-0 sm:w-[76px]">
+    <div
+      className="flex-shrink-0"
+      style={{ width: date_column_width(language) }}
+    >
       <div
-        className="sticky flex h-10 items-center gap-1.5"
+        className={`flex h-10 items-center gap-2 text-[14px] leading-none ${
+          sticky_top === undefined ? "" : "sticky"
+        }`}
         data-testid="agenda-date-column"
-        style={{ top: MONTH_HEADER_HEIGHT }}
+        style={sticky_top === undefined ? undefined : { top: sticky_top }}
       >
         <span
           aria-hidden="true"
-          className="inline-flex h-8 min-w-8 items-center justify-center rounded-[var(--aster-radius-item,8px)] px-1.5 text-[15px] font-semibold leading-none tabular-nums"
-          data-today-marker={is_today ? "" : undefined}
-          style={{
-            backgroundColor: is_today
-              ? "var(--calendar_today_tint, transparent)"
-              : undefined,
-            color: number_color,
-          }}
+          className="w-5 flex-shrink-0 text-end font-semibold tabular-nums"
+          data-day-number=""
+          data-today={is_today ? "" : undefined}
+          style={{ color: number_color }}
         >
           {day.getDate()}
         </span>
         <span
           aria-hidden="true"
-          className="min-w-0 truncate text-[12px] font-medium leading-none"
+          className="whitespace-nowrap font-normal"
           style={{ color: weekday_color }}
         >
           {format_weekday_label(day, language)}
@@ -518,7 +540,7 @@ export const CalendarAgendaView = memo(function CalendarAgendaView({
           <div key={day.toISOString()}>
             {show_month_header && (
               <div
-                className="sticky top-0 z-20 flex items-center border-b border-edge-secondary px-4 text-[13px] font-semibold text-txt-secondary sm:px-5"
+                className="sticky top-0 z-20 flex items-end px-2 pb-2 text-[14px] font-semibold text-txt-primary sm:px-3"
                 style={{
                   height: MONTH_HEADER_HEIGHT,
                   backgroundColor: "var(--bg-primary)",
@@ -530,9 +552,7 @@ export const CalendarAgendaView = memo(function CalendarAgendaView({
 
             <div
               aria-current={is_today ? "date" : undefined}
-              className={`flex gap-2 px-2 py-3 sm:px-3 ${
-                show_month_header ? "" : "border-t border-edge-secondary"
-              }`}
+              className="flex gap-2 px-2 py-2 sm:px-3"
               data-day-key={build_day_key(day)}
             >
               <AgendaDateColumn
@@ -540,6 +560,7 @@ export const CalendarAgendaView = memo(function CalendarAgendaView({
                 is_past_day={is_past_day}
                 is_today={is_today}
                 language={language}
+                sticky_top={MONTH_HEADER_HEIGHT}
                 today_label={t("calendar.today")}
               />
 

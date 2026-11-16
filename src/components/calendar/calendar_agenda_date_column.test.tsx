@@ -136,19 +136,20 @@ function render_column(day: Date, is_today: boolean, is_past_day = false) {
 }
 
 describe("agenda date column", () => {
-  it("draws today as a tinted rounded square without a shouted label", () => {
+  it("marks today with accent text and no shape behind the number", () => {
     const host = render_column(new Date(2026, 10, 12), true);
-    const marker = host.querySelector<HTMLElement>("[data-today-marker]");
+    const number = host.querySelector<HTMLElement>("[data-today]");
 
-    expect(marker).not.toBeNull();
-    expect(marker?.textContent).toBe("12");
-    expect(marker?.className).toContain(
-      "rounded-[var(--aster-radius-item,8px)]",
-    );
-    expect(marker?.className).not.toContain("rounded-full");
-    expect(marker?.className).toContain("tabular-nums");
-    expect(marker?.style.backgroundColor).toContain("--calendar_today_tint");
-    expect(marker?.style.color).toContain("--calendar_today_text");
+    expect(number).not.toBeNull();
+    expect(number?.textContent).toBe("12");
+    expect(number?.className).toContain("tabular-nums");
+    expect(number?.className).toContain("text-end");
+    expect(number?.className).not.toMatch(/rounded|bg-|ring/);
+    expect(number?.style.backgroundColor).toBe("");
+    expect(number?.style.color).toContain("--calendar_accent_text");
+    host.querySelectorAll<HTMLElement>("*").forEach((node) => {
+      expect(node.style.backgroundColor).toBe("");
+    });
     expect(visible_text(host)).toBe("12Thu");
     expect(visible_text(host)).not.toMatch(/today/i);
   });
@@ -167,14 +168,13 @@ describe("agenda date column", () => {
       });
   });
 
-  it("leaves other days unfilled and mutes past days", () => {
+  it("keeps other days plain and mutes past days", () => {
     const future = render_column(new Date(2026, 10, 14), false);
     const future_number = future.querySelector<HTMLElement>(
       "[data-testid='agenda-date-column'] > span",
     );
 
-    expect(future.querySelector("[data-today-marker]")).toBeNull();
-    expect(future_number?.style.backgroundColor).toBe("");
+    expect(future.querySelector("[data-today]")).toBeNull();
     expect(future_number?.style.color).toBe("var(--text-primary)");
     expect(future.querySelector(".sr-only")?.textContent).toBe(
       "Saturday, November 14, 2026",
@@ -210,7 +210,7 @@ describe("agenda view today row", () => {
     );
   }
 
-  it("marks only today with aria-current and the today marker", () => {
+  it("marks only today with aria-current and accent text", () => {
     const host = render_agenda([
       make_event(
         "earlier",
@@ -229,14 +229,17 @@ describe("agenda view today row", () => {
 
     expect(current).toHaveLength(1);
     expect(current[0].getAttribute("data-day-key")).toBe("2026-11-12");
-    expect(host.querySelectorAll("[data-today-marker]")).toHaveLength(1);
-    expect(current[0].querySelector("[data-today-marker]")?.textContent).toBe(
+    expect(host.querySelectorAll("[data-today]")).toHaveLength(1);
+    expect(current[0].querySelector("[data-today]")?.textContent).toBe(
       "12",
     );
     expect(
       host.querySelectorAll("[data-testid='agenda-date-column']"),
     ).toHaveLength(3);
     expect(visible_text(host)).not.toMatch(/today|tomorrow/i);
+    host.querySelectorAll("[data-day-key]").forEach((row) => {
+      expect(row.className).not.toMatch(/border/);
+    });
   });
 
   it("shows a quiet empty row for today without an icon", () => {
