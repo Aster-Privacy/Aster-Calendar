@@ -245,7 +245,9 @@ export function DatePicker({
             key={index}
             aria-hidden="true"
             className={`flex items-center justify-center font-medium text-txt-muted ${
-              is_md ? "h-8 text-[11px]" : "h-7 text-[10px] uppercase tracking-[0.05em] font-semibold"
+              is_md
+                ? "h-8 text-[11px]"
+                : "h-7 text-[10px] uppercase tracking-[0.05em] font-semibold"
             }`}
           >
             {label}
@@ -264,12 +266,12 @@ export function DatePicker({
           const is_focused = is_same_day(day, focused_day);
           const in_month = is_same_month(day, view_month);
           const tone = is_selected
-            ? "rounded-full bg-[var(--aster-selected)] font-semibold text-txt-primary"
+            ? "rounded-[var(--aster-radius-item,8px)] bg-[var(--aster-selected)] font-semibold text-txt-primary"
             : is_today
-              ? "rounded-full bg-[var(--calendar_today_marker_bg,var(--accent-color))] font-semibold text-[var(--calendar_today_marker_text,var(--accent-fg,#ffffff))]"
+              ? "rounded-[var(--aster-radius-item,8px)] bg-[var(--calendar_today_marker_bg,var(--accent-color))] font-semibold text-[var(--calendar_today_marker_text,var(--accent-fg,#ffffff))]"
               : in_month
-                ? "rounded-full text-txt-primary group-hover/day:bg-[var(--aster-hover)]"
-                : "rounded-full text-txt-muted group-hover/day:bg-[var(--aster-hover)]";
+                ? "rounded-[var(--aster-radius-item,8px)] text-txt-primary group-hover/day:bg-[var(--aster-hover)]"
+                : "rounded-[var(--aster-radius-item,8px)] text-txt-muted group-hover/day:bg-[var(--aster-hover)]";
 
           return (
             <button
@@ -297,19 +299,19 @@ export function DatePicker({
 
       {show_today && <IslandDivider className="mt-1.5" />}
       {show_today && (
-      <div className="mt-1.5 flex items-center justify-end">
-        <button
-          className="inline-flex items-center gap-1.5 rounded-[var(--aster-radius-item)] px-2 py-1.5 text-sm font-medium text-[var(--accent-color)] hover:bg-[var(--aster-island-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)]"
-          type="button"
-          onClick={() => {
-            set_view_month(month_anchor(today));
-            set_focused_day(today);
-            on_select(today);
-          }}
-        >
-          {t("common.today")}
-        </button>
-      </div>
+        <div className="mt-1.5 flex items-center justify-end">
+          <button
+            className="inline-flex items-center gap-1.5 rounded-[var(--aster-radius-item)] px-2 py-1.5 text-sm font-medium text-[var(--accent-color)] hover:bg-[var(--aster-island-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)]"
+            type="button"
+            onClick={() => {
+              set_view_month(month_anchor(today));
+              set_focused_day(today);
+              on_select(today);
+            }}
+          >
+            {t("common.today")}
+          </button>
+        </div>
       )}
     </div>
   );

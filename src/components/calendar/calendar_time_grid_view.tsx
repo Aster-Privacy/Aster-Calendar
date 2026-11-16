@@ -2009,7 +2009,7 @@ export const CalendarTimeGridView = memo(function CalendarTimeGridView({
                         {t(WEEKDAY_KEYS[day.getDay()])}
                       </span>
                       <span
-                        className={`inline-flex items-center justify-center rounded-full px-1 font-normal leading-none ${is_phone ? "h-7 min-w-7 text-[15px]" : "h-10 min-w-10 text-[22px] max-sm:h-8 max-sm:min-w-8 max-sm:text-[17px]"} tabular-nums transition-colors duration-150 ease-out group-hover:bg-[var(--aster-hover)] group-focus-visible:outline group-focus-visible:outline-2 group-focus-visible:outline-offset-1 group-focus-visible:outline-[var(--accent-color)]`}
+                        className={`inline-flex items-center justify-center rounded-[var(--aster-radius-item,8px)] px-1 font-normal leading-none ${is_phone ? "h-7 min-w-7 text-[15px]" : "h-10 min-w-10 text-[22px] max-sm:h-8 max-sm:min-w-8 max-sm:text-[17px]"} tabular-nums transition-colors duration-150 ease-out group-hover:bg-[var(--aster-hover)] group-focus-visible:outline group-focus-visible:outline-2 group-focus-visible:outline-offset-1 group-focus-visible:outline-[var(--accent-color)]`}
                         style={{
                           backgroundColor: is_today
                             ? "var(--calendar_today_marker_bg, var(--accent-color))"
