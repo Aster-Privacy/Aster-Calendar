@@ -63,9 +63,9 @@ import { capture_support_return } from "@/lib/support_return";
 import { lazy_with_retry } from "@/utils/lazy_with_retry";
 import {
   is_mail_panel_path,
-  read_initial_panel_theme,
+  read_initial_panel_appearance,
 } from "@/pages/mail_panel/mail_panel_bridge";
-import { set_theme_override } from "@/contexts/theme_context";
+import { apply_host_appearance } from "@/pages/mail_panel/mail_panel_appearance";
 
 const App = lazy_with_retry(() => import("@/App"));
 const MailPanelPage = lazy_with_retry(
@@ -75,7 +75,7 @@ const MailPanelPage = lazy_with_retry(
 const is_mail_panel = is_mail_panel_path(app_pathname());
 
 if (is_mail_panel) {
-  set_theme_override(read_initial_panel_theme(window.location.search));
+  apply_host_appearance(read_initial_panel_appearance(window.location.search));
 }
 
 function warm_shell_chunk(): void {

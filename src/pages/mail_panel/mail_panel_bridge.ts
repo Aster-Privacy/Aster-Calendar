@@ -20,6 +20,8 @@
 //
 import { useSyncExternalStore } from "react";
 
+import { DARK_ONLY_COLOR_THEMES } from "@/lib/dark_mode";
+
 export const MAIL_PANEL_PATH = "/mail-panel";
 export const MAIL_PANEL_SOURCE = "aster-calendar-panel";
 export const MAIL_HOST_SOURCE = "aster-mail";
@@ -31,13 +33,27 @@ const DEV_HOST_PATTERN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/;
 
 export type PanelTheme = "light" | "dark";
 
+export type PanelPalette = "default" | (typeof DARK_ONLY_COLOR_THEMES)[number];
+
+export interface PanelAppearance {
+  theme: PanelTheme;
+  palette: PanelPalette;
+  accent: string;
+}
+
+const PANEL_PALETTES: ReadonlySet<string> = new Set<string>([
+  "default",
+  ...DARK_ONLY_COLOR_THEMES,
+]);
+const ACCENT_PATTERN = /^#[0-9a-f]{6}$/i;
+
 export type PanelMessage =
   | { type: "ready" }
   | { type: "close" }
   | { type: "status"; status: "signed_out" | "locked" | "failed" };
 
 export type HostMessage =
-  | { type: "theme"; theme: PanelTheme }
+  | ({ type: "theme" } & PanelAppearance)
   | { type: "visibility"; visible: boolean };
 
 type VisibilityListener = () => void;
@@ -94,9 +110,43 @@ export function parse_panel_theme(value: unknown): PanelTheme | null {
   return value === "light" || value === "dark" ? value : null;
 }
 
-export function read_initial_panel_theme(search: string): PanelTheme | null {
+export function parse_panel_palette(value: unknown): PanelPalette {
+  return typeof value === "string" && PANEL_PALETTES.has(value)
+    ? (value as PanelPalette)
+    : "default";
+}
+
+export function parse_panel_accent(value: unknown): string {
+  return typeof value === "string" && ACCENT_PATTERN.test(value) ? value : "";
+}
+
+export function parse_panel_appearance(
+  theme: unknown,
+  palette: unknown,
+  accent: unknown,
+): PanelAppearance | null {
+  const parsed_theme = parse_panel_theme(theme);
+
+  if (parsed_theme === null) return null;
+
+  return {
+    theme: parsed_theme,
+    palette: parse_panel_palette(palette),
+    accent: parse_panel_accent(accent),
+  };
+}
+
+export function read_initial_panel_appearance(
+  search: string,
+): PanelAppearance | null {
   try {
-    return parse_panel_theme(new URLSearchParams(search).get("theme"));
+    const params = new URLSearchParams(search);
+
+    return parse_panel_appearance(
+      params.get("theme"),
+      params.get("palette"),
+      params.get("accent"),
+    );
   } catch {
     return null;
   }
@@ -156,9 +206,13 @@ export function read_host_message(
   if (data.source !== MAIL_HOST_SOURCE) return null;
 
   if (data.type === "theme") {
-    const theme = parse_panel_theme(data.theme);
+    const appearance = parse_panel_appearance(
+      data.theme,
+      data.palette,
+      data.accent,
+    );
 
-    return theme ? { type: "theme", theme } : null;
+    return appearance ? { type: "theme", ...appearance } : null;
   }
 
   if (data.type === "visibility") {

@@ -40,6 +40,7 @@ const dark_only_set = new Set<string>(DARK_ONLY_COLOR_THEMES);
 
 let theme_is_dark = true;
 let palette_forces_dark = false;
+let appearance_lock: boolean | null = null;
 
 export function is_dark_only_color_theme(color_theme: unknown): boolean {
   return typeof color_theme === "string" && dark_only_set.has(color_theme);
@@ -48,7 +49,7 @@ export function is_dark_only_color_theme(color_theme: unknown): boolean {
 function apply_dark_class(): void {
   if (typeof document === "undefined") return;
 
-  const is_dark = theme_is_dark || palette_forces_dark;
+  const is_dark = is_dark_appearance_active();
 
   document.documentElement.classList.toggle("dark", is_dark);
   document.documentElement.classList.toggle("light", !is_dark);
@@ -64,6 +65,13 @@ export function set_palette_forces_dark(value: boolean): void {
   apply_dark_class();
 }
 
+export function set_appearance_lock(value: boolean | null): void {
+  appearance_lock = value;
+  apply_dark_class();
+}
+
 export function is_dark_appearance_active(): boolean {
+  if (appearance_lock !== null) return appearance_lock;
+
   return theme_is_dark || palette_forces_dark;
 }

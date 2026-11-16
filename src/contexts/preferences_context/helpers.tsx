@@ -66,7 +66,52 @@ export const COLOR_THEME_CLASSES = [
   "theme-black",
 ];
 
-export function apply_color_theme_class(
+export interface HostColorTheme {
+  color_theme: UserPreferences["color_theme"];
+  accent_color: string;
+}
+
+type ColorThemeArgs = Parameters<typeof apply_color_theme_class_now>;
+
+let host_color_theme: HostColorTheme | null = null;
+let last_color_theme_args: ColorThemeArgs | null = null;
+
+function with_host_color_theme(args: ColorThemeArgs): ColorThemeArgs {
+  if (host_color_theme === null) return args;
+
+  const [, , , custom_theme_seed, is_dark, custom_theme_overrides] = args;
+
+  return [
+    host_color_theme.color_theme,
+    host_color_theme.accent_color || args[1],
+    host_color_theme.accent_color || args[2],
+    custom_theme_seed,
+    is_dark,
+    custom_theme_overrides,
+  ];
+}
+
+export function apply_color_theme_class(...args: ColorThemeArgs) {
+  last_color_theme_args = args;
+  apply_color_theme_class_now(...with_host_color_theme(args));
+}
+
+export function set_host_color_theme(next: HostColorTheme | null): void {
+  host_color_theme = next;
+
+  const args: ColorThemeArgs = last_color_theme_args ?? [
+    "default",
+    next?.accent_color ?? "",
+    next?.accent_color ?? "",
+    "",
+    is_dark_appearance_active(),
+  ];
+
+  if (typeof document === "undefined") return;
+  apply_color_theme_class_now(...with_host_color_theme(args));
+}
+
+function apply_color_theme_class_now(
   color_theme: UserPreferences["color_theme"],
   accent_color: string,
   accent_color_hover: string,
