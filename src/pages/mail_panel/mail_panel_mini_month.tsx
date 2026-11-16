@@ -31,6 +31,12 @@ import {
   events_for_day,
   is_same_day,
 } from "@/components/calendar/calendar_utils";
+import {
+  SELECTED_MARKER_CLASS,
+  SELECTED_MARKER_DOT_CLASS,
+  TODAY_MARKER_CLASS,
+  TODAY_MARKER_DOT_CLASS,
+} from "@/lib/day_marker";
 import { use_i18n } from "@/lib/i18n/context";
 import { day_key } from "@/pages/mail_panel/mail_panel_days";
 
@@ -256,7 +262,7 @@ export const MailPanelMiniMonth = memo(function MailPanelMiniMonth({
                   <button
                     aria-current={is_today ? "date" : undefined}
                     aria-label={formatters.full.format(day)}
-                    className={`group/day relative flex h-7 w-full items-center justify-center rounded-[8px] ${FOCUS_RING}`}
+                    className={`group/day relative flex h-7 w-full items-center justify-center rounded-full ${FOCUS_RING}`}
                     data-day-key={key}
                     tabIndex={is_same_day(day, focus_target) ? 0 : -1}
                     type="button"
@@ -266,14 +272,14 @@ export const MailPanelMiniMonth = memo(function MailPanelMiniMonth({
                     }
                   >
                     <span
-                      className={`relative flex h-7 w-7 items-center justify-center rounded-[8px] text-[12px] leading-none tabular-nums transition-colors duration-150 ease-out ${
+                      className={`relative flex h-7 w-7 items-center justify-center text-[12px] leading-none tabular-nums transition-colors duration-150 ease-out ${
                         is_today
-                          ? "bg-[var(--calendar_today_marker_bg,var(--accent-color))] font-semibold text-[var(--calendar_today_marker_text,var(--accent-fg,#ffffff))]"
+                          ? TODAY_MARKER_CLASS
                           : is_selected
-                            ? "bg-[var(--aster-selected)] font-semibold text-txt-primary"
+                            ? SELECTED_MARKER_CLASS
                             : is_current_month
-                              ? "text-txt-primary group-hover/day:bg-[var(--aster-hover)]"
-                              : "text-txt-muted group-hover/day:bg-[var(--aster-hover)]"
+                              ? "rounded-full text-txt-primary group-hover/day:bg-[var(--aster-hover)]"
+                              : "rounded-full text-txt-muted group-hover/day:bg-[var(--aster-hover)]"
                       }`}
                     >
                       {day.getDate()}
@@ -282,8 +288,10 @@ export const MailPanelMiniMonth = memo(function MailPanelMiniMonth({
                           aria-hidden="true"
                           className={`pointer-events-none absolute bottom-[3px] left-1/2 h-[3px] w-[3px] -translate-x-1/2 rounded-full ${
                             is_today
-                              ? "bg-[var(--accent-fg,#ffffff)]"
-                              : "bg-[var(--accent-color)]"
+                              ? TODAY_MARKER_DOT_CLASS
+                              : is_selected
+                                ? SELECTED_MARKER_DOT_CLASS
+                                : "bg-[var(--accent-color)]"
                           } ${is_current_month ? "" : "opacity-50"}`}
                         />
                       )}

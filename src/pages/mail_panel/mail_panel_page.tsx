@@ -60,7 +60,7 @@ import { ActionToast } from "@/components/toast/action_toast";
 import { SimpleToast, show_toast } from "@/components/toast/simple_toast";
 import { use_auth } from "@/contexts/auth/use_auth_hook";
 import { use_preferences } from "@/contexts/preferences_context";
-import { set_theme_override } from "@/contexts/theme_context";
+import { apply_host_appearance } from "@/pages/mail_panel/mail_panel_appearance";
 import { use_i18n } from "@/lib/i18n/context";
 import {
   get_app_lock_config,
@@ -238,7 +238,7 @@ function AgendaSkeleton() {
     <div aria-busy="true" className="flex flex-col gap-2 px-3 py-3">
       {[0, 1, 2, 3].map((row) => (
         <div key={row} className="flex items-center gap-3">
-          <span className="h-9 w-9 flex-shrink-0 rounded-full bg-[var(--aster-hover)]" />
+          <span className="h-3 w-12 flex-shrink-0 rounded bg-[var(--aster-hover)]" />
           <span
             className="h-3 rounded bg-[var(--aster-hover)]"
             style={{ width: `${70 - row * 10}%` }}
@@ -540,7 +540,7 @@ export default function MailPanelPage() {
     const handle_message = (event: MessageEvent) => {
       const message = read_host_message(event, host);
 
-      if (message?.type === "theme") set_theme_override(message.theme);
+      if (message?.type === "theme") apply_host_appearance(message);
       if (message?.type === "visibility") set_panel_visible(message.visible);
     };
 

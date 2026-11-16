@@ -27,7 +27,7 @@ import {
   is_mail_panel_path,
   parse_panel_theme,
   read_host_message,
-  read_initial_panel_theme,
+  read_initial_panel_appearance,
 } from "@/pages/mail_panel/mail_panel_bridge";
 import { now_divider_index } from "@/pages/mail_panel/mail_panel_agenda";
 import {
@@ -93,9 +93,23 @@ describe("mail_panel_bridge", () => {
     expect(parse_panel_theme("dark")).toBe("dark");
     expect(parse_panel_theme("system")).toBeNull();
     expect(parse_panel_theme(1)).toBeNull();
-    expect(read_initial_panel_theme("?theme=dark")).toBe("dark");
-    expect(read_initial_panel_theme("?theme=<b>")).toBeNull();
-    expect(read_initial_panel_theme("")).toBeNull();
+    expect(read_initial_panel_appearance("?theme=dark")).toEqual({
+      theme: "dark",
+      palette: "default",
+      accent: "",
+    });
+    expect(
+      read_initial_panel_appearance(
+        "?theme=dark&palette=aster-blue&accent=%234f7df3",
+      ),
+    ).toEqual({ theme: "dark", palette: "aster-blue", accent: "#4f7df3" });
+    expect(
+      read_initial_panel_appearance(
+        "?theme=light&palette=<b>&accent=red;color:x",
+      ),
+    ).toEqual({ theme: "light", palette: "default", accent: "" });
+    expect(read_initial_panel_appearance("?theme=<b>")).toBeNull();
+    expect(read_initial_panel_appearance("")).toBeNull();
   });
 
   it("reads host messages only from the parent at the Mail origin", () => {
@@ -105,7 +119,7 @@ describe("mail_panel_bridge", () => {
     const origin = "https://app.astermail.org";
 
     expect(read_host_message({ origin, source: parent, data }, parent)).toEqual(
-      { type: "theme", theme: "dark" },
+      { type: "theme", theme: "dark", palette: "default", accent: "" },
     );
     expect(
       read_host_message({ origin, source: stranger, data }, parent),

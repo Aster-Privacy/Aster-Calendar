@@ -34,7 +34,7 @@ import {
   start_of_day,
   task_title_class,
 } from "@/components/calendar/calendar_utils";
-import { relative_day_label } from "@/components/calendar/calendar_agenda_view";
+import { AgendaDateColumn } from "@/components/calendar/calendar_agenda_view";
 import { format_time } from "@/utils/date_format";
 import { use_i18n } from "@/lib/i18n/context";
 import { events_on } from "@/pages/mail_panel/mail_panel_days";
@@ -128,7 +128,7 @@ export const MailPanelAgenda = memo(function MailPanelAgenda({
 
   return (
     <div className="pb-2">
-      {day_groups.map(({ day, day_events }, group_index) => {
+      {day_groups.map(({ day, day_events }) => {
         const is_today = is_same_day(day, today);
         const is_past_day = day.getTime() < today_ms;
         const divider_index = is_today
@@ -139,38 +139,16 @@ export const MailPanelAgenda = memo(function MailPanelAgenda({
           <div
             key={day.toISOString()}
             aria-current={is_today ? "date" : undefined}
-            className={`mx-1.5 flex gap-1 py-3 ${group_index === 0 ? "" : "border-t border-edge-secondary"}`}
+            className="mx-1.5 flex gap-1 py-2 ps-2"
             data-day={day.toISOString().slice(0, 10)}
           >
-            <div className="w-[74px] flex-shrink-0">
-              <div className="flex flex-col items-center">
-                <span
-                  className="max-w-full truncate whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider"
-                  style={{
-                    color: is_today
-                      ? "var(--accent-color)"
-                      : "var(--text-muted)",
-                  }}
-                >
-                  {relative_day_label(day, today, language)}
-                </span>
-                <span
-                  className="mt-0.5 inline-flex h-9 min-w-9 items-center justify-center rounded-full px-1 text-[18px] font-medium tabular-nums"
-                  style={{
-                    backgroundColor: is_today
-                      ? "var(--accent-color)"
-                      : undefined,
-                    color: is_today
-                      ? "var(--accent-fg, #ffffff)"
-                      : is_past_day
-                        ? "var(--text-muted)"
-                        : "var(--text-primary)",
-                  }}
-                >
-                  {day.getDate()}
-                </span>
-              </div>
-            </div>
+            <AgendaDateColumn
+              day={day}
+              is_past_day={is_past_day}
+              is_today={is_today}
+              language={language}
+              today_label={t("calendar.today")}
+            />
 
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               {day_events.length === 0 && (
