@@ -11070,6 +11070,9 @@ export const es = {
     empty_trash_title: "La papelera está vacía",
     empty_trash_body: "Los eventos que elimines aparecerán aquí.",
     no_calendars_title: "Aún no hay calendarios",
+    unreadable_calendars_title: "Todavía no se pueden abrir tus calendarios",
+    unreadable_calendars_body:
+      "Este navegador tiene una copia anterior de tus claves. Vuelve a intentarlo para cargar la copia más reciente, o cierra sesión y vuelve a iniciarla.",
     no_calendars_body: "Crea un calendario para empezar a añadir eventos.",
     import_empty_title: "Nada que importar",
     decrypt_failed_title: "No se pudieron abrir algunos eventos",

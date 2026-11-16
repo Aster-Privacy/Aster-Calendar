@@ -41,6 +41,7 @@ import { event_color_token } from "@/components/calendar/calendar_utils";
 import { parse_quick_input } from "@/components/calendar/quick_parse";
 import { use_focus_trap } from "@/lib/use_dialog_shell";
 import { use_visible_viewport } from "@/components/calendar/use_visible_viewport";
+import { use_unreadable_calendar_count } from "@/components/calendar/use_unreadable_calendars";
 
 const POPOVER_WIDTH = 440;
 const VIEWPORT_MARGIN = 12;
@@ -229,6 +230,7 @@ export function QuickCreatePopover({
   on_preview_change,
 }: QuickCreatePopoverProps) {
   const title_ref = useRef<HTMLInputElement>(null);
+  const unreadable_calendar_count = use_unreadable_calendar_count();
   const layer_id = useMemo(() => Symbol("quick_create_popover"), []);
 
   const [input, set_input] = useState("");
@@ -905,7 +907,11 @@ export function QuickCreatePopover({
                 : undefined
             }
             on_open_change={fit_calendar_menu}
-            placeholder={t("calendar.no_calendars_title")}
+            placeholder={t(
+              unreadable_calendar_count > 0
+                ? "calendar.unreadable_calendars_title"
+                : "calendar.no_calendars_title",
+            )}
             options={calendars.map((entry) => ({
               value: entry.id,
               text: entry.name,

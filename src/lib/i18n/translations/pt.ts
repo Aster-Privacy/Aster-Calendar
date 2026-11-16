@@ -11180,6 +11180,9 @@ export const pt = {
     empty_trash_title: "A reciclagem está vazia",
     empty_trash_body: "Os eventos que eliminar aparecem aqui.",
     no_calendars_title: "Ainda não há calendários",
+    unreadable_calendars_title: "Ainda não é possível abrir os seus calendários",
+    unreadable_calendars_body:
+      "Este navegador tem uma cópia antiga das suas chaves. Tente novamente para carregar a cópia mais recente, ou termine sessão e inicie sessão de novo.",
     no_calendars_body: "Crie um calendário para começar a adicionar eventos.",
     import_empty_title: "Nada para importar",
     decrypt_failed_title: "Não foi possível abrir alguns eventos",

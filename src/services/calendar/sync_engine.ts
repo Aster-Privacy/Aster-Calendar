@@ -58,6 +58,7 @@ import {
   reset_calendar_identity,
 } from "@/services/calendar/identity_guard";
 import { is_temp_event_id } from "@/services/calendar/temp_id";
+import { refresh_vault_from_server } from "@/services/calendar/vault_freshness";
 import {
   accept_revision,
   confirmed_revision,
@@ -81,6 +82,7 @@ const CURSOR_MAX_AGE_MS = 20 * 24 * 60 * 60 * 1000;
 const RETRY_DELAYS_MS = [500, 1500, 4000];
 const OWN_ECHO_WINDOW_MS = 30_000;
 const ACCOUNT_KEY_WAIT_MS = 10_000;
+const VAULT_REFRESH_INTERVAL_MS = 30_000;
 const MAX_PAGES = 200;
 const FULL_SYNC_PAGE_SIZE = 500;
 const FULL_SYNC_MAX_PAGES = 400;
@@ -284,6 +286,8 @@ export class CalendarSyncEngine {
   private readonly v3_event_ids = new Set<string>();
   private readonly v3_calendar_ids = new Set<string>();
   private bound_ledger_dirty = false;
+  private last_vault_refresh_at = 0;
+  private vault_refresh_promise: Promise<void> | null = null;
 
   private id_binder: IdBinder = (id) => id;
 
@@ -393,6 +397,26 @@ export class CalendarSyncEngine {
     return this.failed_event_ids.size + this.failed_calendar_ids.size;
   }
 
+  unreadable_calendar_count(): number {
+    let count = 0;
+
+    for (const id of this.failed_calendar_ids) {
+      if (!this.rejected_calendar_ids.has(id)) count += 1;
+    }
+
+    return count;
+  }
+
+  private unreadable_row_count(): number {
+    let count = this.unreadable_calendar_count();
+
+    for (const id of this.failed_event_ids) {
+      if (!this.rejected_event_ids.has(id)) count += 1;
+    }
+
+    return count;
+  }
+
   failed_decrypt_ids(): { event_ids: string[]; calendar_ids: string[] } {
     const readable_calendar_ids = new Set(
       Array.from(this.events.values()).map((event) => event.calendar_id),
@@ -425,7 +449,36 @@ export class CalendarSyncEngine {
 
   async retry_failed_decrypts(): Promise<number> {
     await wait_for_account_key_load(ACCOUNT_KEY_WAIT_MS);
+    this.last_vault_refresh_at = Date.now();
+    await refresh_vault_from_server();
 
+    return this.decode_failed_rows();
+  }
+
+  private heal_unreadable_rows(): Promise<void> {
+    if (this.vault_refresh_promise) return this.vault_refresh_promise;
+    if (this.unreadable_row_count() === 0) return Promise.resolve();
+    if (Date.now() - this.last_vault_refresh_at < VAULT_REFRESH_INTERVAL_MS) {
+      return Promise.resolve();
+    }
+
+    const generation = this.generation;
+
+    this.last_vault_refresh_at = Date.now();
+    this.vault_refresh_promise = refresh_vault_from_server()
+      .then(async (status) => {
+        if (status !== "adopted" || generation !== this.generation) return;
+        await this.decode_failed_rows();
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        this.vault_refresh_promise = null;
+      });
+
+    return this.vault_refresh_promise;
+  }
+
+  private async decode_failed_rows(): Promise<number> {
     const event_ids = Array.from(this.failed_event_ids);
     const calendar_ids = Array.from(this.failed_calendar_ids);
 
@@ -489,6 +542,7 @@ export class CalendarSyncEngine {
 
     this.pull_promise = this.pull_with_retries().finally(() => {
       this.pull_promise = null;
+      void this.heal_unreadable_rows();
       if (this.pull_again) {
         this.pull_again = false;
         this.schedule_pull(0);
@@ -956,6 +1010,7 @@ export class CalendarSyncEngine {
     this.failed_event_ids.clear();
     this.failed_calendar_ids.clear();
     this.rejected_event_ids.clear();
+    this.last_vault_refresh_at = 0;
     this.rejected_calendar_ids.clear();
     this.legacy_event_ids.clear();
     this.legacy_calendar_ids.clear();
@@ -1609,7 +1664,10 @@ export class CalendarSyncEngine {
       this.schedule_pull(),
     );
     on_keys_ready(() => {
-      if (this.decrypt_failure_count() > 0) void this.retry_failed_decrypts();
+      if (this.decrypt_failure_count() === 0) return;
+      void wait_for_account_key_load(ACCOUNT_KEY_WAIT_MS)
+        .then(() => this.decode_failed_rows())
+        .then(() => this.heal_unreadable_rows());
     });
   }
 }

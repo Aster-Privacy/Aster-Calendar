@@ -10828,6 +10828,9 @@ export const ar = {
     empty_trash_title: "سلة المهملات فارغة",
     empty_trash_body: "تظهر الأحداث التي تحذفها هنا.",
     no_calendars_title: "لا توجد تقويمات بعد",
+    unreadable_calendars_title: "تعذّر فتح تقويماتك حتى الآن",
+    unreadable_calendars_body:
+      "يحتوي هذا المتصفح على نسخة أقدم من مفاتيحك. أعد المحاولة لتحميل أحدث نسخة، أو سجّل الخروج ثم سجّل الدخول مرة أخرى.",
     no_calendars_body: "أنشئ تقويمًا لبدء إضافة الأحداث.",
     import_empty_title: "لا يوجد ما يمكن استيراده",
     decrypt_failed_title: "تعذّر فتح بعض الأحداث",

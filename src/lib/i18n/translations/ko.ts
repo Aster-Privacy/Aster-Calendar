@@ -10634,6 +10634,9 @@ export const ko = {
     empty_trash_title: "휴지통이 비어 있습니다",
     empty_trash_body: "삭제한 일정이 여기에 표시됩니다.",
     no_calendars_title: "아직 캘린더가 없습니다",
+    unreadable_calendars_title: "아직 캘린더를 열 수 없습니다",
+    unreadable_calendars_body:
+      "이 브라우저에 이전 키 사본이 저장되어 있습니다. 다시 시도하여 최신 사본을 불러오거나, 로그아웃한 후 다시 로그인하세요.",
     no_calendars_body: "캘린더를 만들어 일정을 추가해 보세요.",
     import_empty_title: "가져올 항목이 없습니다",
     decrypt_failed_title: "일부 일정을 열 수 없습니다",

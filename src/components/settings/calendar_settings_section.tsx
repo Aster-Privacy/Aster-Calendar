@@ -64,6 +64,7 @@ import {
   CalendarEditDialog,
 } from "@/components/calendar/calendar_edit_dialog";
 import type { CalendarSavedPayload } from "@/components/calendar/calendar_edit_dialog";
+import { use_unreadable_calendar_count } from "@/components/calendar/use_unreadable_calendars";
 
 import { Input } from "@/components/ui/input";
 import {
@@ -1406,6 +1407,7 @@ export { CalendarImportExportSection } from "./calendar_import_export_section";
 
 export function CalendarListSection() {
   const { t } = use_i18n();
+  const unreadable_calendar_count = use_unreadable_calendar_count();
   const { preferences, update_preference, update_preferences } =
     use_preferences();
   const [server_calendars, set_calendars] = useState<DecryptedCalendar[]>([]);
@@ -1545,7 +1547,13 @@ export function CalendarListSection() {
         }
       >
         {!is_loading && calendars.length === 0 && (
-          <IslandRow label={t("calendar.settings_no_calendars")} />
+          <IslandRow
+            label={t(
+              unreadable_calendar_count > 0
+                ? "calendar.unreadable_calendars_title"
+                : "calendar.settings_no_calendars",
+            )}
+          />
         )}
 
         {calendars.map((calendar) => (

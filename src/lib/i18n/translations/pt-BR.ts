@@ -11117,6 +11117,9 @@ export const pt_br = {
     empty_trash_title: "A lixeira está vazia",
     empty_trash_body: "Os eventos que você excluir aparecem aqui.",
     no_calendars_title: "Nenhuma agenda ainda",
+    unreadable_calendars_title: "Ainda não é possível abrir suas agendas",
+    unreadable_calendars_body:
+      "Este navegador tem uma cópia antiga das suas chaves. Tente novamente para carregar a cópia mais recente, ou saia e entre de novo.",
     no_calendars_body: "Crie uma agenda para começar a adicionar eventos.",
     import_empty_title: "Nada para importar",
     decrypt_failed_title: "Não foi possível abrir alguns eventos",

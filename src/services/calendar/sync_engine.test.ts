@@ -70,6 +70,25 @@ vi.mock("@/services/crypto/memory_key_store", () => ({
   wait_for_account_key_load: () => key_store.account_key_load,
 }));
 
+const vault_refresh = vi.hoisted(() => ({
+  server_key_ids: new Set<string>(),
+  calls: 0,
+  status: "current" as "current" | "adopted" | "unverified",
+}));
+
+vi.mock("@/services/calendar/vault_freshness", () => ({
+  refresh_vault_from_server: async () => {
+    vault_refresh.calls += 1;
+    if (vault_refresh.server_key_ids.size === 0) return vault_refresh.status;
+    for (const id of vault_refresh.server_key_ids) {
+      key_store.missing_key_ids.delete(id);
+    }
+    vault_refresh.server_key_ids.clear();
+
+    return "adopted";
+  },
+}));
+
 const floor_state = vi.hoisted(() => ({ accounts: new Set<string>() }));
 
 vi.mock("@/services/calendar/calendar_crypto", () => ({
@@ -185,6 +204,9 @@ beforeEach(() => {
   key_store.account_key_load = Promise.resolve();
   key_store.missing_key_ids.clear();
   floor_state.accounts.clear();
+  vault_refresh.server_key_ids.clear();
+  vault_refresh.calls = 0;
+  vault_refresh.status = "current";
 });
 
 afterEach(() => {
@@ -1358,5 +1380,137 @@ describe("calendar sync engine revision ledger", () => {
 
     expect(JSON.parse(first.encrypted_blob).rev_at).toBe(future + 1);
     expect(JSON.parse(second.encrypted_blob).rev_at).toBe(future + 2);
+  });
+});
+
+describe("calendar sync engine vault refresh", () => {
+  function calendar_row(id: string, name: string, key_id: string) {
+    return {
+      id,
+      encrypted_blob: JSON.stringify({
+        name,
+        color: "#123456",
+        description: "",
+        test_key_id: key_id,
+      }),
+      blob_nonce: `nonce-${id}`,
+      is_visible: true,
+      is_default: id === "cal-home",
+      created_at: "2026-11-15T23:56:53.000Z",
+      updated_at: "2026-11-15T23:56:53.000Z",
+      version: 1,
+    };
+  }
+
+  function event_row(id: string, calendar_id: string, key_id: string) {
+    return {
+      ...server_event(id, `Event ${id}`),
+      calendar_id,
+      encrypted_blob: JSON.stringify({
+        ...JSON.parse(event_blob(`Event ${id}`)),
+        test_key_id: key_id,
+      }),
+    };
+  }
+
+  function serve_all(calendars: unknown[], events: unknown[]) {
+    get.mockImplementation(async (url: unknown) =>
+      String(url).includes("events")
+        ? ok({
+            events,
+            total: events.length,
+            server_time: "2026-11-16T00:10:00.000Z",
+            has_more: false,
+          })
+        : ok({
+            calendars,
+            total: calendars.length,
+            server_time: "2026-11-16T00:10:00.000Z",
+            has_more: false,
+          }),
+    );
+  }
+
+  function calendar_names() {
+    return calendar_sync_engine
+      .get_calendars()
+      .map((calendar) => calendar.name)
+      .sort();
+  }
+
+  function rotated_key_rows() {
+    key_store.missing_key_ids.add("rotated");
+    vault_refresh.server_key_ids.add("rotated");
+    serve_all(
+      [
+        calendar_row("cal-home", "Home", "rotated"),
+        calendar_row("cal-work", "Work", "rotated"),
+        calendar_row("cal-family", "Family", "rotated"),
+      ],
+      [
+        event_row("evt-1", "cal-home", "rotated"),
+        event_row("evt-2", "cal-family", "rotated"),
+      ],
+    );
+  }
+
+  it("opens calendars written with a key from a newer server vault", async () => {
+    rotated_key_rows();
+    await calendar_sync_engine.initial_load();
+    await wait(10);
+
+    expect(calendar_names()).toEqual(["Family", "Home", "Work"]);
+    expect(
+      calendar_sync_engine
+        .get_events()
+        .map((event) => event.title)
+        .sort(),
+    ).toEqual(["Event evt-1", "Event evt-2"]);
+    expect(calendar_sync_engine.decrypt_failure_count()).toBe(0);
+    expect(calendar_sync_engine.unreadable_calendar_count()).toBe(0);
+    expect(vault_refresh.calls).toBe(1);
+    expect(del).not.toHaveBeenCalled();
+    expect(put).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the vault when the person retries", async () => {
+    key_store.missing_key_ids.add("rotated");
+    serve_all([calendar_row("cal-home", "Home", "rotated")], []);
+    await calendar_sync_engine.initial_load();
+    await wait(10);
+
+    expect(calendar_names()).toEqual([]);
+    expect(calendar_sync_engine.unreadable_calendar_count()).toBe(1);
+
+    vault_refresh.server_key_ids.add("rotated");
+    const remaining = await calendar_sync_engine.retry_failed_decrypts();
+
+    expect(remaining).toBe(0);
+    expect(calendar_names()).toEqual(["Home"]);
+    expect(calendar_sync_engine.unreadable_calendar_count()).toBe(0);
+  });
+
+  it("does not ask the server again on every pull while rows stay unreadable", async () => {
+    key_store.missing_key_ids.add("lost");
+    serve_all([calendar_row("cal-home", "Home", "lost")], []);
+    await calendar_sync_engine.initial_load();
+    await wait(10);
+    await calendar_sync_engine.pull_delta();
+    await wait(10);
+    await calendar_sync_engine.pull_delta();
+    await wait(10);
+
+    expect(vault_refresh.calls).toBe(1);
+    expect(calendar_sync_engine.unreadable_calendar_count()).toBe(1);
+    expect(del).not.toHaveBeenCalled();
+  });
+
+  it("does not ask the server when every row opens", async () => {
+    serve_all([calendar_row("cal-home", "Home", "current")], []);
+    await calendar_sync_engine.initial_load();
+    await wait(10);
+
+    expect(calendar_names()).toEqual(["Home"]);
+    expect(vault_refresh.calls).toBe(0);
   });
 });

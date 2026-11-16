@@ -10927,6 +10927,9 @@ export const tr = {
     empty_trash_title: "Çöp kutusu boş",
     empty_trash_body: "Sildiğiniz etkinlikler burada görünür.",
     no_calendars_title: "Henüz takvim yok",
+    unreadable_calendars_title: "Takvimleriniz henüz açılamıyor",
+    unreadable_calendars_body:
+      "Bu tarayıcıda anahtarlarınızın eski bir kopyası var. En son kopyayı yüklemek için tekrar deneyin veya oturumu kapatıp yeniden açın.",
     no_calendars_body: "Etkinlik eklemeye başlamak için bir takvim oluşturun.",
     import_empty_title: "İçe aktarılacak bir şey yok",
     decrypt_failed_title: "Bazı etkinlikler açılamadı",

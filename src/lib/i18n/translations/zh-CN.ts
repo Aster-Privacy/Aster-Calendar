@@ -9843,6 +9843,9 @@ export const zh_CN = {
     empty_trash_title: "回收站为空",
     empty_trash_body: "你删除的日程会显示在这里。",
     no_calendars_title: "还没有日历",
+    unreadable_calendars_title: "暂时无法打开你的日历",
+    unreadable_calendars_body:
+      "此浏览器保存的是你的密钥的旧副本。请重试以加载最新副本，或退出后重新登录。",
     no_calendars_body: "创建一个日历以开始添加日程。",
     import_empty_title: "没有可导入的内容",
     decrypt_failed_title: "部分日程无法打开",

@@ -331,6 +331,8 @@ export interface CalendarTranslations {
   empty_trash_title: string;
   empty_trash_body: string;
   no_calendars_title: string;
+  unreadable_calendars_title: string;
+  unreadable_calendars_body: string;
   no_calendars_body: string;
   import_empty_title: string;
   decrypt_failed_title: string;
