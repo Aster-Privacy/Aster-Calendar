@@ -11291,6 +11291,9 @@ export const pl = {
     empty_trash_title: "Kosz jest pusty",
     empty_trash_body: "Usunięte wydarzenia pojawią się tutaj.",
     no_calendars_title: "Brak kalendarzy",
+    unreadable_calendars_title: "Nie można jeszcze otworzyć Twoich kalendarzy",
+    unreadable_calendars_body:
+      "Ta przeglądarka ma starszą kopię Twoich kluczy. Spróbuj ponownie, aby wczytać najnowszą kopię, albo wyloguj się i zaloguj ponownie.",
     no_calendars_body: "Utwórz kalendarz, aby dodawać wydarzenia.",
     import_empty_title: "Brak elementów do zaimportowania",
     decrypt_failed_title: "Nie udało się otworzyć niektórych wydarzeń",

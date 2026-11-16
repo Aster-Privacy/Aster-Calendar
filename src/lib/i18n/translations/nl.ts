@@ -11053,6 +11053,9 @@ export const nl = {
     empty_trash_title: "De prullenbak is leeg",
     empty_trash_body: "Verwijderde afspraken verschijnen hier.",
     no_calendars_title: "Nog geen agenda's",
+    unreadable_calendars_title: "Je agenda's kunnen nog niet worden geopend",
+    unreadable_calendars_body:
+      "Deze browser heeft een oudere kopie van je sleutels. Probeer het opnieuw om de nieuwste kopie te laden, of meld je af en weer aan.",
     no_calendars_body: "Maak een agenda om afspraken toe te voegen.",
     import_empty_title: "Niets om te importeren",
     decrypt_failed_title: "Sommige afspraken konden niet worden geopend",

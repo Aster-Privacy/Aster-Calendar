@@ -10845,6 +10845,9 @@ export const ja = {
     empty_trash_title: "ゴミ箱は空です",
     empty_trash_body: "削除した予定はここに表示されます。",
     no_calendars_title: "カレンダーはまだありません",
+    unreadable_calendars_title: "カレンダーをまだ開けません",
+    unreadable_calendars_body:
+      "このブラウザには古いキーのコピーが保存されています。もう一度試して最新のコピーを読み込むか、サインアウトしてからもう一度サインインしてください。",
     no_calendars_body: "カレンダーを作成して予定の追加を始めましょう。",
     import_empty_title: "インポートするものがありません",
     decrypt_failed_title: "一部の予定を開けませんでした",

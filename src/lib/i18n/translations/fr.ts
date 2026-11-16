@@ -11205,6 +11205,9 @@ export const fr = {
     empty_trash_title: "La corbeille est vide",
     empty_trash_body: "Les événements que vous supprimez apparaissent ici.",
     no_calendars_title: "Aucun calendrier pour le moment",
+    unreadable_calendars_title: "Vos calendriers ne peuvent pas encore être ouverts",
+    unreadable_calendars_body:
+      "Ce navigateur possède une ancienne copie de vos clés. Réessayez pour charger la copie la plus récente, ou déconnectez-vous puis reconnectez-vous.",
     no_calendars_body:
       "Créez un calendrier pour commencer à ajouter des événements.",
     import_empty_title: "Rien à importer",

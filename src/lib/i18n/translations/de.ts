@@ -11218,6 +11218,9 @@ export const de = {
     empty_trash_title: "Der Papierkorb ist leer",
     empty_trash_body: "Gelöschte Termine werden hier angezeigt.",
     no_calendars_title: "Noch keine Kalender",
+    unreadable_calendars_title: "Ihre Kalender können noch nicht geöffnet werden",
+    unreadable_calendars_body:
+      "Dieser Browser hat eine ältere Kopie Ihrer Schlüssel. Versuchen Sie es erneut, um die neueste Kopie zu laden, oder melden Sie sich ab und wieder an.",
     no_calendars_body: "Erstellen Sie einen Kalender, um Termine hinzuzufügen.",
     import_empty_title: "Nichts zu importieren",
     decrypt_failed_title: "Einige Termine konnten nicht geöffnet werden",

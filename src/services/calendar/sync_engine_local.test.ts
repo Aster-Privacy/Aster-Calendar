@@ -35,6 +35,10 @@ vi.mock("@/services/api/client", () => ({
   },
 }));
 
+vi.mock("@/services/calendar/vault_freshness", () => ({
+  refresh_vault_from_server: async () => "current",
+}));
+
 vi.mock("@/services/calendar/identity_guard", () => ({
   confirm_calendar_identity: async () => true,
   reset_calendar_identity: () => undefined,

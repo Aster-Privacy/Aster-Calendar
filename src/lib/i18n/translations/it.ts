@@ -11131,6 +11131,9 @@ export const it = {
     empty_trash_title: "Il cestino è vuoto",
     empty_trash_body: "Gli eventi che elimini compaiono qui.",
     no_calendars_title: "Nessun calendario",
+    unreadable_calendars_title: "Non è ancora possibile aprire i tuoi calendari",
+    unreadable_calendars_body:
+      "Questo browser ha una copia meno recente delle tue chiavi. Riprova per caricare la copia più recente, oppure esci e accedi di nuovo.",
     no_calendars_body: "Crea un calendario per iniziare ad aggiungere eventi.",
     import_empty_title: "Niente da importare",
     decrypt_failed_title: "Impossibile aprire alcuni eventi",

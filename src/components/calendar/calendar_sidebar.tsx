@@ -64,6 +64,10 @@ import {
 } from "@aster/ui";
 
 import { CalendarEmptyState } from "@/components/calendar/calendar_empty_state";
+import {
+  use_retry_calendar_decrypts,
+  use_unreadable_calendar_count,
+} from "@/components/calendar/use_unreadable_calendars";
 import { NoCalendarsIllustration } from "@/components/calendar/illustrations/calendar_illustrations";
 
 import {
@@ -192,6 +196,9 @@ export function CalendarSidebar({
   on_open_trash,
 }: CalendarSidebarProps) {
   const { t, language } = use_i18n();
+  const unreadable_calendar_count = use_unreadable_calendar_count();
+  const { is_retrying: is_retrying_decrypts, retry: retry_decrypts } =
+    use_retry_calendar_decrypts();
   const reduce_motion = use_should_reduce_motion();
   const [mini_anchor, set_mini_anchor] = useState<Date | null>(null);
   const [mini_focus_key, set_mini_focus_key] = useState<string | null>(null);
@@ -1544,24 +1551,48 @@ export function CalendarSidebar({
               {calendar_rows}
               {calendars.length > 0 && !birthdays_removed && birthday_row}
               {has_holidays && holiday_row}
-              {calendars.length === 0 && !is_collapsed && (
-                <CalendarEmptyState
-                  action={
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={open_new_calendar}
-                    >
-                      {t("calendar.add_calendar")}
-                    </Button>
-                  }
-                  body={t("calendar.no_calendars_body")}
-                  compact
-                  data-testid="calendar-sidebar-empty"
-                  illustration={<NoCalendarsIllustration />}
-                  title={t("calendar.no_calendars_title")}
-                />
-              )}
+              {calendars.length === 0 &&
+                !is_collapsed &&
+                unreadable_calendar_count > 0 && (
+                  <CalendarEmptyState
+                    action={
+                      <Button
+                        data-testid="calendar-sidebar-unreadable-retry"
+                        disabled={is_retrying_decrypts}
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void retry_decrypts()}
+                      >
+                        {t("calendar.decrypt_failed_retry")}
+                      </Button>
+                    }
+                    body={t("calendar.unreadable_calendars_body")}
+                    compact
+                    data-testid="calendar-sidebar-unreadable"
+                    illustration={<NoCalendarsIllustration />}
+                    title={t("calendar.unreadable_calendars_title")}
+                  />
+                )}
+              {calendars.length === 0 &&
+                !is_collapsed &&
+                unreadable_calendar_count === 0 && (
+                  <CalendarEmptyState
+                    action={
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={open_new_calendar}
+                      >
+                        {t("calendar.add_calendar")}
+                      </Button>
+                    }
+                    body={t("calendar.no_calendars_body")}
+                    compact
+                    data-testid="calendar-sidebar-empty"
+                    illustration={<NoCalendarsIllustration />}
+                    title={t("calendar.no_calendars_title")}
+                  />
+                )}
             </div>
           )}
         </div>

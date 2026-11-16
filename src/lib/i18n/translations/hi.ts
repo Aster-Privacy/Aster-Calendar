@@ -10834,6 +10834,9 @@ export const hi = {
     empty_trash_title: "ट्रैश खाली है",
     empty_trash_body: "आपके हटाए गए इवेंट यहाँ दिखते हैं।",
     no_calendars_title: "अभी कोई कैलेंडर नहीं",
+    unreadable_calendars_title: "आपके कैलेंडर अभी खोले नहीं जा सकते",
+    unreadable_calendars_body:
+      "इस ब्राउज़र में आपकी कुंजियों की एक पुरानी कॉपी है। नई कॉपी लोड करने के लिए फिर से कोशिश करें, या साइन आउट करके दोबारा साइन इन करें।",
     no_calendars_body: "इवेंट जोड़ना शुरू करने के लिए एक कैलेंडर बनाएँ।",
     import_empty_title: "आयात करने के लिए कुछ नहीं",
     decrypt_failed_title: "कुछ इवेंट खोले नहीं जा सके",

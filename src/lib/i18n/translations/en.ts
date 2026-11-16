@@ -10785,6 +10785,9 @@ export const en: Translations = {
     empty_trash_title: "Trash is empty",
     empty_trash_body: "Events you delete show up here.",
     no_calendars_title: "No calendars yet",
+    unreadable_calendars_title: "Your calendars can't be opened yet",
+    unreadable_calendars_body:
+      "This browser has an older copy of your keys. Try again to load the latest copy, or sign out and sign back in.",
     no_calendars_body: "Create a calendar to start adding events.",
     import_empty_title: "Nothing to import",
     decrypt_failed_title: "Some events could not be opened",
