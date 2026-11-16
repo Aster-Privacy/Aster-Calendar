@@ -67,6 +67,7 @@ import {
 } from "@/components/calendar/use_agenda_endless_scroll";
 import { format_time } from "@/utils/date_format";
 import { use_i18n } from "@/lib/i18n/context";
+import { TODAY_MARKER_CLASS } from "@/lib/day_marker";
 
 const MONTH_HEADER_HEIGHT = "44px";
 const RENDER_BATCH = 60;
@@ -199,7 +200,7 @@ function date_column_width(language: string): number {
 
     longest = Math.max(longest, label.length);
   }
-  const width = Math.max(64, 32 + longest * 8);
+  const width = Math.max(66, 34 + longest * 8);
 
   date_column_width_cache.set(language, width);
 
@@ -232,13 +233,12 @@ export function AgendaDateColumn({
   today_label,
   sticky_top,
 }: AgendaDateColumnProps) {
-  const today_color = "var(--calendar_accent_text, var(--accent-color))";
-  const number_color = is_today
-    ? today_color
-    : is_past_day
-      ? "var(--text-muted)"
-      : "var(--text-primary)";
-  const weekday_color = is_today ? today_color : "var(--text-muted)";
+  const number_color = is_past_day
+    ? "var(--text-muted)"
+    : "var(--text-primary)";
+  const weekday_color = is_today
+    ? "var(--calendar_accent_text, var(--accent-color))"
+    : "var(--text-muted)";
 
   return (
     <div
@@ -246,7 +246,7 @@ export function AgendaDateColumn({
       style={{ width: date_column_width(language) }}
     >
       <div
-        className={`flex h-10 items-center gap-2 text-[14px] leading-none ${
+        className={`flex h-10 items-center gap-1.5 text-[14px] leading-none ${
           sticky_top === undefined ? "" : "sticky"
         }`}
         data-testid="agenda-date-column"
@@ -254,10 +254,12 @@ export function AgendaDateColumn({
       >
         <span
           aria-hidden="true"
-          className="w-5 flex-shrink-0 text-end font-semibold tabular-nums"
+          className={`-ms-1 flex h-7 w-7 flex-shrink-0 items-center justify-center font-semibold tabular-nums ${
+            is_today ? TODAY_MARKER_CLASS : ""
+          }`}
           data-day-number=""
           data-today={is_today ? "" : undefined}
-          style={{ color: number_color }}
+          style={is_today ? undefined : { color: number_color }}
         >
           {day.getDate()}
         </span>

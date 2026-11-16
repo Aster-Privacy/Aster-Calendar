@@ -17,6 +17,7 @@
 //
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { apply_host_appearance } from "@/pages/mail_panel/mail_panel_appearance";

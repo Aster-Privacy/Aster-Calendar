@@ -28,6 +28,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
+import { TODAY_MARKER_CLASS } from "@/lib/day_marker";
+
 import { AgendaDateColumn, CalendarAgendaView } from "./calendar_agenda_view";
 
 declare global {
@@ -136,20 +138,17 @@ function render_column(day: Date, is_today: boolean, is_past_day = false) {
 }
 
 describe("agenda date column", () => {
-  it("marks today with accent text and no shape behind the number", () => {
+  it("marks today with a solid accent circle and contrast text", () => {
     const host = render_column(new Date(2026, 10, 12), true);
     const number = host.querySelector<HTMLElement>("[data-today]");
 
     expect(number).not.toBeNull();
     expect(number?.textContent).toBe("12");
     expect(number?.className).toContain("tabular-nums");
-    expect(number?.className).toContain("text-end");
-    expect(number?.className).not.toMatch(/rounded|bg-|ring/);
-    expect(number?.style.backgroundColor).toBe("");
-    expect(number?.style.color).toContain("--calendar_accent_text");
-    host.querySelectorAll<HTMLElement>("*").forEach((node) => {
-      expect(node.style.backgroundColor).toBe("");
-    });
+    expect(number?.className).toContain("rounded-full");
+    expect(number?.className).toContain(TODAY_MARKER_CLASS);
+    expect(number?.className).not.toMatch(/aster-selected|opacity|ring/);
+    expect(number?.style.color).toBe("");
     expect(visible_text(host)).toBe("12Thu");
     expect(visible_text(host)).not.toMatch(/today/i);
   });
@@ -175,6 +174,7 @@ describe("agenda date column", () => {
     );
 
     expect(future.querySelector("[data-today]")).toBeNull();
+    expect(future_number?.className).not.toMatch(/rounded|bg-/);
     expect(future_number?.style.color).toBe("var(--text-primary)");
     expect(future.querySelector(".sr-only")?.textContent).toBe(
       "Saturday, November 14, 2026",
@@ -210,7 +210,7 @@ describe("agenda view today row", () => {
     );
   }
 
-  it("marks only today with aria-current and accent text", () => {
+  it("marks only today with aria-current and a solid circle", () => {
     const host = render_agenda([
       make_event(
         "earlier",
