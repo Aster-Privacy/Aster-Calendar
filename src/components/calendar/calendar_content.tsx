@@ -667,8 +667,13 @@ export function CalendarContent({
     state.events.length === 0 &&
     !has_any_events;
 
+  const [is_first_run_dismissed, set_is_first_run_dismissed] = useState(false);
+
   const show_first_run_state =
-    is_first_run && state.view_mode !== "agenda" && !show_empty_state;
+    is_first_run &&
+    !is_first_run_dismissed &&
+    state.view_mode !== "agenda" &&
+    !show_empty_state;
 
   const prompt_invites = (
     kind: InviteSendKind,
@@ -1493,7 +1498,7 @@ export function CalendarContent({
         </div>
 
         {show_empty_state && (
-          <div className="absolute inset-0 z-[5] flex items-center justify-center p-4 pointer-events-none">
+          <div className="absolute inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
             <CalendarEmptyState
               action={
                 is_searching ? (
@@ -1549,9 +1554,11 @@ export function CalendarContent({
         )}
 
         {show_first_run_state && (
-          <div className="absolute inset-0 z-[5] flex items-center justify-center p-4 pointer-events-none">
+          <div className="absolute inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
             <CalendarEmptyState
               action={first_run_actions}
+              close_label={state.t("common.close")}
+              on_close={() => set_is_first_run_dismissed(true)}
               body={state.t("calendar.first_run_body")}
               className="aster_floating pointer-events-auto max-h-full w-full max-w-[360px] overflow-y-auto rounded-[var(--aster-radius-floating)]"
               compact={is_phone}
