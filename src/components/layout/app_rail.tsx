@@ -19,13 +19,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 import { memo, useCallback, useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { AppRailView } from "@aster/ui";
 
 import {
   AppRailIcon,
   app_rail_logo,
 } from "@/components/icons/app_rail_icon";
+import { QuickAgendaPanel } from "@/components/layout/quick_agenda_panel";
 import { QuickContactsPanel } from "@/components/layout/quick_contacts_panel";
 import { QuickSecurityPanel } from "@/components/layout/quick_security_panel";
 import { use_panel_transition } from "@/components/layout/use_panel_transition";
@@ -42,7 +43,6 @@ import {
 } from "@/lib/rail_security_open";
 
 const RAIL_HIDDEN_KEY = "aster_app_rail_hidden";
-const CALENDAR_HOME_EVENT = "aster-calendar-home";
 
 function read_hidden() {
   try {
@@ -70,10 +70,10 @@ function AppRailComponent({
   const { t } = use_i18n();
   const { preferences } = use_preferences();
   const location = useLocation();
-  const navigate = useNavigate();
   const is_settings_view = location.pathname.startsWith("/settings");
   const [is_hidden, set_is_hidden] = useState(read_hidden);
   const [is_swapping, set_is_swapping] = useState(false);
+  const [is_agenda_open, set_is_agenda_open] = useState(false);
 
   const close_contacts = useCallback(() => {
     write_rail_contacts_open(false);
@@ -88,14 +88,16 @@ function AppRailComponent({
   const toggle_contacts = useCallback(() => {
     const next = !is_contacts_open;
 
-    set_is_swapping(next && is_security_open);
+    set_is_swapping(next && (is_security_open || is_agenda_open));
     write_rail_contacts_open(next);
     on_contacts_open_change(next);
     if (next) {
+      set_is_agenda_open(false);
       write_rail_security_open(false);
       on_security_open_change(false);
     }
   }, [
+    is_agenda_open,
     is_contacts_open,
     is_security_open,
     on_contacts_open_change,
@@ -105,24 +107,48 @@ function AppRailComponent({
   const toggle_security = useCallback(() => {
     const next = !is_security_open;
 
-    set_is_swapping(next && is_contacts_open);
+    set_is_swapping(next && (is_contacts_open || is_agenda_open));
     write_rail_security_open(next);
     on_security_open_change(next);
     if (next) {
+      set_is_agenda_open(false);
       write_rail_contacts_open(false);
       on_contacts_open_change(false);
     }
   }, [
+    is_agenda_open,
     is_contacts_open,
     is_security_open,
     on_contacts_open_change,
     on_security_open_change,
   ]);
 
-  const go_calendar_home = useCallback(() => {
-    navigate("/");
-    window.dispatchEvent(new CustomEvent(CALENDAR_HOME_EVENT));
-  }, [navigate]);
+  const close_agenda = useCallback(() => {
+    set_is_agenda_open(false);
+  }, []);
+
+  const toggle_agenda = useCallback(() => {
+    const next = !is_agenda_open;
+
+    set_is_swapping(next && (is_contacts_open || is_security_open));
+    set_is_agenda_open(next);
+    if (next) {
+      write_rail_contacts_open(false);
+      on_contacts_open_change(false);
+      write_rail_security_open(false);
+      on_security_open_change(false);
+    }
+  }, [
+    is_agenda_open,
+    is_contacts_open,
+    is_security_open,
+    on_contacts_open_change,
+    on_security_open_change,
+  ]);
+
+  useEffect(() => {
+    if (is_contacts_open || is_security_open) set_is_agenda_open(false);
+  }, [is_contacts_open, is_security_open]);
 
   useEffect(() => {
     if (!is_swapping) return;
@@ -131,7 +157,7 @@ function AppRailComponent({
   }, [is_swapping]);
 
   const { is_visible: is_slot_visible } = use_panel_transition(
-    is_contacts_open || is_security_open,
+    is_contacts_open || is_security_open || is_agenda_open,
   );
 
   const toggle_hidden = useCallback(() => {
@@ -148,6 +174,7 @@ function AppRailComponent({
 
   useEffect(() => {
     if (!is_hidden) return;
+    set_is_agenda_open(false);
     on_contacts_open_change(false);
     on_security_open_change(false);
   }, [is_hidden, on_contacts_open_change, on_security_open_change]);
@@ -178,7 +205,7 @@ function AppRailComponent({
         {
           key: "calendar",
           label: t("common.app_name_calendar"),
-          selected: false,
+          selected: is_agenda_open,
           fallback_icon: (
             <DatedCalendarImage
               className="h-6 w-6 shrink-0"
@@ -186,7 +213,7 @@ function AppRailComponent({
               kind="app"
             />
           ),
-          on_click: go_calendar_home,
+          on_click: toggle_agenda,
         },
         {
           key: "contacts",
@@ -211,6 +238,11 @@ function AppRailComponent({
       }}
       panel={
         <>
+          <QuickAgendaPanel
+            is_open={is_agenda_open}
+            is_swapping={is_swapping}
+            on_close={close_agenda}
+          />
           <QuickContactsPanel
             is_open={is_contacts_open}
             is_swapping={is_swapping}
