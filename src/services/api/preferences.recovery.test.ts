@@ -21,6 +21,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const put_calls: { url: string; body: unknown }[] = [];
+const constant_sealed = vi.hoisted(() => ({ value: false }));
 
 vi.mock("./client", () => ({
   api_client: {
@@ -40,6 +41,7 @@ vi.mock("@/services/crypto/legacy_keks", () => ({
   decrypt_aes_gcm_with_fallback: vi.fn(async () => {
     throw new Error("undecryptable: key rotated");
   }),
+  sealed_under_public_constant: vi.fn(async () => constant_sealed.value),
 }));
 
 import {
@@ -59,6 +61,7 @@ describe("get_preferences recovery when the server blob cannot be decrypted", ()
     put_calls.length = 0;
     clear_preferences_cache();
     localStorage.clear();
+    constant_sealed.value = false;
   });
 
   it("never autonomously overwrites the server blob when there is no cache", async () => {
@@ -96,5 +99,17 @@ describe("get_preferences recovery when the server blob cannot be decrypted", ()
     expect(result.data.inbox_categories_enabled).toBe(false);
     expect(result.data.conversation_grouping).toBe(false);
     expect(result.data.time_format).toBe("24h");
+  });
+
+  it("leaves a blob sealed under a public constant for the mail rewrap", async () => {
+    constant_sealed.value = true;
+    cache_preferences_locally({ ...DEFAULT_PREFERENCES, theme: "dark" });
+
+    const result = await get_preferences(vault);
+
+    expect(result.loaded_from_server).toBe(false);
+    expect(result.server_blob_unusable).toBeUndefined();
+    expect(result.data.theme).toBe("dark");
+    expect(put_calls.length).toBe(0);
   });
 });

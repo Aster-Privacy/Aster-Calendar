@@ -110,13 +110,23 @@ interface RatchetIdentity {
   signed_prekey: string;
   signed_prekey_signature: string;
   pq_kem_public_key?: string | null;
+  address_scoped?: boolean | null;
+}
+
+function lookup_params(email?: string, address_scope = false): string {
+  if (!email) return "";
+
+  const scope = address_scope ? "&scope=address" : "";
+
+  return `?email=${encodeURIComponent(email)}${scope}`;
 }
 
 export async function fetch_ratchet_identity(
   username: string,
   email?: string,
+  address_scope = false,
 ): Promise<RatchetIdentity | null> {
-  const params = email ? `?email=${encodeURIComponent(email)}` : "";
+  const params = lookup_params(email, address_scope);
   const path = `/crypto/v1/ratchet/identity/${encodeURIComponent(username)}${params}`;
 
   if (is_recent_ratchet_miss(path)) return null;
@@ -135,8 +145,9 @@ export async function fetch_ratchet_identity(
 export async function fetch_prekey_bundle(
   username: string,
   email?: string,
+  address_scope = false,
 ): Promise<PrekeyBundle | null> {
-  const params = email ? `?email=${encodeURIComponent(email)}` : "";
+  const params = lookup_params(email, address_scope);
   const path = `/crypto/v1/ratchet/prekey-bundle/${encodeURIComponent(username)}${params}`;
 
   if (is_recent_ratchet_miss(path)) return null;
@@ -166,18 +177,21 @@ interface RatchetIdentityHistoryResponse {
   user_id: string;
   entries: RatchetIdentityHistoryEntry[];
   history_complete: boolean;
+  address_scoped?: boolean | null;
 }
 
 export interface PublishedIdentityHistory {
   identity_keys: string[];
   history_complete: boolean;
+  address_scoped?: boolean;
 }
 
 export async function fetch_published_identity_history(
   username: string,
   email?: string,
+  address_scope = false,
 ): Promise<PublishedIdentityHistory | null> {
-  const params = email ? `?email=${encodeURIComponent(email)}` : "";
+  const params = lookup_params(email, address_scope);
   const path = `/crypto/v1/ratchet/prekey-bundle/${encodeURIComponent(username)}/history${params}`;
 
   if (is_recent_ratchet_miss(path)) return null;
@@ -201,6 +215,7 @@ export async function fetch_published_identity_history(
         (key): key is string => typeof key === "string" && key.length > 0,
       ),
     history_complete: response.data.history_complete === true,
+    ...(response.data.address_scoped === true ? { address_scoped: true } : {}),
   };
 }
 

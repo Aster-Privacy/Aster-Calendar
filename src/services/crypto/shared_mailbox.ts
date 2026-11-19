@@ -42,6 +42,14 @@ import {
   get_passphrase_from_memory,
 } from "@/services/crypto/memory_key_store";
 import { MASTER_KEY_VAULT_FORMAT } from "@/services/crypto/memory_key_store";
+import {
+  prepare_vault_write,
+  type PreparedVaultWrite,
+} from "@/services/crypto/key_manager_pgp_vault";
+import {
+  VAULT_KDF_ITERATIONS_LEGACY,
+  type VaultKdfIterations,
+} from "@/services/crypto/vault_level2";
 import { get_recipient_public_key } from "@/services/api/keys";
 
 export const SHARED_MAILBOX_GRANT_VERSION = 1;
@@ -262,6 +270,7 @@ export async function unseal_grant(
 export async function generate_rotated_credential(
   vault_data: EncryptedVault,
   old_login_secret: string,
+  iterations: VaultKdfIterations = VAULT_KDF_ITERATIONS_LEGACY,
 ): Promise<{
   login_secret: string;
   password_hash: string;
@@ -269,6 +278,8 @@ export async function generate_rotated_credential(
   password_salt: string;
   encrypted_vault: string;
   vault_nonce: string;
+  vault_kdf_iterations: VaultKdfIterations;
+  vault_write: PreparedVaultWrite;
 }> {
   const login_secret = generate_login_secret();
   const salt = crypto.getRandomValues(new Uint8Array(32));
@@ -293,9 +304,11 @@ export async function generate_rotated_credential(
     ),
   };
 
-  const { encrypted_vault, vault_nonce } = await encrypt_vault(
+  const vault_write = await prepare_vault_write(
     rotated_vault,
     login_secret,
+    iterations,
+    false,
   );
 
   return {
@@ -303,7 +316,9 @@ export async function generate_rotated_credential(
     password_hash,
     password_hash_v2,
     password_salt,
-    encrypted_vault,
-    vault_nonce,
+    encrypted_vault: vault_write.sealed.encrypted_vault,
+    vault_nonce: vault_write.sealed.vault_nonce,
+    vault_kdf_iterations: iterations,
+    vault_write,
   };
 }

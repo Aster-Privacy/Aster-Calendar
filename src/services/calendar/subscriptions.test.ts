@@ -65,6 +65,10 @@ const FEED = [
 
 beforeEach(() => {
   post.mockReset();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() => Promise.reject(new TypeError("blocked by the feed host"))),
+  );
 });
 
 describe("subscription events", () => {
@@ -73,7 +77,7 @@ describe("subscription events", () => {
     expect(is_subscription_event({ id: "evt-1" })).toBe(false);
   });
 
-  it("posts the feed url to the backend proxy", async () => {
+  it("falls back to the relay when the feed host blocks direct loading", async () => {
     post.mockResolvedValue({ data: { ics: FEED } });
 
     await fetch_subscription_events(SUBSCRIPTION);

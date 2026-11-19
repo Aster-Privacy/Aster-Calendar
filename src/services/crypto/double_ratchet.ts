@@ -798,6 +798,35 @@ export class DoubleRatchet {
     this.state = clone_state(data.state);
   }
 
+  async advance_send_chain_to(target: number): Promise<void> {
+    const start = this.state.send_message_number;
+
+    if (
+      !this.state.chain_key_send ||
+      !Number.isSafeInteger(target) ||
+      target <= start ||
+      target - start > MAX_SKIP
+    ) {
+      return;
+    }
+
+    let chain_key = base64_to_array(this.state.chain_key_send);
+
+    for (let number = start; number < target; number++) {
+      const { new_chain_key, message_key } = await kdf_chain_key(chain_key);
+
+      zero_uint8_array(message_key);
+      zero_uint8_array(chain_key);
+      chain_key = new_chain_key;
+    }
+
+    this.state.chain_key_send = array_to_base64(chain_key);
+    this.state.send_message_number = target;
+    this.state.dirty_since_sync = true;
+    this.state.updated_at = Date.now();
+    zero_uint8_array(chain_key);
+  }
+
   static deserialize(data: SerializedState): DoubleRatchet {
     if (data.state.dirty_since_sync === undefined) {
       data.state.dirty_since_sync = true;

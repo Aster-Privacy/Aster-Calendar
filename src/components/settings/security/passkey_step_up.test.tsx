@@ -68,16 +68,14 @@ vi.mock("@/components/settings/step_up_modal", () => ({
     is_open,
     on_close,
     on_confirm,
-    password_only,
     title,
   }: {
     is_open: boolean;
     on_close: () => void;
     on_confirm: (credentials: StepUpCredentials) => Promise<void>;
-    password_only?: boolean;
     title: string;
   }) =>
-    is_open && password_only ? (
+    is_open && title.startsWith("passkeys.add_") ? (
       <div>
         <button
           onClick={() =>

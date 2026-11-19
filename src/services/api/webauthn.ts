@@ -18,6 +18,8 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
+import type { ReauthProof } from "./step_up";
+
 import { api_client, ApiResponse } from "./client";
 import { clear_csrf_cache } from "./csrf";
 import { TotpVerifyResponse } from "./totp";
@@ -122,10 +124,9 @@ export async function list_hardware_keys(): Promise<
   );
 }
 
-export async function initiate_hardware_key_registration(proof?: {
-  password_hash: string;
-  totp_code?: string;
-}): Promise<ApiResponse<HardwareKeyRegistrationOptions>> {
+export async function initiate_hardware_key_registration(
+  proof?: ReauthProof,
+): Promise<ApiResponse<HardwareKeyRegistrationOptions>> {
   return api_client.post<HardwareKeyRegistrationOptions>(
     "/core/v1/auth/hardware-keys/register/initiate",
     proof ?? {},
@@ -152,7 +153,7 @@ export async function complete_hardware_key_registration(request: {
 
 export async function remove_hardware_key(
   key_id: string,
-  credentials?: { password_hash: string; totp_code?: string },
+  credentials?: ReauthProof,
 ): Promise<ApiResponse<{ success: boolean }>> {
   return api_client.delete<{ success: boolean }>(
     `/core/v1/auth/hardware-keys/${key_id}`,
@@ -302,6 +303,21 @@ export async function perform_step_up_webauthn_assertion(): Promise<StepUpHardwa
   }
 
   return perform_webauthn_assertion_with_options(options_res.data);
+}
+
+export async function step_up_key_assertion_if_enrolled(
+  totp_required: boolean,
+): Promise<StepUpHardwareKeyAssertion | undefined> {
+  if (totp_required) return undefined;
+  const keys = await list_hardware_keys();
+
+  if (!keys.data) {
+    throw new Error(keys.error || get_active_translations().errors.load_failed);
+  }
+
+  return keys.data.keys.length > 0
+    ? perform_step_up_webauthn_assertion()
+    : undefined;
 }
 
 export async function perform_webauthn_assertion_with_options(

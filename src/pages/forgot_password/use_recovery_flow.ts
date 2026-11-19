@@ -31,13 +31,14 @@ import { useTheme } from "@/contexts/theme_context";
 import { use_should_reduce_motion } from "@/provider";
 import {
   derive_password_hash,
-  encrypt_vault,
   generate_identity_keypair,
   generate_recovery_codes,
   generate_signed_prekey,
   prepare_pgp_key_data,
   RECOVERY_CODE_SET_SIZE,
 } from "@/services/crypto/key_manager";
+import { prepare_vault_write } from "@/services/crypto/key_manager_pgp_vault";
+import { stored_vault_write_iterations } from "@/services/crypto/vault_level2";
 import {
   clear_recovery_key,
   decrypt_recovery_key_with_code,
@@ -213,6 +214,8 @@ export function use_recovery_flow() {
   const [recovery_token, set_recovery_token] = useState("");
   const [vault_backup, set_vault_backup] = useState<VaultBackup | null>(null);
   const [code_salt, set_code_salt] = useState("");
+  const [stored_vault_kdf_iterations, set_stored_vault_kdf_iterations] =
+    useState<number | null>(null);
   const [encrypted_recovery_key_data, set_encrypted_recovery_key_data] =
     useState<{ encrypted_key: string; nonce: string } | null>(null);
   const [stored_recovery_email, set_stored_recovery_email] =
@@ -373,6 +376,9 @@ export function use_recovery_flow() {
         salt: response.data.recovery_key_salt,
       });
       set_code_salt(response.data.code_salt);
+      set_stored_vault_kdf_iterations(
+        response.data.vault_kdf_iterations ?? null,
+      );
       set_encrypted_recovery_key_data({
         encrypted_key: response.data.encrypted_recovery_key,
         nonce: response.data.recovery_key_nonce,
@@ -506,9 +512,11 @@ export function use_recovery_flow() {
     vault.recovery_codes = new_codes;
 
     set_processing_status(t("auth.encrypting_vault_new_password"));
-    const { encrypted_vault, vault_nonce } = await encrypt_vault(
+    const vault_write = await prepare_vault_write(
       vault,
       password,
+      stored_vault_write_iterations(stored_vault_kdf_iterations),
+      false,
     );
 
     set_processing_status(t("auth.creating_new_recovery_backup"));
@@ -545,25 +553,29 @@ export function use_recovery_flow() {
     }
 
     set_processing_status(t("auth.saving_new_credentials"));
-    const complete_response = await complete_recovery(
-      recovery_token,
-      password_hash,
-      password_salt,
-      encrypted_vault,
-      vault_nonce,
-      new_shares,
-      new_backup.encrypted_data,
-      new_backup.nonce,
-      new_backup.salt,
-      btoa(new_identity_keypair.public_key),
-      btoa(new_prekey_keypair.public_key),
-      btoa(prekey_signature),
-      pgp_key_data,
-      vault_uses_master_key ? MASTER_KEY_VAULT_FORMAT : undefined,
-      rescued_account_key?.token,
-      rescued_account_key?.fingerprint,
-      new_recovery_email,
-      password_hash_v2,
+    const { response: complete_response } = await vault_write.write(
+      (sealed, kdf_field) =>
+        complete_recovery(
+          recovery_token,
+          password_hash,
+          password_salt,
+          sealed.encrypted_vault,
+          sealed.vault_nonce,
+          new_shares,
+          new_backup.encrypted_data,
+          new_backup.nonce,
+          new_backup.salt,
+          btoa(new_identity_keypair.public_key),
+          btoa(new_prekey_keypair.public_key),
+          btoa(prekey_signature),
+          pgp_key_data,
+          vault_uses_master_key ? MASTER_KEY_VAULT_FORMAT : undefined,
+          rescued_account_key?.token,
+          rescued_account_key?.fingerprint,
+          new_recovery_email,
+          password_hash_v2,
+          kdf_field.vault_kdf_iterations,
+        ),
     );
 
     if (complete_response.error || !complete_response.data?.success) {

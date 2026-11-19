@@ -38,8 +38,10 @@ import { resolve_current_user } from "@/services/current_identity";
 import {
   has_passphrase_in_memory,
   get_derived_encryption_key,
+  get_vault_from_memory,
   on_keys_ready,
 } from "@/services/crypto/memory_key_store";
+import { is_primary_address } from "@/services/crypto/address_identity_entry";
 import { APP_EVENTS, on_app_events } from "@/hooks/app_events";
 import {
   clear_local_address_avatars,
@@ -103,6 +105,29 @@ let cached_disabled_addresses: string[] = [];
 let cached_pending_domain_names: string[] = [];
 let cached_user: User | null = null;
 let cache_populated = false;
+
+function publish_own_address_entries(): void {
+  const vault = get_vault_from_memory();
+  const primary = cached_user?.email;
+
+  if (!vault?.ratchet_identity_key || !primary) return;
+
+  const addresses = [
+    ...cached_aliases.map((a) => a.full_address),
+    ...cached_domain_options.map((o) => o.email),
+  ].filter(
+    (address): address is string =>
+      Boolean(address) && !is_primary_address(address, primary),
+  );
+
+  if (addresses.length === 0) return;
+
+  void import("@/services/crypto/address_identity_directory")
+    .then(({ publish_address_entries }) =>
+      publish_address_entries(vault, addresses),
+    )
+    .catch(() => undefined);
+}
 
 function publish_local_address_avatars(): void {
   const values = [
@@ -294,6 +319,7 @@ export function use_sender_aliases(
           .map((d) => d.domain_name),
       );
       publish_local_address_avatars();
+      publish_own_address_entries();
     } catch {
       set_aliases(cached_aliases);
       set_alias_hashes(cached_alias_hashes);

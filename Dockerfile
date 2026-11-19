@@ -11,7 +11,14 @@ RUN sed -i 's|application/javascript\s*js;|application/javascript js mjs;|' /etc
 RUN grep -q webmanifest /etc/nginx/mime.types || \
     sed -i 's|application/json  *json;|application/json                       json;\n    application/manifest+json             webmanifest;|' /etc/nginx/mime.types
 
+RUN grep -q 'ngx_http_js_module.so' /etc/nginx/nginx.conf || \
+    sed -i '1i load_module modules/ngx_http_js_module.so;' /etc/nginx/nginx.conf
+
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker/edge_auth.js /etc/nginx/njs/edge_auth.js
+COPY docker/edge_auth.sh /docker-entrypoint.d/15-edge-auth.sh
+RUN sed -i 's/\r$//' /docker-entrypoint.d/15-edge-auth.sh && \
+    chmod 0755 /docker-entrypoint.d/15-edge-auth.sh
 COPY dist /usr/share/nginx/html
 
 RUN find /usr/share/nginx/html -name '*.map' -type f -delete

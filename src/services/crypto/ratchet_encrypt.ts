@@ -23,6 +23,10 @@ import {
   get_recipient_public_key,
 } from "../api/keys";
 
+import {
+  account_sender_identity,
+  type SenderIdentity,
+} from "./address_sender_identity";
 import { array_to_base64, base64_to_array } from "./base64";
 import { DoubleRatchet, type BootstrapData } from "./double_ratchet";
 import { type EncryptedVault } from "./key_manager";
@@ -38,6 +42,12 @@ import {
   run_serialized_for_conversation,
 } from "./ratchet_conversation";
 import {
+  resolve_recipient_bundle,
+  resolve_recipient_identity,
+  type DirectoryTrust,
+  type ResolvedDirectoryEntry,
+} from "./address_identity_directory";
+import {
   check_and_pin_identity,
   check_owner_key_pin,
   flag_recipient_untrusted,
@@ -50,7 +60,6 @@ import {
 import {
   detect_identity_pin_drift,
   fetch_prekey_bundle,
-  fetch_ratchet_identity,
 } from "./ratchet_prekey_bundle";
 import {
   can_seal_recovery_lane,
@@ -127,6 +136,9 @@ export async function encrypt_for_ratchet_recipient(
   recipient_username: string,
   body: string,
   vault: EncryptedVault,
+  sender_identity?: SenderIdentity,
+  required_recipient_identity?: string,
+  local_bundle?: PrekeyBundle,
 ): Promise<RatchetRecipientData | null> {
   const conversation_id = await derive_conversation_id(
     sender_email,
@@ -139,7 +151,9 @@ export async function encrypt_for_ratchet_recipient(
       recipient_email,
       recipient_username,
       body,
-      vault,
+      sender_identity ?? account_sender_identity(vault),
+      required_recipient_identity,
+      local_bundle,
     ),
   );
 }
@@ -152,11 +166,48 @@ type BundleVerification = Awaited<
   accepted_by_user: boolean;
 };
 
+async function verify_address_entry_bundle(
+  bundle: PrekeyBundle,
+  pin_id: string,
+  trust: DirectoryTrust,
+): Promise<BundleVerification> {
+  const flagged_untrusted = await is_recipient_flagged_untrusted(pin_id);
+
+  if (trust === "invalid") {
+    return {
+      verdict: "tampered",
+      format: "v2",
+      strict: true,
+      owner_pin: "unknown",
+      flagged_untrusted,
+      accepted_by_user: await is_recipient_bundle_accepted(pin_id, bundle),
+    };
+  }
+
+  return {
+    verdict: "verified",
+    format: "v2",
+    strict: true,
+    owner_pin: trust === "replaced" ? "changed" : "ok",
+    flagged_untrusted,
+    accepted_by_user: false,
+  };
+}
+
 async function verify_recipient_bundle(
   bundle: PrekeyBundle,
   recipient_username: string,
   recipient_email: string,
+  trust: DirectoryTrust = "account",
 ): Promise<BundleVerification> {
+  if (trust !== "account" && trust !== "downgraded") {
+    return verify_address_entry_bundle(
+      bundle,
+      (recipient_email ?? recipient_username).toLowerCase(),
+      trust,
+    );
+  }
+
   const owner_key = await get_recipient_public_key(
     recipient_username,
     recipient_email,
@@ -180,7 +231,12 @@ async function verify_recipient_bundle(
     verification.verdict === "tampered" &&
     (await is_recipient_bundle_accepted(pin_id, bundle));
 
-  return { ...verification, owner_pin, flagged_untrusted, accepted_by_user };
+  return {
+    ...verification,
+    owner_pin: trust === "downgraded" ? "changed" : owner_pin,
+    flagged_untrusted,
+    accepted_by_user,
+  };
 }
 
 export async function is_identity_bound_by_current_bundle(
@@ -237,12 +293,14 @@ async function is_pq_identity_signed_by_owner(
   published: PrekeyBundle,
   recipient_username: string,
   recipient_email: string,
+  trust: DirectoryTrust = "account",
 ): Promise<boolean> {
   try {
     const verification = await verify_recipient_bundle(
       published,
       recipient_username,
       recipient_email,
+      trust,
     );
 
     return (
@@ -294,19 +352,115 @@ function session_lane_lacks_advertised_pq_key(
   );
 }
 
+interface StartedSenderSession {
+  ratchet: DoubleRatchet;
+  ephemeral_key: string;
+  pq_ciphertext?: string;
+  pq_key_id?: number;
+  x3dh_version?: number;
+  one_time_prekey_id?: number;
+  signed_prekey_id?: string;
+}
+
+async function start_sender_session(
+  conversation_id: string,
+  sender_identity: SenderIdentity,
+  bundle: PrekeyBundle,
+  remembered_x3dh_version?: number | null,
+): Promise<StartedSenderSession> {
+  const sender_identity_jwk: JsonWebKey = JSON.parse(
+    sender_identity.identity_jwk,
+  );
+  const x3dh_result = await perform_x3dh_sender(
+    sender_identity_jwk,
+    bundle,
+    remembered_x3dh_version,
+  );
+
+  try {
+    const ratchet = await DoubleRatchet.init_sender(
+      x3dh_result.shared_secret,
+      base64_to_array(bundle.signed_prekey),
+      conversation_id,
+    );
+    const ephemeral_key = array_to_base64(x3dh_result.ephemeral_public_key);
+    const pq_ciphertext =
+      x3dh_result.pq_ciphertext && x3dh_result.pq_key_id !== undefined
+        ? array_to_base64(x3dh_result.pq_ciphertext)
+        : undefined;
+    const pq_key_id = pq_ciphertext ? x3dh_result.pq_key_id : undefined;
+    const x3dh_version =
+      x3dh_result.x3dh_version > X3DH_VERSION_LEGACY
+        ? x3dh_result.x3dh_version
+        : undefined;
+
+    const bootstrap_data: BootstrapData = {
+      ephemeral_key,
+      pq_ciphertext,
+      pq_key_id,
+      sender_identity_key: sender_identity.identity_public,
+      recipient_identity_key: bundle.kem_identity_key,
+      recipient_pq_identity_key: bundle.pq_kem_public_key ?? undefined,
+      x3dh_version,
+    };
+    const one_time_bound =
+      x3dh_result.x3dh_version === X3DH_VERSION_ONE_TIME_BOUND &&
+      x3dh_result.one_time_prekey_id !== undefined;
+    const one_time_prekey_id = one_time_bound
+      ? x3dh_result.one_time_prekey_id
+      : undefined;
+    const signed_prekey_id = one_time_bound
+      ? x3dh_result.signed_prekey_id
+      : undefined;
+
+    if (one_time_prekey_id !== undefined) {
+      bootstrap_data.one_time_prekey_id = one_time_prekey_id;
+
+      if (signed_prekey_id !== undefined) {
+        bootstrap_data.signed_prekey_id = signed_prekey_id;
+      }
+    }
+
+    ratchet.set_bootstrap(bootstrap_data);
+
+    return {
+      ratchet,
+      ephemeral_key,
+      pq_ciphertext,
+      pq_key_id,
+      x3dh_version,
+      one_time_prekey_id,
+      signed_prekey_id,
+    };
+  } finally {
+    x3dh_result.shared_secret.fill(0);
+  }
+}
+
 async function encrypt_for_ratchet_recipient_unlocked(
   conversation_id: string,
   recipient_email: string,
   recipient_username: string,
   body: string,
-  vault: EncryptedVault,
+  sender_identity: SenderIdentity | null,
+  required_recipient_identity?: string,
+  local_bundle?: PrekeyBundle,
 ): Promise<RatchetRecipientData | null> {
   try {
-    if (!vault.ratchet_identity_key || !vault.ratchet_identity_public) {
+    if (!sender_identity) {
       return null;
     }
 
     let ratchet = await load_ratchet_state(conversation_id);
+
+    if (
+      ratchet &&
+      required_recipient_identity &&
+      ratchet.get_bootstrap()?.recipient_identity_key !==
+        required_recipient_identity
+    ) {
+      ratchet = null;
+    }
 
     if (ratchet) {
       await adopt_server_state_before_send(conversation_id, ratchet);
@@ -320,34 +474,45 @@ async function encrypt_for_ratchet_recipient_unlocked(
     let signed_prekey_id_value: string | undefined;
 
     let bundle: PrekeyBundle | null = null;
+    let resolved_bundle: ResolvedDirectoryEntry<PrekeyBundle> | null = null;
 
     if (ratchet) {
       const bootstrap = ratchet.get_bootstrap();
 
       const sender_changed =
         !bootstrap ||
-        bootstrap.sender_identity_key !== vault.ratchet_identity_public;
+        bootstrap.sender_identity_key !== sender_identity.identity_public;
 
       let recipient_changed = false;
 
-      if (!sender_changed) {
-        const identity = await fetch_ratchet_identity(
+      if (!sender_changed && local_bundle) {
+        bundle = local_bundle;
+        recipient_changed =
+          bootstrap?.recipient_identity_key !== local_bundle.kem_identity_key;
+      } else if (!sender_changed) {
+        const session_identity = bootstrap?.recipient_identity_key;
+        const identity = await resolve_recipient_identity(
           recipient_username,
           recipient_email,
+          session_identity,
         );
 
         if (!identity) {
-          bundle = await fetch_prekey_bundle(
+          resolved_bundle = await resolve_recipient_bundle(
             recipient_username,
             recipient_email,
+            session_identity,
           );
+          bundle = resolved_bundle?.entry ?? null;
         }
 
-        const advertised = identity ?? bundle;
+        const advertised = identity?.entry ?? bundle;
+        const advertised_trust =
+          identity?.trust ?? resolved_bundle?.trust ?? "account";
 
         if (advertised) {
           recipient_changed =
-            bootstrap?.recipient_identity_key !== advertised.kem_identity_key ||
+            session_identity !== advertised.kem_identity_key ||
             session_lane_lacks_advertised_pq_key(
               bootstrap,
               advertised.pq_kem_public_key,
@@ -362,6 +527,7 @@ async function encrypt_for_ratchet_recipient_unlocked(
               advertised,
               recipient_username,
               recipient_email,
+              advertised_trust,
             );
           }
         }
@@ -372,24 +538,55 @@ async function encrypt_for_ratchet_recipient_unlocked(
       }
     }
 
-    if (!ratchet) {
-      if (!bundle) {
-        bundle = await fetch_prekey_bundle(recipient_username, recipient_email);
+    if (!ratchet && local_bundle) {
+      bundle = local_bundle;
+
+      const started = await start_sender_session(
+        conversation_id,
+        sender_identity,
+        local_bundle,
+      );
+
+      ratchet = started.ratchet;
+      ephemeral_key_base64 = started.ephemeral_key;
+      pq_ciphertext_base64 = started.pq_ciphertext;
+      pq_key_id_value = started.pq_key_id;
+      x3dh_version_value = started.x3dh_version;
+      one_time_prekey_id_value = started.one_time_prekey_id;
+      signed_prekey_id_value = started.signed_prekey_id;
+    } else if (!ratchet) {
+      if (!resolved_bundle) {
+        resolved_bundle = await resolve_recipient_bundle(
+          recipient_username,
+          recipient_email,
+        );
       }
 
-      if (!bundle) {
+      bundle = resolved_bundle?.entry ?? null;
+
+      if (!resolved_bundle || !bundle) {
         return null;
       }
 
-      await detect_identity_pin_drift(
-        (recipient_email ?? recipient_username).toLowerCase(),
-        bundle.kem_identity_key,
-      );
+      if (
+        required_recipient_identity &&
+        bundle.kem_identity_key !== required_recipient_identity
+      ) {
+        return null;
+      }
+
+      if (!resolved_bundle.scoped) {
+        await detect_identity_pin_drift(
+          (recipient_email ?? recipient_username).toLowerCase(),
+          bundle.kem_identity_key,
+        );
+      }
 
       const bundle_verification = await verify_recipient_bundle(
         bundle,
         recipient_username,
         recipient_email,
+        resolved_bundle.trust,
       );
 
       const bundle_peer = (recipient_email ?? recipient_username).toLowerCase();
@@ -432,6 +629,7 @@ async function encrypt_for_ratchet_recipient_unlocked(
             bundle_verification.owner_pin === "first"),
         advertises_pq,
         bundle.x3dh_max_version,
+        resolved_bundle.scoped,
       );
 
       if (identity_pin_status === "drift") {
@@ -443,12 +641,9 @@ async function encrypt_for_ratchet_recipient_unlocked(
         throw new KeyPinUnavailableError(bundle_peer);
       }
 
-      const sender_identity_jwk: JsonWebKey = JSON.parse(
-        vault.ratchet_identity_key,
-      );
-
-      const x3dh_result = await perform_x3dh_sender(
-        sender_identity_jwk,
+      const started = await start_sender_session(
+        conversation_id,
+        sender_identity,
         restrict_bundle_to_signed_pq_key(
           bundle,
           signature_covers_pq_identity(bundle_verification),
@@ -456,58 +651,13 @@ async function encrypt_for_ratchet_recipient_unlocked(
         await remembered_peer_x3dh_version(bundle_peer),
       );
 
-      try {
-        const recipient_signed_prekey_raw = base64_to_array(
-          bundle.signed_prekey,
-        );
-
-        ratchet = await DoubleRatchet.init_sender(
-          x3dh_result.shared_secret,
-          recipient_signed_prekey_raw,
-          conversation_id,
-        );
-
-        ephemeral_key_base64 = array_to_base64(
-          x3dh_result.ephemeral_public_key,
-        );
-
-        if (x3dh_result.pq_ciphertext && x3dh_result.pq_key_id !== undefined) {
-          pq_ciphertext_base64 = array_to_base64(x3dh_result.pq_ciphertext);
-          pq_key_id_value = x3dh_result.pq_key_id;
-        }
-
-        x3dh_version_value =
-          x3dh_result.x3dh_version > X3DH_VERSION_LEGACY
-            ? x3dh_result.x3dh_version
-            : undefined;
-
-        const bootstrap_data: BootstrapData = {
-          ephemeral_key: ephemeral_key_base64,
-          pq_ciphertext: pq_ciphertext_base64,
-          pq_key_id: pq_key_id_value,
-          sender_identity_key: vault.ratchet_identity_public,
-          recipient_identity_key: bundle.kem_identity_key,
-          recipient_pq_identity_key: bundle.pq_kem_public_key ?? undefined,
-          x3dh_version: x3dh_version_value,
-        };
-
-        if (
-          x3dh_result.x3dh_version === X3DH_VERSION_ONE_TIME_BOUND &&
-          x3dh_result.one_time_prekey_id !== undefined
-        ) {
-          one_time_prekey_id_value = x3dh_result.one_time_prekey_id;
-          signed_prekey_id_value = x3dh_result.signed_prekey_id;
-          bootstrap_data.one_time_prekey_id = one_time_prekey_id_value;
-
-          if (signed_prekey_id_value !== undefined) {
-            bootstrap_data.signed_prekey_id = signed_prekey_id_value;
-          }
-        }
-
-        ratchet.set_bootstrap(bootstrap_data);
-      } finally {
-        x3dh_result.shared_secret.fill(0);
-      }
+      ratchet = started.ratchet;
+      ephemeral_key_base64 = started.ephemeral_key;
+      pq_ciphertext_base64 = started.pq_ciphertext;
+      pq_key_id_value = started.pq_key_id;
+      x3dh_version_value = started.x3dh_version;
+      one_time_prekey_id_value = started.one_time_prekey_id;
+      signed_prekey_id_value = started.signed_prekey_id;
     } else {
       const bootstrap = ratchet.get_bootstrap();
 
@@ -555,7 +705,7 @@ async function encrypt_for_ratchet_recipient_unlocked(
       recovery = await seal_recovery_lane(
         array_to_base64(message_key),
         conversation_id,
-        vault.ratchet_identity_public,
+        sender_identity.identity_public,
         recovery_keys,
       );
     } catch {
@@ -633,12 +783,14 @@ async function session_post_quantum_status(
   recipient_username: string,
   recipient_email: string,
 ): Promise<SessionPostQuantumStatus> {
-  const identity = await fetch_ratchet_identity(
+  const resolved = await resolve_recipient_identity(
     recipient_username,
     recipient_email,
+    bootstrap.recipient_identity_key,
   ).catch(() => null);
+  const identity = resolved?.entry ?? null;
 
-  if (!identity) return "unsigned";
+  if (!resolved || !identity) return "unsigned";
 
   if (
     bootstrap.recipient_identity_key !== identity.kem_identity_key ||
@@ -664,6 +816,7 @@ async function session_post_quantum_status(
     identity,
     recipient_username,
     recipient_email,
+    resolved.trust,
   ))
     ? "signed"
     : "unsigned";
@@ -694,14 +847,19 @@ export async function recipient_post_quantum_status(
     }
   }
 
-  const bundle = await fetch_prekey_bundle(recipient_username, recipient_email);
+  const resolved = await resolve_recipient_bundle(
+    recipient_username,
+    recipient_email,
+  );
+  const bundle = resolved?.entry ?? null;
 
-  if (!bundle) return "unsupported";
+  if (!resolved || !bundle) return "unsupported";
 
   const verification = await verify_recipient_bundle(
     bundle,
     recipient_username,
     recipient_email,
+    resolved.trust,
   );
 
   if (is_bundle_untrusted(verification)) {

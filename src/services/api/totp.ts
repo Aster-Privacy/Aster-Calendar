@@ -18,6 +18,8 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
+import type { ReauthProof } from "./step_up";
+
 import { api_client, ApiResponse } from "./client";
 import { clear_csrf_cache } from "./csrf";
 
@@ -84,6 +86,7 @@ export interface TotpDisableResponse {
 
 export interface TotpRegenerateBackupCodesRequest {
   code: string;
+  password_hash: string;
 }
 
 export interface TotpRegenerateBackupCodesResponse {
@@ -96,10 +99,9 @@ export interface TotpRequiredResponse {
   available_methods?: string[];
 }
 
-export async function initiate_totp_setup(proof?: {
-  password_hash: string;
-  totp_code?: string;
-}): Promise<ApiResponse<TotpSetupInitiateResponse>> {
+export async function initiate_totp_setup(
+  proof?: ReauthProof,
+): Promise<ApiResponse<TotpSetupInitiateResponse>> {
   return api_client.post<TotpSetupInitiateResponse>(
     "/core/v1/auth/totp/setup/initiate",
     proof ?? {},

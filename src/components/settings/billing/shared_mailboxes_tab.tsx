@@ -84,6 +84,7 @@ import {
   SHARED_MAILBOX_GRANT_VERSION,
 } from "@/services/crypto/shared_mailbox";
 import { decrypt_vault } from "@/services/crypto/key_manager_pgp";
+import { stored_vault_write_iterations } from "@/services/crypto/vault_level2";
 import {
   sync_shared_mailbox_grants,
   clear_shared_mailbox_session,
@@ -394,9 +395,19 @@ export function SharedMailboxesTab({
           mailbox.my_grant.encrypted_vault,
           mailbox.my_grant.vault_nonce,
           old_secret,
+          undefined,
+          false,
         );
-        const rotated = await generate_rotated_credential(vault, old_secret);
+        const rotated = await generate_rotated_credential(
+          vault,
+          old_secret,
+          stored_vault_write_iterations(
+            mailbox.my_grant.vault_kdf_iterations,
+            mailbox.my_grant.encrypted_vault,
+          ),
+        );
 
+        const expected_vault_updated_at = mailbox.my_grant.vault_updated_at;
         const grants: { member_user_id: string; wrapped_grant: string }[] = [];
 
         for (const grant of mailbox.grants) {
@@ -423,17 +434,21 @@ export function SharedMailboxesTab({
           });
         }
 
-        const response = await rotate_shared_mailbox(mailbox.id, {
-          password_hash: rotated.password_hash,
-          password_hash_v2: rotated.password_hash_v2,
-          password_salt: rotated.password_salt,
-          argon2_params: { memory: 65536, iterations: 3, parallelism: 4 },
-          encrypted_vault: rotated.encrypted_vault,
-          vault_nonce: rotated.vault_nonce,
-          vault_format: 2,
-          expected_vault_updated_at: mailbox.my_grant.vault_updated_at,
-          grants,
-        });
+        const { response } = await rotated.vault_write.write(
+          (sealed, kdf_field) =>
+            rotate_shared_mailbox(mailbox.id, {
+              password_hash: rotated.password_hash,
+              password_hash_v2: rotated.password_hash_v2,
+              password_salt: rotated.password_salt,
+              argon2_params: { memory: 65536, iterations: 3, parallelism: 4 },
+              encrypted_vault: sealed.encrypted_vault,
+              vault_nonce: sealed.vault_nonce,
+              vault_format: 2,
+              expected_vault_updated_at,
+              grants,
+              ...kdf_field,
+            }),
+        );
 
         if (response.error) {
           if (!silent) {

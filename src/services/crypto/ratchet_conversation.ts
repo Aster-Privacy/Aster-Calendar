@@ -18,9 +18,9 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import { array_to_base64 } from "./base64";
-import { get_derived_encryption_key } from "./memory_key_store";
-import { derive_ratchet_encryption_key } from "./ratchet_sync";
+import { array_to_base64, base64_to_array } from "./base64";
+import { get_vault_from_memory } from "./memory_key_store";
+import { derive_ratchet_sync_key, type RatchetSyncKey } from "./ratchet_sync";
 
 import { HASH_ALG } from "@/services/crypto/constants";
 import { ignore_error } from "@/lib/ignore_error";
@@ -63,14 +63,58 @@ export async function run_serialized_for_conversation<T>(
   return current;
 }
 
-export async function get_sync_encryption_key(): Promise<CryptoKey | null> {
-  const master_key = get_derived_encryption_key();
+export async function get_sync_encryption_key(): Promise<RatchetSyncKey | null> {
+  const { get_current_account } = await import("@/services/account_manager");
+  const user_id = (await get_current_account())?.user?.id;
+
+  if (!user_id) return null;
+
+  const master_key = read_random_data_kek();
 
   if (!master_key) return null;
 
-  const key = await derive_ratchet_encryption_key(master_key);
+  try {
+    return await derive_ratchet_sync_key(master_key, user_id);
+  } finally {
+    master_key.fill(0);
+  }
+}
 
-  master_key.fill(0);
+const DATA_KEK_LENGTH = 32;
 
-  return key;
+function read_random_data_kek(): Uint8Array | null {
+  const vault = get_vault_from_memory();
+
+  if (vault?.data_kek_random !== true || !vault.data_kek) return null;
+
+  try {
+    const raw = base64_to_array(vault.data_kek);
+
+    if (raw.length === DATA_KEK_LENGTH) return raw;
+    raw.fill(0);
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+const SYNC_KEY_ATTEMPTS = 6;
+const SYNC_KEY_RETRY_MS = 2000;
+
+export async function wait_for_sync_encryption_key(
+  attempts: number = SYNC_KEY_ATTEMPTS,
+  retry_ms: number = SYNC_KEY_RETRY_MS,
+): Promise<RatchetSyncKey | null> {
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const sync_key = await get_sync_encryption_key().catch(() => null);
+
+    if (sync_key) return sync_key;
+
+    if (attempt + 1 < attempts) {
+      await new Promise((resolve) => setTimeout(resolve, retry_ms));
+    }
+  }
+
+  return null;
 }

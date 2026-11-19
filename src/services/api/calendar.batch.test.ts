@@ -40,6 +40,14 @@ vi.mock("./client", () => ({
   },
 }));
 
+vi.mock("@/services/account_manager", () => ({
+  get_current_account_id: async () => "account-1",
+}));
+
+vi.mock("@/services/calendar/vault_freshness", () => ({
+  refresh_vault_from_server: async () => false,
+}));
+
 vi.mock("@/services/calendar/identity_guard", () => ({
   confirm_calendar_identity: async () => true,
   reset_calendar_identity: () => undefined,

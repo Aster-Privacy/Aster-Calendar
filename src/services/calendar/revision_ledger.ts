@@ -252,3 +252,25 @@ export function take_revision_snapshot(): RevisionSnapshot | null {
     calendar_tombstones: Object.fromEntries(tombstones.calendar),
   };
 }
+
+export interface RevisionFloors {
+  event: Record<string, number>;
+  calendar: Record<string, number>;
+}
+
+export function take_revision_floors(): RevisionFloors {
+  return {
+    event: Object.fromEntries(confirmed.event),
+    calendar: Object.fromEntries(confirmed.calendar),
+  };
+}
+
+export function apply_revision_floors(
+  floors: Partial<RevisionFloors> | null | undefined,
+): void {
+  if (!floors || typeof floors !== "object") return;
+  load_map(confirmed.event, floors.event);
+  load_map(revisions.event, floors.event);
+  load_map(confirmed.calendar, floors.calendar);
+  load_map(revisions.calendar, floors.calendar);
+}

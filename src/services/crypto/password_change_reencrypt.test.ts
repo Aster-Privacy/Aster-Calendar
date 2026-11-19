@@ -550,4 +550,43 @@ describe("re_encrypt_user_data", () => {
       ),
     ).toBe("hello");
   });
+
+  it("does not open a row sealed under a key anyone can derive", async () => {
+    const public_raw = new Uint8Array(
+      await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode("undefinedastermail-preferences-v1"),
+      ),
+    );
+    const public_key = await crypto.subtle.importKey(
+      "raw",
+      public_raw,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt"],
+    );
+    const nonce = crypto.getRandomValues(new Uint8Array(12));
+    const planted = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv: nonce },
+      public_key,
+      new TextEncoder().encode("planted"),
+    );
+
+    mock_list_aliases.mockResolvedValueOnce(
+      single_alias_page({
+        id: "alias-1",
+        domain: "astermail.org",
+        is_random: false,
+        encrypted_local_part: to_base64(new Uint8Array(planted)),
+        local_part_nonce: to_base64(nonce),
+      }),
+    );
+
+    const result = await re_encrypt_user_data(OLD_PASSPHRASE, NEW_PASSPHRASE, {
+      legacy_keks: [{ k: to_base64(public_raw) }],
+    });
+
+    expect(result.re_encrypted_aliases).toHaveLength(0);
+    expect(result.skipped.alias_ids).toEqual(["alias-1"]);
+  });
 });

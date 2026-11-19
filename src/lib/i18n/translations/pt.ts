@@ -9655,6 +9655,14 @@ export const pt = {
       "Move frequentemente mensagens de {{sender}} para {{category}}. Pretende fazê-lo automaticamente?",
   },
   auth: {
+    continue_with_app: "Continuar com {{app}}",
+    sibling_waiting: "Confirme o início de sessão na janela que se abriu.",
+    sibling_popup_blocked: "A janela de confirmação foi bloqueada. Permita janelas pop-up para este site e tente novamente.",
+    sibling_failed: "O início de sessão com {{app}} não foi concluído. Tente novamente ou inicie sessão com a sua palavra-passe.",
+    handoff_approve_title: "Iniciar sessão em {{app}}?",
+    handoff_approve_body: "{{app}} pede para iniciar sessão como {{email}}. Continue apenas se tiver sido você a iniciar esta sessão.",
+    handoff_approve_done: "Pode fechar esta janela.",
+    handoff_approve_signed_out: "Não tem sessão iniciada aqui. Feche esta janela e inicie sessão com a sua palavra-passe.",
     passkey_verification: "Verificar com passkey",
     use_passkey_or_key:
       "Utilize o Windows Hello, o Face ID ou a sua chave de segurança",
@@ -10279,8 +10287,6 @@ export const pt = {
       "O início de sessão foi interrompido porque o servidor enviou um valor inseguro, por isso nada foi desbloqueado. Contacte o suporte antes de tentar novamente.",
     legacy_login_salt_new_device:
       "Para concluir uma atualização de segurança da sua conta, inicie sessão num dispositivo que já usou com o Aster. Se não for possível, redefina a palavra-passe com a sua chave de recuperação.",
-    legacy_login_salt_sign_in_again:
-      "Para concluir uma atualização de segurança da sua conta, termine sessão e inicie sessão novamente.",
     upload_too_large:
       "O carregamento é demasiado grande. Para continuar, remova ou reduza um ficheiro e tente novamente.",
     failed_remove_reaction:
@@ -11383,6 +11389,10 @@ export const pt = {
       "Já tem o número máximo de agendamentos futuros com este anfitrião.",
     booking_rate_limited:
       "Demasiadas tentativas. Aguarde um minuto e tente novamente.",
+    booking_page_updated:
+      "Esta página de marcação foi atualizada. Verifique os seus dados e volte a marcar.",
+    booking_sealing_unavailable:
+      "Esta página de marcação não consegue proteger os seus dados neste momento, por isso a marcação não foi enviada. Tente novamente mais tarde.",
     booking_no_slots: "Não há horas disponíveis nas próximas 2 semanas.",
     booking_time_zone: "As horas estão em {{time_zone}}.",
     booking_load_failed:

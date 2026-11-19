@@ -159,8 +159,8 @@ import { show_toast } from "@/components/toast/simple_toast";
 import { register_event_render_alias } from "@/services/calendar/event_render_key";
 import { use_calendar_now_tick } from "@/components/calendar/use_calendar_now_tick";
 import {
+  build_rsvp_reply_request,
   deliver_rsvp_reply,
-  rsvp_confirmation_key,
   type RsvpReplyOutcome,
   type RsvpReplyRequest,
 } from "@/services/calendar/rsvp_reply";
@@ -175,6 +175,7 @@ import {
 import { use_invite_senders } from "@/components/calendar/use_invite_senders";
 import { use_i18n } from "@/lib/i18n/context";
 import { use_auth } from "@/contexts/auth/use_auth_hook";
+import { use_synced_revision_floors } from "@/components/calendar/use_synced_revision_floors";
 import { use_preferences } from "@/contexts/preferences_context";
 import {
   default_reminder_list,
@@ -685,6 +686,14 @@ export function use_calendar_state() {
   ]);
 
   useEffect(() => subscribe_calendar_changes(reload), [reload]);
+
+  use_synced_revision_floors({
+    loaded: has_loaded_from_server,
+    settled: !is_loading && !load_failed,
+    stored: preferences.calendar_revision_floors,
+    change_token: events,
+    publish: (floors) => update_preference("calendar_revision_floors", floors),
+  });
 
   useEffect(() => {
     set_calendar_v3_floor(
@@ -1973,7 +1982,6 @@ export function use_calendar_state() {
 
   const [pending_rsvp_reply, set_pending_rsvp_reply] =
     useState<RsvpReplyRequest | null>(null);
-  const confirmed_rsvp_organizers_ref = useRef<Set<string>>(new Set());
 
   const show_rsvp_outcome = useCallback(
     (outcome: RsvpReplyOutcome) => {
@@ -2040,18 +2048,14 @@ export function use_calendar_state() {
           return;
         }
 
-        const request: RsvpReplyRequest = {
+        const request = build_rsvp_reply_request({
           event: updated,
           organizer_email: sanitize_calendar_email(organizer),
           identity,
           response,
-          authenticated_sender: null,
-          confirmed_organizer: confirmed_rsvp_organizers_ref.current.has(
-            rsvp_confirmation_key(updated, sanitize_calendar_email(organizer)),
-          ),
           t,
           language,
-        };
+        });
         const outcome = await deliver_rsvp_reply(request);
 
         if (outcome === "needs_confirmation") {
@@ -2084,10 +2088,6 @@ export function use_calendar_state() {
     if (!request) {
       return;
     }
-
-    confirmed_rsvp_organizers_ref.current.add(
-      rsvp_confirmation_key(request.event, request.organizer_email),
-    );
 
     try {
       const outcome = await deliver_rsvp_reply({

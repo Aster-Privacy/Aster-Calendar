@@ -164,11 +164,22 @@ async function legacy_envelope(data: object, passphrase = PASSPHRASE) {
   return (await encrypt_envelope(data, passphrase)).encrypted;
 }
 
-async function pgp_meta(plaintext: string, public_key: string) {
+async function pgp_meta(
+  plaintext: string,
+  public_key: string,
+  signing_key?: string,
+) {
   const message = await openpgp.createMessage({ text: plaintext });
+  const signing_keys = signing_key
+    ? await openpgp.decryptKey({
+        privateKey: await openpgp.readPrivateKey({ armoredKey: signing_key }),
+        passphrase: PASSPHRASE,
+      })
+    : undefined;
   const armored = await openpgp.encrypt({
     message,
     encryptionKeys: await openpgp.readKey({ armoredKey: public_key }),
+    signingKeys: signing_keys,
   });
 
   return array_to_base64(new TextEncoder().encode(armored as string));
@@ -362,15 +373,13 @@ describe("background sent mail conversion", () => {
 
     const rows = [
       {
-        id: "a_plain",
-        encrypted_meta: array_to_base64(
-          new TextEncoder().encode(meta("plain.pdf")),
-        ),
+        id: "a_pgp_own_key",
+        encrypted_meta: await pgp_meta(meta("own.pdf"), own_public, own_key),
         meta_nonce: LEGACY_META_NONCE,
       },
       {
         id: "a_pgp_old_key",
-        encrypted_meta: await pgp_meta(meta("old.pdf"), old_public),
+        encrypted_meta: await pgp_meta(meta("old.pdf"), old_public, old_key),
         meta_nonce: LEGACY_META_NONCE,
       },
       {
@@ -391,7 +400,7 @@ describe("background sent mail conversion", () => {
 
     expect(summary?.converted).toBe(3);
     expect(h.meta_writes.map((write) => write.id)).toEqual([
-      "a_plain",
+      "a_pgp_own_key",
       "a_pgp_old_key",
       "a_password",
     ]);
@@ -401,11 +410,11 @@ describe("background sent mail conversion", () => {
     );
 
     expect(opened.map((text) => JSON.parse(text).filename)).toEqual([
-      "plain.pdf",
+      "own.pdf",
       "old.pdf",
       "pw.pdf",
     ]);
-    expect(opened[0]).toBe(meta("plain.pdf"));
+    expect(opened[0]).toBe(meta("own.pdf"));
 
     for (const write of h.meta_writes) {
       const source = rows.find((row) => row.id === write.id)!;
@@ -416,6 +425,74 @@ describe("background sent mail conversion", () => {
     }
     expect(h.progress).toContainEqual({ sent_mail_done: true });
   });
+
+  it("never converts plain metadata stored with a legacy nonce", async () => {
+    h.status = status({ remaining_sent: 0, remaining_attachments: 1 });
+    h.pages = one_page([{ id: "m1", attachment_count: 1 }]);
+    h.attachments.m1 = [
+      {
+        id: "a_plain",
+        encrypted_meta: array_to_base64(
+          new TextEncoder().encode(
+            JSON.stringify({
+              filename: "invoice.pdf",
+              content_type: "application/pdf",
+              session_key: "c2Vzc2lvbg==",
+            }),
+          ),
+        ),
+        meta_nonce: LEGACY_META_NONCE,
+      },
+    ];
+
+    const summary = await run();
+
+    expect(summary?.skipped).toBe(1);
+    expect(summary?.unreadable).toBe(0);
+    expect(summary?.converted).toBe(0);
+    expect(h.meta_writes).toEqual([]);
+    expect(h.progress).toContainEqual({ sent_mail_done: true });
+    expect(read_locked_sent_mail("account-1")).toBe(0);
+  });
+
+  it("never converts PGP metadata without the owner's signature", async () => {
+    const meta = JSON.stringify({
+      filename: "invoice.pdf",
+      content_type: "application/pdf",
+      session_key: "c2Vzc2lvbg==",
+    });
+    const stranger = await generate();
+
+    h.previous_keys = [old_key];
+    h.status = status({ remaining_sent: 0, remaining_attachments: 3 });
+    h.pages = one_page([{ id: "m1", attachment_count: 3 }]);
+    h.attachments.m1 = [
+      {
+        id: "a_unsigned",
+        encrypted_meta: await pgp_meta(meta, own_public),
+        meta_nonce: LEGACY_META_NONCE,
+      },
+      {
+        id: "a_unsigned_old_key",
+        encrypted_meta: await pgp_meta(meta, old_public),
+        meta_nonce: LEGACY_META_NONCE,
+      },
+      {
+        id: "a_stranger_signed",
+        encrypted_meta: await pgp_meta(meta, own_public, stranger.private_key),
+        meta_nonce: LEGACY_META_NONCE,
+      },
+    ];
+
+    const summary = await run();
+
+    expect(summary?.skipped).toBe(3);
+    expect(summary?.unreadable).toBe(0);
+    expect(summary?.converted).toBe(0);
+    expect(h.meta_writes).toEqual([]);
+    expect(h.progress).toContainEqual({ sent_mail_done: true });
+    expect(read_locked_sent_mail("account-1")).toBe(0);
+  }, 30000);
 
   it("rejects attachment metadata that is not a metadata object", async () => {
     h.status = status({ remaining_sent: 0, remaining_attachments: 1 });

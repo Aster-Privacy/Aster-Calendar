@@ -36,9 +36,8 @@ vi.mock("@/services/send_queue", () => ({
 }));
 
 const { decide_rsvp_reply } = await import("@/services/calendar/invite_mail");
-const { deliver_rsvp_reply, rsvp_confirmation_key } = await import(
-  "@/services/calendar/rsvp_reply"
-);
+const rsvp_reply_module = await import("@/services/calendar/rsvp_reply");
+const { build_rsvp_reply_request, deliver_rsvp_reply } = rsvp_reply_module;
 const { parse_ics_events } = await import("@/services/calendar/ics_file");
 const { event_organizer_email } = await import("@/services/calendar/itip");
 
@@ -228,13 +227,43 @@ describe("deliver_rsvp_reply", () => {
     expect(subject).not.toMatch(/[\u0000-\u001f\u007f‮]/);
     expect(subject).toContain("Plan Bcc: x@y.z");
   });
+});
 
-  it("keys confirmations by series and organizer", () => {
+describe("repeat replies to an unverified organizer", () => {
+  it("asks again after an earlier reply to the same organizer was confirmed", async () => {
+    const event = make_event();
+    const first = build_rsvp_reply_request({
+      event,
+      organizer_email: "host@example.com",
+      identity: IDENTITY,
+      response: "accepted",
+      t,
+      language: "en-US",
+    });
+
+    expect(first.confirmed_organizer).toBe(false);
+    expect(await deliver_rsvp_reply(first)).toBe("needs_confirmation");
     expect(
-      rsvp_confirmation_key(
-        { id: "occ-1", recurrence_master_id: "evt-1" },
-        " Host@Example.com ",
-      ),
-    ).toBe(rsvp_confirmation_key(make_event(), "host@example.com"));
+      await deliver_rsvp_reply({ ...first, confirmed_organizer: true }),
+    ).toBe("sent");
+
+    queue_email.mockClear();
+
+    const second = build_rsvp_reply_request({
+      event,
+      organizer_email: " Host@Example.com ",
+      identity: IDENTITY,
+      response: "declined",
+      t,
+      language: "en-US",
+    });
+
+    expect(second).toMatchObject({
+      authenticated_sender: null,
+      confirmed_organizer: false,
+    });
+    expect(await deliver_rsvp_reply(second)).toBe("needs_confirmation");
+    expect(queue_email).not.toHaveBeenCalled();
+    expect(rsvp_reply_module).not.toHaveProperty("rsvp_confirmation_key");
   });
 });

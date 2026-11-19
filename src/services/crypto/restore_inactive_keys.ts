@@ -38,7 +38,11 @@ import {
   type LegacyDerivedKek,
   type RatchetKeySet,
 } from "./key_manager_core";
-import { append_keks_to_list, serialize_kek_for_vault } from "./legacy_keks";
+import {
+  append_keks_to_list,
+  is_public_constant_kek,
+  serialize_kek_for_vault,
+} from "./legacy_keks";
 import { base64_to_array } from "./base64";
 import { zero_uint8_array } from "./secure_memory";
 import {
@@ -95,11 +99,10 @@ export function harvest_vault_storage_keys(
   old_vault: EncryptedVault,
 ): Uint8Array[] {
   const harvested: Uint8Array[] = [];
-  const encoded_keys = old_vault.data_kek ? [old_vault.data_kek] : [];
-
-  for (const entry of old_vault.legacy_keks ?? []) {
-    encoded_keys.push(entry.k);
-  }
+  const encoded_keys = [
+    ...(old_vault.data_kek ? [old_vault.data_kek] : []),
+    ...(old_vault.legacy_keks ?? []).map((entry) => entry.k),
+  ].filter((encoded) => !is_public_constant_kek(encoded));
 
   for (const encoded of encoded_keys) {
     try {

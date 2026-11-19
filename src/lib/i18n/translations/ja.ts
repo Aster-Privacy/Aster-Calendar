@@ -9357,6 +9357,14 @@ export const ja = {
       "{{sender}} からのメールを {{category}} によく移動しています。今後は自動的に振り分けますか。",
   },
   auth: {
+    continue_with_app: "{{app}} で続行",
+    sibling_waiting: "開いたウィンドウでサインインを確認してください。",
+    sibling_popup_blocked: "確認ウィンドウがブロックされました。このサイトのポップアップを許可してから、もう一度お試しください。",
+    sibling_failed: "{{app}} でのサインインが完了しませんでした。もう一度試すか、パスワードでサインインしてください。",
+    handoff_approve_title: "{{app}} にサインインしますか?",
+    handoff_approve_body: "{{app}} が {{email}} としてのサインインを求めています。このサインインをご自身で開始した場合のみ続行してください。",
+    handoff_approve_done: "このウィンドウは閉じてかまいません。",
+    handoff_approve_signed_out: "ここではサインインしていません。このウィンドウを閉じて、パスワードでサインインしてください。",
     passkey_verification: "パスキーで認証",
     use_passkey_or_key:
       "Windows Hello、Face ID、またはセキュリティキーを使用します",
@@ -9957,8 +9965,6 @@ export const ja = {
       "サーバーが安全でない値を送信したため、サインインを中止しました。何もロック解除されていません。再試行する前にサポートに問い合わせてください。",
     legacy_login_salt_new_device:
       "アカウントのセキュリティ更新を完了するには、以前 Aster を使用したデバイスでサインインしてください。それができない場合は、リカバリーキーでパスワードをリセットしてください。",
-    legacy_login_salt_sign_in_again:
-      "アカウントのセキュリティ更新を完了するには、サインアウトしてからもう一度サインインしてください。",
     upload_too_large:
       "アップロードするデータが大きすぎます。続けるには、ファイルを削除するか小さくしてからやり直してください。",
     failed_remove_reaction:
@@ -11024,6 +11030,10 @@ export const ja = {
       "このホストとの今後の予約はすでに上限に達しています。",
     booking_rate_limited:
       "試行回数が多すぎます。1 分待ってからもう一度お試しください。",
+    booking_page_updated:
+      "この予約ページは更新されました。詳細を確認してから、もう一度予約してください。",
+    booking_sealing_unavailable:
+      "この予約ページは現在あなたの情報を保護できないため、予約は送信されませんでした。しばらくしてからもう一度お試しください。",
     booking_no_slots: "今後 2 週間に空いている時間はありません。",
     booking_time_zone: "時刻は {{time_zone}} で表示されています。",
     booking_load_failed:

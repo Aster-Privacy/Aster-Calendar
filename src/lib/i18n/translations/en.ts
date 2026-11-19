@@ -9316,6 +9316,14 @@ export const en: Translations = {
       "You keep moving mail from {{sender}} to {{category}}. Do it automatically?",
   },
   auth: {
+    continue_with_app: "Continue with {{app}}",
+    sibling_waiting: "Confirm the sign-in in the window that opened.",
+    sibling_popup_blocked: "The confirmation window was blocked. Allow pop-ups for this site, then try again.",
+    sibling_failed: "Sign-in with {{app}} didn't complete. Try again, or sign in with your password.",
+    handoff_approve_title: "Sign in to {{app}}?",
+    handoff_approve_body: "{{app}} is asking to sign in as {{email}}. Continue only if you started this sign-in.",
+    handoff_approve_done: "You can close this window.",
+    handoff_approve_signed_out: "You aren't signed in here. Close this window and sign in with your password.",
     captcha_load_failed:
       "The security check could not load. Check your connection or any content blocker, then try again.",
     sign_in: "Sign In",
@@ -9911,8 +9919,6 @@ export const en: Translations = {
       "Sign-in stopped because the server sent an unsafe value, so nothing was unlocked. Contact support before you try again.",
     legacy_login_salt_new_device:
       "To finish a security update to your account, sign in on a device you've used with Aster before. If you can't, reset your password with your recovery key.",
-    legacy_login_salt_sign_in_again:
-      "To finish a security update to your account, sign out and sign in again.",
     upload_too_large:
       "The upload is too large. To continue, remove or shrink a file and try again.",
     generic: "That did not work. Try again.",
@@ -10984,6 +10990,10 @@ export const en: Translations = {
     booking_limit_reached:
       "You already have the maximum number of upcoming bookings with this host.",
     booking_rate_limited: "Too many attempts. Wait a minute, then try again.",
+    booking_page_updated:
+      "This booking page was updated. Review your details, then book again.",
+    booking_sealing_unavailable:
+      "This booking page can't protect your details right now, so your booking wasn't sent. Try again later.",
     booking_no_slots: "No times are available in the next 2 weeks.",
     booking_time_zone: "Times are in {{time_zone}}.",
     booking_load_failed:

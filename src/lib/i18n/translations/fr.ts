@@ -9678,6 +9678,14 @@ export const fr = {
       "Vous déplacez souvent les messages de {{sender}} vers {{category}}. Voulez-vous le faire automatiquement ?",
   },
   auth: {
+    continue_with_app: "Continuer avec {{app}}",
+    sibling_waiting: "Confirmez la connexion dans la fenêtre qui s'est ouverte.",
+    sibling_popup_blocked: "La fenêtre de confirmation a été bloquée. Autorisez les fenêtres pop-up pour ce site, puis réessayez.",
+    sibling_failed: "La connexion avec {{app}} n'a pas abouti. Réessayez ou connectez-vous avec votre mot de passe.",
+    handoff_approve_title: "Se connecter à {{app}} ?",
+    handoff_approve_body: "{{app}} demande à se connecter en tant que {{email}}. Continuez uniquement si vous avez lancé cette connexion.",
+    handoff_approve_done: "Vous pouvez fermer cette fenêtre.",
+    handoff_approve_signed_out: "Vous n'êtes pas connecté ici. Fermez cette fenêtre et connectez-vous avec votre mot de passe.",
     passkey_verification: "Vérifier avec une clé d'accès",
     use_passkey_or_key:
       "Utilisez Windows Hello, Face ID ou votre clé de sécurité",
@@ -10303,8 +10311,6 @@ export const fr = {
       "La connexion a été interrompue parce que le serveur a envoyé une valeur non sécurisée. Rien n'a été déverrouillé. Contactez l'assistance avant de réessayer.",
     legacy_login_salt_new_device:
       "Pour terminer une mise à jour de sécurité de votre compte, connectez-vous sur un appareil que vous avez déjà utilisé avec Aster. Si ce n'est pas possible, réinitialisez votre mot de passe avec votre clé de récupération.",
-    legacy_login_salt_sign_in_again:
-      "Pour terminer une mise à jour de sécurité de votre compte, déconnectez-vous puis reconnectez-vous.",
     upload_too_large:
       "L'envoi est trop volumineux. Pour continuer, retirez ou réduisez un fichier, puis réessayez.",
     failed_remove_reaction:
@@ -11416,6 +11422,10 @@ export const fr = {
       "Vous avez déjà atteint le nombre maximal de réservations à venir avec cet hôte.",
     booking_rate_limited:
       "Trop de tentatives. Patientez une minute, puis réessayez.",
+    booking_page_updated:
+      "Cette page de réservation a été mise à jour. Vérifiez vos informations, puis réservez à nouveau.",
+    booking_sealing_unavailable:
+      "Cette page de réservation ne peut pas protéger vos informations pour le moment. Votre réservation n'a donc pas été envoyée. Réessayez plus tard.",
     booking_no_slots:
       "Aucun créneau n'est disponible dans les 2 prochaines semaines.",
     booking_time_zone: "Les horaires sont indiqués en {{time_zone}}.",

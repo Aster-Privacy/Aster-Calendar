@@ -35,7 +35,10 @@ import {
   base64_to_array,
   decrypt_envelope_plaintext_with_bytes,
 } from "./crypto/envelope";
-import { decrypt_message_with_any_key } from "./crypto/key_manager";
+import {
+  decrypt_message_verified_with_any_key,
+  derive_public_keys_from_private,
+} from "./crypto/key_manager_pgp_messages";
 import { load_openpgp } from "./crypto/openpgp_loader";
 import {
   get_passphrase_bytes,
@@ -268,11 +271,13 @@ export async function convert_envelope_item(
   );
 }
 
+type OpenedAttachmentMeta = { plaintext: string } | "unsigned" | null;
+
 async function open_attachment_meta(
   encrypted_meta: string,
   stored: Uint8Array,
   keys: ConversionKeys,
-): Promise<string | null> {
+): Promise<OpenedAttachmentMeta> {
   let text = "";
 
   try {
@@ -284,20 +289,35 @@ async function open_attachment_meta(
   if (text.startsWith(PGP_MESSAGE_HEADER)) {
     await load_openpgp();
 
+    const own_keys = [keys.identity_key, ...keys.previous_keys];
+
     try {
-      return await decrypt_message_with_any_key(
+      const own_public_keys = await derive_public_keys_from_private(own_keys);
+
+      if (own_public_keys.length === 0) return null;
+
+      const opened = await decrypt_message_verified_with_any_key(
         text,
-        [keys.identity_key, ...keys.previous_keys],
+        own_keys,
         keys.passphrase,
+        own_public_keys,
       );
+
+      if (opened.verification === "verified") {
+        return { plaintext: opened.plaintext };
+      }
+
+      return is_attachment_meta_text(opened.plaintext) ? "unsigned" : null;
     } catch {
       return null;
     }
   }
 
-  if (text && is_attachment_meta_text(text)) return text;
+  if (text && is_attachment_meta_text(text)) return "unsigned";
 
-  return open_legacy_envelope(encrypted_meta, keys);
+  const plaintext = await open_legacy_envelope(encrypted_meta, keys);
+
+  return plaintext === null ? null : { plaintext };
 }
 
 export async function convert_attachment_row(
@@ -315,17 +335,19 @@ export async function convert_attachment_row(
 
   if (!stored || stored.length === 0) return "unreadable";
 
-  const plaintext = await open_attachment_meta(
+  const opened = await open_attachment_meta(
     attachment.encrypted_meta,
     stored,
     keys,
   );
 
-  if (plaintext === null || !is_attachment_meta_text(plaintext)) {
+  if (opened === "unsigned") return "skipped";
+
+  if (opened === null || !is_attachment_meta_text(opened.plaintext)) {
     return "unreadable";
   }
 
-  return seal_and_write(plaintext, stored, keys, (sealed, expected) =>
+  return seal_and_write(opened.plaintext, stored, keys, (sealed, expected) =>
     convert_attachment_meta(attachment.id, sealed, expected),
   );
 }

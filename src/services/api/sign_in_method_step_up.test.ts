@@ -83,13 +83,13 @@ afterEach(() => {
 });
 
 describe("to_reauth_proof", () => {
-  it("keeps only the password hash when there is no code", () => {
+  it("keeps the password hash and the key assertion when there is no code", () => {
     expect(
       to_reauth_proof({
         password_hash: "PWHASH",
         hardware_key_assertion: { id: "x" } as never,
       }),
-    ).toEqual({ password_hash: "PWHASH" });
+    ).toEqual({ password_hash: "PWHASH", hardware_key_assertion: { id: "x" } });
   });
 
   it("includes the two-factor code when one is given", () => {

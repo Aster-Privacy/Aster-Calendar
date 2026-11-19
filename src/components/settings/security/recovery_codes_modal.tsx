@@ -50,7 +50,8 @@ import {
   generate_recovery_codes,
   RECOVERY_CODE_SET_SIZE,
 } from "@/services/crypto/key_manager_pgp";
-import { encrypt_vault } from "@/services/crypto/key_manager_pgp_vault";
+import { prepare_vault_write } from "@/services/crypto/key_manager_pgp_vault";
+import { vault_write_iterations } from "@/services/crypto/vault_level2";
 import {
   is_vault_conflict,
   MAX_VAULT_CONFLICT_RETRIES,
@@ -84,6 +85,8 @@ import {
   derive_current_account_proof,
   read_kdf_version,
 } from "@/services/crypto/login_proof";
+import { step_up_key_assertion_if_enrolled } from "@/services/api/webauthn";
+import { user_facing_error } from "@/utils/user_facing_error";
 
 interface SaltResponse {
   salt: string;
@@ -186,9 +189,22 @@ export function RecoveryCodesModal({
       salt,
       read_kdf_version(salt_response.data.kdf_version),
     );
+    let hardware_key_assertion;
+
+    try {
+      hardware_key_assertion = await step_up_key_assertion_if_enrolled(
+        salt_response.data.totp_required,
+      );
+    } catch (caught) {
+      set_error(user_facing_error(caught, t("common.step_up_error")));
+
+      return null;
+    }
+
     const step_up = await verify_codes_step_up(
       hash,
       totp_required && totp_code.trim() ? totp_code.trim() : undefined,
+      hardware_key_assertion,
     );
 
     if (step_up.error || !step_up.data?.step_up_token) {
@@ -256,25 +272,31 @@ export function RecoveryCodesModal({
         new_codes,
         recovery_key,
       );
-      const { encrypted_vault, vault_nonce } = await encrypt_vault(
+      const vault_write = await prepare_vault_write(
         updated_vault,
         passphrase,
+        vault_write_iterations(latest.encrypted_vault),
       );
-
-      const save_response = await save_recovery_backup(
-        new_backup.encrypted_data,
-        new_backup.nonce,
-        new_backup.salt,
-        new_shares,
-        {
-          step_up_token,
-          encrypted_vault,
-          vault_nonce,
-          vault_format: updated_vault.vault_format,
-          ...(latest.vault_sha256
-            ? { expected_vault_sha256: latest.vault_sha256 }
-            : {}),
-        },
+      const {
+        response: save_response,
+        sealed: { encrypted_vault, vault_nonce },
+      } = await vault_write.write((sealed, kdf_field) =>
+        save_recovery_backup(
+          new_backup.encrypted_data,
+          new_backup.nonce,
+          new_backup.salt,
+          new_shares,
+          {
+            step_up_token,
+            encrypted_vault: sealed.encrypted_vault,
+            vault_nonce: sealed.vault_nonce,
+            vault_format: updated_vault.vault_format,
+            ...(latest.vault_sha256
+              ? { expected_vault_sha256: latest.vault_sha256 }
+              : {}),
+            ...kdf_field,
+          },
+        ),
       );
 
       if (is_vault_conflict(save_response)) continue;

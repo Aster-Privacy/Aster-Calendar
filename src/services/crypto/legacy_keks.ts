@@ -20,6 +20,8 @@
 //
 import type { LegacyDerivedKek } from "./key_manager_core";
 
+import { sha256 } from "@noble/hashes/sha256";
+
 import { array_to_base64, base64_to_array } from "./base64";
 import { zero_uint8_array } from "./secure_memory";
 import { notify_account_keys_added } from "./account_key_events";
@@ -36,6 +38,8 @@ import { ignore_error } from "@/lib/ignore_error";
 const DERIVED_KEY_LENGTH = 32;
 const DERIVED_KEY_INFO = "aster-storage-encryption-key-v1";
 const SALT_DERIVATION_PREFIX = "aster-hkdf-salt-v1:";
+const UNSET_IDENTITY_MATERIAL = "undefined";
+const PUBLIC_MAIL_CONTEXTS = ["astermail-envelope-v1", "astermail-import-v1"];
 
 export const MAX_LEGACY_KEKS = 64;
 
@@ -125,15 +129,11 @@ export function prepend_kek_to_list(
   existing: LegacyDerivedKek[] | undefined,
   new_entry: LegacyDerivedKek,
 ): LegacyDerivedKek[] {
-  const list = existing ? [...existing] : [];
+  const list = without_public_constant_keks(existing).filter(
+    (entry) => entry.k !== new_entry.k,
+  );
 
-  const duplicate = list.findIndex((entry) => entry.k === new_entry.k);
-
-  if (duplicate >= 0) {
-    list.splice(duplicate, 1);
-  }
-
-  list.unshift(new_entry);
+  if (!is_public_constant_kek(new_entry.k)) list.unshift(new_entry);
 
   return list.slice(0, MAX_LEGACY_KEKS);
 }
@@ -142,12 +142,12 @@ export function append_keks_to_list(
   existing: LegacyDerivedKek[] | undefined,
   new_entries: LegacyDerivedKek[],
 ): { list: LegacyDerivedKek[]; dropped: number } {
-  const list = existing ? [...existing] : [];
+  const list = without_public_constant_keks(existing);
   const held = new Set(list.map((entry) => entry.k));
   let dropped = 0;
 
   for (const entry of new_entries) {
-    if (held.has(entry.k)) continue;
+    if (held.has(entry.k) || is_public_constant_kek(entry.k)) continue;
 
     if (list.length >= MAX_LEGACY_KEKS) {
       dropped += 1;
@@ -191,7 +191,74 @@ async function import_raw_as_base_key(raw: Uint8Array): Promise<CryptoKey> {
   return crypto.subtle.importKey("raw", raw, "HKDF", false, ["deriveBits"]);
 }
 
+let public_constant_raws: Uint8Array[] | null = null;
+let public_constant_ids: Set<string> | null = null;
+
+function load_public_constant_raws(): Uint8Array[] {
+  if (!public_constant_raws) {
+    const contexts = new Set<string>([
+      ...PUBLIC_MAIL_CONTEXTS,
+      ...ACCOUNT_DATA_CONTEXTS,
+      ...PREVIOUS_KEY_CONTEXTS,
+    ]);
+    const encoder = new TextEncoder();
+
+    public_constant_raws = [...contexts].map((context) =>
+      sha256(encoder.encode(UNSET_IDENTITY_MATERIAL + context)),
+    );
+  }
+
+  return public_constant_raws;
+}
+
+function load_public_constant_ids(): Set<string> {
+  if (!public_constant_ids) {
+    public_constant_ids = new Set(
+      load_public_constant_raws().map((raw) => array_to_base64(raw)),
+    );
+  }
+
+  return public_constant_ids;
+}
+
+export async function sealed_under_public_constant(
+  ciphertext: Uint8Array,
+  nonce: Uint8Array,
+): Promise<boolean> {
+  for (const raw of load_public_constant_raws()) {
+    try {
+      await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: nonce },
+        await import_raw_as_aes_key(raw),
+        ciphertext,
+      );
+
+      return true;
+    } catch {
+      continue;
+    }
+  }
+
+  return false;
+}
+
+export function is_public_constant_kek(encoded: string): boolean {
+  return load_public_constant_ids().has(encoded);
+}
+
+function is_public_constant_key(raw: Uint8Array): boolean {
+  return is_public_constant_kek(array_to_base64(raw));
+}
+
+export function without_public_constant_keks(
+  list: LegacyDerivedKek[] | undefined,
+): LegacyDerivedKek[] {
+  return (list ?? []).filter((entry) => !is_public_constant_kek(entry.k));
+}
+
 async function remember_legacy_raw(raw: Uint8Array): Promise<void> {
+  if (is_public_constant_key(raw)) return;
+
   legacy_crypto_keys.push(await import_raw_as_aes_key(raw));
 
   try {
@@ -222,6 +289,25 @@ export async function load_legacy_keks_into_memory(
   }
 }
 
+const PLACEHOLDER_PREVIOUS_KEYS = new Set([
+  "undefined",
+  "null",
+  "nan",
+  "[object object]",
+]);
+
+function is_usable_previous_key(
+  previous_key: unknown,
+): previous_key is string {
+  if (typeof previous_key !== "string") return false;
+
+  const trimmed = previous_key.trim();
+
+  return (
+    trimmed.length > 0 && !PLACEHOLDER_PREVIOUS_KEYS.has(trimmed.toLowerCase())
+  );
+}
+
 export async function load_previous_key_derived_keks_into_memory(
   previous_keys: string[] | undefined,
 ): Promise<void> {
@@ -230,6 +316,8 @@ export async function load_previous_key_derived_keks_into_memory(
   }
 
   for (const previous_key of previous_keys) {
+    if (!is_usable_previous_key(previous_key)) continue;
+
     for (const context of PREVIOUS_KEY_CONTEXTS) {
       try {
         const material = new TextEncoder().encode(previous_key + context);
@@ -384,13 +472,16 @@ export async function decrypt_with_legacy_derived_keys(
   derive: (base: CryptoKey) => Promise<CryptoKey>,
   ciphertext: BufferSource,
   iv: BufferSource,
+  additional_data?: BufferSource,
 ): Promise<ArrayBuffer | null> {
   for (const base of [...legacy_hkdf_keys, ...account_hkdf_keys]) {
     try {
       const key = await derive(base);
 
       return await crypto.subtle.decrypt(
-        { name: "AES-GCM", iv },
+        additional_data
+          ? { name: "AES-GCM", iv, additionalData: additional_data }
+          : { name: "AES-GCM", iv },
         key,
         ciphertext,
       );

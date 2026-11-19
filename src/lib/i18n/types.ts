@@ -478,6 +478,8 @@ export interface CalendarTranslations {
   booking_slot_taken: string;
   booking_limit_reached: string;
   booking_rate_limited: string;
+  booking_page_updated: string;
+  booking_sealing_unavailable: string;
   booking_no_slots: string;
   booking_time_zone: string;
   booking_load_failed: string;
@@ -9362,6 +9364,14 @@ export interface MailTranslations {
 }
 
 export interface AuthTranslations {
+  continue_with_app: string;
+  sibling_waiting: string;
+  sibling_popup_blocked: string;
+  sibling_failed: string;
+  handoff_approve_title: string;
+  handoff_approve_body: string;
+  handoff_approve_done: string;
+  handoff_approve_signed_out: string;
   captcha_load_failed: string;
   sign_in: string;
   sign_out: string;
@@ -9791,7 +9801,6 @@ export interface ErrorTranslations {
   crypto_module_unavailable: string;
   auth_salt_collision: string;
   legacy_login_salt_new_device: string;
-  legacy_login_salt_sign_in_again: string;
   upload_too_large: string;
   post_quantum_unavailable: string;
   generic: string;

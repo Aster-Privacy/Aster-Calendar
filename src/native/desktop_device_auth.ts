@@ -370,7 +370,7 @@ export async function complete_device_pairing(
 
   try {
     await invoke("device_set_id", { deviceId: device_id });
-    await invoke<string>("device_unseal_vault_envelope", {
+    await invoke<void>("device_unseal_vault_envelope", {
       envelopeB64: sealed_envelope,
       deviceId: device_id,
     });

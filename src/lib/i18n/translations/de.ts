@@ -9669,6 +9669,14 @@ export const de = {
       "Sie verschieben E-Mails von {{sender}} immer wieder nach {{category}}. Soll das automatisch passieren?",
   },
   auth: {
+    continue_with_app: "Mit {{app}} fortfahren",
+    sibling_waiting: "Bestätigen Sie die Anmeldung im geöffneten Fenster.",
+    sibling_popup_blocked: "Das Bestätigungsfenster wurde blockiert. Erlauben Sie Pop-ups für diese Website und versuchen Sie es erneut.",
+    sibling_failed: "Die Anmeldung mit {{app}} wurde nicht abgeschlossen. Versuchen Sie es erneut oder melden Sie sich mit Ihrem Passwort an.",
+    handoff_approve_title: "Bei {{app}} anmelden?",
+    handoff_approve_body: "{{app}} möchte Sie als {{email}} anmelden. Fahren Sie nur fort, wenn Sie diese Anmeldung selbst gestartet haben.",
+    handoff_approve_done: "Sie können dieses Fenster schließen.",
+    handoff_approve_signed_out: "Sie sind hier nicht angemeldet. Schließen Sie dieses Fenster und melden Sie sich mit Ihrem Passwort an.",
     passkey_verification: "Mit Passkey verifizieren",
     use_passkey_or_key:
       "Verwenden Sie Windows Hello, Face ID oder Ihren Sicherheitsschlüssel",
@@ -10298,8 +10306,6 @@ export const de = {
       "Die Anmeldung wurde abgebrochen, weil der Server einen unsicheren Wert gesendet hat. Es wurde nichts entsperrt. Kontaktieren Sie den Support, bevor Sie es erneut versuchen.",
     legacy_login_salt_new_device:
       "Um ein Sicherheitsupdate für Ihr Konto abzuschließen, melden Sie sich auf einem Gerät an, das Sie bereits mit Aster verwendet haben. Falls das nicht möglich ist, setzen Sie Ihr Passwort mit Ihrem Wiederherstellungsschlüssel zurück.",
-    legacy_login_salt_sign_in_again:
-      "Um ein Sicherheitsupdate für Ihr Konto abzuschließen, melden Sie sich ab und erneut an.",
     upload_too_large:
       "Der Upload ist zu groß. Entfernen oder verkleinern Sie eine Datei, um fortzufahren.",
     failed_remove_reaction:
@@ -11427,6 +11433,10 @@ export const de = {
       "Du hast bereits die maximale Anzahl anstehender Buchungen bei diesem Gastgeber.",
     booking_rate_limited:
       "Zu viele Versuche. Warte eine Minute und versuche es dann erneut.",
+    booking_page_updated:
+      "Diese Buchungsseite wurde aktualisiert. Prüfe deine Angaben und buche dann erneut.",
+    booking_sealing_unavailable:
+      "Diese Buchungsseite kann deine Angaben gerade nicht schützen, daher wurde deine Buchung nicht gesendet. Versuche es später erneut.",
     booking_no_slots: "In den nächsten 2 Wochen sind keine Zeiten verfügbar.",
     booking_time_zone: "Zeiten in {{time_zone}}.",
     booking_load_failed:

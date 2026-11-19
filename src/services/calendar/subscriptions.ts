@@ -20,8 +20,8 @@
 //
 import type { DecryptedCalendarEvent } from "@/types/calendar";
 
-import { api_client } from "@/services/api/client";
 import { parse_ics_events } from "@/services/calendar/ics_file";
+import { fetch_subscription_feed } from "@/services/calendar/subscription_feed";
 
 export const SUBSCRIPTION_EVENT_PREFIX = "subscription-";
 export const SUBSCRIPTION_CALENDAR_PREFIX = "__subscription_";
@@ -160,18 +160,15 @@ export function is_subscription_event(event: { id: string }): boolean {
 export async function fetch_subscription_events(
   subscription: IcsSubscription,
 ): Promise<DecryptedCalendarEvent[]> {
-  const response = await api_client.post<{ ics: string }>(
-    "/calendar/v1/subscriptions/fetch",
-    { url: subscription.url },
-  );
+  const ics = await fetch_subscription_feed(subscription.url);
 
-  if (!response.data) {
+  if (ics === null) {
     return [];
   }
 
   const used_ids = new Set<string>();
   let recurring_kept = 0;
-  const entries = parse_ics_events(response.data.ics)
+  const entries = parse_ics_events(ics)
     .map((entry, index) => ({ entry, index }))
     .filter(({ entry }) => {
       if (!entry.recurrence) {
@@ -220,16 +217,13 @@ export async function fetch_subscription_events(
 
 export async function check_subscription(url: string): Promise<number | null> {
   try {
-    const response = await api_client.post<{ ics: string }>(
-      "/calendar/v1/subscriptions/fetch",
-      { url },
-    );
+    const ics = await fetch_subscription_feed(url);
 
-    if (!response.data) {
+    if (ics === null) {
       return null;
     }
 
-    return parse_ics_events(response.data.ics).length;
+    return parse_ics_events(ics).length;
   } catch {
     return null;
   }

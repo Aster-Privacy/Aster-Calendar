@@ -85,6 +85,7 @@ import { login_safety_error_key } from "@/services/crypto/auth_salt_guard";
 import { api_client } from "@/services/api/client";
 import { same_address_ignoring_dots } from "@/utils/address_dots";
 import { DatedCalendarLogo } from "@/components/calendar/dated_calendar_logo";
+import { SiblingSessionButton } from "@/pages/sign_in/sibling_session_button";
 import {
   clear_pending_login_enrollment,
   derive_sign_in_proof,
@@ -1153,6 +1154,7 @@ export default function SignInPage() {
               {t("auth.create_account")}
             </Button>
 
+            {!is_adding_account && <SiblingSessionButton />}
             {!is_adding_account && <SignInAppsRow />}
           </motion.div>
         </AnimatePresence>

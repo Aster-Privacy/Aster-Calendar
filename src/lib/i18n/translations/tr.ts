@@ -9451,6 +9451,14 @@ export const tr = {
       "{{sender}} kişisinden gelen iletileri sık sık {{category}} kategorisine taşıyorsunuz. Bu otomatik yapılsın mı?",
   },
   auth: {
+    continue_with_app: "{{app}} ile devam et",
+    sibling_waiting: "Açılan pencerede oturum açmayı onaylayın.",
+    sibling_popup_blocked: "Onay penceresi engellendi. Bu site için açılır pencerelere izin verin ve tekrar deneyin.",
+    sibling_failed: "{{app}} ile oturum açma tamamlanmadı. Tekrar deneyin veya parolanızla oturum açın.",
+    handoff_approve_title: "{{app}} uygulamasında oturum açılsın mı?",
+    handoff_approve_body: "{{app}}, {{email}} olarak oturum açmak istiyor. Yalnızca bu oturum açmayı siz başlattıysanız devam edin.",
+    handoff_approve_done: "Bu pencereyi kapatabilirsiniz.",
+    handoff_approve_signed_out: "Burada oturum açmadınız. Bu pencereyi kapatın ve parolanızla oturum açın.",
     passkey_verification: "Passkey ile Doğrula",
     use_passkey_or_key:
       "Windows Hello, Face ID veya güvenlik anahtarınızı kullanın",
@@ -10053,8 +10061,6 @@ export const tr = {
       "Sunucu güvenli olmayan bir değer gönderdiği için oturum açma durduruldu ve hiçbir şeyin kilidi açılmadı. Yeniden denemeden önce destek ile iletişime geç.",
     legacy_login_salt_new_device:
       "Hesabınızın güvenlik güncellemesini tamamlamak için daha önce Aster ile kullandığınız bir cihazda oturum açın. Bunu yapamıyorsanız parolanızı kurtarma anahtarınızla sıfırlayın.",
-    legacy_login_salt_sign_in_again:
-      "Hesabınızın güvenlik güncellemesini tamamlamak için oturumu kapatıp yeniden açın.",
     upload_too_large:
       "Yükleme çok büyük. Devam etmek için bir dosyayı kaldırın veya küçültün, sonra yeniden deneyin.",
     failed_remove_reaction: "Tepki kaldırılamadı. Lütfen tekrar deneyin.",
@@ -11130,6 +11136,10 @@ export const tr = {
       "Bu ev sahibiyle zaten en fazla sayıda yaklaşan rezervasyonunuz var.",
     booking_rate_limited:
       "Çok fazla deneme yapıldı. Bir dakika bekleyip tekrar deneyin.",
+    booking_page_updated:
+      "Bu rezervasyon sayfası güncellendi. Bilgilerinizi kontrol edip yeniden rezervasyon yapın.",
+    booking_sealing_unavailable:
+      "Bu rezervasyon sayfası şu anda bilgilerinizi koruyamıyor, bu yüzden rezervasyonunuz gönderilmedi. Daha sonra tekrar deneyin.",
     booking_no_slots: "Önümüzdeki 2 hafta içinde uygun saat yok.",
     booking_time_zone: "Saatler {{time_zone}} saat dilimindedir.",
     booking_load_failed:

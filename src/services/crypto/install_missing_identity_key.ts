@@ -23,15 +23,7 @@ import type {
   PgpKeyData,
 } from "@/services/crypto/key_manager_core";
 
-import { ACCOUNT_DATA_CONTEXTS } from "@/services/crypto/account_data_key";
-import {
-  prepend_kek_to_list,
-  serialize_kek_for_vault,
-} from "@/services/crypto/legacy_keks";
-import { zero_uint8_array } from "@/services/crypto/secure_memory";
-import { HASH_ALG } from "@/services/crypto/constants";
-
-const MISSING_IDENTITY_KEY_MATERIAL = "undefined";
+import { without_public_constant_keks } from "@/services/crypto/legacy_keks";
 
 export interface IdentityKeyInstall {
   new_vault: EncryptedVault;
@@ -42,19 +34,6 @@ export function vault_lacks_identity_key(
   vault: EncryptedVault | null | undefined,
 ): boolean {
   return !!vault && !vault.identity_key;
-}
-
-export async function derive_missing_identity_keks(): Promise<Uint8Array[]> {
-  const encoder = new TextEncoder();
-  const keks: Uint8Array[] = [];
-
-  for (const context of ACCOUNT_DATA_CONTEXTS) {
-    const material = encoder.encode(MISSING_IDENTITY_KEY_MATERIAL + context);
-
-    keks.push(new Uint8Array(await crypto.subtle.digest(HASH_ALG, material)));
-  }
-
-  return keks;
 }
 
 export async function build_identity_key_install(
@@ -71,20 +50,10 @@ export async function build_identity_key_install(
     passphrase,
   );
 
-  let legacy_keks = current_vault.legacy_keks;
-
-  for (const raw of await derive_missing_identity_keks()) {
-    legacy_keks = prepend_kek_to_list(
-      legacy_keks,
-      serialize_kek_for_vault(raw),
-    );
-    zero_uint8_array(raw);
-  }
-
   const new_vault: EncryptedVault = {
     ...current_vault,
     identity_key: keypair.secret_key,
-    legacy_keks,
+    legacy_keks: without_public_constant_keks(current_vault.legacy_keks),
   };
 
   const pgp_key_data = await prepare_pgp_key_data(keypair, passphrase);

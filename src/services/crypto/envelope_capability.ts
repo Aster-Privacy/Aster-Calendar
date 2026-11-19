@@ -19,6 +19,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 import { api_client } from "../api/client";
+import {
+  RATCHET_SYNC_VERSION_BOUND,
+  RECOVERY_BACKUP_VERSION_BOUND,
+} from "../api/sync_format_readiness";
 
 import { array_to_base64, base64_to_array } from "./base64";
 import { get_vault_from_memory } from "./memory_key_store";
@@ -30,6 +34,7 @@ import {
 export const ENVELOPE_CAPABILITY_MAX_MARKER = 4;
 export const ENVELOPE_CAPABILITY_X3DH_MAX_VERSION = 3;
 export const ENVELOPE_CAPABILITY_X3DH_ONE_TIME_VERSION = 4;
+export const ENVELOPE_CAPABILITY_ADDRESS_IDENTITY_VERSION = 1;
 export const ENVELOPE_CAPABILITY_BOUND_VERSION = 1;
 export const ENVELOPE_CAPABILITY_REPORT_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 const ML_KEM_768_PUBLIC_KEY_LENGTH = 1184;
@@ -57,6 +62,7 @@ export interface EnvelopeCapabilityDeps {
     identity_fingerprint: string | null,
     pq_identity_fingerprint: string | null,
     x3dh_max_version: number,
+    address_identity_version: number,
     bound_envelope_version: number,
   ) => Promise<EnvelopeCapabilityResult | null>;
   platform: () => string;
@@ -108,6 +114,7 @@ async function post_capability(
   identity_fingerprint: string | null,
   pq_identity_fingerprint: string | null,
   x3dh_max_version: number,
+  address_identity_version: number,
   bound_envelope_version: number,
 ): Promise<EnvelopeCapabilityResult | null> {
   const response = await api_client.post<EnvelopeCapabilityResult>(
@@ -119,7 +126,10 @@ async function post_capability(
       identity_fingerprint,
       pq_identity_fingerprint,
       x3dh_max_version,
+      address_identity_version,
       bound_envelope_version,
+      ratchet_sync_version: RATCHET_SYNC_VERSION_BOUND,
+      recovery_backup_version: RECOVERY_BACKUP_VERSION_BOUND,
     },
   );
 
@@ -230,11 +240,15 @@ export async function report_envelope_capability_if_due(
     (await deps.identity_fingerprint().catch(() => null)) ?? "";
   const pq_fingerprint =
     (await deps.pq_identity_fingerprint().catch(() => null)) ?? "";
+  const address_identity_marker = String(
+    ENVELOPE_CAPABILITY_ADDRESS_IDENTITY_VERSION,
+  );
   const bound_marker = String(ENVELOPE_CAPABILITY_BOUND_VERSION);
   const [
     last_at,
     last_fingerprint = "",
     last_pq_fingerprint = "",
+    last_address_identity = "",
     last_bound = "",
   ] = (deps.read(LAST_REPORTED_PREFIX + user_id) ?? "").split("|");
   const last = Number(last_at);
@@ -244,6 +258,7 @@ export async function report_envelope_capability_if_due(
     !force &&
     fingerprint === last_fingerprint &&
     pq_fingerprint === last_pq_fingerprint &&
+    address_identity_marker === last_address_identity &&
     bound_marker === last_bound &&
     Number.isFinite(last) &&
     last > 0 &&
@@ -272,6 +287,7 @@ export async function report_envelope_capability_if_due(
       fingerprint || null,
       pq_fingerprint || null,
       reported_x3dh_version,
+      ENVELOPE_CAPABILITY_ADDRESS_IDENTITY_VERSION,
       ENVELOPE_CAPABILITY_BOUND_VERSION,
     )
     .catch(() => null);
@@ -279,7 +295,7 @@ export async function report_envelope_capability_if_due(
   if (result?.success) {
     write(
       LAST_REPORTED_PREFIX + user_id,
-      `${now}|${fingerprint}|${pq_fingerprint}|${bound_marker}`,
+      `${now}|${fingerprint}|${pq_fingerprint}|${address_identity_marker}|${bound_marker}`,
     );
   }
 

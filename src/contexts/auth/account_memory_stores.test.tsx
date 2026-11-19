@@ -65,6 +65,25 @@ vi.mock("@/services/crypto/sender_identity_authentication", () => ({
   ),
 }));
 
+vi.mock("@/services/crypto/address_identity_entry", async (import_original) => ({
+  ...(await import_original<
+    typeof import("@/services/crypto/address_identity_entry")
+  >()),
+  clear_address_key_set_cache: record("clear_address_key_set_cache"),
+}));
+
+vi.mock(
+  "@/services/crypto/address_identity_directory",
+  async (import_original) => ({
+    ...(await import_original<
+      typeof import("@/services/crypto/address_identity_directory")
+    >()),
+    clear_address_identity_directory_state: record(
+      "clear_address_identity_directory_state",
+    ),
+  }),
+);
+
 vi.mock("@/services/recipient_classification", () => ({
   clear_recipient_classification_cache: record(
     "clear_recipient_classification_cache",
@@ -178,6 +197,8 @@ describe("clearing account state held in memory", () => {
       "clear_cancel_password_cache",
       "clear_ratchet_verification_status",
       "clear_sender_identity_authentication_cache",
+      "clear_address_key_set_cache",
+      "clear_address_identity_directory_state",
       "clear_recipient_classification_cache",
       "reset_account_key_capabilities_cache",
     ]);
