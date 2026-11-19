@@ -19,7 +19,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 import { memo, useCallback, useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AppRailView } from "@aster/ui";
 
 import {
@@ -43,6 +43,7 @@ import {
 } from "@/lib/rail_security_open";
 
 const RAIL_HIDDEN_KEY = "aster_app_rail_hidden";
+const CALENDAR_HOME_EVENT = "aster-calendar-home";
 
 function read_hidden() {
   try {
@@ -70,6 +71,7 @@ function AppRailComponent({
   const { t } = use_i18n();
   const { preferences } = use_preferences();
   const location = useLocation();
+  const navigate = useNavigate();
   const is_settings_view = location.pathname.startsWith("/settings");
   const [is_hidden, set_is_hidden] = useState(read_hidden);
   const [is_swapping, set_is_swapping] = useState(false);
@@ -146,6 +148,17 @@ function AppRailComponent({
     on_security_open_change,
   ]);
 
+  const on_calendar_click = useCallback(() => {
+    if (!is_settings_view) {
+      toggle_agenda();
+
+      return;
+    }
+    set_is_agenda_open(false);
+    navigate("/");
+    window.dispatchEvent(new CustomEvent(CALENDAR_HOME_EVENT));
+  }, [is_settings_view, navigate, toggle_agenda]);
+
   useEffect(() => {
     if (is_contacts_open || is_security_open) set_is_agenda_open(false);
   }, [is_contacts_open, is_security_open]);
@@ -213,7 +226,7 @@ function AppRailComponent({
               kind="app"
             />
           ),
-          on_click: toggle_agenda,
+          on_click: on_calendar_click,
         },
         {
           key: "contacts",

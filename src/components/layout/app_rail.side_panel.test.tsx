@@ -159,7 +159,7 @@ describe("side panel setting", () => {
     const on_contacts = vi.fn();
     const on_security = vi.fn();
 
-    await render_rail("/settings/behavior", on_contacts, on_security);
+    await render_rail("/", on_contacts, on_security);
 
     const button = container.querySelector<HTMLButtonElement>(
       'button[aria-label="common.app_name_calendar"]',
