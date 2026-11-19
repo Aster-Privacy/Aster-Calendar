@@ -100,6 +100,14 @@ describe("public nginx trusts a client address only through the edge", () => {
     );
   });
 
+  it("reads the edge digest from the writable runtime directory", () => {
+    expect(nginx).toMatch(/^include \/run\/edge_auth\/edge_auth\.conf;$/m);
+    expect(read("docker/edge_auth.sh")).toMatch(
+      /EDGE_AUTH_CONF:-\/run\/edge_auth\/edge_auth\.conf/,
+    );
+    expect(read("Dockerfile")).toMatch(/mkdir -p \/run\/edge_auth/);
+  });
+
   it("compares the edge header by digest instead of a plain map", () => {
     expect(nginx).toMatch(/js_import edge_auth from edge_auth\.js;/);
     expect(nginx).toMatch(

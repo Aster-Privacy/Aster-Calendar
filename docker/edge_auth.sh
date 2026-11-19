@@ -1,11 +1,12 @@
 #!/bin/sh
 set -eu
 
-target="${EDGE_AUTH_CONF:-/etc/nginx/conf.d/edge_auth.conf}"
+target="${EDGE_AUTH_CONF:-/run/edge_auth/edge_auth.conf}"
 secret="$(printf '%s' "${EDGE_FORWARD_SECRET:-}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 mode="$(printf '%s' "${EDGE_AUTH_MODE:-}" | tr '[:upper:]' '[:lower:]')"
 
 write_digest() {
+    mkdir -p "$(dirname "$target")"
     printf 'map "" $edge_auth_secret_sha256 {\n    default "%s";\n}\n' "$1" > "$target"
 }
 

@@ -18,7 +18,9 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY docker/edge_auth.js /etc/nginx/njs/edge_auth.js
 COPY docker/edge_auth.sh /docker-entrypoint.d/15-edge-auth.sh
 RUN sed -i 's/\r$//' /docker-entrypoint.d/15-edge-auth.sh && \
-    chmod 0755 /docker-entrypoint.d/15-edge-auth.sh
+    chmod 0755 /docker-entrypoint.d/15-edge-auth.sh && \
+    mkdir -p /run/edge_auth && \
+    chown appuser:appgroup /run/edge_auth
 COPY dist /usr/share/nginx/html
 
 RUN find /usr/share/nginx/html -name '*.map' -type f -delete
