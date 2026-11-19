@@ -37,6 +37,7 @@ export interface InitiateRecoveryResponse {
   recovery_token: string;
   encrypted_recovery_email?: string;
   recovery_email_nonce?: string;
+  vault_kdf_iterations?: number;
 }
 
 export interface RecoveryEmailReencryption {
@@ -124,6 +125,7 @@ export async function complete_recovery(
   new_account_key_fingerprint?: string,
   new_recovery_email?: RecoveryEmailReencryption,
   new_password_hash_v2?: string,
+  vault_kdf_iterations?: number,
 ): Promise<ApiResponse<CompleteRecoveryResponse>> {
   return api_client.post<CompleteRecoveryResponse>(
     "/core/v1/recovery/complete",
@@ -146,6 +148,7 @@ export async function complete_recovery(
       new_account_key_fingerprint,
       new_recovery_email,
       new_password_hash_v2,
+      vault_kdf_iterations,
     },
   );
 }
@@ -182,6 +185,7 @@ export async function reset_password_with_token(
   new_recovery_email?: RecoveryEmailReencryption,
   previous_vault_carried?: boolean,
   new_password_hash_v2?: string,
+  vault_kdf_iterations?: number,
 ): Promise<ApiResponse<ResetPasswordResponse>> {
   return api_client.post<ResetPasswordResponse>(
     "/core/v1/recovery/reset-password",
@@ -204,6 +208,7 @@ export async function reset_password_with_token(
       new_recovery_email,
       previous_vault_carried,
       new_password_hash_v2,
+      vault_kdf_iterations,
     },
   );
 }
@@ -212,6 +217,7 @@ export interface ResetVaultResponse {
   encrypted_vault: string;
   vault_nonce: string;
   vault_version: number;
+  vault_kdf_iterations?: number;
 }
 
 export async function get_reset_vault(
@@ -232,12 +238,14 @@ export interface SaveRecoveryBackupOptions {
   vault_nonce?: string;
   vault_format?: number;
   expected_vault_sha256?: string;
+  vault_kdf_iterations?: number;
 }
 
 export interface ResetSecondFactorStatus {
   address?: string;
   password_salt?: string;
   kdf_version?: number;
+  vault_kdf_iterations?: number;
   required: boolean;
   verified: boolean;
   totp: boolean;
@@ -312,12 +320,14 @@ export async function get_codes_status(): Promise<ApiResponse<CodesStatus>> {
 export async function verify_codes_step_up(
   password_hash: string,
   totp_code?: string,
+  hardware_key_assertion?: StepUpHardwareKeyAssertion,
 ): Promise<ApiResponse<CodesStepUp>> {
   return api_client.post<CodesStepUp>(
     "/core/v1/recovery/codes/verify-step-up",
     {
       password_hash,
       totp_code,
+      hardware_key_assertion,
     },
   );
 }

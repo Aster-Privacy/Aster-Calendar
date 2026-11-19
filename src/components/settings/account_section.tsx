@@ -90,6 +90,7 @@ import {
 } from "@/services/api/auth";
 import { get_badge_visual } from "@/components/ui/badge_registry";
 import { format_date } from "@/utils/date_format";
+import { is_reauth_required } from "@/services/api/step_up";
 import {
   get_recovery_email,
   save_recovery_email,
@@ -514,7 +515,7 @@ export function AccountSection() {
 
     const r = await save_recovery_email(normalized, vault);
 
-    if (r.code === "STEP_UP_REQUIRED" || r.code === "TOTP_REQUIRED") {
+    if (is_reauth_required(r.code)) {
       request_recovery_step_up(normalized);
 
       return;

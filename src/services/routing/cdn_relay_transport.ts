@@ -26,35 +26,37 @@ import {
 
 import { ignore_error } from "@/lib/ignore_error";
 
-const RELAY_ALLOWED_SUFFIXES = [".astermail.org"];
-const RELAY_ALLOWED_EXACT = ["astermail.org"];
+export const CDN_RELAY_ORIGINS: readonly string[] = [
+  "https://relay.astermail.org",
+];
 const CONNECTION_INFO_PATH = "/core/v1/connection-info";
 
-export function is_relay_host_allowed(relay_url: string): boolean {
+export function relay_origin(relay_url: string): string | null {
   try {
     const parsed = new URL(relay_url);
 
-    if (parsed.protocol !== "https:") {
-      return false;
+    if (parsed.protocol !== "https:" || parsed.port !== "") {
+      return null;
     }
-    const host = parsed.hostname.toLowerCase().replace(/\.$/, "");
+    const origin = `https://${parsed.hostname.toLowerCase().replace(/\.$/, "")}`;
 
-    return (
-      RELAY_ALLOWED_EXACT.includes(host) ||
-      RELAY_ALLOWED_SUFFIXES.some((suffix) => host.endsWith(suffix))
-    );
+    return CDN_RELAY_ORIGINS.includes(origin) ? origin : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+export function is_relay_host_allowed(relay_url: string): boolean {
+  return relay_origin(relay_url) !== null;
 }
 
 export async function cdn_relay_fetch(
   url: string,
   options: RequestInit,
 ): Promise<Response> {
-  let relay_url = connection_store.get_cdn_relay_url();
+  let relay_url = relay_origin(connection_store.get_cdn_relay_url() ?? "");
 
-  if (!relay_url || !is_relay_host_allowed(relay_url)) {
+  if (!relay_url) {
     // The connection-info request is what discovers the relay URL, so it must
     // be allowed to reach the origin directly to bootstrap relay mode. Every
     // other request fails closed: a missing or untrusted relay URL must never
@@ -73,9 +75,9 @@ export async function cdn_relay_fetch(
           caught,
         ),
       );
-    relay_url = connection_store.get_cdn_relay_url();
+    relay_url = relay_origin(connection_store.get_cdn_relay_url() ?? "");
 
-    if (!relay_url || !is_relay_host_allowed(relay_url)) {
+    if (!relay_url) {
       throw new Error(
         "CDN relay URL is not available yet; refusing to send request over clearnet",
       );

@@ -27,8 +27,7 @@ export const MAX_REMEMBERED_VAULT_SALTS = 32;
 export const AUTH_SALT_COLLISION_TRANSLATION_KEY = "errors.auth_salt_collision";
 export const LEGACY_LOGIN_SALT_NEW_DEVICE_TRANSLATION_KEY =
   "errors.legacy_login_salt_new_device";
-export const LEGACY_LOGIN_SALT_SIGN_IN_AGAIN_TRANSLATION_KEY =
-  "errors.legacy_login_salt_sign_in_again";
+export const INCORRECT_PASSWORD_TRANSLATION_KEY = "errors.incorrect_password";
 
 const REMEMBERED_VAULT_SALTS_KEY = "aster:auth_salt_guard:vault_salts";
 
@@ -57,17 +56,20 @@ export function is_auth_salt_collision(
 export type LegacyLoginSaltContext = "sign_in" | "step_up";
 
 export class LegacyLoginSaltError extends Error {
-  readonly translation_key:
-    | typeof LEGACY_LOGIN_SALT_NEW_DEVICE_TRANSLATION_KEY
-    | typeof LEGACY_LOGIN_SALT_SIGN_IN_AGAIN_TRANSLATION_KEY;
+  readonly translation_key = LEGACY_LOGIN_SALT_NEW_DEVICE_TRANSLATION_KEY;
 
   constructor(readonly context: LegacyLoginSaltContext) {
     super(`legacy_login_salt_${context}`);
     this.name = "LegacyLoginSaltError";
-    this.translation_key =
-      context === "sign_in"
-        ? LEGACY_LOGIN_SALT_NEW_DEVICE_TRANSLATION_KEY
-        : LEGACY_LOGIN_SALT_SIGN_IN_AGAIN_TRANSLATION_KEY;
+  }
+}
+
+export class IncorrectCurrentPasswordError extends Error {
+  readonly translation_key = INCORRECT_PASSWORD_TRANSLATION_KEY;
+
+  constructor() {
+    super("incorrect_current_password");
+    this.name = "IncorrectCurrentPasswordError";
   }
 }
 
@@ -82,9 +84,13 @@ export function login_safety_error_key(
 ):
   | typeof AUTH_SALT_COLLISION_TRANSLATION_KEY
   | typeof LEGACY_LOGIN_SALT_NEW_DEVICE_TRANSLATION_KEY
-  | typeof LEGACY_LOGIN_SALT_SIGN_IN_AGAIN_TRANSLATION_KEY
+  | typeof INCORRECT_PASSWORD_TRANSLATION_KEY
   | null {
   if (is_legacy_login_salt_error(error)) {
+    return error.translation_key;
+  }
+
+  if (error instanceof IncorrectCurrentPasswordError) {
     return error.translation_key;
   }
 

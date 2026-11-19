@@ -103,7 +103,7 @@ beforeEach(() => {
           return Promise.reject(new Error("bad envelope"));
         }
 
-        return Promise.resolve("cGFzcw");
+        return Promise.resolve();
       }
       if (cmd === "device_sign_challenge") return Promise.resolve("signature");
       if (cmd === "device_get_stored_passphrase") {

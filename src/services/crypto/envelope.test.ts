@@ -375,8 +375,8 @@ describe("normalize_parsed_envelope", () => {
   it("builds from out of the flat sender fields of mobile sent copies", () => {
     const result = normalize_parsed_envelope({
       subject: "Hello",
-      from_name: "hugo@astermail.org",
-      from_email: "hugo@astermail.org",
+      from_name: "sender@example.com",
+      from_email: "sender@example.com",
       to: ["friend@example.com"],
     }) as unknown as {
       from: { name: string; email: string };
@@ -384,8 +384,8 @@ describe("normalize_parsed_envelope", () => {
     };
 
     expect(result.from).toEqual({
-      name: "hugo@astermail.org",
-      email: "hugo@astermail.org",
+      name: "sender@example.com",
+      email: "sender@example.com",
     });
     expect(result.to).toEqual([{ name: "", email: "friend@example.com" }]);
   });

@@ -9609,6 +9609,14 @@ export const it = {
       "Sposti spesso i messaggi di {{sender}} in {{category}}. Vuoi farlo automaticamente?",
   },
   auth: {
+    continue_with_app: "Continua con {{app}}",
+    sibling_waiting: "Conferma l'accesso nella finestra che si è aperta.",
+    sibling_popup_blocked: "La finestra di conferma è stata bloccata. Consenti i pop-up per questo sito, quindi riprova.",
+    sibling_failed: "L'accesso con {{app}} non è stato completato. Riprova o accedi con la tua password.",
+    handoff_approve_title: "Accedere a {{app}}?",
+    handoff_approve_body: "{{app}} chiede di accedere come {{email}}. Continua solo se hai avviato tu questo accesso.",
+    handoff_approve_done: "Puoi chiudere questa finestra.",
+    handoff_approve_signed_out: "Non hai effettuato l'accesso qui. Chiudi questa finestra e accedi con la tua password.",
     passkey_verification: "Verifica con passkey",
     use_passkey_or_key:
       "Usa Windows Hello, Face ID o la tua chiave di sicurezza",
@@ -10226,8 +10234,6 @@ export const it = {
       "L'accesso è stato interrotto perché il server ha inviato un valore non sicuro, quindi non è stato sbloccato nulla. Contatta l'assistenza prima di riprovare.",
     legacy_login_salt_new_device:
       "Per completare un aggiornamento di sicurezza del tuo account, accedi da un dispositivo che hai già usato con Aster. Se non puoi, reimposta la password con la tua chiave di recupero.",
-    legacy_login_salt_sign_in_again:
-      "Per completare un aggiornamento di sicurezza del tuo account, esci e accedi di nuovo.",
     upload_too_large:
       "Il caricamento è troppo grande. Per continuare, rimuova o riduca un file e riprovi.",
     failed_remove_reaction: "Impossibile rimuovere la reazione. Riprova.",
@@ -11336,6 +11342,10 @@ export const it = {
     booking_limit_reached:
       "Hai già raggiunto il numero massimo di prenotazioni in programma con questo host.",
     booking_rate_limited: "Troppi tentativi. Attendi un minuto, poi riprova.",
+    booking_page_updated:
+      "Questa pagina di prenotazione è stata aggiornata. Controlla i tuoi dati, poi prenota di nuovo.",
+    booking_sealing_unavailable:
+      "Questa pagina di prenotazione non può proteggere i tuoi dati in questo momento, quindi la prenotazione non è stata inviata. Riprova più tardi.",
     booking_no_slots: "Nessun orario disponibile nelle prossime 2 settimane.",
     booking_time_zone: "Gli orari sono in {{time_zone}}.",
     booking_load_failed:

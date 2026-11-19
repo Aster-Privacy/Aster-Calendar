@@ -151,6 +151,9 @@ export interface EncryptedVault {
   data_kek_random?: boolean;
   storage_rekey?: StorageRekeyState;
   identity_rotation_pending?: boolean;
+  recovery_backup_generation?: number;
+  ratchet_state_v2?: boolean;
+  ratchet_sync_floors?: Record<string, number>;
 }
 
 export interface StorageRekeyState {

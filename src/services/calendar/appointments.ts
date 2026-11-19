@@ -19,10 +19,18 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 import type { ApiResponse } from "@/services/api/client/helpers";
+import type {
+  BookingGuestDetails,
+  ParsedBookingSealingKey,
+} from "@/services/calendar/booking_seal";
 
 import { api_client } from "@/services/api/client";
 import { decrypt_mail_envelope } from "@/services/crypto/decrypt_envelope";
 import { zone_offset_ms } from "@/services/calendar/recurrence";
+import {
+  parse_booking_sealing_key,
+  seal_booking_details,
+} from "@/services/calendar/booking_seal";
 
 export const BOOKING_EVENT_PREFIX = "booking-";
 export const BOOKING_CALENDAR_ID = "__bookings__";
@@ -69,10 +77,44 @@ interface BookingDetails {
   guest_name?: unknown;
   guest_email?: unknown;
   note?: unknown;
+  starts_at?: unknown;
+  schedule_id?: unknown;
 }
 
-function details_text(value: unknown): string {
-  return typeof value === "string" ? value : "";
+const MAX_DETAILS_TEXT_LENGTH = 254;
+const MAX_DETAILS_NOTE_LENGTH = 1000;
+
+function details_text(
+  value: unknown,
+  max_length = MAX_DETAILS_TEXT_LENGTH,
+): string {
+  return typeof value === "string" ? value.slice(0, max_length) : "";
+}
+
+const SCHEDULE_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function same_instant(left: unknown, right: string): boolean {
+  if (typeof left !== "string") return false;
+
+  const parsed = Date.parse(left);
+
+  return !Number.isNaN(parsed) && parsed === Date.parse(right);
+}
+
+function details_match_booking(
+  details: BookingDetails,
+  sealed: SealedAppointmentBooking,
+): boolean {
+  const starts_match =
+    details.starts_at === undefined ||
+    same_instant(details.starts_at, sealed.starts_at);
+  const schedule_matches =
+    details.schedule_id === undefined ||
+    (typeof details.schedule_id === "string" &&
+      details.schedule_id.toLowerCase() === sealed.schedule_id.toLowerCase());
+
+  return starts_match && schedule_matches;
 }
 
 function is_sealed_nonce(value: string): boolean {
@@ -92,10 +134,12 @@ export async function open_booking(
     if (!is_sealed_nonce(sealed.details_nonce)) {
       throw new Error("booking details are not sealed");
     }
-    details = await decrypt_mail_envelope<BookingDetails>(
+    const opened = await decrypt_mail_envelope<BookingDetails>(
       sealed.sealed_details,
       sealed.details_nonce,
     );
+
+    details = opened && details_match_booking(opened, sealed) ? opened : null;
   } catch {
     details = null;
   }
@@ -105,7 +149,7 @@ export async function open_booking(
     guest_email: details_text(details?.guest_email),
     guest_name: details_text(details?.guest_name),
     id: sealed.id,
-    note: details_text(details?.note),
+    note: details_text(details?.note, MAX_DETAILS_NOTE_LENGTH),
     schedule_id: sealed.schedule_id,
     schedule_title: sealed.schedule_title,
     starts_at: sealed.starts_at,
@@ -120,6 +164,19 @@ export interface PublicSchedule {
   windows_set_at?: string;
   booked_starts: string[];
   show_branding: boolean;
+  schedule_id: string | null;
+  sealing_key: ParsedBookingSealingKey;
+  booking_unavailable: boolean;
+}
+
+export function is_public_booking_available(
+  schedule: Pick<PublicSchedule, "sealing_key" | "booking_unavailable">,
+): boolean {
+  return (
+    !schedule.booking_unavailable &&
+    schedule.sealing_key !== null &&
+    schedule.sealing_key !== "invalid"
+  );
 }
 
 export function is_booking_event(event: { id: string }): boolean {
@@ -186,6 +243,8 @@ export type PublicBookingResult =
   | "failed"
   | "limit_reached"
   | "rate_limited"
+  | "sealing_required"
+  | "sealing_unavailable"
   | "slot_taken"
   | "verification_failed";
 
@@ -271,6 +330,45 @@ export function sanitize_public_schedule(raw: unknown): PublicSchedule | null {
       )
       .slice(0, MAX_PUBLIC_BOOKED),
     show_branding: value.show_branding !== false,
+    schedule_id:
+      typeof value.id === "string" && SCHEDULE_ID_PATTERN.test(value.id)
+        ? value.id.toLowerCase()
+        : null,
+    sealing_key: parse_booking_sealing_key(value.sealing_key),
+    booking_unavailable: value.booking_unavailable === true,
+  };
+}
+
+type PublicBookingRequest = BookingGuestDetails & {
+  starts_at: string;
+  turnstile_token?: string;
+};
+
+type PublicBookingSealing = Pick<PublicSchedule, "sealing_key" | "schedule_id">;
+
+async function booking_request_body(
+  request: PublicBookingRequest,
+  sealing: PublicBookingSealing | null,
+): Promise<Record<string, unknown> | null> {
+  const { guest_email, guest_name, note, ...rest } = request;
+  const sealing_key = sealing?.sealing_key ?? null;
+
+  if (sealing_key === null || sealing_key === "invalid") {
+    return null;
+  }
+
+  const schedule_id = sealing?.schedule_id ?? null;
+
+  return {
+    ...rest,
+    ...(await seal_booking_details(
+      { guest_email, guest_name, note },
+      sealing_key,
+      {
+        schedule_id,
+        starts_at: request.starts_at,
+      },
+    )),
   };
 }
 
@@ -300,21 +398,22 @@ export async function fetch_public_schedule(
 
 export async function book_public_slot(
   slug: string,
-  request: {
-    starts_at: string;
-    guest_name: string;
-    guest_email: string;
-    note: string;
-    turnstile_token?: string;
-  },
+  request: PublicBookingRequest,
+  sealing: PublicBookingSealing | null = null,
 ): Promise<PublicBookingResult> {
   let response: Response;
 
   try {
+    const body = await booking_request_body(request, sealing);
+
+    if (body === null) {
+      return "sealing_unavailable";
+    }
+
     response = await fetch(
       `/api/calendar/v1/public/booking/${encodeURIComponent(slug)}`,
       {
-        body: JSON.stringify(request),
+        body: JSON.stringify(body),
         headers: { "content-type": "application/json" },
         method: "POST",
       },
@@ -333,6 +432,16 @@ export async function book_public_slot(
 
   if (response.status === 403) {
     return "verification_failed";
+  }
+
+  if (response.status === 400) {
+    const body = (await response.json().catch(() => null)) as {
+      code?: string;
+    } | null;
+
+    return body?.code === "BOOKING_SEALING_REQUIRED"
+      ? "sealing_required"
+      : "failed";
   }
 
   if (response.status === 409) {

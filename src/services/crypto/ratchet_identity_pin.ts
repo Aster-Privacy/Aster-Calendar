@@ -72,11 +72,19 @@ interface StoredIdentityPin {
   pq_seen?: boolean;
   x3dh_seen?: number;
   rotated?: boolean;
+  address_rooted?: boolean;
 }
 
 export interface IdentityPinRecord {
   fingerprint: string;
   rotated: boolean;
+  address_rooted: boolean;
+}
+
+export type IdentityPinLookup = IdentityPinRecord | "unreadable" | null;
+
+function rooted_field(address_rooted: boolean): { address_rooted?: true } {
+  return address_rooted ? { address_rooted: true } : {};
 }
 
 export interface IdentityChangeRecord {
@@ -135,6 +143,7 @@ export async function check_and_pin_identity(
   verified: boolean = false,
   advertises_pq: boolean = false,
   advertised_x3dh: number | null = null,
+  address_rooted: boolean = false,
 ): Promise<IdentityPinStatus> {
   try {
     if (!pin_id || !kem_identity_key) {
@@ -150,6 +159,7 @@ export async function check_and_pin_identity(
       existing?.x3dh_seen,
       advertised_x3dh,
     );
+    const rooted = Boolean(existing?.address_rooted) || address_rooted;
 
     if (!existing) {
       await scoped_set(
@@ -162,6 +172,7 @@ export async function check_and_pin_identity(
           pinned_at: Date.now(),
           pq_seen,
           x3dh_seen,
+          ...rooted_field(rooted),
         } satisfies StoredIdentityPin,
         storage_key,
       );
@@ -185,6 +196,7 @@ export async function check_and_pin_identity(
           pq_seen,
           x3dh_seen,
           rotated: true,
+          ...rooted_field(rooted),
         } satisfies StoredIdentityPin,
         storage_key,
       );
@@ -209,7 +221,8 @@ export async function check_and_pin_identity(
     if (
       (verified && !existing.verified) ||
       pq_seen !== Boolean(existing.pq_seen) ||
-      x3dh_seen !== highest_x3dh_seen(existing.x3dh_seen, null)
+      x3dh_seen !== highest_x3dh_seen(existing.x3dh_seen, null) ||
+      rooted !== Boolean(existing.address_rooted)
     ) {
       await scoped_set(
         IDENTITY_PIN_PREFIX,
@@ -220,6 +233,7 @@ export async function check_and_pin_identity(
           verified: existing.verified || verified,
           pq_seen,
           x3dh_seen,
+          ...rooted_field(rooted),
         } satisfies StoredIdentityPin,
         storage_key,
       );
@@ -418,6 +432,7 @@ export async function trust_recipient_keys(
   kem_identity_key: string | null,
   armored_public_key: string | null,
   accepted_bundle: RecipientBundleBinding | null = null,
+  address_rooted: boolean = false,
 ): Promise<void> {
   const storage_key = await get_pin_storage_key();
   const uid = await current_account_uid();
@@ -449,6 +464,7 @@ export async function trust_recipient_keys(
         pinned_at: Date.now(),
         pq_seen: Boolean(existing?.pq_seen),
         x3dh_seen: existing?.x3dh_seen,
+        ...rooted_field(address_rooted),
       } satisfies StoredIdentityPin,
       storage_key,
     );
@@ -544,9 +560,32 @@ export async function get_identity_pin_record(
     return {
       fingerprint: existing.fingerprint,
       rotated: existing.rotated === true,
+      address_rooted: existing.address_rooted === true,
     };
   } catch {
     return null;
+  }
+}
+
+export async function lookup_identity_pin_record(
+  pin_id: string,
+): Promise<IdentityPinLookup> {
+  if (!pin_id) return null;
+
+  try {
+    const storage_key = await get_pin_storage_key();
+    const uid = await current_account_uid();
+    const existing = await load_pin(storage_key, uid, pin_id);
+
+    if (!existing) return null;
+
+    return {
+      fingerprint: existing.fingerprint,
+      rotated: existing.rotated === true,
+      address_rooted: existing.address_rooted === true,
+    };
+  } catch {
+    return "unreadable";
   }
 }
 
@@ -597,6 +636,7 @@ async function accept_rotated_pin(uid: string | null, pin_id: string): Promise<v
         pinned_at: pin.pinned_at,
         pq_seen: pin.pq_seen,
         x3dh_seen: pin.x3dh_seen,
+        ...rooted_field(pin.address_rooted === true),
       } satisfies StoredIdentityPin,
       storage_key,
     );

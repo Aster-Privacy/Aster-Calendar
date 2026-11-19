@@ -144,6 +144,57 @@ function merge_legacy_keks(
   return merged.length ? merged : (server ?? next);
 }
 
+function larger_generation(a: unknown, b: unknown): number | undefined {
+  const values = [a, b].filter(
+    (value): value is number =>
+      typeof value === "number" && Number.isSafeInteger(value) && value > 0,
+  );
+
+  return values.length ? Math.max(...values) : undefined;
+}
+
+function merged_floors(
+  a: unknown,
+  b: unknown,
+): Record<string, number> | undefined {
+  const out: Record<string, number> = {};
+
+  for (const source of [a, b]) {
+    if (!source || typeof source !== "object") continue;
+    for (const [key, value] of Object.entries(source)) {
+      const best = larger_generation(out[key], value);
+
+      if (best !== undefined) out[key] = best;
+    }
+  }
+
+  return Object.keys(out).length ? out : undefined;
+}
+
+function keep_monotonic_fields(
+  merged: VaultRecord,
+  server: EncryptedVault,
+  next: EncryptedVault,
+): void {
+  const generation = larger_generation(
+    server.recovery_backup_generation,
+    next.recovery_backup_generation,
+  );
+
+  if (generation !== undefined) merged.recovery_backup_generation = generation;
+
+  if (server.ratchet_state_v2 === true || next.ratchet_state_v2 === true) {
+    merged.ratchet_state_v2 = true;
+  }
+
+  const floors = merged_floors(
+    server.ratchet_sync_floors,
+    next.ratchet_sync_floors,
+  );
+
+  if (floors) merged.ratchet_sync_floors = floors;
+}
+
 export function merge_vault_for_write(
   server: EncryptedVault,
   base: EncryptedVault | null,
@@ -178,6 +229,8 @@ export function merge_vault_for_write(
   const legacy_keks = merge_legacy_keks(server.legacy_keks, next.legacy_keks);
 
   if (legacy_keks) merged.legacy_keks = legacy_keks;
+
+  keep_monotonic_fields(merged, server, next);
 
   merged.vault_format = Math.max(
     server.vault_format ?? 1,
@@ -259,16 +312,30 @@ async function open_snapshot(
   }
 }
 
+export interface LatestVault {
+  vault: EncryptedVault;
+  vault_sha256: string | null;
+  encrypted_vault: string;
+  vault_nonce: string;
+}
+
 export async function read_latest_vault(
   passphrase: string,
-): Promise<{ vault: EncryptedVault; vault_sha256: string | null } | null> {
+): Promise<LatestVault | null> {
   const fetched = await fetch_latest_vault();
 
   if (fetched.kind !== "ok") return null;
 
   const vault = await open_snapshot(fetched.snapshot, passphrase);
 
-  return vault ? { vault, vault_sha256: fetched.snapshot.vault_sha256 } : null;
+  return vault
+    ? {
+        vault,
+        vault_sha256: fetched.snapshot.vault_sha256,
+        encrypted_vault: fetched.snapshot.encrypted_vault,
+        vault_nonce: fetched.snapshot.vault_nonce,
+      }
+    : null;
 }
 
 export function persist_local_vault(

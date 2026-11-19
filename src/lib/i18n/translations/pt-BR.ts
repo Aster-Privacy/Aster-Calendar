@@ -9600,6 +9600,14 @@ export const pt_br = {
     forward_message_heading: "Encaminhar mensagem",
   },
   auth: {
+    continue_with_app: "Continuar com {{app}}",
+    sibling_waiting: "Confirme o login na janela que foi aberta.",
+    sibling_popup_blocked: "A janela de confirmação foi bloqueada. Permita pop-ups para este site e tente novamente.",
+    sibling_failed: "O login com {{app}} não foi concluído. Tente novamente ou entre com sua senha.",
+    handoff_approve_title: "Entrar no {{app}}?",
+    handoff_approve_body: "{{app}} está pedindo para entrar como {{email}}. Continue apenas se você iniciou este login.",
+    handoff_approve_done: "Você pode fechar esta janela.",
+    handoff_approve_signed_out: "Você não está conectado aqui. Feche esta janela e entre com sua senha.",
     passkey_verification: "Verificar com passkey",
     use_passkey_or_key:
       "Use o Windows Hello, o Face ID ou sua chave de segurança",
@@ -10217,8 +10225,6 @@ export const pt_br = {
       "O login foi interrompido porque o servidor enviou um valor inseguro, então nada foi desbloqueado. Entre em contato com o suporte antes de tentar novamente.",
     legacy_login_salt_new_device:
       "Para concluir uma atualização de segurança da sua conta, entre em um dispositivo que você já usou com o Aster. Se não for possível, redefina sua senha com sua chave de recuperação.",
-    legacy_login_salt_sign_in_again:
-      "Para concluir uma atualização de segurança da sua conta, saia e entre novamente.",
     upload_too_large:
       "O envio é grande demais. Para continuar, remova ou reduza um arquivo e tente novamente.",
     failed_remove_reaction:
@@ -11357,6 +11363,10 @@ export const pt_br = {
       "Você já tem o número máximo de agendamentos futuros com este anfitrião.",
     booking_rate_limited:
       "Muitas tentativas. Aguarde um minuto e tente de novo.",
+    booking_page_updated:
+      "Esta página de agendamento foi atualizada. Confira seus dados e agende novamente.",
+    booking_sealing_unavailable:
+      "Esta página de agendamento não consegue proteger seus dados agora, então seu agendamento não foi enviado. Tente novamente mais tarde.",
     booking_no_slots: "Não há horários disponíveis nas próximas 2 semanas.",
     booking_time_zone: "Os horários estão em {{time_zone}}.",
     booking_load_failed:

@@ -9183,6 +9183,14 @@ export const ko = {
       "{{sender}}의 메일을 {{category}}(으)로 자주 옮기고 있습니다. 자동으로 처리할까요?",
   },
   auth: {
+    continue_with_app: "{{app}}(으)로 계속",
+    sibling_waiting: "열린 창에서 로그인을 확인하세요.",
+    sibling_popup_blocked: "확인 창이 차단되었습니다. 이 사이트의 팝업을 허용한 후 다시 시도하세요.",
+    sibling_failed: "{{app}}(으)로 로그인하지 못했습니다. 다시 시도하거나 비밀번호로 로그인하세요.",
+    handoff_approve_title: "{{app}}에 로그인할까요?",
+    handoff_approve_body: "{{app}}에서 {{email}}(으)로 로그인하려고 합니다. 직접 시작한 로그인인 경우에만 계속하세요.",
+    handoff_approve_done: "이 창을 닫아도 됩니다.",
+    handoff_approve_signed_out: "여기에 로그인되어 있지 않습니다. 이 창을 닫고 비밀번호로 로그인하세요.",
     passkey_verification: "패스키로 인증",
     use_passkey_or_key: "Windows Hello, Face ID 또는 보안 키를 사용하세요",
     use_passkey_instead: "대신 패스키 사용",
@@ -9766,8 +9774,6 @@ export const ko = {
       "서버가 안전하지 않은 값을 보내 로그인이 중단되었으며 아무것도 잠금 해제되지 않았습니다. 다시 시도하기 전에 지원팀에 문의하세요.",
     legacy_login_salt_new_device:
       "계정의 보안 업데이트를 완료하려면 이전에 Aster를 사용한 기기에서 로그인하세요. 그럴 수 없다면 복구 키로 비밀번호를 재설정하세요.",
-    legacy_login_salt_sign_in_again:
-      "계정의 보안 업데이트를 완료하려면 로그아웃한 후 다시 로그인하세요.",
     upload_too_large:
       "업로드 용량이 너무 큽니다. 계속하려면 파일을 삭제하거나 크기를 줄인 다음 다시 시도하세요.",
     failed_remove_reaction: "반응을 삭제하지 못했습니다. 다시 시도해 주세요.",
@@ -10808,6 +10814,10 @@ export const ko = {
     booking_limit_reached: "이 호스트와의 예정된 예약이 이미 최대 개수입니다.",
     booking_rate_limited:
       "시도 횟수가 너무 많습니다. 1분 기다린 후 다시 시도하세요.",
+    booking_page_updated:
+      "이 예약 페이지가 업데이트되었습니다. 정보를 확인한 후 다시 예약하세요.",
+    booking_sealing_unavailable:
+      "이 예약 페이지는 지금 정보를 보호할 수 없어 예약이 전송되지 않았습니다. 나중에 다시 시도하세요.",
     booking_no_slots: "앞으로 2주 동안 가능한 시간이 없습니다.",
     booking_time_zone: "시간은 {{time_zone}} 기준입니다.",
     booking_load_failed:

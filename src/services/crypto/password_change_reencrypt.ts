@@ -34,7 +34,7 @@ import {
   get_or_create_derived_encryption_crypto_key,
 } from "./memory_key_store";
 import { array_to_base64, base64_to_array } from "./base64";
-import { get_legacy_crypto_keys } from "./legacy_keks";
+import { get_legacy_crypto_keys, is_public_constant_kek } from "./legacy_keks";
 import {
   decrypt_with_candidates,
   re_encrypt_field_with_candidates as re_encrypt_field,
@@ -202,7 +202,7 @@ async function build_old_key_candidates(
   const encoded_material = [
     ...(material?.data_kek ? [material.data_kek] : []),
     ...(material?.legacy_keks ?? []).map((entry) => entry.k),
-  ];
+  ].filter((encoded) => !is_public_constant_kek(encoded));
 
   for (const encoded of encoded_material) {
     try {

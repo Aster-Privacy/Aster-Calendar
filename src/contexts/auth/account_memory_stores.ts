@@ -35,6 +35,8 @@ import {
 import {
   clear_sender_identity_authentication_cache,
 } from "@/services/crypto/sender_identity_authentication";
+import { clear_address_key_set_cache } from "@/services/crypto/address_identity_entry";
+import { clear_address_identity_directory_state } from "@/services/crypto/address_identity_directory";
 import {
   clear_recipient_classification_cache,
 } from "@/services/recipient_classification";
@@ -53,6 +55,8 @@ const ACCOUNT_MEMORY_CLEARERS: ReadonlyArray<() => void> = [
   () => clear_cancel_password_cache(),
   () => clear_ratchet_verification_status(),
   () => clear_sender_identity_authentication_cache(),
+  () => clear_address_key_set_cache(),
+  () => clear_address_identity_directory_state(),
   () => clear_recipient_classification_cache(),
   () => reset_account_key_capabilities_cache(),
   () => forget_current_user(),

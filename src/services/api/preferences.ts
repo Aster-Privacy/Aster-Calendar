@@ -31,7 +31,10 @@ import {
   account_data_write_key,
   retry_after_account_key_load,
 } from "@/services/crypto/account_data_writer";
-import { decrypt_aes_gcm_with_fallback } from "@/services/crypto/legacy_keks";
+import {
+  decrypt_aes_gcm_with_fallback,
+  sealed_under_public_constant,
+} from "@/services/crypto/legacy_keks";
 import { array_to_base64, base64_to_array } from "@/services/crypto/envelope";
 import {
   DEFAULT_ENABLED_CATEGORIES,
@@ -300,6 +303,10 @@ export interface UserPreferences {
     hidden?: boolean;
   }[];
   calendar_tag_colors: Record<string, string>;
+  calendar_revision_floors: {
+    event: Record<string, number>;
+    calendar: Record<string, number>;
+  };
   task_lists?: { id: string; name: string; sort: "my_order" | "date" }[];
   notification_banner_snooze_until: string;
   storage_format: "aster" | "ipfs";
@@ -1120,6 +1127,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   calendar_tour_completed: false,
   calendar_ics_subscriptions: [],
   calendar_tag_colors: {},
+  calendar_revision_floors: { event: {}, calendar: {} },
   encrypt_emails: false,
   warn_external_recipients: true,
   auto_discover_keys: false,
@@ -1246,7 +1254,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
 };
 
 type GetPreferencesViaHttpResult =
-  UserPreferences | "not_found" | "decrypt_failed" | null;
+  UserPreferences | "not_found" | "decrypt_failed" | "awaiting_rewrap" | null;
 
 async function get_preferences_via_http(
   vault: EncryptedVault,
@@ -1280,7 +1288,26 @@ async function get_preferences_via_http(
       vault,
     );
   } catch {
-    return "decrypt_failed";
+    return (await preferences_await_mail_rewrap(
+      encrypted_preferences,
+      preferences_nonce,
+    ))
+      ? "awaiting_rewrap"
+      : "decrypt_failed";
+  }
+}
+
+async function preferences_await_mail_rewrap(
+  encrypted_preferences: string,
+  preferences_nonce: string,
+): Promise<boolean> {
+  try {
+    return await sealed_under_public_constant(
+      base64_to_array(encrypted_preferences),
+      base64_to_array(preferences_nonce),
+    );
+  } catch {
+    return false;
   }
 }
 
@@ -1547,6 +1574,17 @@ export async function get_preferences(
         data: initial,
         loaded_from_server: true,
         server_blob_unusable: true,
+      };
+    }
+
+    if (result === "awaiting_rewrap") {
+      const cached = get_cached_preferences();
+
+      return {
+        data: cached
+          ? { ...DEFAULT_PREFERENCES, ...cached }
+          : DEFAULT_PREFERENCES,
+        loaded_from_server: false,
       };
     }
 

@@ -42,6 +42,7 @@ import {
   booked_start_keys,
   booking_slot_start,
   fetch_public_schedule,
+  is_public_booking_available,
 } from "@/services/calendar/appointments";
 import {
   add_days,
@@ -354,6 +355,10 @@ export default function BookingPage() {
     ? (slot_groups.get(selected_day.toDateString()) ?? [])
     : [];
 
+  const booking_available = schedule
+    ? is_public_booking_available(schedule)
+    : false;
+
   const handle_select_day = (day: Date) => {
     set_selected_day(day);
     set_error("");
@@ -413,7 +418,7 @@ export default function BookingPage() {
   };
 
   const handle_book = async () => {
-    if (!slug || !selected_slot || is_submitting) {
+    if (!slug || !selected_slot || is_submitting || !booking_available) {
       return;
     }
 
@@ -435,13 +440,17 @@ export default function BookingPage() {
     set_is_submitting(true);
     set_error("");
 
-    const result = await book_public_slot(slug, {
-      guest_email: trimmed_email,
-      guest_name: trimmed_name,
-      note: note.trim(),
-      starts_at: selected_slot.starts_at.toISOString(),
-      turnstile_token: captcha_token ?? undefined,
-    });
+    const result = await book_public_slot(
+      slug,
+      {
+        guest_email: trimmed_email,
+        guest_name: trimmed_name,
+        note: note.trim(),
+        starts_at: selected_slot.starts_at.toISOString(),
+        turnstile_token: captcha_token ?? undefined,
+      },
+      schedule,
+    );
 
     set_is_submitting(false);
     set_captcha_token(null);
@@ -457,6 +466,20 @@ export default function BookingPage() {
       set_selected_slot(null);
       set_step("pick");
       set_error(t("calendar.booking_slot_taken"));
+      void load_schedule(true);
+
+      return;
+    }
+
+    if (result === "sealing_required") {
+      set_error(t("calendar.booking_page_updated"));
+      void load_schedule(true);
+
+      return;
+    }
+
+    if (result === "sealing_unavailable") {
+      set_error(t("calendar.booking_sealing_unavailable"));
       void load_schedule(true);
 
       return;
@@ -539,6 +562,11 @@ export default function BookingPage() {
     ) : null;
 
   const has_slots = slot_groups.size > 0;
+  const unavailable_message = booking_available ? null : (
+    <p className="text-[13px] text-txt-secondary" role="status">
+      {t("calendar.booking_sealing_unavailable")}
+    </p>
+  );
   const today = start_of_day(new Date());
 
   return (
@@ -569,6 +597,7 @@ export default function BookingPage() {
                 </MetaRow>
               )}
             </div>
+            {unavailable_message}
           </section>
 
           {!has_slots ? (
@@ -671,11 +700,12 @@ export default function BookingPage() {
                         key={slot.key}
                         aria-label={slot_label(slot)}
                         aria-pressed={is_selected}
-                        className={`flex h-10 w-full flex-shrink-0 items-center justify-center rounded-[8px] border text-[13px] font-medium tabular-nums transition-colors duration-150 ease-out ${FOCUS_RING} ${
+                        className={`flex h-10 w-full flex-shrink-0 items-center justify-center rounded-[8px] border text-[13px] font-medium tabular-nums transition-colors duration-150 ease-out disabled:cursor-default disabled:opacity-50 ${FOCUS_RING} ${
                           is_selected
                             ? "border-[var(--accent-color)] bg-[var(--accent-color)] text-[var(--accent-fg,#ffffff)]"
                             : "border-edge-primary text-txt-primary hover:border-[var(--accent-color)] hover:bg-[color-mix(in_srgb,var(--accent-color)_8%,transparent)]"
                         }`}
+                        disabled={!booking_available}
                         type="button"
                         onClick={() => handle_select_slot(slot)}
                       >
@@ -768,7 +798,7 @@ export default function BookingPage() {
                 {error_message}
                 <div className="flex justify-end">
                   <Button
-                    disabled={is_submitting}
+                    disabled={is_submitting || !booking_available}
                     type="submit"
                     variant="depth"
                   >

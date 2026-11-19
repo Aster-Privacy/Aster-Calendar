@@ -8502,6 +8502,14 @@ export const zh_CN = {
       "您经常把 {{sender}} 的邮件移到{{category}}。要自动处理吗？",
   },
   auth: {
+    continue_with_app: "使用 {{app}} 继续",
+    sibling_waiting: "请在打开的窗口中确认登录。",
+    sibling_popup_blocked: "确认窗口被拦截。请允许此网站的弹出窗口，然后重试。",
+    sibling_failed: "使用 {{app}} 登录未完成。请重试，或使用密码登录。",
+    handoff_approve_title: "登录 {{app}}？",
+    handoff_approve_body: "{{app}} 请求以 {{email}} 的身份登录。仅当此登录由你本人发起时才继续。",
+    handoff_approve_done: "你可以关闭此窗口。",
+    handoff_approve_signed_out: "你尚未在此登录。请关闭此窗口并使用密码登录。",
     passkey_verification: "使用 Passkey 验证",
     use_passkey_or_key: "使用 Windows Hello、Face ID 或您的安全密钥",
     use_passkey_instead: "改用 Passkey",
@@ -9052,8 +9060,6 @@ export const zh_CN = {
       "由于服务器发送了不安全的值，登录已停止，没有解锁任何内容。请先联系支持团队，然后再重试。",
     legacy_login_salt_new_device:
       "要完成账户的安全更新，请在以前使用过 Aster 的设备上登录。如果无法做到，请使用恢复密钥重置密码。",
-    legacy_login_salt_sign_in_again:
-      "要完成账户的安全更新，请退出登录后重新登录。",
     upload_too_large: "上传内容过大。请移除或压缩一个文件后重试。",
     failed_remove_reaction: "回应删除失败，请重试。",
     cannot_react_own_message: "无法对自己的邮件添加回应。",
@@ -10008,6 +10014,9 @@ export const zh_CN = {
     booking_slot_taken: "该时间已被他人预约。请选择其他时间。",
     booking_limit_reached: "你与此主办方的未来预约已达上限。",
     booking_rate_limited: "尝试次数过多。请稍等一分钟后重试。",
+    booking_page_updated: "此预约页面已更新。请检查你的信息，然后重新预约。",
+    booking_sealing_unavailable:
+      "此预约页面目前无法保护你的信息，因此你的预约未发送。请稍后重试。",
     booking_no_slots: "未来 2 周内没有可用时间。",
     booking_time_zone: "时间以 {{time_zone}} 显示。",
     booking_load_failed: "无法加载此预约页面。请检查网络连接后重试。",

@@ -9572,6 +9572,14 @@ export const es = {
       "Sueles mover el correo de {{sender}} a {{category}}. ¿Quieres que se haga automáticamente?",
   },
   auth: {
+    continue_with_app: "Continuar con {{app}}",
+    sibling_waiting: "Confirma el inicio de sesión en la ventana que se abrió.",
+    sibling_popup_blocked: "Se bloqueó la ventana de confirmación. Permite las ventanas emergentes para este sitio e inténtalo de nuevo.",
+    sibling_failed: "No se completó el inicio de sesión con {{app}}. Inténtalo de nuevo o inicia sesión con tu contraseña.",
+    handoff_approve_title: "¿Iniciar sesión en {{app}}?",
+    handoff_approve_body: "{{app}} solicita iniciar sesión como {{email}}. Continúa solo si iniciaste tú este inicio de sesión.",
+    handoff_approve_done: "Puedes cerrar esta ventana.",
+    handoff_approve_signed_out: "No has iniciado sesión aquí. Cierra esta ventana e inicia sesión con tu contraseña.",
     passkey_verification: "Verificar con clave de acceso",
     use_passkey_or_key: "Usa Windows Hello, Face ID o tu llave de seguridad",
     use_passkey_instead: "Usar clave de acceso en su lugar",
@@ -10178,8 +10186,6 @@ export const es = {
       "El inicio de sesión se detuvo porque el servidor envió un valor no seguro, así que no se desbloqueó nada. Contacta con soporte antes de volver a intentarlo.",
     legacy_login_salt_new_device:
       "Para completar una actualización de seguridad de tu cuenta, inicia sesión en un dispositivo que ya hayas usado con Aster. Si no puedes, restablece tu contraseña con tu clave de recuperación.",
-    legacy_login_salt_sign_in_again:
-      "Para completar una actualización de seguridad de tu cuenta, cierra sesión y vuelve a iniciarla.",
     upload_too_large:
       "La carga es demasiado grande. Para continuar, quita o reduce un archivo y vuelve a intentarlo.",
     failed_remove_reaction:
@@ -11273,6 +11279,10 @@ export const es = {
       "Ya tienes el máximo de reservas pendientes con este anfitrión.",
     booking_rate_limited:
       "Demasiados intentos. Espera un minuto y vuelve a intentarlo.",
+    booking_page_updated:
+      "Esta página de reservas se actualizó. Revisa tus datos y vuelve a reservar.",
+    booking_sealing_unavailable:
+      "Esta página de reservas no puede proteger tus datos ahora, así que tu reserva no se envió. Vuelve a intentarlo más tarde.",
     booking_no_slots: "No hay horas disponibles en las próximas 2 semanas.",
     booking_time_zone: "Las horas se muestran en {{time_zone}}.",
     booking_load_failed:

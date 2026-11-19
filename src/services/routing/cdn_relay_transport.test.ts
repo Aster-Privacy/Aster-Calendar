@@ -41,9 +41,8 @@ vi.mock("./tauri_proxy_transport", () => ({
 import { cdn_relay_fetch, is_relay_host_allowed } from "./cdn_relay_transport";
 
 describe("is_relay_host_allowed", () => {
-  it("accepts owned relay hosts over https", () => {
+  it("accepts the named relay origin over https", () => {
     for (const url of [
-      "https://astermail.org",
       "https://relay.astermail.org",
       "https://RELAY.ASTERMAIL.ORG",
       "https://relay.astermail.org./",
@@ -60,6 +59,17 @@ describe("is_relay_host_allowed", () => {
       "https://RELAY.ASTERMAIL.COM",
       "https://relay.astermail.com./",
       "https://astermail.org.astermail.com",
+    ]) {
+      expect(is_relay_host_allowed(url), url).toBe(false);
+    }
+  });
+
+  it("rejects owned hosts that are not the named relay", () => {
+    for (const url of [
+      "https://astermail.org",
+      "https://app.astermail.org",
+      "https://cdn.astermail.org",
+      "https://relay.astermail.org:8443",
     ]) {
       expect(is_relay_host_allowed(url), url).toBe(false);
     }
@@ -113,6 +123,20 @@ describe("cdn_relay_fetch", () => {
     );
 
     expect(fetch_info_mock).not.toHaveBeenCalled();
+    expect(fetch_spy).toHaveBeenCalledWith(
+      "https://relay.astermail.org/api/core/v1/auth/device/code",
+      expect.anything(),
+    );
+  });
+
+  it("relays through the normalized relay origin", async () => {
+    get_relay_mock.mockReturnValue("https://RELAY.astermail.org./");
+
+    await cdn_relay_fetch(
+      "https://app.astermail.org/api/core/v1/auth/device/code",
+      {},
+    );
+
     expect(fetch_spy).toHaveBeenCalledWith(
       "https://relay.astermail.org/api/core/v1/auth/device/code",
       expect.anything(),

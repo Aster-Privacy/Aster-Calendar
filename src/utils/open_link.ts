@@ -51,13 +51,7 @@ export function open_external(url: string, features?: string): Window | null {
 
         await invoke("open_external_url", { url: normalized });
       } catch {
-        try {
-          const { open } = await import("@tauri-apps/plugin-shell");
-
-          await open(normalized);
-        } catch {
-          window.open(normalized, "_blank", "noopener,noreferrer");
-        }
+        window.open(normalized, "_blank", "noopener,noreferrer");
       }
     })();
 

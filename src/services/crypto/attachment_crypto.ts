@@ -48,10 +48,7 @@ import {
 } from "@/services/crypto/inbound_attachment_keys";
 import { decrypt_aes_gcm_with_fallback } from "@/services/crypto/legacy_keks";
 import { decrypt_legacy_ios_envelope } from "@/services/crypto/legacy_ios_envelope";
-import {
-  get_account_key_capabilities,
-  peek_account_key_capabilities,
-} from "@/services/api/account_key";
+import { get_account_key_capabilities } from "@/services/api/account_key";
 
 export interface EncryptedAttachmentForSend {
   encrypted_data: string;
@@ -109,7 +106,6 @@ export async function encrypt_data_with_session_key(
   data: ArrayBuffer,
   session_key: CryptoKey,
   seq: number,
-  bound: boolean,
 ): Promise<{ encrypted: ArrayBuffer; nonce: Uint8Array }> {
   const nonce = crypto.getRandomValues(new Uint8Array(NONCE_LENGTH));
 
@@ -117,7 +113,7 @@ export async function encrypt_data_with_session_key(
     {
       name: "AES-GCM",
       iv: nonce,
-      additionalData: bound ? attachment_data_aad(seq) : new Uint8Array(0),
+      additionalData: attachment_data_aad(seq),
     },
     session_key,
     data,
@@ -174,7 +170,6 @@ export async function encrypt_attachments_for_send(
 
   try {
     const own_seal = await own_key_seal_when_enabled(attachments.length);
-    const bound = peek_account_key_capabilities().bound_attachment_writes;
     let seq = 0;
 
     for (const attachment of attachments) {
@@ -192,7 +187,6 @@ export async function encrypt_attachments_for_send(
         attachment.data,
         session_key,
         seq,
-        bound,
       );
 
       const meta: AttachmentMeta = {

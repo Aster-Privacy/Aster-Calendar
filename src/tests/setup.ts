@@ -97,6 +97,47 @@ function quiet_canceled_animations(): void {
 
 quiet_canceled_animations();
 
+function fetch_target(input: RequestInfo | URL, origin: string): URL | null {
+  const raw =
+    typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.href
+        : input.url;
+
+  try {
+    return new URL(raw, origin);
+  } catch {
+    return null;
+  }
+}
+
+function keep_fetch_off_the_test_origin(): void {
+  if (typeof globalThis.fetch !== "function") return;
+  if (typeof location === "undefined" || !location.origin.startsWith("http"))
+    return;
+
+  const test_origin = location.origin;
+  const network_fetch = globalThis.fetch.bind(globalThis);
+
+  const guarded_fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+    const target = fetch_target(input, test_origin);
+
+    if (target && target.origin === test_origin) {
+      return Promise.reject(new TypeError("Failed to fetch"));
+    }
+
+    return network_fetch(input, init);
+  }) as typeof fetch;
+
+  globalThis.fetch = guarded_fetch;
+  if (typeof window !== "undefined" && window !== globalThis) {
+    window.fetch = guarded_fetch;
+  }
+}
+
+keep_fetch_off_the_test_origin();
+
 const subtle_crypto_mock = {
   generateKey: vi.fn(),
   importKey: vi.fn(),

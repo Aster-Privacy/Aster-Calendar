@@ -32,7 +32,7 @@ import {
   is_snowflake_supported,
   is_cdn_relay_supported,
 } from "./tor_transport";
-import { is_relay_host_allowed } from "./cdn_relay_transport";
+import { relay_origin } from "./cdn_relay_transport";
 
 import { user_facing_error } from "@/utils/user_facing_error";
 import { api_client } from "@/services/api/client";
@@ -152,9 +152,9 @@ class ConnectionStore {
       if (!response.data) return;
 
       const cdn_relay_url =
-        response.data.cdn_relay_urls.length > 0
-          ? response.data.cdn_relay_urls[0]
-          : null;
+        response.data.cdn_relay_urls.find(
+          (candidate) => relay_origin(candidate) !== null,
+        ) ?? null;
 
       await this.set_connection_info(
         response.data.api_onion || null,
@@ -211,10 +211,7 @@ class ConnectionStore {
     mail_onion_url: string | null,
     cdn_relay_url: string | null,
   ): Promise<void> {
-    const safe_cdn_relay_url =
-      cdn_relay_url && is_relay_host_allowed(cdn_relay_url)
-        ? cdn_relay_url
-        : null;
+    const safe_cdn_relay_url = cdn_relay_url ? relay_origin(cdn_relay_url) : null;
 
     this.state.api_onion_url = api_onion_url;
     this.state.mail_onion_url = mail_onion_url;

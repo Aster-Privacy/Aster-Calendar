@@ -40,11 +40,13 @@ export interface RsvpReplyRequest {
   language: string;
 }
 
-export function rsvp_confirmation_key(
-  event: Pick<DecryptedCalendarEvent, "id" | "recurrence_master_id">,
-  organizer_email: string,
-): string {
-  return `${event.recurrence_master_id ?? event.id}|${organizer_email.trim().toLowerCase()}`;
+export function build_rsvp_reply_request(
+  fields: Omit<
+    RsvpReplyRequest,
+    "authenticated_sender" | "confirmed_organizer"
+  >,
+): RsvpReplyRequest {
+  return { ...fields, authenticated_sender: null, confirmed_organizer: false };
 }
 
 export async function deliver_rsvp_reply(

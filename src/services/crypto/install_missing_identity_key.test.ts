@@ -18,6 +18,9 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@/services/crypto/key_manager", () => ({
@@ -31,7 +34,6 @@ vi.mock("@/services/crypto/key_manager", () => ({
 
 import {
   build_identity_key_install,
-  derive_missing_identity_keks,
   vault_lacks_identity_key,
 } from "./install_missing_identity_key";
 
@@ -56,27 +58,20 @@ describe("install_missing_identity_key", () => {
     expect(vault_lacks_identity_key({ identity_key: "" } as never)).toBe(true);
   });
 
-  it("derives the keys data was written with while the identity key was missing", async () => {
-    const keks = await derive_missing_identity_keks();
-    const encoded = keks.map((raw) => array_to_base64(raw));
-
-    expect(encoded).toContain(
-      await sha256("undefinedastermail-preferences-v1"),
-    );
-    expect(encoded).toContain(await sha256("undefinedastermail-draft-v2"));
-    expect(encoded).toContain(await sha256("undefinedastermail-labels-v1"));
-  });
-
-  it("installs a new identity key and keeps old data readable", async () => {
+  it("installs a new identity key and keeps the vault's own keys", async () => {
     const existing = { k: "existing", added_at: "2026-01-01T00:00:00.000Z" };
+    const planted = {
+      k: await sha256("undefinedastermail-labels-v1"),
+      added_at: "2026-01-01T00:00:00.000Z",
+    };
     const { new_vault, pgp_key_data } = await build_identity_key_install(
       {
         identity_private_key: "ratchet",
-        legacy_keks: [existing],
+        legacy_keks: [planted, existing],
       } as never,
       "passphrase",
-      "zein@astermail.org",
-      "zein",
+      "member@example.com",
+      "member",
     );
 
     expect(new_vault.identity_key).toContain("BEGIN PGP PRIVATE KEY");
@@ -87,9 +82,26 @@ describe("install_missing_identity_key", () => {
 
     const kek_values = (new_vault.legacy_keks ?? []).map((entry) => entry.k);
 
-    expect(kek_values).toContain(
-      await sha256("undefinedastermail-preferences-v1"),
+    expect(kek_values).toEqual(["existing"]);
+  });
+});
+
+describe("install_missing_identity_key fixtures", () => {
+  it("uses only reserved example domains for addresses", () => {
+    const source = readFileSync(
+      join(
+        process.cwd(),
+        "src/services/crypto/install_missing_identity_key.test.ts",
+      ),
+      "utf8",
     );
-    expect(kek_values).toContain("existing");
+    const domains = [...source.matchAll(/[\w.+-]+@([\w-]+(?:\.[\w-]+)+)/g)]
+      .map((match) => match[1].toLowerCase())
+      .filter((domain) => !domain.endsWith(".ts"));
+
+    expect(domains.length).toBeGreaterThan(0);
+    const reserved = ["example.com", "example.org", "example.net"];
+
+    expect(domains.filter((domain) => !reserved.includes(domain))).toEqual([]);
   });
 });

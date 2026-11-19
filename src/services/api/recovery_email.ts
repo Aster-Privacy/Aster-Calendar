@@ -22,6 +22,7 @@ import type { EncryptedVault } from "@/services/crypto/key_manager";
 import type { StepUpCredentials } from "./step_up";
 
 import { api_client } from "./client";
+import { to_reauth_proof } from "./step_up";
 
 import { HASH_ALG } from "@/services/crypto/constants";
 import { decrypt_aes_gcm_with_fallback } from "@/services/crypto/legacy_keks";
@@ -274,6 +275,7 @@ export async function save_recovery_email(
         plaintext_email: normalized,
         password_hash: credentials?.password_hash,
         totp_code: credentials?.totp_code,
+        hardware_key_assertion: credentials?.hardware_key_assertion,
       },
     );
 
@@ -360,10 +362,7 @@ export async function remove_recovery_email(
     const response = await api_client.delete<{ success: boolean }>(
       "/core/v1/recovery/email",
       {
-        data: {
-          password_hash: credentials.password_hash,
-          totp_code: credentials.totp_code,
-        },
+        data: to_reauth_proof(credentials),
       },
     );
 

@@ -45,6 +45,7 @@ vi.mock("./client", () => ({
 vi.mock("@/services/crypto/legacy_keks", () => ({
   decrypt_aes_gcm_with_fallback: vi.fn(),
   get_account_data_write_key: vi.fn(() => null),
+  sealed_under_public_constant: vi.fn(async () => false),
 }));
 
 const vault = { identity_key: "integration-test-identity" } as EncryptedVault;

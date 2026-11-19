@@ -20,7 +20,7 @@
 //
 import { connection_store } from "./connection_store";
 import { is_tor_connected, is_tor_platform, tor_fetch } from "./tor_transport";
-import { cdn_relay_fetch } from "./cdn_relay_transport";
+import { cdn_relay_fetch, relay_origin } from "./cdn_relay_transport";
 import {
   should_use_tauri_proxy,
   tauri_proxy_fetch,
@@ -89,7 +89,7 @@ export function get_effective_base_url(default_base_url: string): string {
   }
 
   if (method === "cdn_relay") {
-    const relay_url = connection_store.get_cdn_relay_url();
+    const relay_url = relay_origin(connection_store.get_cdn_relay_url() ?? "");
 
     if (relay_url) {
       return `${relay_url}/api`;

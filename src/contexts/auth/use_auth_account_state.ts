@@ -107,8 +107,7 @@ import { ignore_error } from "@/lib/ignore_error";
 import { remember_current_user } from "@/services/current_identity";
 import {
   flush_pending_login_enrollment,
-  remember_saved_login_accounts,
-  seed_session_login_salt,
+  seed_login_salt_record_from_session,
 } from "@/services/crypto/login_proof";
 
 export function use_auth_account_state() {
@@ -294,7 +293,6 @@ export function use_auth_account_state() {
       try {
         const data = await initialize_accounts();
 
-        void remember_saved_login_accounts();
         const current = await get_current_account();
 
         if (!current) {
@@ -375,6 +373,15 @@ export function use_auth_account_state() {
               stored_passphrase,
               current.user.id,
             );
+
+            if (vault !== null) {
+              await seed_login_salt_record_from_session().catch((caught) =>
+                ignore_error(
+                  "contexts/auth/use_auth_account_state:init",
+                  caught,
+                ),
+              );
+            }
 
             return vault !== null;
           } catch (caught) {
@@ -479,9 +486,6 @@ export function use_auth_account_state() {
             safe_log_error(e);
           });
           backfill_user_profile(user);
-          seed_session_login_salt(user.id, user.email).catch((caught) =>
-            ignore_error("contexts/auth/use_auth_account_state:init", caught),
-          );
           sync_shared_mailbox_grants()
             .then(async () => {
               const refreshed = await get_all_accounts();

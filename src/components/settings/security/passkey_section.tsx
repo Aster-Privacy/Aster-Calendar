@@ -64,7 +64,9 @@ import {
 } from "@/services/api/webauthn";
 import {
   STEP_UP_REQUIRED_CODE,
+  is_reauth_required,
   to_reauth_proof,
+  type ReauthProof,
   type StepUpCredentials,
 } from "@/services/api/step_up";
 import {
@@ -294,10 +296,7 @@ export function PasskeySection() {
   }, [load_keys]);
 
   const handle_remove = useCallback(
-    async (
-      key_id: string,
-      credentials?: { password_hash: string; totp_code?: string },
-    ) => {
+    async (key_id: string, credentials?: ReauthProof) => {
       set_pending_delete(null);
       set_removing_id(key_id);
       try {
@@ -329,7 +328,7 @@ export function PasskeySection() {
           return;
         }
 
-        if (resp.server_code === "STEP_UP_REQUIRED") {
+        if (!credentials && is_reauth_required(resp.server_code)) {
           set_step_up_key_id(key_id);
 
           return;
@@ -632,18 +631,12 @@ export function PasskeySection() {
         on_close={() => set_step_up_key_id(null)}
         on_confirm={async (credentials) => {
           if (!step_up_key_id) return;
-          await handle_remove(step_up_key_id, {
-            password_hash: credentials.password_hash,
-            ...(credentials.totp_code
-              ? { totp_code: credentials.totp_code }
-              : {}),
-          });
+          await handle_remove(step_up_key_id, to_reauth_proof(credentials));
         }}
         title={t("passkeys.remove_last_key_step_up_title")}
       />
 
       <StepUpModal
-        password_only
         confirm_label={t("common.continue")}
         description={t("common.step_up_description")}
         is_open={!!step_up_add}

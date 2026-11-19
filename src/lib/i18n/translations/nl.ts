@@ -9538,6 +9538,14 @@ export const nl = {
       "Je verplaatst berichten van {{sender}} vaak naar {{category}}. Wil je dat automatisch doen?",
   },
   auth: {
+    continue_with_app: "Doorgaan met {{app}}",
+    sibling_waiting: "Bevestig het inloggen in het venster dat is geopend.",
+    sibling_popup_blocked: "Het bevestigingsvenster is geblokkeerd. Sta pop-ups toe voor deze site en probeer het opnieuw.",
+    sibling_failed: "Inloggen met {{app}} is niet voltooid. Probeer het opnieuw of log in met je wachtwoord.",
+    handoff_approve_title: "Inloggen bij {{app}}?",
+    handoff_approve_body: "{{app}} vraagt om in te loggen als {{email}}. Ga alleen door als je deze inlogpoging zelf hebt gestart.",
+    handoff_approve_done: "Je kunt dit venster sluiten.",
+    handoff_approve_signed_out: "Je bent hier niet ingelogd. Sluit dit venster en log in met je wachtwoord.",
     passkey_verification: "Verifiëren met Passkey",
     use_passkey_or_key:
       "Gebruik Windows Hello, Face ID of je beveiligingssleutel",
@@ -10153,8 +10161,6 @@ export const nl = {
       "Het aanmelden is gestopt omdat de server een onveilige waarde heeft gestuurd, dus er is niets ontgrendeld. Neem contact op met support voordat je het opnieuw probeert.",
     legacy_login_salt_new_device:
       "Om een beveiligingsupdate van je account af te ronden, log je in op een apparaat dat je eerder met Aster hebt gebruikt. Lukt dat niet, stel dan je wachtwoord opnieuw in met je herstelsleutel.",
-    legacy_login_salt_sign_in_again:
-      "Om een beveiligingsupdate van je account af te ronden, log je uit en daarna opnieuw in.",
     upload_too_large:
       "De upload is te groot. Verwijder of verklein een bestand om verder te gaan.",
     failed_remove_reaction:
@@ -11261,6 +11267,10 @@ export const nl = {
       "Je hebt al het maximale aantal aankomende boekingen bij deze host.",
     booking_rate_limited:
       "Te veel pogingen. Wacht een minuut en probeer het dan opnieuw.",
+    booking_page_updated:
+      "Deze boekingspagina is bijgewerkt. Controleer je gegevens en boek dan opnieuw.",
+    booking_sealing_unavailable:
+      "Deze boekingspagina kan je gegevens nu niet beschermen, dus je boeking is niet verzonden. Probeer het later opnieuw.",
     booking_no_slots: "Er zijn geen tijden beschikbaar in de komende 2 weken.",
     booking_time_zone: "Tijden zijn in {{time_zone}}.",
     booking_load_failed:

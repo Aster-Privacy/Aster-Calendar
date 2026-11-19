@@ -872,7 +872,7 @@ fn is_local_app_url(url: &tauri::Url, allow_dev_hosts: bool) -> bool {
     }
 }
 
-fn require_primary_webview(window: &tauri::WebviewWindow) -> Result<(), String> {
+pub(crate) fn require_primary_webview(window: &tauri::WebviewWindow) -> Result<(), String> {
     if window.label() != "main" {
         return Err("command not available in this window".to_string());
     }
@@ -890,14 +890,13 @@ pub fn device_unseal_vault_envelope(
     window: tauri::WebviewWindow,
     envelope_b64: String,
     device_id: Option<String>,
-) -> Result<String, String> {
+) -> Result<(), String> {
     require_primary_webview(&window)?;
     let target_device = resolve_passphrase_device(device_id)?;
     let data = b64url_decode(&envelope_b64)?;
     let id = get_or_create_device_identity()?;
     let plaintext = open_device_envelope(&data, &id)?;
 
-    let encoded = b64url(&plaintext);
     let path = match target_device {
         Some(id) => passphrase_file_path_for(id)?,
         None => passphrase_file_path()?,
@@ -906,7 +905,7 @@ pub fn device_unseal_vault_envelope(
     let blob = aead_seal(&wrap_key, MAGIC_PP, &plaintext)?;
     atomic_write(&path, &blob)?;
 
-    Ok(encoded)
+    Ok(())
 }
 
 fn reseal_legacy_passphrase(path: &std::path::Path, raw: &[u8]) {

@@ -23,6 +23,7 @@
 mod badge;
 mod badges_data;
 mod boot_guard;
+mod calendar_feed;
 mod device;
 mod http_client;
 mod sync_socket;
@@ -484,6 +485,7 @@ fn main() {
             set_tray_labels,
             set_content_protection,
             open_external_url,
+            calendar_feed::fetch_calendar_feed,
             device::crypto::device_get_pubkeys,
             device::crypto::device_set_id,
             device::crypto::device_sign_challenge,
