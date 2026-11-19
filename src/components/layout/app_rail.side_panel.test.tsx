@@ -48,6 +48,11 @@ vi.mock("@/components/layout/quick_security_panel", () => ({
   QuickSecurityPanel: () => null,
 }));
 
+vi.mock("@/components/layout/quick_agenda_panel", () => ({
+  QuickAgendaPanel: ({ is_open }: { is_open: boolean }) =>
+    is_open ? <div data-testid="agenda_panel" /> : null,
+}));
+
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean;
 }
@@ -148,6 +153,32 @@ describe("side panel setting", () => {
     await render_rail("/", on_change);
 
     expect(on_change).not.toHaveBeenCalledWith(true);
+  });
+
+  it("opens the agenda panel from the calendar icon without leaving the page", async () => {
+    const on_contacts = vi.fn();
+    const on_security = vi.fn();
+
+    await render_rail("/", on_contacts, on_security);
+
+    const button = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="common.app_name_calendar"]',
+    );
+
+    expect(button).not.toBeNull();
+    await act(async () => {
+      button!.click();
+    });
+
+    expect(container.querySelector('[data-testid="agenda_panel"]')).not.toBeNull();
+    expect(on_contacts).toHaveBeenCalledWith(false);
+    expect(on_security).toHaveBeenCalledWith(false);
+
+    await act(async () => {
+      button!.click();
+    });
+
+    expect(container.querySelector('[data-testid="agenda_panel"]')).toBeNull();
   });
 
   it("defaults the side panel to visible", () => {
