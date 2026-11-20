@@ -204,6 +204,7 @@ export async function open_account_key_token(
       own_private_keys,
       passphrase,
       verification_keys,
+      true,
     );
 
     if (result.verification !== "verified") return null;
