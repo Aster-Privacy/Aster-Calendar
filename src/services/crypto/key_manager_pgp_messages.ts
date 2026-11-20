@@ -295,6 +295,7 @@ export async function decrypt_message_verified(
   secret_key: string,
   passphrase: string,
   verification_keys?: string[],
+  accept_recertified_keys: boolean = false,
 ): Promise<decrypted_message_result> {
   const secret_key_obj = await unlock_private_key(secret_key, passphrase);
 
@@ -309,6 +310,9 @@ export async function decrypt_message_verified(
         parsed_verification_keys.length > 0
           ? parsed_verification_keys
           : undefined,
+      config: accept_recertified_keys
+        ? { allowInsecureVerificationWithReformattedKeys: true }
+        : undefined,
     }),
   );
 
@@ -343,6 +347,7 @@ export async function decrypt_message_verified_with_any_key(
   secret_keys: (string | null | undefined)[],
   passphrase: string,
   verification_keys?: string[],
+  accept_recertified_keys: boolean = false,
 ): Promise<decrypted_message_result> {
   const available = secret_keys.filter((k): k is string => !!k);
 
@@ -361,6 +366,7 @@ export async function decrypt_message_verified_with_any_key(
         key,
         passphrase,
         verification_keys,
+        accept_recertified_keys,
       );
     } catch (error) {
       last_error = error;
