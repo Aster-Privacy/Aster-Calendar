@@ -1,4 +1,4 @@
-﻿//
+//
 // Aster Communications Inc.
 //
 // Copyright (c) 2026 Aster Communications Inc.
@@ -10373,6 +10373,11 @@ export const zh_CN = {
     event_deleted: "已删除日程",
     event_delete_failed: "无法删除此日程",
     time_range_to: "至",
+    event_time_zone: "时区",
+    start_time_zone: "开始时区",
+    end_time_zone: "结束时区",
+    event_time_zone_summary: "按日历时区：{{start}} 至 {{end}}",
+    event_time_zone_range: "{{start}} 至 {{end}}",
     time_suggestions: "建议时间",
     time_input_invalid: "请输入有效时间，例如 9:30 或 21:30",
     start_date: "开始日期",

@@ -1,4 +1,4 @@
-﻿//
+//
 // Aster Communications Inc.
 //
 // Copyright (c) 2026 Aster Communications Inc.
@@ -11662,6 +11662,12 @@ export const nl = {
     event_deleted: "Afspraak verwijderd",
     event_delete_failed: "Deze afspraak kon niet worden verwijderd",
     time_range_to: "tot",
+    event_time_zone: "Tijdzone",
+    start_time_zone: "Tijdzone voor begin",
+    end_time_zone: "Tijdzone voor einde",
+    event_time_zone_summary:
+      "In de tijdzone van je agenda: {{start}} tot {{end}}",
+    event_time_zone_range: "{{start}} tot {{end}}",
     time_suggestions: "Voorgestelde tijden",
     time_input_invalid: "Voer een geldige tijd in, zoals 9:30 of 21:30",
     start_date: "Begindatum",

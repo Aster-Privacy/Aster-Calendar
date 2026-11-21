@@ -1,4 +1,4 @@
-﻿//
+//
 // Aster Communications Inc.
 //
 // Copyright (c) 2026 Aster Communications Inc.
@@ -11186,6 +11186,11 @@ export const ko = {
     event_deleted: "일정을 삭제했습니다",
     event_delete_failed: "이 일정을 삭제하지 못했습니다",
     time_range_to: "-",
+    event_time_zone: "시간대",
+    start_time_zone: "시작 시간대",
+    end_time_zone: "종료 시간대",
+    event_time_zone_summary: "캘린더 시간대 기준: {{start}} ~ {{end}}",
+    event_time_zone_range: "{{start}} ~ {{end}}",
     time_suggestions: "추천 시간",
     time_input_invalid: "올바른 시간을 입력하세요 (예: 9:30, 21:30)",
     start_date: "시작 날짜",

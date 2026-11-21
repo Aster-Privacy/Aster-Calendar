@@ -1,4 +1,4 @@
-﻿//
+//
 // Aster Communications Inc.
 //
 // Copyright (c) 2026 Aster Communications Inc.
@@ -11403,6 +11403,12 @@ export const ar = {
     event_deleted: "تم حذف الحدث",
     event_delete_failed: "تعذر حذف هذا الحدث",
     time_range_to: "إلى",
+    event_time_zone: "المنطقة الزمنية",
+    start_time_zone: "المنطقة الزمنية للبدء",
+    end_time_zone: "المنطقة الزمنية للانتهاء",
+    event_time_zone_summary:
+      "حسب المنطقة الزمنية للتقويم: {{start}} إلى {{end}}",
+    event_time_zone_range: "{{start}} إلى {{end}}",
     time_suggestions: "الأوقات المقترحة",
     time_input_invalid: "أدخل وقتًا صالحًا، مثل 9:30 أو 21:30",
     start_date: "تاريخ البدء",

@@ -35,6 +35,7 @@ import type {
 } from "@/types/calendar";
 
 import { normalize_recurrence } from "@/services/calendar/recurrence";
+import { normalize_event_time_zone } from "@/services/calendar/event_zone";
 import {
   normalize_reminder_list,
   normalize_reminder_minutes,
@@ -108,6 +109,8 @@ export interface EventBlob {
   organizer_email?: string | null;
   trashed_at?: string | null;
   task_meta?: CalendarTaskMeta | null;
+  start_time_zone?: string | null;
+  end_time_zone?: string | null;
   rev_at?: number;
 }
 
@@ -447,6 +450,29 @@ export function draft_to_blob(draft: CalendarEventDraft): EventBlob {
     organizer_email: normalize_organizer_email(draft.organizer_email),
     trashed_at: normalize_trashed_at(draft.trashed_at),
     task_meta: normalize_task_meta(draft.task_meta),
+    ...event_zone_fields(
+      draft.is_all_day,
+      draft.start_time_zone,
+      draft.end_time_zone,
+    ),
+  };
+}
+
+function event_zone_fields(
+  is_all_day: unknown,
+  start_value: unknown,
+  end_value: unknown,
+): { start_time_zone?: string; end_time_zone?: string } {
+  if (is_all_day === true) {
+    return {};
+  }
+
+  const start_time_zone = normalize_event_time_zone(start_value);
+  const end_time_zone = normalize_event_time_zone(end_value);
+
+  return {
+    ...(start_time_zone ? { start_time_zone } : {}),
+    ...(end_time_zone ? { end_time_zone } : {}),
   };
 }
 
@@ -501,6 +527,11 @@ export function blob_to_event(
     organizer_email: normalize_organizer_email(blob.organizer_email),
     trashed_at: normalize_trashed_at(blob.trashed_at),
     task_meta: normalize_task_meta(blob.task_meta),
+    ...event_zone_fields(
+      blob.is_all_day,
+      blob.start_time_zone,
+      blob.end_time_zone,
+    ),
     id,
     calendar_id,
     created_at,
@@ -542,6 +573,11 @@ export function event_to_draft(
     organizer_email: event.organizer_email ?? null,
     trashed_at: event.trashed_at ?? null,
     task_meta: event.task_meta ?? null,
+    ...event_zone_fields(
+      event.is_all_day,
+      event.start_time_zone,
+      event.end_time_zone,
+    ),
   };
 }
 

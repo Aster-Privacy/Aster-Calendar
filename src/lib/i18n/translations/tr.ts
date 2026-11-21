@@ -1,4 +1,4 @@
-﻿//
+//
 // Aster Communications Inc.
 //
 // Copyright (c) 2026 Aster Communications Inc.
@@ -11523,6 +11523,11 @@ export const tr = {
     event_deleted: "Etkinlik silindi",
     event_delete_failed: "Bu etkinlik silinemedi",
     time_range_to: "-",
+    event_time_zone: "Saat dilimi",
+    start_time_zone: "Başlangıç saat dilimi",
+    end_time_zone: "Bitiş saat dilimi",
+    event_time_zone_summary: "Takviminizin saat diliminde: {{start}} - {{end}}",
+    event_time_zone_range: "{{start}} - {{end}}",
     time_suggestions: "Önerilen saatler",
     time_input_invalid: "Geçerli bir saat girin, örneğin 9:30 veya 21:30",
     start_date: "Başlangıç tarihi",

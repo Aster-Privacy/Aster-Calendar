@@ -1,4 +1,4 @@
-﻿//
+//
 // Aster Communications Inc.
 //
 // Copyright (c) 2026 Aster Communications Inc.
@@ -11757,6 +11757,12 @@ export const pt_br = {
     event_deleted: "Evento excluído",
     event_delete_failed: "Não foi possível excluir este evento",
     time_range_to: "até",
+    event_time_zone: "Fuso horário",
+    start_time_zone: "Fuso horário de início",
+    end_time_zone: "Fuso horário de término",
+    event_time_zone_summary:
+      "No fuso horário da sua agenda: {{start}} a {{end}}",
+    event_time_zone_range: "{{start}} a {{end}}",
     time_suggestions: "Horários sugeridos",
     time_input_invalid: "Digite um horário válido, como 9:30 ou 21:30",
     start_date: "Data de início",

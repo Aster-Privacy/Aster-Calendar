@@ -1,4 +1,4 @@
-﻿//
+//
 // Aster Communications Inc.
 //
 // Copyright (c) 2026 Aster Communications Inc.
@@ -858,6 +858,11 @@ export interface CalendarTranslations {
   event_deleted: string;
   event_delete_failed: string;
   time_range_to: string;
+  event_time_zone: string;
+  start_time_zone: string;
+  end_time_zone: string;
+  event_time_zone_summary: string;
+  event_time_zone_range: string;
   time_suggestions: string;
   time_input_invalid: string;
   start_date: string;

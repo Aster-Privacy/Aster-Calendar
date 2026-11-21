@@ -1,4 +1,4 @@
-﻿//
+//
 // Aster Communications Inc.
 //
 // Copyright (c) 2026 Aster Communications Inc.
@@ -11376,6 +11376,11 @@ export const en: Translations = {
     event_deleted: "Event deleted",
     event_delete_failed: "Could not delete this event",
     time_range_to: "to",
+    event_time_zone: "Time zone",
+    start_time_zone: "Start time zone",
+    end_time_zone: "End time zone",
+    event_time_zone_summary: "In your calendar time zone: {{start}} to {{end}}",
+    event_time_zone_range: "{{start}} to {{end}}",
     time_suggestions: "Suggested times",
     time_input_invalid: "Enter a valid time, such as 9:30 or 9:30 PM",
     start_date: "Start date",
