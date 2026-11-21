@@ -73,6 +73,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown_menu";
 import { get_display_time_zone } from "@/utils/date_format";
+import {
+  format_time_with_zone,
+  normalize_event_time_zone,
+} from "@/services/calendar/event_zone";
 import { is_booking_event } from "@/services/calendar/appointments";
 import { is_birthday_kind } from "@/services/calendar/birthdays";
 import { use_guarded_link } from "@/components/calendar/use_guarded_link";
@@ -592,6 +596,36 @@ export function EventDetailPopover({
         format_options.time_format === "12h",
       );
 
+  const entered_start_zone = event.is_all_day
+    ? null
+    : normalize_event_time_zone(event.start_time_zone);
+  const entered_end_zone = event.is_all_day
+    ? null
+    : normalize_event_time_zone(event.end_time_zone);
+  const zone_start_label = entered_start_zone
+    ? format_time_with_zone(
+        starts_at,
+        entered_start_zone,
+        language,
+        format_options.time_format === "12h",
+      )
+    : "";
+  const zone_end_label = entered_end_zone
+    ? format_time_with_zone(
+        ends_at,
+        entered_end_zone,
+        language,
+        format_options.time_format === "12h",
+      )
+    : "";
+  const zone_label =
+    zone_start_label && zone_end_label
+      ? t("calendar.event_time_zone_range", {
+          start: zone_start_label,
+          end: zone_end_label,
+        })
+      : zone_start_label || zone_end_label;
+
   const reminder_labels = (effective_reminders(event) ?? []).map((minutes) =>
     format_reminder(minutes, t),
   );
@@ -896,6 +930,14 @@ export function EventDetailPopover({
           <PopoverRow icon={<ClockIcon />}>
             <span className="block text-txt-primary">{day_label}</span>
             <span className="block">{time_label}</span>
+            {zone_label && (
+              <span
+                className="block text-txt-muted"
+                data-testid="calendar-event-zone-label"
+              >
+                {zone_label}
+              </span>
+            )}
             {recurrence_label && (
               <span className="block text-txt-muted">{recurrence_label}</span>
             )}

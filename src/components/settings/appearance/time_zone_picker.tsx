@@ -86,6 +86,8 @@ interface TimeZonePickerProps {
   trigger_label?: string;
   exclude?: string[];
   trigger_class_name?: string;
+  aria_label?: string;
+  data_testid?: string;
 }
 
 export function TimeZonePicker({
@@ -99,6 +101,8 @@ export function TimeZonePicker({
   trigger_label: trigger_label_override,
   exclude,
   trigger_class_name = "w-[200px]",
+  aria_label,
+  data_testid,
 }: TimeZonePickerProps) {
   const { t } = use_i18n();
   const [is_open, set_is_open] = useState(false);
@@ -234,6 +238,8 @@ export function TimeZonePicker({
     <Popover open={is_open} onOpenChange={set_is_open}>
       <PopoverTrigger asChild>
         <button
+          aria-label={aria_label}
+          data-testid={data_testid}
           className={`aster_select_trigger group flex h-10 ${trigger_class_name} items-center justify-between gap-2 overflow-hidden border-0 ps-3.5 pe-3 text-[13px] font-medium text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)]/50`}
           type="button"
         >

@@ -77,6 +77,12 @@ import {
   ink_on_fill,
 } from "@/components/calendar/calendar_utils";
 import { calendar_now } from "@/services/calendar/view_zone";
+import {
+  normalize_event_time_zone,
+  view_date_to_zoned_fields,
+  zoned_fields_to_view_date,
+} from "@/services/calendar/event_zone";
+import { TimeZonePicker } from "@/components/settings/appearance/time_zone_picker";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Button,
@@ -125,6 +131,11 @@ const MAX_LOCATION_LENGTH = 500;
 const MAX_CONFERENCE_URL_LENGTH = 2048;
 const MAX_DESCRIPTION_LENGTH = 20000;
 const MAX_ATTENDEES = 100;
+const CALENDAR_ZONE = "auto";
+
+function zone_of(value: string): string | null {
+  return value === CALENDAR_ZONE ? null : normalize_event_time_zone(value);
+}
 
 const EVENT_KIND_OPTIONS: {
   value: CalendarEventKind;
@@ -330,6 +341,9 @@ export function EventFormModal({
 
   calendars_ref.current = calendars;
   const [is_all_day, set_is_all_day] = useState(false);
+  const [start_zone, set_start_zone] = useState(CALENDAR_ZONE);
+  const [end_zone, set_end_zone] = useState(CALENDAR_ZONE);
+  const [show_zones, set_show_zones] = useState(false);
   const [start_date, set_start_date] = useState("");
   const [start_time, set_start_time] = useState("09:00");
   const [end_date, set_end_date] = useState("");
@@ -433,11 +447,26 @@ export function EventFormModal({
       set_location(event.location);
       set_description(event.description);
       set_calendar_id(event.calendar_id);
+      const stored_start_zone = event.is_all_day
+        ? null
+        : normalize_event_time_zone(event.start_time_zone);
+      const stored_end_zone = event.is_all_day
+        ? null
+        : normalize_event_time_zone(event.end_time_zone);
+      const start_fields = view_date_to_zoned_fields(
+        event_start,
+        stored_start_zone,
+      );
+      const end_fields = view_date_to_zoned_fields(event_end, stored_end_zone);
+
       set_is_all_day(event.is_all_day);
-      set_start_date(to_local_date_value(event_start));
-      set_end_date(to_local_date_value(event_end));
-      set_start_time(to_local_time_value(event_start));
-      set_end_time(to_local_time_value(event_end));
+      set_start_zone(stored_start_zone ?? CALENDAR_ZONE);
+      set_end_zone(stored_end_zone ?? CALENDAR_ZONE);
+      set_show_zones(stored_start_zone !== null || stored_end_zone !== null);
+      set_start_date(start_fields.date_value);
+      set_end_date(end_fields.date_value);
+      set_start_time(start_fields.time_value);
+      set_end_time(end_fields.time_value);
       set_reminders(effective_reminders(event) ?? []);
       set_attendees(event.attendees.map((attendee) => attendee.email));
       set_guests_can_modify(event.guests_can_modify);
@@ -484,6 +513,9 @@ export function EventFormModal({
     set_description("");
     set_calendar_id(pick_initial_calendar_id(calendars_ref.current));
     set_is_all_day(initial_draft?.is_all_day ?? false);
+    set_start_zone(CALENDAR_ZONE);
+    set_end_zone(CALENDAR_ZONE);
+    set_show_zones(false);
     set_start_date(to_local_date_value(snapped_start));
     set_end_date(to_local_date_value(snapped_end));
     set_start_time(to_local_time_value(snapped_start));
@@ -574,6 +606,19 @@ export function EventFormModal({
     [language, preferences.time_format],
   );
 
+  const view_time_formatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(language, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: preferences.time_format === "12h",
+      }),
+    [language, preferences.time_format],
+  );
+
   const format_time_label = (value: string) => {
     const [hours, minutes] = value.split(":");
 
@@ -596,10 +641,19 @@ export function EventFormModal({
           unitDisplay: "narrow",
         }).format(minutes / 60);
 
+  const active_start_zone = is_all_day ? null : zone_of(start_zone);
+  const active_end_zone = is_all_day ? null : zone_of(end_zone);
+  const has_event_zone = active_start_zone !== null || active_end_zone !== null;
+  const zones_match = active_start_zone === active_end_zone;
+
   const handle_start_time_change = (next: string) => {
     const previous_duration =
-      build_date(end_date, end_time).getTime() -
-      build_date(start_date, start_time).getTime();
+      zoned_fields_to_view_date(end_date, end_time, active_end_zone).getTime() -
+      zoned_fields_to_view_date(
+        start_date,
+        start_time,
+        active_start_zone,
+      ).getTime();
 
     set_start_time(next);
 
@@ -608,21 +662,33 @@ export function EventFormModal({
     }
 
     const next_end = new Date(
-      build_date(start_date, next).getTime() + previous_duration,
+      zoned_fields_to_view_date(start_date, next, active_start_zone).getTime() +
+        previous_duration,
     );
 
     if (Number.isNaN(next_end.getTime())) {
       return;
     }
 
-    set_end_date(to_local_date_value(next_end));
-    set_end_time(to_local_time_value(next_end));
+    const next_fields = view_date_to_zoned_fields(next_end, active_end_zone);
+
+    set_end_date(next_fields.date_value);
+    set_end_time(next_fields.time_value);
+  };
+
+  const handle_start_zone_change = (next: string) => {
+    if (end_zone === start_zone) {
+      set_end_zone(next);
+    }
+
+    set_start_zone(next);
   };
 
   const handle_end_time_change = (next: string) => {
     set_end_time(next);
 
     if (
+      !zones_match ||
       !start_date ||
       end_date !== start_date ||
       time_to_minutes(next) >= time_to_minutes(start_time)
@@ -657,10 +723,10 @@ export function EventFormModal({
 
   const range_start = is_all_day
     ? build_date(start_date, "00:00")
-    : build_date(start_date, start_time);
+    : zoned_fields_to_view_date(start_date, start_time, active_start_zone);
   const raw_range_end = is_all_day
     ? build_date(end_date, "23:59")
-    : build_date(end_date, end_time);
+    : zoned_fields_to_view_date(end_date, end_time, active_end_zone);
 
   const has_invalid_dates =
     !start_date ||
@@ -688,6 +754,8 @@ export function EventFormModal({
     end_date,
     start_time,
     end_time,
+    start_zone: active_start_zone,
+    end_zone: active_end_zone,
     reminders,
     attendees,
     guests_can_modify,
@@ -1002,6 +1070,8 @@ export function EventFormModal({
         tags,
         description: description.trim(),
         location: location.trim(),
+        start_time_zone: active_start_zone,
+        end_time_zone: active_end_zone,
         starts_at: (is_all_day
           ? build_date(start_date, "00:00")
           : range_start
@@ -1337,7 +1407,7 @@ export function EventFormModal({
                       options={with_current_time(end_time)}
                       render_option={(value) => {
                         const duration =
-                          start_date === end_date
+                          zones_match && start_date === end_date
                             ? time_to_minutes(value) -
                               time_to_minutes(start_time)
                             : 0;
@@ -1364,6 +1434,64 @@ export function EventFormModal({
                     on_change={set_end_date}
                   />
                 </div>
+
+                {!is_all_day && !is_working_location && !show_zones && (
+                  <button
+                    className="mt-2 text-[13px] font-medium text-brand outline-none hover:underline focus-visible:underline"
+                    data-testid="calendar-event-time-zone-toggle"
+                    type="button"
+                    onClick={() => set_show_zones(true)}
+                  >
+                    {t("calendar.event_time_zone")}
+                  </button>
+                )}
+
+                {!is_all_day && !is_working_location && show_zones && (
+                  <div className="mt-2.5 flex flex-wrap items-end gap-x-3 gap-y-2">
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <span className="text-[12px] text-txt-muted">
+                        {t("calendar.start_time_zone")}
+                      </span>
+                      <TimeZonePicker
+                        aria_label={t("calendar.start_time_zone")}
+                        auto_label={t("calendar.settings_calendar_timezone")}
+                        auto_value={CALENDAR_ZONE}
+                        data_testid="calendar-event-start-zone"
+                        on_change={handle_start_zone_change}
+                        trigger_class_name="w-[220px] max-w-full"
+                        use_24h={preferences.time_format !== "12h"}
+                        value={start_zone}
+                      />
+                    </div>
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <span className="text-[12px] text-txt-muted">
+                        {t("calendar.end_time_zone")}
+                      </span>
+                      <TimeZonePicker
+                        aria_label={t("calendar.end_time_zone")}
+                        auto_label={t("calendar.settings_calendar_timezone")}
+                        auto_value={CALENDAR_ZONE}
+                        data_testid="calendar-event-end-zone"
+                        on_change={set_end_zone}
+                        trigger_class_name="w-[220px] max-w-full"
+                        use_24h={preferences.time_format !== "12h"}
+                        value={end_zone}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {has_event_zone && !has_invalid_dates && !has_range_error && (
+                  <p
+                    className="mt-2 text-[12.5px] text-txt-muted"
+                    data-testid="calendar-event-zone-summary"
+                  >
+                    {t("calendar.event_time_zone_summary", {
+                      start: view_time_formatter.format(range_start),
+                      end: view_time_formatter.format(range_end),
+                    })}
+                  </p>
+                )}
 
                 <div className={is_working_location ? "hidden" : "mt-2.5"}>
                   <Checkbox

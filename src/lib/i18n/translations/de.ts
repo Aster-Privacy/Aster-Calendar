@@ -1,4 +1,4 @@
-﻿//
+//
 // Aster Communications Inc.
 //
 // Copyright (c) 2026 Aster Communications Inc.
@@ -11831,6 +11831,12 @@ export const de = {
     event_deleted: "Termin gelöscht",
     event_delete_failed: "Dieser Termin konnte nicht gelöscht werden",
     time_range_to: "bis",
+    event_time_zone: "Zeitzone",
+    start_time_zone: "Zeitzone für den Beginn",
+    end_time_zone: "Zeitzone für das Ende",
+    event_time_zone_summary:
+      "In der Zeitzone deines Kalenders: {{start}} bis {{end}}",
+    event_time_zone_range: "{{start}} bis {{end}}",
     time_suggestions: "Vorgeschlagene Uhrzeiten",
     time_input_invalid:
       "Gib eine gültige Uhrzeit ein, zum Beispiel 9:30 oder 21:30",

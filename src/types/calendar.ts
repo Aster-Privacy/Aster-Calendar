@@ -155,6 +155,8 @@ export interface DecryptedCalendarEvent {
   organizer_email?: string | null;
   trashed_at?: string | null;
   task_meta?: CalendarTaskMeta | null;
+  start_time_zone?: string | null;
+  end_time_zone?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -191,4 +193,6 @@ export interface CalendarEventDraft {
   organizer_email?: string | null;
   trashed_at?: string | null;
   task_meta?: CalendarTaskMeta | null;
+  start_time_zone?: string | null;
+  end_time_zone?: string | null;
 }

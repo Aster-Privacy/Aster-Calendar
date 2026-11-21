@@ -1,4 +1,4 @@
-﻿//
+//
 // Aster Communications Inc.
 //
 // Copyright (c) 2026 Aster Communications Inc.
@@ -11460,6 +11460,12 @@ export const hi = {
     event_deleted: "इवेंट हटाया गया",
     event_delete_failed: "यह इवेंट हटाया नहीं जा सका",
     time_range_to: "से",
+    event_time_zone: "समय क्षेत्र",
+    start_time_zone: "शुरू होने का समय क्षेत्र",
+    end_time_zone: "खत्म होने का समय क्षेत्र",
+    event_time_zone_summary:
+      "आपके कैलेंडर के समय क्षेत्र में: {{start}} से {{end}}",
+    event_time_zone_range: "{{start}} से {{end}}",
     time_suggestions: "सुझाए गए समय",
     time_input_invalid: "मान्य समय दर्ज करें, जैसे 9:30 या 21:30",
     start_date: "शुरुआत की तारीख",

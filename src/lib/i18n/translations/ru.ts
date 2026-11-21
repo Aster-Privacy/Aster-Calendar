@@ -1,4 +1,4 @@
-﻿//
+//
 // Aster Communications Inc.
 //
 // Copyright (c) 2026 Aster Communications Inc.
@@ -11863,6 +11863,11 @@ export const ru = {
     event_deleted: "Событие удалено",
     event_delete_failed: "Не удалось удалить это событие",
     time_range_to: "до",
+    event_time_zone: "Часовой пояс",
+    start_time_zone: "Часовой пояс начала",
+    end_time_zone: "Часовой пояс окончания",
+    event_time_zone_summary: "В часовом поясе календаря: {{start}} - {{end}}",
+    event_time_zone_range: "{{start}} - {{end}}",
     time_suggestions: "Предлагаемое время",
     time_input_invalid: "Введите правильное время, например 9:30 или 21:30",
     start_date: "Дата начала",

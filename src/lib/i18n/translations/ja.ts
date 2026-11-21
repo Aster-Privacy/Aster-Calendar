@@ -1,4 +1,4 @@
-﻿//
+//
 // Aster Communications Inc.
 //
 // Copyright (c) 2026 Aster Communications Inc.
@@ -11407,6 +11407,11 @@ export const ja = {
     event_deleted: "予定を削除しました",
     event_delete_failed: "この予定を削除できませんでした",
     time_range_to: "-",
+    event_time_zone: "タイムゾーン",
+    start_time_zone: "開始のタイムゾーン",
+    end_time_zone: "終了のタイムゾーン",
+    event_time_zone_summary: "カレンダーのタイムゾーン: {{start}} ～ {{end}}",
+    event_time_zone_range: "{{start}} ～ {{end}}",
     time_suggestions: "候補の時刻",
     time_input_invalid: "有効な時刻を入力してください (例: 9:30、21:30)",
     start_date: "開始日",
