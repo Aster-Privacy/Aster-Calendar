@@ -335,6 +335,40 @@ export async function send_invitations(
   return result;
 }
 
+const CALENDAR_RELAYS: ReadonlyArray<{
+  sender_domain: string;
+  organizer_domain: string;
+}> = [{ sender_domain: "email.apple.com", organizer_domain: "imip.me.com" }];
+
+function address_domain(address: string): string {
+  const trimmed = address.trim().toLowerCase();
+  const at = trimmed.lastIndexOf("@");
+
+  return at === -1 ? "" : trimmed.slice(at + 1);
+}
+
+export function sends_for_organizer(
+  organizer_email: string,
+  sender_email: string,
+): boolean {
+  if (same_address(organizer_email, sender_email)) {
+    return true;
+  }
+
+  const sender_domain = address_domain(sender_email);
+  const organizer_domain = address_domain(organizer_email);
+
+  if (sender_domain.length === 0 || organizer_domain.length === 0) {
+    return false;
+  }
+
+  return CALENDAR_RELAYS.some(
+    (relay) =>
+      relay.sender_domain === sender_domain &&
+      relay.organizer_domain === organizer_domain,
+  );
+}
+
 export function reply_target(
   organizer_email: string | null | undefined,
   authenticated_sender: string | null | undefined,
@@ -346,7 +380,7 @@ export function reply_target(
   if (
     organizer.length > 0 &&
     (confirmed_organizer ||
-      (sender.length > 0 && same_address(organizer, sender)))
+      (sender.length > 0 && sends_for_organizer(organizer, sender)))
   ) {
     return organizer;
   }
@@ -395,7 +429,8 @@ export async function send_reply(options: SendReplyOptions): Promise<boolean> {
   }
 
   const title =
-    sanitize_calendar_text(event.title, "title") || t("calendar.untitled_event");
+    sanitize_calendar_text(event.title, "title") ||
+    t("calendar.untitled_event");
   const range = format_invite_range(event, language);
   const label = response_label(response, t);
   const body = [
