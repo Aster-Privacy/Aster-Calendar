@@ -65,6 +65,7 @@ import {
 
 import { CalendarEmptyState } from "@/components/calendar/calendar_empty_state";
 import {
+  use_remove_unreadable_calendars,
   use_retry_calendar_decrypts,
   use_unreadable_calendar_count,
 } from "@/components/calendar/use_unreadable_calendars";
@@ -199,6 +200,14 @@ export function CalendarSidebar({
   const unreadable_calendar_count = use_unreadable_calendar_count();
   const { is_retrying: is_retrying_decrypts, retry: retry_decrypts } =
     use_retry_calendar_decrypts();
+  const { is_removing: is_removing_unreadable, remove: remove_unreadable } =
+    use_remove_unreadable_calendars();
+  const [is_remove_unreadable_open, set_is_remove_unreadable_open] =
+    useState(false);
+  const confirm_remove_unreadable = () => {
+    set_is_remove_unreadable_open(false);
+    void remove_unreadable();
+  };
   const reduce_motion = use_should_reduce_motion();
   const [mini_anchor, set_mini_anchor] = useState<Date | null>(null);
   const [mini_focus_key, set_mini_focus_key] = useState<string | null>(null);
@@ -1556,15 +1565,30 @@ export function CalendarSidebar({
                 unreadable_calendar_count > 0 && (
                   <CalendarEmptyState
                     action={
-                      <Button
-                        data-testid="calendar-sidebar-unreadable-retry"
-                        disabled={is_retrying_decrypts}
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => void retry_decrypts()}
-                      >
-                        {t("calendar.decrypt_failed_retry")}
-                      </Button>
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        <Button
+                          data-testid="calendar-sidebar-unreadable-retry"
+                          disabled={
+                            is_retrying_decrypts || is_removing_unreadable
+                          }
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => void retry_decrypts()}
+                        >
+                          {t("calendar.decrypt_failed_retry")}
+                        </Button>
+                        <Button
+                          data-testid="calendar-sidebar-unreadable-remove"
+                          disabled={
+                            is_retrying_decrypts || is_removing_unreadable
+                          }
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => set_is_remove_unreadable_open(true)}
+                        >
+                          {t("calendar.unreadable_remove_action")}
+                        </Button>
+                      </div>
                     }
                     body={t("calendar.unreadable_calendars_body")}
                     compact
@@ -1572,6 +1596,43 @@ export function CalendarSidebar({
                     illustration={<NoCalendarsIllustration />}
                     title={t("calendar.unreadable_calendars_title")}
                   />
+                )}
+              {calendars.length > 0 &&
+                !is_collapsed &&
+                unreadable_calendar_count > 0 && (
+                  <div
+                    className="mx-2 mt-2 rounded-md px-2 py-2 text-xs text-txt-muted"
+                    data-testid="calendar-sidebar-unreadable-partial"
+                  >
+                    <p>
+                      {t("calendar.unreadable_partial_body", {
+                        count: unreadable_calendar_count,
+                      })}
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      <Button
+                        disabled={
+                          is_retrying_decrypts || is_removing_unreadable
+                        }
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void retry_decrypts()}
+                      >
+                        {t("calendar.decrypt_failed_retry")}
+                      </Button>
+                      <Button
+                        data-testid="calendar-sidebar-unreadable-partial-remove"
+                        disabled={
+                          is_retrying_decrypts || is_removing_unreadable
+                        }
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => set_is_remove_unreadable_open(true)}
+                      >
+                        {t("calendar.unreadable_remove_action")}
+                      </Button>
+                    </div>
+                  </div>
                 )}
               {calendars.length === 0 &&
                 !is_collapsed &&
@@ -1740,6 +1801,21 @@ export function CalendarSidebar({
           name: birthdays_name,
         })}
         variant="warning"
+      />
+      <ConfirmationModal
+        cancel_text={t("common.cancel")}
+        confirm_text={t("calendar.unreadable_remove_confirm")}
+        is_loading={is_removing_unreadable}
+        is_open={is_remove_unreadable_open}
+        message={t("calendar.unreadable_remove_message", {
+          count: unreadable_calendar_count,
+        })}
+        on_cancel={() => set_is_remove_unreadable_open(false)}
+        on_confirm={confirm_remove_unreadable}
+        title={t("calendar.unreadable_remove_title", {
+          count: unreadable_calendar_count,
+        })}
+        variant="danger"
       />
     </>
   );

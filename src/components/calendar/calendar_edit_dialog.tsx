@@ -49,6 +49,8 @@ import {
   delete_calendar,
   update_calendar,
 } from "@/services/api/calendar";
+import { calendar_sync_engine } from "@/services/calendar/sync_engine";
+import { show_plan_limit_upgrade } from "@/stores/upgrade_store";
 
 export interface CalendarSavedPayload {
   id: string | null;
@@ -117,6 +119,16 @@ export function CalendarEditDialog({
         : await create_calendar(trimmed, color);
 
       if (!result.success) {
+        if ("reason" in result && result.reason === "plan_limit") {
+          if (calendar_sync_engine.unreadable_calendar_rows().length > 0) {
+            show_toast(t("calendar.unreadable_blocks_new_calendar"), "error");
+          } else {
+            show_plan_limit_upgrade({ resource: "calendars" });
+          }
+          on_close();
+
+          return;
+        }
         show_toast(t("calendar.settings_calendar_save_failed"), "error");
 
         return;

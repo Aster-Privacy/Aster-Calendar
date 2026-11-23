@@ -1117,6 +1117,7 @@ describe("calendar mutation queue", () => {
     );
 
     expect(result.ok).toBe(false);
+    expect(result.reason).toBe("plan_limit");
     expect(calendar_mutation_queue.pending_count()).toBe(0);
     expect(events).toContainEqual({
       type: "dropped",

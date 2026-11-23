@@ -23,6 +23,7 @@ import { useCallback, useEffect, useState } from "react";
 import { show_toast } from "@/components/toast/simple_toast";
 import { ignore_error } from "@/lib/ignore_error";
 import { use_i18n } from "@/lib/i18n/context";
+import { remove_unreadable_calendars } from "@/services/api/calendar";
 import {
   calendar_sync_engine,
   subscribe_calendar_sync,
@@ -85,4 +86,39 @@ export function use_retry_calendar_decrypts(): {
   }, [t]);
 
   return { is_retrying, retry };
+}
+
+export function use_remove_unreadable_calendars(): {
+  is_removing: boolean;
+  remove: () => Promise<void>;
+} {
+  const { t } = use_i18n();
+  const [is_removing, set_is_removing] = useState(false);
+
+  const remove = useCallback(async () => {
+    set_is_removing(true);
+    try {
+      const { outcome, removed } = await remove_unreadable_calendars();
+
+      if (outcome === "removed") {
+        show_toast(
+          t("calendar.unreadable_removed", { count: removed }),
+          "success",
+        );
+      } else if (outcome === "opened") {
+        show_toast(t("calendar.unreadable_opened_instead"), "success");
+      } else if (outcome === "keys_unavailable") {
+        show_toast(t("calendar.unreadable_remove_keys_unavailable"), "error");
+      } else if (outcome === "failed") {
+        show_toast(t("calendar.unreadable_remove_failed"), "error");
+      }
+    } catch (caught) {
+      ignore_error("calendar/use_unreadable_calendars:remove", caught);
+      show_toast(t("calendar.unreadable_remove_failed"), "error");
+    } finally {
+      set_is_removing(false);
+    }
+  }, [t]);
+
+  return { is_removing, remove };
 }

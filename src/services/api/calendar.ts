@@ -45,6 +45,7 @@ import {
   require_vault,
 } from "@/services/calendar/calendar_codec";
 import {
+  type DropReason,
   type QueuedBatchOperation,
   type SubmitResult,
   calendar_mutation_queue,
@@ -62,7 +63,14 @@ import {
   calendar_sync_engine,
   subscribe_calendar_sync,
 } from "@/services/calendar/sync_engine";
+import {
+  CALENDAR_V3_CONTEXT,
+  calendar_v3_keyring,
+  v3_blob_key_id,
+} from "@/services/calendar/calendar_crypto_v3";
 import { AccountKeyUnavailableError } from "@/services/crypto/account_data_writer";
+import { get_account_data_write_base_key } from "@/services/crypto/legacy_keks";
+import { get_vault_from_memory } from "@/services/crypto/memory_key_store";
 
 export { event_to_draft };
 
@@ -308,7 +316,7 @@ export async function create_calendar(
   name: string,
   color: string,
   icon: CalendarIconName = "calendar",
-): Promise<{ success: boolean }> {
+): Promise<{ success: boolean; reason?: DropReason }> {
   const vault = require_vault();
   const temp_id = generate_temp_id();
   const server_id = crypto.randomUUID();
@@ -341,7 +349,7 @@ export async function create_calendar(
       },
     );
 
-    return { success: result.ok };
+    return { success: result.ok, reason: result.reason };
   } catch {
     return { success: false };
   }
@@ -392,6 +400,70 @@ export async function delete_calendar(
   });
 
   return { success: result.ok };
+}
+
+export type RemoveUnreadableOutcome =
+  | "removed"
+  | "opened"
+  | "nothing_to_remove"
+  | "keys_unavailable"
+  | "failed";
+
+export async function remove_unreadable_calendars(): Promise<{
+  outcome: RemoveUnreadableOutcome;
+  removed: number;
+}> {
+  await calendar_sync_engine.ensure_loaded();
+  await calendar_sync_engine.pull_delta();
+
+  const before = calendar_sync_engine.unreadable_calendar_rows().length;
+
+  if (before === 0) return { outcome: "nothing_to_remove", removed: 0 };
+
+  const verified = await calendar_sync_engine.refresh_unreadable_calendars();
+
+  const vault = get_vault_from_memory();
+
+  if (
+    !verified ||
+    !vault ||
+    !get_account_data_write_base_key(CALENDAR_V3_CONTEXT)
+  ) {
+    return { outcome: "keys_unavailable", removed: 0 };
+  }
+
+  const remaining = calendar_sync_engine.unreadable_calendar_rows();
+
+  if (remaining.length < before) return { outcome: "opened", removed: 0 };
+
+  const keyring = await calendar_v3_keyring(vault);
+
+  if (!keyring.has_pq || !keyring.write) {
+    return { outcome: "keys_unavailable", removed: 0 };
+  }
+
+  const rows = remaining.filter((row) => {
+    const key_id = v3_blob_key_id(row.encrypted_blob);
+
+    return key_id !== null && !keyring.read.has(key_id);
+  });
+
+  if (rows.length === 0) return { outcome: "keys_unavailable", removed: 0 };
+
+  let removed = 0;
+
+  for (const row of rows) {
+    const result = await delete_calendar(row.id);
+
+    if (result.success) removed += 1;
+  }
+
+  if (removed === 0) return { outcome: "failed", removed: 0 };
+
+  reset_calendar_seeding();
+  await list_calendars();
+
+  return { outcome: removed === rows.length ? "removed" : "failed", removed };
 }
 
 export async function set_calendar_visibility(
