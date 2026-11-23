@@ -27,6 +27,8 @@ import {
   existing_import_keys,
   import_entry_key,
   import_span,
+  entry_time_zones,
+  import_entry_draft,
   split_import_entries,
 } from "@/services/calendar/ics_import";
 
@@ -116,5 +118,53 @@ describe("import preview counting", () => {
       ]),
     ).toEqual(["Mars/Base", "Moon/Base"]);
     expect(collect_dropped_time_zones([entry("a")])).toEqual([]);
+  });
+});
+
+describe("import time zones", () => {
+  const flight = (): ImportedIcsEvent => ({
+    ...entry("flight"),
+    start_time_zone: "America/New_York",
+    end_time_zone: "Europe/London",
+  });
+
+  it("keeps entered zones that differ from the calendar zone", () => {
+    expect(entry_time_zones(flight(), "America/New_York")).toEqual({
+      start_time_zone: "America/New_York",
+      end_time_zone: "Europe/London",
+    });
+  });
+
+  it("drops zones that match the calendar zone", () => {
+    expect(
+      entry_time_zones(
+        { ...flight(), end_time_zone: "America/New_York" },
+        "America/New_York",
+      ),
+    ).toEqual({});
+  });
+
+  it("drops zones on all-day and zoneless entries", () => {
+    expect(
+      entry_time_zones({ ...flight(), is_all_day: true }, "Asia/Tokyo"),
+    ).toEqual({});
+    expect(entry_time_zones(entry("a"), "Asia/Tokyo")).toEqual({});
+    expect(
+      entry_time_zones(
+        { ...entry("a"), start_time_zone: "Mars/Base" },
+        "Asia/Tokyo",
+      ),
+    ).toEqual({});
+  });
+
+  it("carries the zones into the saved draft", () => {
+    const draft = import_entry_draft(
+      { ...flight(), start_time_zone: "Asia/Tokyo" },
+      "cal-1",
+    );
+
+    expect(draft.start_time_zone).toBe("Asia/Tokyo");
+    expect(draft.end_time_zone).toBe("Europe/London");
+    expect(draft.starts_at).toBe("2026-10-12T09:00:00.000Z");
   });
 });

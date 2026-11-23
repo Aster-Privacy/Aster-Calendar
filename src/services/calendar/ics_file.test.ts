@@ -1677,3 +1677,107 @@ describe("rfc 5545 line handling", () => {
     expect(parse_ics_events(ics)[0].title).toBe("\u{1F600}".repeat(60));
   });
 });
+
+describe("event time zones", () => {
+  const flight = () =>
+    make_event({
+      title: "Flight",
+      starts_at: "2026-07-01T12:00:00.000Z",
+      ends_at: "2026-07-01T20:00:00.000Z",
+      start_time_zone: "America/New_York",
+      end_time_zone: "Europe/London",
+    });
+
+  it("exports the entered start and end zones as TZID", () => {
+    const ics = unfold(build_ics([flight()], STAMP));
+
+    expect(ics).toContain("DTSTART;TZID=America/New_York:20260701T080000");
+    expect(ics).toContain("DTEND;TZID=Europe/London:20260701T210000");
+  });
+
+  it("keeps the end in UTC when only the start has a zone", () => {
+    const ics = unfold(
+      build_ics([{ ...flight(), end_time_zone: null }], STAMP),
+    );
+
+    expect(ics).toContain("DTSTART;TZID=America/New_York:20260701T080000");
+    expect(ics).toContain("DTEND:20260701T200000Z");
+  });
+
+  it("ignores zones on all-day events", () => {
+    const ics = build_ics(
+      [
+        make_event({
+          is_all_day: true,
+          start_time_zone: "Asia/Tokyo",
+          end_time_zone: "Asia/Tokyo",
+        }),
+      ],
+      STAMP,
+    );
+
+    expect(ics).not.toContain("TZID=");
+  });
+
+  it("round-trips the entered zones and instants through import", () => {
+    const [parsed] = parse_ics_events(build_ics([flight()], STAMP));
+
+    expect(parsed.starts_at).toBe("2026-07-01T12:00:00.000Z");
+    expect(parsed.ends_at).toBe("2026-07-01T20:00:00.000Z");
+    expect(parsed.start_time_zone).toBe("America/New_York");
+    expect(parsed.end_time_zone).toBe("Europe/London");
+  });
+
+  it("reads separate start and end zones from a file", () => {
+    const ics = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "BEGIN:VEVENT",
+      "UID:flight-1",
+      "DTSTART;TZID=Asia/Tokyo:20261105T103000",
+      "DTEND;TZID=America/Los_Angeles:20261105T053000",
+      "SUMMARY:Flight",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+    const [parsed] = parse_ics_events(ics);
+
+    expect(parsed.starts_at).toBe("2026-11-05T01:30:00.000Z");
+    expect(parsed.ends_at).toBe("2026-11-05T13:30:00.000Z");
+    expect(parsed.start_time_zone).toBe("Asia/Tokyo");
+    expect(parsed.end_time_zone).toBe("America/Los_Angeles");
+  });
+
+  it("does not record a zone for UTC stamps", () => {
+    const [parsed] = parse_ics_events(build_ics([make_event()], STAMP));
+
+    expect(parsed.start_time_zone).toBeUndefined();
+    expect(parsed.end_time_zone).toBeUndefined();
+  });
+
+  it("keeps the recurrence zone on DTSTART for repeating events", () => {
+    const ics = unfold(
+      build_ics(
+        [
+          make_event({
+            starts_at: "2026-07-01T12:00:00.000Z",
+            ends_at: "2026-07-01T13:00:00.000Z",
+            start_time_zone: "America/New_York",
+            recurrence: {
+              frequency: "weekly",
+              interval: 1,
+              by_weekday: [],
+              count: null,
+              until: null,
+              time_zone: "America/New_York",
+            },
+          }),
+        ],
+        STAMP,
+      ),
+    );
+
+    expect(ics).toContain("DTSTART;TZID=America/New_York:20260701T080000");
+    expect(ics).toContain("DTEND;TZID=America/New_York:20260701T090000");
+  });
+});

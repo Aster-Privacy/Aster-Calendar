@@ -180,6 +180,10 @@ export function unshift_draft_from_view(
   };
 }
 
+function valid_zone(value: string | null | undefined): string | null {
+  return typeof value === "string" && is_valid_time_zone(value) ? value : null;
+}
+
 export function stamp_draft_zone(
   draft: CalendarEventDraft,
   zone: string | null = active_view_zone,
@@ -192,7 +196,9 @@ export function stamp_draft_zone(
     ...draft,
     recurrence: {
       ...draft.recurrence,
-      time_zone: zone ?? get_device_time_zone(),
+      time_zone: draft.is_all_day
+        ? (zone ?? get_device_time_zone())
+        : (valid_zone(draft.start_time_zone) ?? zone ?? get_device_time_zone()),
     },
   };
 }
