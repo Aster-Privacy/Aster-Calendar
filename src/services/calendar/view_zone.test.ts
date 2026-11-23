@@ -315,6 +315,48 @@ describe("drafts", () => {
   });
 });
 
+describe("stamp_draft_zone with an entered zone", () => {
+  it("repeats in the entered start zone", () => {
+    const stamped = stamp_draft_zone(
+      {
+        attendees: [],
+        availability: "busy",
+        calendar_id: "cal",
+        color: null,
+        conference_url: "",
+        description: "",
+        ends_at: "2026-07-01T13:00:00.000Z",
+        event_kind: "default",
+        guests_can_invite: false,
+        guests_can_modify: false,
+        guests_can_see_guests: false,
+        is_all_day: false,
+        is_completed: false,
+        location: "",
+        recurrence: {
+          by_weekday: [],
+          count: null,
+          frequency: "weekly",
+          interval: 1,
+          until: null,
+        },
+        recurrence_exceptions: [],
+        reminder_minutes: null,
+        start_time_zone: "Europe/London",
+        starts_at: "2026-07-01T12:00:00.000Z",
+        status: "confirmed",
+        tags: [],
+        title: "Flight",
+        visibility: "default",
+        working_location: null,
+      },
+      "America/New_York",
+    );
+
+    expect(stamped.recurrence?.time_zone).toBe("Europe/London");
+  });
+});
+
 describe("resolve_view_zone", () => {
   it("falls back to the device for empty, invalid and device values", () => {
     expect(resolve_view_zone("")).toBeNull();

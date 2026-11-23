@@ -39,6 +39,7 @@ import {
 import { safe_http_url } from "@/services/calendar/safe_url";
 import { windows_zone_to_iana } from "@/services/calendar/windows_zones";
 import { find_ics_blocks } from "@/services/calendar/ics_blocks";
+import { normalize_event_time_zone } from "@/services/calendar/event_zone";
 import {
   effective_reminders,
   MAX_REMINDER_MINUTES,
@@ -69,6 +70,8 @@ export interface ImportedIcsEvent {
   recurrence_id: string | null;
   dropped_time_zones?: string[];
   event_kind?: "birthday";
+  start_time_zone?: string;
+  end_time_zone?: string;
 }
 
 interface ParsedBlock {
@@ -487,10 +490,17 @@ export function build_vevent_lines(
 ): string[] | null {
   const is_detached =
     typeof event.recurrence_id === "string" && event.recurrence_id.length > 0;
-  const time_zone =
+  const recurrence_zone =
     event.recurrence && is_valid_time_zone(event.recurrence.time_zone)
       ? event.recurrence.time_zone
       : null;
+  const entered_start_zone = event.is_all_day
+    ? null
+    : normalize_event_time_zone(event.start_time_zone);
+  const entered_end_zone = event.is_all_day
+    ? null
+    : normalize_event_time_zone(event.end_time_zone);
+  const time_zone = recurrence_zone ?? entered_start_zone;
   const start = stamp_property(
     "DTSTART",
     event.starts_at,
@@ -503,7 +513,12 @@ export function build_vevent_lines(
 
         return value.length > 0 ? `DTEND;VALUE=DATE:${value}` : null;
       })()
-    : stamp_property("DTEND", event.ends_at, false, time_zone);
+    : stamp_property(
+        "DTEND",
+        event.ends_at,
+        false,
+        entered_end_zone ?? recurrence_zone,
+      );
 
   if (start === null || end === null) {
     return null;
@@ -873,6 +888,7 @@ function parse_block(block: string): ParsedBlock | null {
   let uid: string | null = null;
   let recurrence_id: Date | null = null;
   let start_time_zone: string | null = null;
+  let end_time_zone: string | null = null;
   let duration_ms: number | null = null;
   const exception_dates: string[] = [];
   const extra_dates: string[] = [];
@@ -977,7 +993,13 @@ function parse_block(block: string): ParsedBlock | null {
         start_time_zone = zone;
       }
     } else if (name === "DTEND") {
-      ends = parse_stamp(value, zone_of(params.TZID, value));
+      const zone = zone_of(params.TZID, value);
+
+      ends = parse_stamp(value, zone);
+
+      if (!value.trim().toUpperCase().endsWith("Z") && zone !== undefined) {
+        end_time_zone = zone;
+      }
     } else if (name === "DURATION") {
       duration_ms = parse_duration(value);
     } else if (name === "RECURRENCE-ID") {
@@ -1100,6 +1122,8 @@ function parse_block(block: string): ParsedBlock | null {
     reminder_minutes: imported_reminders[0] ?? null,
     ...(imported_reminders.length > 1 ? { reminders: imported_reminders } : {}),
     uid,
+    ...(start_time_zone && !is_all_day ? { start_time_zone } : {}),
+    ...(end_time_zone && !is_all_day ? { end_time_zone } : {}),
     ...(dropped_zones.size > 0
       ? { dropped_time_zones: Array.from(dropped_zones) }
       : {}),

@@ -32,6 +32,9 @@ import {
   as_birthday_entry,
   parse_ics_events,
 } from "@/services/calendar/ics_file";
+import { normalize_event_time_zone } from "@/services/calendar/event_zone";
+import { get_active_view_zone } from "@/services/calendar/view_zone";
+import { get_device_time_zone } from "@/lib/time_zones";
 
 export interface IcsImportResult {
   parsed: number;
@@ -194,11 +197,36 @@ export function import_span(
   return { start: new Date(min), end: new Date(max) };
 }
 
+export function entry_time_zones(
+  entry: ImportedIcsEvent,
+  calendar_zone: string = get_active_view_zone() ?? get_device_time_zone(),
+): { start_time_zone?: string; end_time_zone?: string } {
+  if (entry.is_all_day) {
+    return {};
+  }
+
+  const start_time_zone = normalize_event_time_zone(entry.start_time_zone);
+  const end_time_zone = normalize_event_time_zone(entry.end_time_zone);
+  const differs =
+    (start_time_zone !== null && start_time_zone !== calendar_zone) ||
+    (end_time_zone !== null && end_time_zone !== calendar_zone);
+
+  if (!differs) {
+    return {};
+  }
+
+  return {
+    ...(start_time_zone ? { start_time_zone } : {}),
+    ...(end_time_zone ? { end_time_zone } : {}),
+  };
+}
+
 export function import_entry_draft(
   entry: ImportedIcsEvent,
   calendar_id: string,
 ): CalendarEventDraft {
   return {
+    ...entry_time_zones(entry),
     attendees: entry.attendees,
     availability: entry.availability,
     calendar_id,
