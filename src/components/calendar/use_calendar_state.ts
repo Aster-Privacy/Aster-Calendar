@@ -200,6 +200,7 @@ import {
   resolve_day_working_location,
   type WorkingWeek,
 } from "@/services/calendar/working_location";
+import { use_load_recovery } from "@/components/calendar/use_load_recovery";
 
 let booking_feature_unavailable_for: string | null = null;
 const SEARCH_WINDOW_DAYS = 730;
@@ -686,6 +687,8 @@ export function use_calendar_state() {
   ]);
 
   useEffect(() => subscribe_calendar_changes(reload), [reload]);
+
+  use_load_recovery(load_failed, reload);
 
   use_synced_revision_floors({
     loaded: has_loaded_from_server,
