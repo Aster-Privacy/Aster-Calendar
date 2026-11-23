@@ -185,11 +185,14 @@ export interface AckRecord {
   version: number;
 }
 
+export type DropReason = "not_found" | "rejected" | "plan_limit";
+
 export interface SubmitResult {
   ok: boolean;
   queued: boolean;
   id_map: Record<string, string>;
   acks: Record<string, AckRecord>;
+  reason?: DropReason;
 }
 
 export interface ConflictVersion {
@@ -1917,7 +1920,13 @@ export class CalendarMutationQueue {
     this.foreign_conflict_attempts.delete(entry.id);
     this.stale_conflict_attempts.delete(entry.id);
     await this.drop_entry(entry);
-    this.settle(entry, { ok: false, queued: false, id_map: {}, acks: {} });
+    this.settle(entry, {
+      ok: false,
+      queued: false,
+      id_map: {},
+      acks: {},
+      reason,
+    });
     this.emit({ type: "dropped", target, reason });
     if (ids.some((id) => !is_temp_id(id))) {
       await calendar_sync_engine.request_full_sync(target);

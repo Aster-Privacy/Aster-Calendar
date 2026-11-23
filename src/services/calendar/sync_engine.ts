@@ -407,6 +407,20 @@ export class CalendarSyncEngine {
     return count;
   }
 
+  unreadable_calendar_rows(): CachedCalendarRow[] {
+    const rows: CachedCalendarRow[] = [];
+
+    for (const id of this.failed_calendar_ids) {
+      if (this.rejected_calendar_ids.has(id) || is_temp_row(id)) continue;
+
+      const row = this.calendar_rows.get(id);
+
+      if (row) rows.push(row);
+    }
+
+    return rows;
+  }
+
   private unreadable_row_count(): number {
     let count = this.unreadable_calendar_count();
 
@@ -453,6 +467,16 @@ export class CalendarSyncEngine {
     await refresh_vault_from_server();
 
     return this.decode_failed_rows();
+  }
+
+  async refresh_unreadable_calendars(): Promise<boolean> {
+    await wait_for_account_key_load(ACCOUNT_KEY_WAIT_MS);
+    this.last_vault_refresh_at = Date.now();
+    const status = await refresh_vault_from_server();
+
+    await this.decode_failed_rows();
+
+    return status !== "unverified";
   }
 
   private heal_unreadable_rows(): Promise<void> {
