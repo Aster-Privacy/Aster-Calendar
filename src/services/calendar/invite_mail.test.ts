@@ -162,7 +162,9 @@ describe("format_invite_range", () => {
   });
 
   it("falls back to the default locale for an invalid language tag", () => {
-    expect(() => format_invite_range(make_event(), "not a locale !!")).not.toThrow();
+    expect(() =>
+      format_invite_range(make_event(), "not a locale !!"),
+    ).not.toThrow();
   });
 });
 
@@ -349,6 +351,18 @@ describe("reply_target", () => {
     ).toBe("victim@example.com");
     expect(reply_target("victim@example.com", null, true)).toBe(
       "victim@example.com",
+    );
+  });
+
+  it("sends to a relayed organizer when its calendar service sent the invitation", () => {
+    expect(reply_target("abc123@imip.me.com", "noreply@email.apple.com")).toBe(
+      "abc123@imip.me.com",
+    );
+    expect(reply_target("abc123@imip.me.com", "someone@example.net")).toBe(
+      "someone@example.net",
+    );
+    expect(reply_target("host@example.com", "noreply@email.apple.com")).toBe(
+      "noreply@email.apple.com",
     );
   });
 
