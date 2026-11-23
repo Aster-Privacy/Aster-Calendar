@@ -448,17 +448,17 @@ export function CalendarApp({ on_open_settings }: CalendarAppProps) {
                 />
               </div>
             </div>
-
-            {!is_mobile && (
-              <AppRail
-                is_contacts_open={is_rail_contacts_open}
-                is_security_open={is_rail_security_open}
-                on_compose={open_mail_compose}
-                on_contacts_open_change={set_is_rail_contacts_open}
-                on_security_open_change={set_is_rail_security_open}
-              />
-            )}
           </>
+        )}
+
+        {!is_mobile && (
+          <AppRail
+            is_contacts_open={is_rail_contacts_open}
+            is_security_open={is_rail_security_open}
+            on_compose={open_mail_compose}
+            on_contacts_open_change={set_is_rail_contacts_open}
+            on_security_open_change={set_is_rail_security_open}
+          />
         )}
       </div>
 
