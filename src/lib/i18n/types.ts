@@ -63,6 +63,7 @@ export interface TranslationNamespace {
   calendar: CalendarTranslations;
   tasks: TasksTranslations;
   settings_search: SettingsSearchTranslations;
+  guard: GuardTranslations;
 }
 
 export interface TasksTranslations {
@@ -10131,6 +10132,42 @@ export interface SurveyTranslations {
   submitted_thanks: string;
 }
 
+export interface GuardTranslations {
+  approve_expires_in: string;
+  rescue_applied_body: string;
+  rescue_applied_title: string;
+  rescue_sign_in: string;
+  rescue_stopped_body: string;
+  rescue_stopped_title: string;
+  rescue_waiting_title: string;
+  sign_in_back: string;
+  sign_in_code_hint: string;
+  sign_in_code_label: string;
+  sign_in_code_submit: string;
+  sign_in_code_wrong: string;
+  sign_in_completing: string;
+  sign_in_denied: string;
+  sign_in_denied_title: string;
+  sign_in_error: string;
+  sign_in_error_title: string;
+  sign_in_expired: string;
+  sign_in_expired_title: string;
+  sign_in_match_number: string;
+  sign_in_number_label: string;
+  sign_in_paused: string;
+  sign_in_rescue_hint: string;
+  sign_in_rescue_invalid: string;
+  sign_in_rescue_label: string;
+  sign_in_rescue_started: string;
+  sign_in_rescue_submit: string;
+  sign_in_starting: string;
+  sign_in_use_code: string;
+  sign_in_use_rescue: string;
+  sign_in_waiting_chip: string;
+  sign_in_waiting_description: string;
+  sign_in_waiting_title: string;
+}
+
 export type TranslationKey =
   | `common.${keyof CommonTranslations}`
   | `settings.${keyof SettingsTranslations}`
@@ -10148,6 +10185,7 @@ export type TranslationKey =
   | `survey.${keyof SurveyTranslations}`
   | `calendar.${keyof CalendarTranslations}`
   | `tasks.${keyof TasksTranslations}`
-  | `settings_search.${keyof SettingsSearchTranslations}`;
+  | `settings_search.${keyof SettingsSearchTranslations}`
+  | `guard.${keyof GuardTranslations}`;
 
 export type Translations = TranslationNamespace;

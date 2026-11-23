@@ -46,6 +46,7 @@ import {
   DEFAULT_TIMEOUT,
   DEV_TOKEN_KEY,
   FOLDER_UNLOCK_HEADER,
+  GUARD_HEADER,
   IDENTITY_CHECK_MIN_INTERVAL_MS,
   NATIVE_CSRF_KEY,
   PENDING_DELETION_EVENT,
@@ -79,6 +80,7 @@ import {
   write_last_auth_ms,
 } from "./helpers";
 import { should_show_server_message } from "./server_message";
+import { guard_error_response } from "./guard_response";
 import {
   MAX_PREEMPTIONS_PER_REQUEST,
   track_background_request,
@@ -92,6 +94,7 @@ import { extend_passphrase_timeout } from "@/services/crypto/memory_key_store";
 import { record_vault_iterations_from_response } from "@/services/crypto/vault_level2";
 import { get_device_id } from "@/services/device_id";
 import { ignore_error } from "@/lib/ignore_error";
+import { note_server_date } from "@/lib/server_clock";
 import {
   routed_fetch,
   get_effective_base_url,
@@ -1978,6 +1981,7 @@ export class ApiClient {
       "Content-Type": "application/json",
       "X-Aster-Client": CLIENT_PLATFORM_HEADER,
       [VAULT_LEVEL_HEADER]: CLIENT_VAULT_LEVEL,
+      [GUARD_HEADER]: "1",
       ...((options.headers as Record<string, string>) || {}),
     };
 
@@ -2073,6 +2077,12 @@ export class ApiClient {
         );
         const { response, read_text } = timed;
 
+        note_server_date(
+          response.headers?.get?.("date"),
+          started_at,
+          Date.now(),
+        );
+
         release_deadline = timed.release;
 
         if (!response.ok) {
@@ -2092,6 +2102,21 @@ export class ApiClient {
           }
 
           const error_code = get_error_code_from_status(response.status);
+
+          const guard_result = guard_error_response<T>(
+            endpoint,
+            response.status,
+            error_data,
+            this.get_generic_error_message(error_code),
+            response.status === 429
+              ? parse_retry_after_header(
+                  response.headers.get("retry-after"),
+                  Date.now(),
+                )
+              : undefined,
+          );
+
+          if (guard_result) return guard_result;
 
           if (
             response.status === 403 &&

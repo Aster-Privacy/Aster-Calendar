@@ -74,6 +74,7 @@ const MAIL_PRODUCT_KEYS = new Set([
   "common.check_out_aster_mail",
   "common.recovery_pdf_footer",
   "common.tray_show",
+  "guard.sign_in_waiting_description",
   "settings.push_subscribe_failed",
   "settings.send_error_reports_description",
   "settings.close_to_tray_description",

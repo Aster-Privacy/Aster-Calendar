@@ -85,6 +85,7 @@ import { login_safety_error_key } from "@/services/crypto/auth_salt_guard";
 import { api_client } from "@/services/api/client";
 import { same_address_ignoring_dots } from "@/utils/address_dots";
 import { DatedCalendarLogo } from "@/components/calendar/dated_calendar_logo";
+import { GuardSignInPanel } from "@/components/guard/guard_sign_in_gate";
 import { SiblingSessionButton } from "@/pages/sign_in/sibling_session_button";
 import {
   clear_pending_login_enrollment,
@@ -155,6 +156,8 @@ export default function SignInPage() {
     hub_accounts,
     hub_signing_in_id,
     handle_hub_account,
+    guard_gate,
+    handle_guard_complete,
   } = use_sign_in_page();
 
   if (auth_loading || has_existing_session) {
@@ -414,6 +417,7 @@ export default function SignInPage() {
         }
         email = `${clean_username}@${candidate}`;
         user_hash = await hash_email(email);
+        guard_gate.set_guard_user_hash(user_hash);
 
         set_status(t("auth.fetching_auth_data"));
         const salt_response = await get_user_salt({ user_hash });
@@ -535,6 +539,8 @@ export default function SignInPage() {
           set_error(t("errors.pending_email_verification"));
           set_pending_verification_hash(user_hash);
           reset_resend_cooldown();
+        } else if (response.server_code === "GUARD_REQUIRED") {
+          if (signed_in_password !== password) set_password(signed_in_password);
         } else {
           set_error(response.error);
         }
@@ -696,6 +702,20 @@ export default function SignInPage() {
       turnstile_ref.current?.reset();
     }
   };
+
+  if (guard_gate.guard_start && !is_loading) {
+    return (
+      <div className="fixed inset-0 overflow-y-auto transition-colors duration-200 bg-surf-primary">
+        <div className="flex min-h-full items-center justify-center px-4 py-8">
+          <GuardSignInPanel
+            start={guard_gate.guard_start}
+            on_back={guard_gate.clear_guard}
+            on_complete={handle_guard_complete}
+          />
+        </div>
+      </div>
+    );
+  }
 
   if (totp_required) {
     return (
