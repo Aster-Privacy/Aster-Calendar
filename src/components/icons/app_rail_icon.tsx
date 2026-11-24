@@ -18,114 +18,26 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
-import {
-  CalendarDaysIcon,
-  CheckCircleIcon,
-  UsersIcon,
-} from "@heroicons/react/24/outline";
+import { CalendarDaysIcon, UsersIcon } from "@heroicons/react/24/outline";
 
 import { AsterSecurityMark } from "@/components/icons/aster_security_mark";
 
-type AppRailLogoName = "contacts" | "security";
-
-export function app_rail_logo(name: AppRailLogoName): {
-  icon_src: string;
-  icon_src_set: string;
-} {
-  const base = `/icons/${name}/${name}_rail`;
-
-  return {
-    icon_src: `${base}_24.png`,
-    icon_src_set: `${base}_24.png 1x, ${base}_48.png 2x, ${base}_72.png 3x`,
-  };
-}
+export type AppRailIconName = "calendar" | "contacts" | "security";
 
 interface AppRailIconProps {
-  name: "calendar" | "contacts" | "security" | "tasks";
+  name: AppRailIconName;
 }
+
+const ICON_CLASS = "app_rail_icon";
 
 export function AppRailIcon({ name }: AppRailIconProps) {
-  const [has_failed, set_has_failed] = useState(false);
-
-  const handle_error = useCallback(() => {
-    set_has_failed(true);
-  }, []);
-
-  if (has_failed) {
-    if (name === "calendar") {
-      return <CalendarDaysIcon className="h-5 w-5 shrink-0" />;
-    }
-
-    if (name === "tasks") {
-      return <CheckCircleIcon className="h-5 w-5 shrink-0" />;
-    }
-
-    return name === "contacts" ? (
-      <UsersIcon className="h-5 w-5 shrink-0" />
-    ) : (
-      <AsterSecurityMark className="h-5 w-5 shrink-0" />
-    );
+  if (name === "calendar") {
+    return <CalendarDaysIcon aria-hidden="true" className={ICON_CLASS} />;
   }
 
-  const base = `/icons/${name}/${name}`;
-  const tint_style = {
-    "--app-rail-icon-tint": `url("${base}_tint_72.png")`,
-  } as CSSProperties;
+  if (name === "contacts") {
+    return <UsersIcon aria-hidden="true" className={ICON_CLASS} />;
+  }
 
-  return (
-    <span aria-hidden="true" className="app_rail_icon" style={tint_style}>
-      <img
-        alt=""
-        className="app_rail_icon_detail"
-        decoding="sync"
-        draggable={false}
-        height={24}
-        loading="eager"
-        src={`${base}_detail_24.png`}
-        srcSet={`${base}_detail_24.png 1x, ${base}_detail_48.png 2x, ${base}_detail_72.png 3x`}
-        width={24}
-        onError={handle_error}
-      />
-      {name === "calendar" && <RailCalendarDay />}
-    </span>
-  );
-}
-
-const day_overlay_style: CSSProperties = {
-  position: "absolute",
-  left: 8,
-  top: 9,
-  right: 3,
-  bottom: 4,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: 8,
-  lineHeight: 1,
-  fontWeight: 700,
-  fontVariantNumeric: "tabular-nums",
-  letterSpacing: "-0.02em",
-  color: "#ffffff",
-  pointerEvents: "none",
-  userSelect: "none",
-};
-
-function RailCalendarDay() {
-  const [day, set_day] = useState(() => new Date().getDate());
-
-  useEffect(() => {
-    const refresh = () => set_day(new Date().getDate());
-    const next = new Date();
-    next.setHours(24, 0, 0, 0);
-    const timer = setTimeout(refresh, next.getTime() - Date.now() + 1000);
-    document.addEventListener("visibilitychange", refresh);
-
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("visibilitychange", refresh);
-    };
-  }, [day]);
-
-  return <span style={day_overlay_style}>{day}</span>;
+  return <AsterSecurityMark className={ICON_CLASS} />;
 }

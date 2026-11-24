@@ -131,47 +131,22 @@ describe("app rail apps", () => {
     expect(rail_item("common.app_name_mail")).toBeUndefined();
   });
 
-  it("shows the Calendar app icon", async () => {
+  it("shows every rail item as an outlined icon", async () => {
     await render_rail();
 
-    const calendar_icon = rail_item("common.app_name_calendar")?.querySelector(
-      'svg[data-dated-calendar-icon="app"]',
-    );
+    for (const label of [
+      "common.app_name_calendar",
+      "common.contacts",
+      "common.security_center",
+    ]) {
+      const item = rail_item(label);
+      const icon = item?.querySelector("svg.app_rail_icon");
 
-    expect(calendar_icon?.querySelector("image")?.getAttribute("href")).toMatch(
-      /^data:image\/png/,
-    );
-    expect(
-      rail_item("common.app_name_calendar")?.querySelector("img"),
-    ).toBeNull();
-  });
-
-  it("shows the Contacts and Security Center app logos", async () => {
-    await render_rail();
-
-    const contacts_logo = rail_item("common.contacts")?.querySelector("img");
-    const security_logo = rail_item("common.security_center")?.querySelector(
-      "img",
-    );
-
-    expect(contacts_logo?.getAttribute("src")).toBe(
-      "/icons/contacts/contacts_rail_24.png",
-    );
-    expect(contacts_logo?.getAttribute("srcset")).toContain(
-      "/icons/contacts/contacts_rail_72.png 3x",
-    );
-    expect(security_logo?.getAttribute("src")).toBe(
-      "/icons/security/security_rail_24.png",
-    );
-    expect(security_logo?.getAttribute("srcset")).toContain(
-      "/icons/security/security_rail_48.png 2x",
-    );
-    expect(
-      rail_item("common.contacts")?.querySelector(".app_rail_icon"),
-    ).toBeNull();
-    expect(
-      rail_item("common.security_center")?.querySelector(".app_rail_icon"),
-    ).toBeNull();
+      expect(icon?.getAttribute("fill")).toBe("none");
+      expect(icon?.getAttribute("stroke")).toBe("currentColor");
+      expect(item?.querySelector("img")).toBeNull();
+      expect(item?.querySelector("image")).toBeNull();
+    }
   });
 
   it("never marks the Calendar shortcut as an open panel", async () => {
