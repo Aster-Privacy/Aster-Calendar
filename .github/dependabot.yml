@@ -7,6 +7,9 @@ updates:
       day: monday
     open-pull-requests-limit: 5
     groups:
+      radix:
+        patterns:
+          - "@radix-ui/*"
       dev-dependencies:
         dependency-type: development
         update-types:
