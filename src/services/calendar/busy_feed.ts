@@ -25,6 +25,7 @@ import { api_client } from "@/services/api/client";
 import { list_event_masters } from "@/services/api/calendar";
 import { expand_events } from "@/services/calendar/recurrence";
 import { is_own_address } from "@/services/calendar/own_addresses";
+import { calendar_sync_engine } from "@/services/calendar/sync_engine";
 
 export const BUSY_BLOCK_STEP_SECONDS = 300;
 export const BUSY_PAST_DAYS = 7;
@@ -264,6 +265,23 @@ export async function upload_busy_blocks(
 
 const published_fingerprints = new Map<string, string>();
 
+export interface BusyPublishOptions {
+  force?: boolean;
+  now?: Date;
+  should_continue?: () => boolean;
+}
+
+function may_continue(options: BusyPublishOptions): boolean {
+  return options.should_continue ? options.should_continue() : true;
+}
+
+function cache_is_trustworthy(calendar_id: string): boolean {
+  return (
+    calendar_sync_engine.has_settled_first_sync() &&
+    calendar_sync_engine.get_calendar(calendar_id) !== undefined
+  );
+}
+
 export function forget_busy_fingerprints(): void {
   published_fingerprints.clear();
 }
@@ -271,7 +289,7 @@ export function forget_busy_fingerprints(): void {
 export async function publish_busy_calendar(
   calendar_id: string,
   self_email: string | null | undefined,
-  options: { force?: boolean; now?: Date } = {},
+  options: BusyPublishOptions = {},
 ): Promise<BusyPublishResult | null> {
   const now = options.now ?? new Date();
   const window = busy_window(now);
@@ -279,6 +297,11 @@ export async function publish_busy_calendar(
     new Date(window.start * 1000),
     new Date(window.end * 1000),
   );
+
+  if (!may_continue(options) || !cache_is_trustworthy(calendar_id)) {
+    return null;
+  }
+
   const upload = compute_busy_upload(
     masters.data,
     calendar_id,
@@ -307,16 +330,19 @@ export async function publish_busy_calendar(
 
 export async function publish_all_busy_feeds(
   self_email: string | null | undefined,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; should_continue?: () => boolean } = {},
 ): Promise<number> {
   const listed = await list_busy_feeds();
   const feeds = listed.data?.feeds ?? [];
   let published = 0;
 
   for (const feed of feeds) {
+    if (options.should_continue && !options.should_continue()) break;
+
     try {
       const result = await publish_busy_calendar(feed.calendar_id, self_email, {
         force: options.force,
+        should_continue: options.should_continue,
       });
 
       if (result) published += 1;
