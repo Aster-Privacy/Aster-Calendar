@@ -77,6 +77,7 @@ import {
 import { InfoPopover } from "@/components/ui/info_popover";
 import { TimeZonePicker } from "@/components/settings/appearance/time_zone_picker";
 import { InviteSenderSettingRow } from "@/components/settings/invite_sender_setting_row";
+import { CalendarBusyFeedSection } from "@/components/settings/calendar_busy_feed_section";
 import { use_preferences } from "@/contexts/preferences_context";
 import { use_i18n } from "@/lib/i18n/context";
 import { list_calendars } from "@/services/api/calendar";
@@ -1697,6 +1698,8 @@ export function CalendarListSection() {
           />
         )}
       </IslandSection>
+
+      <CalendarBusyFeedSection calendars={server_calendars} />
 
       <CalendarEditDialog
         calendar={birthdays_calendar}
