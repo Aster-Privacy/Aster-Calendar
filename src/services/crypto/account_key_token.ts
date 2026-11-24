@@ -189,22 +189,25 @@ export async function seal_account_key_token(
   );
 }
 
-export async function open_account_key_token(
+export interface OpenedAccountKeyToken {
+  account_key: Uint8Array;
+  needs_recertified_key: boolean;
+}
+
+async function open_with_policy(
   token: string,
   own_private_keys: (string | null | undefined)[],
   passphrase: string,
+  verification_keys: string[],
+  accept_recertified_keys: boolean,
 ): Promise<Uint8Array | null> {
-  const verification_keys = await own_verification_keys(own_private_keys);
-
-  if (verification_keys.length === 0) return null;
-
   try {
     const result = await decrypt_message_verified_with_any_key(
       token,
       own_private_keys,
       passphrase,
       verification_keys,
-      true,
+      accept_recertified_keys,
     );
 
     if (result.verification !== "verified") return null;
@@ -216,4 +219,50 @@ export async function open_account_key_token(
   } catch {
     return null;
   }
+}
+
+export async function open_account_key_token_detailed(
+  token: string,
+  own_private_keys: (string | null | undefined)[],
+  passphrase: string,
+): Promise<OpenedAccountKeyToken | null> {
+  const verification_keys = await own_verification_keys(own_private_keys);
+
+  if (verification_keys.length === 0) return null;
+
+  const strict = await open_with_policy(
+    token,
+    own_private_keys,
+    passphrase,
+    verification_keys,
+    false,
+  );
+
+  if (strict) return { account_key: strict, needs_recertified_key: false };
+
+  const relaxed = await open_with_policy(
+    token,
+    own_private_keys,
+    passphrase,
+    verification_keys,
+    true,
+  );
+
+  if (!relaxed) return null;
+
+  return { account_key: relaxed, needs_recertified_key: true };
+}
+
+export async function open_account_key_token(
+  token: string,
+  own_private_keys: (string | null | undefined)[],
+  passphrase: string,
+): Promise<Uint8Array | null> {
+  const opened = await open_account_key_token_detailed(
+    token,
+    own_private_keys,
+    passphrase,
+  );
+
+  return opened?.account_key ?? null;
 }
