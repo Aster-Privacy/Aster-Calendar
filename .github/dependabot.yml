@@ -16,6 +16,16 @@ updates:
         dependency-type: production
         update-types:
           - patch
+    ignore:
+      - dependency-name: "typescript"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "@noble/curves"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "@capacitor/*"
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: cargo
     directory: /src-tauri
@@ -28,6 +38,10 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      - dependency-name: ml-kem
+        versions:
+          - ">=0.3"
 
   - package-ecosystem: github-actions
     directory: /
