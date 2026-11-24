@@ -713,7 +713,7 @@ export function CalendarSidebar({
           {weekday_initials.map((initial, index) => (
             <span
               key={`${initial}_${index}`}
-              className="inline-flex h-7 items-center justify-center text-[10px] font-semibold uppercase tracking-[0.05em] text-txt-secondary"
+              className="inline-flex h-7 items-center justify-center text-xs font-semibold uppercase tracking-[0.05em] text-txt-secondary"
               role="columnheader"
             >
               <span aria-hidden="true">{initial}</span>
@@ -1778,7 +1778,9 @@ export function CalendarSidebar({
                 );
               }
         }
-        storage_slot={<UpNextCard calendars={calendars} className="mb-3" />}
+        storage_slot={
+          <UpNextCard calendars={calendars} className="mb-3 px-2.5 pt-1" />
+        }
       />
     </SidebarAsideView>
   );

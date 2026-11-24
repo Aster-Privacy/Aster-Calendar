@@ -192,7 +192,7 @@ export function CalendarHeader({
             type="button"
             onClick={on_previous}
           >
-            <ChevronLeftIcon className="w-[18px] h-[18px] rtl:-scale-x-100" />
+            <ChevronLeftIcon className="w-5 h-5 rtl:-scale-x-100" />
           </button>
           <button
             aria-label={t("calendar.next_period")}
@@ -200,7 +200,7 @@ export function CalendarHeader({
             type="button"
             onClick={on_next}
           >
-            <ChevronRightIcon className="w-[18px] h-[18px] rtl:-scale-x-100" />
+            <ChevronRightIcon className="w-5 h-5 rtl:-scale-x-100" />
           </button>
         </div>
 
@@ -229,7 +229,7 @@ export function CalendarHeader({
             <>
               <active_view.icon
                 aria-hidden="true"
-                className="h-[18px] w-[18px] text-[var(--icon-secondary)]"
+                className="h-5 w-5 text-[var(--icon-secondary)]"
               />
               <span className="sr-only">
                 {view_label(active_view.mode, active_view.label)}
@@ -246,7 +246,7 @@ export function CalendarHeader({
 
   return (
     <div
-      className="@container/toolbar flex flex-shrink-0 select-none items-center justify-between gap-2 ps-3 pe-1 sm:ps-4 sm:pe-2 py-1 min-h-[44px] overflow-hidden"
+      className="@container/toolbar flex flex-shrink-0 select-none items-center justify-between gap-2 ps-3 pe-1 sm:ps-4 sm:pe-2 py-1 min-h-[44px] md:min-h-[52px] overflow-hidden"
       data-calendar-toolbar
     >
       <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
@@ -272,7 +272,7 @@ export function CalendarHeader({
               type="button"
               onClick={on_previous}
             >
-              <ChevronLeftIcon className="w-[18px] h-[18px] rtl:-scale-x-100" />
+              <ChevronLeftIcon className="w-5 h-5 rtl:-scale-x-100" />
             </button>
           </Tooltip>
           <Tooltip tip={`${t("calendar.next_period")} (J)`}>
@@ -282,7 +282,7 @@ export function CalendarHeader({
               type="button"
               onClick={on_next}
             >
-              <ChevronRightIcon className="w-[18px] h-[18px] rtl:-scale-x-100" />
+              <ChevronRightIcon className="w-5 h-5 rtl:-scale-x-100" />
             </button>
           </Tooltip>
         </div>
@@ -391,7 +391,7 @@ export function CalendarHeader({
             type="button"
             onClick={on_insights}
           >
-            <ChartBarIcon className="w-[18px] h-[18px]" />
+            <ChartBarIcon className="w-5 h-5" />
           </button>
         </Tooltip>
 
@@ -402,7 +402,7 @@ export function CalendarHeader({
             type="button"
             onClick={on_print}
           >
-            <PrinterIcon className="w-[18px] h-[18px]" />
+            <PrinterIcon className="w-5 h-5" />
           </button>
         </Tooltip>
 
@@ -417,7 +417,7 @@ export function CalendarHeader({
                 {t("common.end_to_end_encrypted_label")}
               </span>
             }
-            size={18}
+            size={20}
           />
         </div>
       </div>
