@@ -237,11 +237,11 @@ export function CalendarEditDialog({
       <ModalFooter className="flex items-center gap-2">
         {can_delete && (
           <Button
-            className="me-auto text-[var(--color-danger)] hover:text-[var(--color-danger)]"
+            className="me-auto"
             disabled={is_busy}
             size="md"
             type="button"
-            variant="ghost"
+            variant="depth_destructive"
             onClick={() => {
               on_close();
               on_delete_request?.(calendar);
