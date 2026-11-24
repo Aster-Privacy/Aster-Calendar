@@ -2710,7 +2710,7 @@ button.press_scale:active {
 .quick_contacts_row[data-selected="true"] {
   background-color: color-mix(
     in srgb,
-    var(--accent-color) 16%,
+    var(--accent-color) 9%,
     var(--bg-primary)
   );
 }
@@ -2718,20 +2718,14 @@ button.press_scale:active {
 .quick_contacts_row[data-selected="true"]:hover {
   background-color: color-mix(
     in srgb,
-    var(--accent-color) 22%,
+    var(--accent-color) 13%,
     var(--bg-primary)
   );
 }
 
-.quick_contacts_select_dot {
-  color: var(--accent-fg, #fff);
-  background-color: var(--accent-color);
-}
-
 .quick_contacts_avatar_hint {
   opacity: 0;
-  color: var(--accent-fg, #fff);
-  background-color: var(--accent-color);
+  background-color: var(--bg-primary);
   transition: opacity 0.12s ease;
 }
 
@@ -2796,13 +2790,13 @@ button.press_scale:active {
 }
 
 .quick_contacts_notice {
+  border-radius: 12px;
+  color: var(--text-secondary);
   background-color: color-mix(
     in srgb,
-    var(--accent-color) 12%,
+    var(--text-primary) 5%,
     var(--bg-primary)
   );
-  border: 1px solid color-mix(in srgb, var(--accent-color) 28%, transparent);
-  color: var(--text-secondary);
 }
 
 .quick_contacts_notice_link {
