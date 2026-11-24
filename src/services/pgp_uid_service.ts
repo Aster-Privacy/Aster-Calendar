@@ -19,7 +19,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 import type { EncryptedVault } from "@/services/crypto/key_manager_core";
-import type { Key } from "openpgp";
+import type { Key, PrivateKey } from "openpgp";
 
 import { load_openpgp } from "@/services/crypto/openpgp_loader";
 import {
@@ -110,6 +110,77 @@ function missing_addresses(
   return missing;
 }
 
+async function certify_at_creation(
+  private_key: PrivateKey,
+  passphrase: string,
+  user_ids: UserId[],
+): Promise<string> {
+  const openpgp = await load_openpgp();
+  const unlocked = private_key.isDecrypted()
+    ? private_key
+    : await openpgp.decryptKey({ privateKey: private_key, passphrase });
+
+  const expires_at = await unlocked.getExpirationTime();
+  const created_at = unlocked.getCreationTime().getTime();
+  const key_expiration_time =
+    expires_at instanceof Date
+      ? Math.max(0, Math.round((expires_at.getTime() - created_at) / 1000))
+      : 0;
+
+  const reformatted = await openpgp.reformatKey({
+    privateKey: unlocked,
+    userIDs: user_ids,
+    keyExpirationTime: key_expiration_time,
+    date: unlocked.getCreationTime(),
+    format: "object",
+  });
+
+  const protected_key = await openpgp.encryptKey({
+    privateKey: reformatted.privateKey,
+    passphrase,
+  });
+
+  return protected_key.armor();
+}
+
+async function is_valid_at_creation(key: Key): Promise<boolean> {
+  try {
+    await key.getPrimaryUser(key.getCreationTime());
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function restore_identity_certification_dates(
+  vault: EncryptedVault,
+  passphrase: string,
+): Promise<EncryptedVault | null> {
+  const openpgp = await load_openpgp();
+  const private_key = await openpgp.readPrivateKey({
+    armoredKey: vault.identity_key,
+  });
+
+  if (await is_valid_at_creation(private_key)) return null;
+
+  const user_ids = existing_user_ids(private_key);
+
+  if (user_ids.length === 0) return null;
+
+  const restored = await certify_at_creation(private_key, passphrase, user_ids);
+  const restored_key = await openpgp.readKey({ armoredKey: restored });
+
+  if (
+    restored_key.getFingerprint() !== private_key.getFingerprint() ||
+    !(await is_valid_at_creation(restored_key))
+  ) {
+    return null;
+  }
+
+  return { ...vault, identity_key: restored };
+}
+
 export async function add_address_to_identity_key(
   vault: EncryptedVault,
   passphrase: string,
@@ -150,34 +221,15 @@ export async function add_addresses_to_identity_key(
     email: entry.email,
   }));
 
-  const unlocked = private_key.isDecrypted()
-    ? private_key
-    : await openpgp.decryptKey({ privateKey: private_key, passphrase });
-
-  const expires_at = await unlocked.getExpirationTime();
-  const created_at = unlocked.getCreationTime().getTime();
-  const key_expiration_time =
-    expires_at instanceof Date
-      ? Math.max(0, Math.round((expires_at.getTime() - created_at) / 1000))
-      : 0;
-
-  const reformatted = await openpgp.reformatKey({
-    privateKey: unlocked,
-    userIDs:
-      placement === "first" ? [...added, ...user_ids] : [...user_ids, ...added],
-    keyExpirationTime: key_expiration_time,
-    date: unlocked.getCreationTime(),
-    format: "object",
-  });
-
-  const protected_key = await openpgp.encryptKey({
-    privateKey: reformatted.privateKey,
+  const protected_armored = await certify_at_creation(
+    private_key,
     passphrase,
-  });
+    placement === "first" ? [...added, ...user_ids] : [...user_ids, ...added],
+  );
 
   return {
     ...vault,
-    identity_key: protected_key.armor(),
+    identity_key: protected_armored,
     legacy_identity_keys: [
       vault.identity_key,
       ...(vault.legacy_identity_keys ?? []).filter(
@@ -290,7 +342,11 @@ async function shared_identity_republish(
 
   if (uid_update_in_flight?.key === key) return uid_update_in_flight.run;
 
-  const run = run_identity_republish(addresses, placement, always_republish);
+  const run = run_identity_republish(
+    (vault, passphrase) =>
+      add_addresses_to_identity_key(vault, passphrase, addresses, placement),
+    always_republish,
+  );
 
   uid_update_in_flight = { key, run };
 
@@ -301,9 +357,13 @@ async function shared_identity_republish(
   }
 }
 
+type VaultKeyTransform = (
+  vault: EncryptedVault,
+  passphrase: string,
+) => Promise<EncryptedVault | null>;
+
 async function run_identity_republish(
-  addresses: IdentityAddress[],
-  placement: "first" | "last",
+  transform: VaultKeyTransform,
   always_republish: boolean,
 ): Promise<IdentityAddressResult> {
   try {
@@ -330,12 +390,7 @@ async function run_identity_republish(
         return "failed";
       }
 
-      const next_vault = await add_addresses_to_identity_key(
-        current_vault,
-        passphrase,
-        addresses,
-        placement,
-      );
+      const next_vault = await transform(current_vault, passphrase);
 
       if (!next_vault && !always_republish) return "unchanged";
 
@@ -394,4 +449,72 @@ async function run_identity_republish(
 
     return "failed";
   }
+}
+
+const attempted_certification_repairs = new Set<string>();
+
+async function restore_if_token_opens_strictly(
+  vault: EncryptedVault,
+  passphrase: string,
+  token: string,
+): Promise<EncryptedVault | null> {
+  const { open_account_key_token_detailed } =
+    await import("@/services/crypto/account_key_token");
+  const { zero_uint8_array, constant_time_compare } =
+    await import("@/services/crypto/secure_memory");
+  const previous_keys = vault.previous_keys ?? [];
+  const before = await open_account_key_token_detailed(
+    token,
+    [vault.identity_key, ...previous_keys],
+    passphrase,
+  );
+
+  if (!before?.needs_recertified_key) {
+    if (before) zero_uint8_array(before.account_key);
+
+    return null;
+  }
+
+  let after: Awaited<ReturnType<typeof open_account_key_token_detailed>> = null;
+
+  try {
+    const restored = await restore_identity_certification_dates(
+      vault,
+      passphrase,
+    );
+
+    if (!restored) return null;
+
+    after = await open_account_key_token_detailed(
+      token,
+      [restored.identity_key, ...previous_keys],
+      passphrase,
+    );
+
+    if (!after || after.needs_recertified_key) return null;
+
+    return constant_time_compare(after.account_key, before.account_key)
+      ? restored
+      : null;
+  } finally {
+    zero_uint8_array(before.account_key);
+    if (after) zero_uint8_array(after.account_key);
+  }
+}
+
+export async function repair_identity_certification_dates(
+  token: string,
+): Promise<IdentityAddressResult> {
+  const account = await get_current_account();
+  const marker = account?.user?.id ?? "";
+
+  if (attempted_certification_repairs.has(marker)) return "unchanged";
+
+  attempted_certification_repairs.add(marker);
+
+  return run_identity_republish(
+    (vault, passphrase) =>
+      restore_if_token_opens_strictly(vault, passphrase, token),
+    false,
+  );
 }

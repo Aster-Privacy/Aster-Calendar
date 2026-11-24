@@ -26,6 +26,7 @@ import { get_current_account } from "../account_manager";
 import { ACCOUNT_KEY_LENGTH } from "./account_data_key";
 import {
   open_account_key_token,
+  open_account_key_token_detailed,
   seal_account_key_token,
 } from "./account_key_token";
 import {
@@ -99,6 +100,16 @@ async function create_account_key_if_absent(
   }
 }
 
+function schedule_certification_repair(token: string, generation: number) {
+  if (generation !== get_account_key_generation()) return;
+
+  void import("@/services/pgp_uid_service")
+    .then(({ repair_identity_certification_dates }) =>
+      repair_identity_certification_dates(token),
+    )
+    .catch(() => undefined);
+}
+
 async function load_token(
   token: string,
   own_keys: string[],
@@ -106,9 +117,19 @@ async function load_token(
   generation: number,
   write_epoch: number | null = null,
 ): Promise<boolean> {
-  const account_key = await open_account_key_token(token, own_keys, passphrase);
+  const opened = await open_account_key_token_detailed(
+    token,
+    own_keys,
+    passphrase,
+  );
 
-  if (!account_key) return false;
+  if (!opened) return false;
+
+  const { account_key } = opened;
+
+  if (opened.needs_recertified_key) {
+    schedule_certification_repair(token, generation);
+  }
 
   try {
     return await load_account_key_derived_keks_into_memory(
