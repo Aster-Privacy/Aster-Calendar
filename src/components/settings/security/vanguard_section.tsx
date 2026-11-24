@@ -37,6 +37,7 @@ import {
 import { use_i18n } from "@/lib/i18n/context";
 import { clamp_password } from "@/services/sanitize";
 import { use_plan_limits } from "@/hooks/use_plan_limits";
+import { plan_settled } from "@/components/settings/plan_gate";
 import { use_auth_safe } from "@/contexts/auth_context";
 import { AppLockSection } from "@/components/settings/security/app_lock_section";
 import {
@@ -49,9 +50,7 @@ import {
   set_lockdown_enabled,
   init_lockdown_from_server,
 } from "@/services/lockdown_store";
-import {
-  clear_session_unlock,
-} from "@/services/app_lock_store";
+import { clear_session_unlock } from "@/services/app_lock_store";
 import { remove_app_lock } from "@/services/app_lock_unlock";
 import { prompt_upgrade } from "@/components/settings/aliases/feature_lock";
 import {
@@ -77,7 +76,9 @@ function is_transport_failure(code?: string): boolean {
 function LockdownSection({ account_id }: { account_id: string }) {
   const { t } = use_i18n();
 
-  const [enabled, set_enabled] = useState(false);
+  const [enabled, set_enabled] = useState(() =>
+    account_id ? is_lockdown_enabled(account_id) : false,
+  );
   const [show_disable_modal, set_show_disable_modal] = useState(false);
   const [password, set_password] = useState("");
   const [totp_code, set_totp_code] = useState("");
@@ -305,7 +306,7 @@ function LockdownSection({ account_id }: { account_id: string }) {
 
 export function VanguardSection() {
   const { t } = use_i18n();
-  const { limits, is_loading } = use_plan_limits();
+  const { limits, plan_code, is_loading } = use_plan_limits();
   const auth = use_auth_safe();
   const account_id = auth?.current_account_id ?? "";
 
@@ -316,9 +317,14 @@ export function VanguardSection() {
     "family",
     "family_duo",
     "family_full",
-  ].includes(limits?.plan_code ?? "");
+  ].includes(plan_code ?? "");
 
-  const [enabled, set_enabled] = useState(false);
+  const [enabled, set_enabled] = useState(() =>
+    account_id ? is_vanguard_enabled(account_id) : false,
+  );
+  const [server_settled_for, set_server_settled_for] = useState<string | null>(
+    null,
+  );
   const [show_disable_confirm, set_show_disable_confirm] = useState(false);
   const [is_disabling, set_is_disabling] = useState(false);
 
@@ -328,11 +334,16 @@ export function VanguardSection() {
     let cancelled = false;
 
     set_enabled(is_vanguard_enabled(account_id));
-    init_vanguard_from_server(account_id).then((server_enabled) => {
-      if (cancelled) return;
+    init_vanguard_from_server(account_id)
+      .then((server_enabled) => {
+        if (cancelled) return;
 
-      set_enabled(server_enabled);
-    });
+        set_enabled(server_enabled);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) set_server_settled_for(account_id);
+      });
 
     return () => {
       cancelled = true;
@@ -408,7 +419,12 @@ export function VanguardSection() {
     set_is_disabling(false);
   };
 
-  if (is_loading) {
+  const server_settled = !account_id || server_settled_for === account_id;
+
+  if (
+    !server_settled ||
+    !plan_settled({ has_limits: limits !== null, plan_code, is_loading })
+  ) {
     return <Skeleton className="h-14 rounded-[inherit]" />;
   }
 

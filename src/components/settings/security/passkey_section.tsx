@@ -78,6 +78,7 @@ import {
 import { app_locale, get_display_time_zone } from "@/utils/date_format";
 import { is_composing } from "@/utils/ime";
 import { ButtonSpinner, Spinner } from "@/components/ui/spinner";
+import { platform_buttons_ready } from "@/components/settings/security/security_ready";
 
 function format_date(iso: string): string {
   try {
@@ -290,10 +291,22 @@ export function PasskeySection() {
 
   useEffect(() => {
     load_keys();
+  }, [load_keys]);
+
+  useEffect(() => {
+    let is_active = true;
+
     void probe_webauthn_related_origins()
       .then(() => is_platform_passkey_available())
-      .then(set_platform_available);
-  }, [load_keys]);
+      .catch(() => false)
+      .then((available) => {
+        if (is_active) set_platform_available(available);
+      });
+
+    return () => {
+      is_active = false;
+    };
+  }, []);
 
   const handle_remove = useCallback(
     async (key_id: string, credentials?: ReauthProof) => {
@@ -561,36 +574,38 @@ export function PasskeySection() {
           </p>
         )}
 
-        {webauthn_supported && !is_desktop() && (
-          <div className="flex flex-wrap items-center gap-2">
-            {platform_available !== false && (
+        {webauthn_supported &&
+          !is_desktop() &&
+          platform_buttons_ready(platform_available) && (
+            <div className="flex flex-wrap items-center gap-2">
+              {platform_available === true && (
+                <Button
+                  disabled={registering !== null}
+                  size="sm"
+                  variant="outline"
+                  onClick={handle_add_passkey}
+                >
+                  <FingerPrintIcon className="w-4 h-4 me-2" />
+                  {registering === "passkey" && <ButtonSpinner size="xs" />}
+                  {registering === "passkey"
+                    ? t("passkeys.registering")
+                    : t("passkeys.add_passkey")}
+                </Button>
+              )}
               <Button
                 disabled={registering !== null}
                 size="sm"
                 variant="outline"
-                onClick={handle_add_passkey}
+                onClick={handle_add_security_key}
               >
-                <FingerPrintIcon className="w-4 h-4 me-2" />
-                {registering === "passkey" && <ButtonSpinner size="xs" />}
-                {registering === "passkey"
+                <PlusIcon className="w-4 h-4 me-2" />
+                {registering === "security_key" && <ButtonSpinner size="xs" />}
+                {registering === "security_key"
                   ? t("passkeys.registering")
-                  : t("passkeys.add_passkey")}
+                  : t("passkeys.add_security_key")}
               </Button>
-            )}
-            <Button
-              disabled={registering !== null}
-              size="sm"
-              variant="outline"
-              onClick={handle_add_security_key}
-            >
-              <PlusIcon className="w-4 h-4 me-2" />
-              {registering === "security_key" && <ButtonSpinner size="xs" />}
-              {registering === "security_key"
-                ? t("passkeys.registering")
-                : t("passkeys.add_security_key")}
-            </Button>
-          </div>
-        )}
+            </div>
+          )}
       </IslandSection>
 
       <ConfirmModal

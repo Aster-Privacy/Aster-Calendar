@@ -40,6 +40,7 @@ import {
   RecoveryCodesModal,
   RecoveryCodesModalMode,
 } from "@/components/settings/security/recovery_codes_modal";
+import { SettingsSkeleton } from "@/components/settings/settings_skeleton";
 import { app_locale, get_display_time_zone } from "@/utils/date_format";
 
 const LOW_CODES_THRESHOLD = 3;
@@ -69,24 +70,31 @@ export function AccountRecoverySection({
   const [modal_mode, set_modal_mode] =
     useState<RecoveryCodesModalMode>("regenerate");
   const [load_error, set_load_error] = useState(false);
+  const [is_loaded, set_is_loaded] = useState(false);
   const [show_recover_data, set_show_recover_data] = useState(false);
   const { user } = use_auth();
   const account_id = user?.id ?? null;
 
   const fetch_methods = useCallback(async () => {
-    const [methods_response, status_response] = await Promise.all([
-      get_recovery_methods(),
-      get_codes_status(),
-    ]);
+    try {
+      const [methods_response, status_response] = await Promise.all([
+        get_recovery_methods(),
+        get_codes_status(),
+      ]);
 
-    if (methods_response.data) {
-      set_methods(methods_response.data);
-      set_load_error(false);
-    } else {
+      if (methods_response.data) {
+        set_methods(methods_response.data);
+        set_load_error(false);
+      } else {
+        set_load_error(true);
+      }
+
+      set_status(status_response.data ?? null);
+    } catch {
       set_load_error(true);
+    } finally {
+      set_is_loaded(true);
     }
-
-    set_status(status_response.data ?? null);
   }, []);
 
   useEffect(() => {
@@ -104,6 +112,10 @@ export function AccountRecoverySection({
     set_modal_mode(mode);
     set_show_codes_modal(true);
   };
+
+  if (!is_loaded) {
+    return <SettingsSkeleton />;
+  }
 
   return (
     <>

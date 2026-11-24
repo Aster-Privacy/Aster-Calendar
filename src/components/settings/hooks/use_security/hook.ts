@@ -21,6 +21,7 @@
 import type { EncryptedVault } from "@/services/crypto/key_manager";
 
 import type { TotpStatusResponse } from "@/services/api/totp";
+import type { ApiResponse } from "@/services/api/client";
 
 import { useState, useEffect, useRef } from "react";
 
@@ -114,7 +115,10 @@ import {
 import { use_key_rotation } from "@/hooks/use_key_rotation";
 import { check_password_breach } from "@/services/breach_check";
 import { use_i18n } from "@/lib/i18n/context";
-import { generate_auth_salt, login_safety_error_key } from "@/services/crypto/auth_salt_guard";
+import {
+  generate_auth_salt,
+  login_safety_error_key,
+} from "@/services/crypto/auth_salt_guard";
 import { show_toast } from "@/components/toast/simple_toast";
 import { ignore_error } from "@/lib/ignore_error";
 import { write_locked_sent_mail } from "@/services/locked_sent_mail_store";
@@ -140,7 +144,9 @@ export function use_security() {
   } = use_key_rotation({ auto_check: true });
 
   const [totp_status, set_totp_status] = useState<TotpStatusResponse | null>(
-    null,
+    () =>
+      cache.get_entry<ApiResponse<TotpStatusResponse>>("totp_status")?.data
+        ?.data ?? null,
   );
   const [totp_status_failed, set_totp_status_failed] = useState(false);
   const [security_score_loaded, set_security_score_loaded] = useState(false);
@@ -150,12 +156,21 @@ export function use_security() {
   const [show_totp_setup_modal, set_show_totp_setup_modal] = useState(false);
   const [show_totp_disable_modal, set_show_totp_disable_modal] =
     useState(false);
-  const [login_alerts_enabled, set_login_alerts_enabled] = useState(false);
-  const [login_alerts_loaded, set_login_alerts_loaded] = useState(false);
+  const [cached_login_alerts] = useState(
+    () =>
+      cache.get_entry<ApiResponse<{ enabled: boolean }>>("login_alerts_status")
+        ?.data?.data ?? null,
+  );
+  const [login_alerts_enabled, set_login_alerts_enabled] = useState(
+    cached_login_alerts?.enabled ?? false,
+  );
+  const [login_alerts_loaded, set_login_alerts_loaded] = useState(
+    cached_login_alerts !== null,
+  );
   const [login_alerts_failed, set_login_alerts_failed] = useState(false);
   const [login_alerts_loading, set_login_alerts_loading] = useState(false);
   const [login_events, set_login_events] = useState<LoginEventEntry[]>([]);
-  const [login_events_loading, set_login_events_loading] = useState(false);
+  const [login_events_loading, set_login_events_loading] = useState(true);
   const [login_events_failed, set_login_events_failed] = useState(false);
   const [show_password_section, set_show_password_section] = useState(false);
   const [current_password, set_current_password] = useState("");
