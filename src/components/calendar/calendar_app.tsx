@@ -45,6 +45,7 @@ import { CalendarQuickSettingsRows } from "@/components/calendar/calendar_quick_
 import { QuickSettingsPanel } from "@/components/settings/quick_settings_panel";
 import { use_calendar_state } from "@/components/calendar/use_calendar_state";
 import { use_calendar_reminders } from "@/components/calendar/use_calendar_reminders";
+import { use_busy_feed_publisher } from "@/components/calendar/use_busy_feed_publisher";
 import {
   OPEN_CALENDAR_EVENT,
   take_pending_open_event,
@@ -157,6 +158,7 @@ export function CalendarApp({ on_open_settings }: CalendarAppProps) {
   const reduce_motion = use_should_reduce_motion();
 
   use_calendar_reminders();
+  use_busy_feed_publisher();
 
   const [is_mobile_sidebar_open, set_is_mobile_sidebar_open] = useState(false);
   const [is_trash_open, set_is_trash_open] = useState(false);
