@@ -44,34 +44,19 @@ describe("app rail icon", () => {
     container.remove();
   });
 
-  it.each(["contacts", "security"] as const)(
-    "masks the %s artwork with the accent color",
+  it.each(["calendar", "contacts", "security"] as const)(
+    "renders the %s icon as an outlined vector that follows the text color",
     (name) => {
       act(() => root.render(<AppRailIcon name={name} />));
 
-      const wrapper = container.querySelector<HTMLElement>(".app_rail_icon");
-      const detail = container.querySelector("img");
+      const icon = container.querySelector("svg.app_rail_icon");
 
-      expect(
-        wrapper?.style.getPropertyValue("--app-rail-icon-tint"),
-      ).toContain(`/icons/${name}/${name}_tint_72.png`);
-      expect(detail?.getAttribute("src")).toBe(
-        `/icons/${name}/${name}_detail_24.png`,
-      );
-    },
-  );
-
-  it.each(["contacts", "security"] as const)(
-    "falls back to a vector icon when the %s artwork fails to load",
-    (name) => {
-      act(() => root.render(<AppRailIcon name={name} />));
-
-      act(() => {
-        container.querySelector("img")?.dispatchEvent(new Event("error"));
-      });
-
-      expect(container.querySelector(".app_rail_icon")).toBeNull();
-      expect(container.querySelector("svg")).not.toBeNull();
+      expect(icon).not.toBeNull();
+      expect(icon?.getAttribute("aria-hidden")).toBe("true");
+      expect(icon?.getAttribute("fill")).toBe("none");
+      expect(icon?.getAttribute("stroke")).toBe("currentColor");
+      expect(container.querySelector("img")).toBeNull();
+      expect(container.querySelector("image")).toBeNull();
     },
   );
 });

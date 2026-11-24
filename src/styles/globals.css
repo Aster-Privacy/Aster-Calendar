@@ -2424,7 +2424,8 @@ button.press_scale:active {
   color: var(--icon-muted);
   transition:
     background-color 0.15s ease,
-    color 0.15s ease;
+    color 0.15s ease,
+    opacity 0.15s ease;
 }
 
 .app_rail_btn:hover,
@@ -2439,45 +2440,20 @@ button.press_scale:active {
 }
 
 .app_rail_icon {
-  position: relative;
   display: block;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
-  isolation: isolate;
 }
 
-.app_rail_icon.app_rail_icon_hero {
-  width: 56px;
-  height: 56px;
+.app_rail_toggle {
+  border-radius: 10px;
+  opacity: 0.55;
 }
 
-.app_rail_icon::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-color: var(--accent-color, #3b82f6);
-  -webkit-mask: var(--app-rail-icon-tint) center / contain no-repeat;
-  mask: var(--app-rail-icon-tint) center / contain no-repeat;
-}
-
-.app_rail_icon_detail {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  mix-blend-mode: plus-lighter;
-  user-select: none;
-}
-
-@media (forced-colors: active) {
-  .app_rail_icon::before {
-    background-color: ButtonText;
-  }
-
-  .app_rail_icon_detail {
-    visibility: hidden;
-  }
+.app_rail_column:hover .app_rail_toggle,
+.app_rail_toggle:focus-visible {
+  opacity: 1;
 }
 
 .app_rail_column {
@@ -5733,4 +5709,8 @@ html.dark:root {
       var(--bg-hover)
     );
   }
+}
+
+.aster_pill > .truncate {
+  line-height: 1.4;
 }
