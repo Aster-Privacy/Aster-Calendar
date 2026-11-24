@@ -278,6 +278,7 @@ function may_continue(options: BusyPublishOptions): boolean {
 function cache_is_trustworthy(calendar_id: string): boolean {
   return (
     calendar_sync_engine.has_settled_first_sync() &&
+    calendar_sync_engine.has_completed_pull() &&
     calendar_sync_engine.get_calendar(calendar_id) !== undefined
   );
 }

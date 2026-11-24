@@ -341,6 +341,25 @@ describe("calendar sync engine", () => {
     expect(calendar_sync_engine.has_settled_first_sync()).toBe(true);
   });
 
+  it("reports a completed pull only after one succeeds", async () => {
+    set_online(false);
+
+    await calendar_sync_engine.initial_load();
+
+    expect(calendar_sync_engine.has_settled_first_sync()).toBe(true);
+    expect(calendar_sync_engine.has_completed_pull()).toBe(false);
+
+    set_online(true);
+    get.mockResolvedValue(empty_calendars());
+
+    expect(await calendar_sync_engine.pull_delta()).toBe(true);
+    expect(calendar_sync_engine.has_completed_pull()).toBe(true);
+
+    calendar_sync_engine.reset();
+
+    expect(calendar_sync_engine.has_completed_pull()).toBe(false);
+  });
+
   it("decrypts rows that arrived before the vault once keys are ready", async () => {
     key_store.vault_present = false;
     await store.apply_page(ACCOUNT, {

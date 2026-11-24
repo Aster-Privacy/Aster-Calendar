@@ -37,6 +37,7 @@ const mocks = vi.hoisted(() => ({
   delete: vi.fn(),
   list_event_masters: vi.fn(),
   settled: vi.fn(),
+  pulled: vi.fn(),
   get_calendar: vi.fn(),
 }));
 
@@ -56,6 +57,7 @@ vi.mock("@/services/api/calendar", () => ({
 vi.mock("@/services/calendar/sync_engine", () => ({
   calendar_sync_engine: {
     has_settled_first_sync: mocks.settled,
+    has_completed_pull: mocks.pulled,
     get_calendar: mocks.get_calendar,
   },
 }));
@@ -415,6 +417,8 @@ describe("publishing", () => {
     mocks.list_event_masters.mockResolvedValue({ data: [make_event()] });
     mocks.settled.mockReset();
     mocks.settled.mockReturnValue(true);
+    mocks.pulled.mockReset();
+    mocks.pulled.mockReturnValue(true);
     mocks.get_calendar.mockReset();
     mocks.get_calendar.mockImplementation((id: string) => ({ id }));
     mocks.put.mockResolvedValue({
@@ -490,6 +494,16 @@ describe("publishing", () => {
       await publish_busy_calendar(CALENDAR, null, { now: NOW }),
     ).not.toBeNull();
     expect(mocks.put).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for a pull that completed before uploading", async () => {
+    mocks.pulled.mockReturnValue(false);
+    mocks.list_event_masters.mockResolvedValue({ data: [] });
+
+    expect(
+      await publish_busy_calendar(CALENDAR, null, { now: NOW, force: true }),
+    ).toBeNull();
+    expect(mocks.put).not.toHaveBeenCalled();
   });
 
   it("skips a calendar that is not loaded on this device", async () => {
