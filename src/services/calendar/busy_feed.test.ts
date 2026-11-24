@@ -36,6 +36,8 @@ const mocks = vi.hoisted(() => ({
   post: vi.fn(),
   delete: vi.fn(),
   list_event_masters: vi.fn(),
+  settled: vi.fn(),
+  get_calendar: vi.fn(),
 }));
 
 vi.mock("@/services/api/client", () => ({
@@ -49,6 +51,13 @@ vi.mock("@/services/api/client", () => ({
 
 vi.mock("@/services/api/calendar", () => ({
   list_event_masters: mocks.list_event_masters,
+}));
+
+vi.mock("@/services/calendar/sync_engine", () => ({
+  calendar_sync_engine: {
+    has_settled_first_sync: mocks.settled,
+    get_calendar: mocks.get_calendar,
+  },
 }));
 
 import {
@@ -404,6 +413,10 @@ describe("publishing", () => {
     mocks.delete.mockReset();
     mocks.list_event_masters.mockReset();
     mocks.list_event_masters.mockResolvedValue({ data: [make_event()] });
+    mocks.settled.mockReset();
+    mocks.settled.mockReturnValue(true);
+    mocks.get_calendar.mockReset();
+    mocks.get_calendar.mockImplementation((id: string) => ({ id }));
     mocks.put.mockResolvedValue({
       data: { published_at: "2026-03-01T12:04:00Z", block_count: 1 },
     });
@@ -459,6 +472,57 @@ describe("publishing", () => {
       "/calendar/v1/busy_feeds/calendar_2/busy",
       expect.objectContaining({ blocks: [] }),
     );
+  });
+
+  it("waits for the first sync before uploading", async () => {
+    mocks.settled.mockReturnValue(false);
+    mocks.list_event_masters.mockResolvedValue({ data: [] });
+
+    expect(
+      await publish_busy_calendar(CALENDAR, null, { now: NOW, force: true }),
+    ).toBeNull();
+    expect(mocks.put).not.toHaveBeenCalled();
+
+    mocks.settled.mockReturnValue(true);
+    mocks.list_event_masters.mockResolvedValue({ data: [make_event()] });
+
+    expect(
+      await publish_busy_calendar(CALENDAR, null, { now: NOW }),
+    ).not.toBeNull();
+    expect(mocks.put).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips a calendar that is not loaded on this device", async () => {
+    mocks.get_calendar.mockReturnValue(undefined);
+
+    expect(
+      await publish_busy_calendar(CALENDAR, null, { now: NOW, force: true }),
+    ).toBeNull();
+    expect(mocks.put).not.toHaveBeenCalled();
+  });
+
+  it("stops uploading once the session it started in has ended", async () => {
+    let active = true;
+
+    mocks.get.mockResolvedValue({
+      data: {
+        feeds: [{ calendar_id: "calendar_1" }, { calendar_id: "calendar_2" }],
+      },
+    });
+    mocks.list_event_masters.mockImplementation(async () => {
+      active = false;
+
+      return { data: [make_event()] };
+    });
+
+    expect(
+      await publish_all_busy_feeds(null, {
+        force: true,
+        should_continue: () => active,
+      }),
+    ).toBe(0);
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(mocks.list_event_masters).toHaveBeenCalledTimes(1);
   });
 
   it("does nothing when sharing is unavailable", async () => {

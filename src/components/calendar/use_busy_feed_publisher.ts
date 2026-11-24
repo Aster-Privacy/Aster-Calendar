@@ -35,9 +35,14 @@ const VISIBLE_REFRESH_MS = 60 * 60 * 1000;
 
 export function use_busy_feed_publisher(): void {
   const { user, current_account_id } = use_auth();
-  const email_ref = useRef<string | null>(user?.email ?? null);
+  const email_ref = useRef<{ account_id: string | null; email: string | null }>(
+    { account_id: current_account_id, email: user?.email ?? null },
+  );
 
-  email_ref.current = user?.email ?? null;
+  email_ref.current = {
+    account_id: current_account_id,
+    email: user?.email ?? null,
+  };
 
   useEffect(() => {
     if (!current_account_id) {
@@ -53,8 +58,11 @@ export function use_busy_feed_publisher(): void {
 
     forget_busy_fingerprints();
 
+    const owns_session = () =>
+      !cancelled && email_ref.current.account_id === current_account_id;
+
     const run = async (force: boolean) => {
-      if (cancelled) return;
+      if (!owns_session()) return;
 
       if (running) {
         queued = true;
@@ -68,7 +76,10 @@ export function use_busy_feed_publisher(): void {
       running = true;
 
       try {
-        await publish_all_busy_feeds(email_ref.current, { force });
+        await publish_all_busy_feeds(email_ref.current.email, {
+          force,
+          should_continue: owns_session,
+        });
         last_run_ms = Date.now();
       } catch {
         last_run_ms = Date.now();
