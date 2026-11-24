@@ -258,6 +258,7 @@ export class CalendarSyncEngine {
   private generation = 0;
   private loaded = false;
   private initial_pull_settled = false;
+  private pull_completed = false;
   private load_promise: Promise<void> | null = null;
   private pull_promise: Promise<boolean> | null = null;
   private pull_again = false;
@@ -551,6 +552,10 @@ export class CalendarSyncEngine {
     return this.loaded && this.initial_pull_settled;
   }
 
+  has_completed_pull(): boolean {
+    return this.loaded && this.pull_completed;
+  }
+
   awaiting_first_sync(): boolean {
     return (
       this.loaded && !this.initial_pull_settled && this.event_rows.size === 0
@@ -564,14 +569,25 @@ export class CalendarSyncEngine {
       return this.pull_promise;
     }
 
-    this.pull_promise = this.pull_with_retries().finally(() => {
-      this.pull_promise = null;
-      void this.heal_unreadable_rows();
-      if (this.pull_again) {
-        this.pull_again = false;
-        this.schedule_pull(0);
-      }
-    });
+    const account_id = this.account_id;
+    const generation = this.generation;
+
+    this.pull_promise = this.pull_with_retries()
+      .then((completed) => {
+        if (completed && this.is_current(account_id, generation)) {
+          this.pull_completed = true;
+        }
+
+        return completed;
+      })
+      .finally(() => {
+        this.pull_promise = null;
+        void this.heal_unreadable_rows();
+        if (this.pull_again) {
+          this.pull_again = false;
+          this.schedule_pull(0);
+        }
+      });
 
     return this.pull_promise;
   }
@@ -1027,6 +1043,7 @@ export class CalendarSyncEngine {
     }
     this.loaded = false;
     this.initial_pull_settled = false;
+    this.pull_completed = false;
     this.event_rows.clear();
     this.events.clear();
     this.calendar_rows.clear();
