@@ -12011,6 +12011,9 @@ export const es = {
     event_duplicated: "Evento duplicado",
     event_moved: "Movido a {{calendar}}",
     duplicate_title_prefix: "Copia de {{title}}",
+    duplicate_needs_calendar:
+      "Para duplicar este evento, primero crea un calendario.",
+    event_duplicated_to: "Copia añadida a {{calendar}}",
     create_menu_event: "Evento",
     create_menu_all_day: "Evento de todo el día",
     create_menu_options: "Más opciones de creación",

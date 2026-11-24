@@ -11499,6 +11499,9 @@ export const pt_br = {
     event_duplicated: "Evento duplicado",
     event_moved: "Movido para {{calendar}}",
     duplicate_title_prefix: "Cópia de {{title}}",
+    duplicate_needs_calendar:
+      "Para duplicar este evento, crie um calendário primeiro.",
+    event_duplicated_to: "Cópia adicionada a {{calendar}}",
     create_menu_event: "Evento",
     create_menu_all_day: "Evento de dia inteiro",
     create_menu_options: "Mais opções de criação",

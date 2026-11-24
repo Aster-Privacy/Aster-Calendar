@@ -119,6 +119,11 @@ import {
 } from "@/services/calendar/display_colors";
 import { decrypt_contact, list_contacts } from "@/services/api/contacts";
 import {
+  build_duplicate_draft,
+  NoDuplicateTargetError,
+  resolve_duplicate_calendar_id,
+} from "@/services/calendar/duplicate_event";
+import {
   fetch_subscription_events,
   subscription_calendar_id,
   subscription_color,
@@ -2460,12 +2465,21 @@ export function use_calendar_state() {
 
   const handle_duplicate_event = useCallback(
     async (event: DecryptedCalendarEvent) => {
-      const draft: CalendarEventDraft = {
-        ...event_to_draft(event),
-        title: t("calendar.duplicate_title_prefix", { title: event.title }),
-        recurrence: null,
-        recurrence_exceptions: [],
-      };
+      const calendar_id = resolve_duplicate_calendar_id(
+        event,
+        calendars,
+        preferences.calendar_default_calendar_id,
+      );
+
+      if (!calendar_id) {
+        throw new NoDuplicateTargetError();
+      }
+
+      const draft = build_duplicate_draft(
+        event,
+        calendar_id,
+        t("calendar.duplicate_title_prefix", { title: event.title }),
+      );
 
       const result = await create_event(
         stamp_draft_zone(unshift_draft_from_view(draft)),
@@ -2480,8 +2494,16 @@ export function use_calendar_state() {
       apply_saved_event(created);
       set_selected_event(created);
       reload();
+
+      return created;
     },
-    [apply_saved_event, reload, t],
+    [
+      apply_saved_event,
+      calendars,
+      preferences.calendar_default_calendar_id,
+      reload,
+      t,
+    ],
   );
 
   const handle_set_event_color = useCallback(

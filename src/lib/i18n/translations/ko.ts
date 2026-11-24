@@ -11497,6 +11497,8 @@ export const ko = {
     event_duplicated: "일정을 복제했습니다",
     event_moved: "{{calendar}}(으)로 이동했습니다",
     duplicate_title_prefix: "{{title}} 사본",
+    duplicate_needs_calendar: "이 일정을 복제하려면 먼저 캘린더를 만드세요.",
+    event_duplicated_to: "{{calendar}}에 사본을 추가했습니다",
     create_menu_event: "일정",
     create_menu_all_day: "종일 일정",
     create_menu_options: "추가 만들기 옵션",

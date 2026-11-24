@@ -12070,6 +12070,9 @@ export const it = {
     event_duplicated: "Evento duplicato",
     event_moved: "Spostato in {{calendar}}",
     duplicate_title_prefix: "Copia di {{title}}",
+    duplicate_needs_calendar:
+      "Per duplicare questo evento, crea prima un calendario.",
+    event_duplicated_to: "Copia aggiunta a {{calendar}}",
     create_menu_event: "Evento",
     create_menu_all_day: "Evento di tutto il giorno",
     create_menu_options: "Altre opzioni di creazione",

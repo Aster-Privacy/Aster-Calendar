@@ -12165,6 +12165,9 @@ export const de = {
     event_duplicated: "Termin dupliziert",
     event_moved: "Nach {{calendar}} verschoben",
     duplicate_title_prefix: "Kopie von {{title}}",
+    duplicate_needs_calendar:
+      "Erstellen Sie zuerst einen Kalender, um diesen Termin zu duplizieren.",
+    event_duplicated_to: "Kopie zu {{calendar}} hinzugefügt",
     create_menu_event: "Termin",
     create_menu_all_day: "Ganztägiger Termin",
     create_menu_options: "Weitere Erstellungsoptionen",

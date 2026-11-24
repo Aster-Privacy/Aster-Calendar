@@ -11850,6 +11850,9 @@ export const tr = {
     event_duplicated: "Etkinlik çoğaltıldı",
     event_moved: "{{calendar}} takvimine taşındı",
     duplicate_title_prefix: "{{title}} kopyası",
+    duplicate_needs_calendar:
+      "Bu etkinliği çoğaltmak için önce bir takvim oluşturun.",
+    event_duplicated_to: "Kopya {{calendar}} takvimine eklendi",
     create_menu_event: "Etkinlik",
     create_menu_all_day: "Tüm gün süren etkinlik",
     create_menu_options: "Diğer oluşturma seçenekleri",

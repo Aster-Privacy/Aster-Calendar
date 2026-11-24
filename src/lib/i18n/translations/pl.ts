@@ -12242,6 +12242,9 @@ export const pl = {
     event_duplicated: "Zduplikowano wydarzenie",
     event_moved: "Przeniesiono do {{calendar}}",
     duplicate_title_prefix: "Kopia {{title}}",
+    duplicate_needs_calendar:
+      "Aby zduplikować to wydarzenie, najpierw utwórz kalendarz.",
+    event_duplicated_to: "Dodano kopię do kalendarza {{calendar}}",
     create_menu_event: "Wydarzenie",
     create_menu_all_day: "Wydarzenie całodniowe",
     create_menu_options: "Więcej opcji tworzenia",
