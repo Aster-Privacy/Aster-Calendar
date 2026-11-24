@@ -50,11 +50,18 @@ vi.mock("@/lib/session_handoff/session_handoff_client", () => ({
 
 import {
   HANDOFF_GRANT_HASH_PREFIX,
+  can_attempt_sibling_handoff,
+  mint_panel_handoff_grant,
   obtain_sibling_session,
   start_sibling_sign_in,
   take_pending_handoff_grant,
 } from "./sibling_session_handoff";
 
+import {
+  HANDOFF_GRANT_KEY_PREFIX,
+  check_grant,
+  local_grant_storage,
+} from "@/lib/session_handoff/session_handoff_grant";
 import {
   CALENDAR_WEB_ORIGIN,
   MAIL_WEB_ORIGIN,
@@ -126,6 +133,33 @@ describe("take_pending_handoff_grant", () => {
   });
 });
 
+describe("mint_panel_handoff_grant", () => {
+  it("writes a short approved grant for the signed-in user", () => {
+    const grant = mint_panel_handoff_grant(CALENDAR_WEB_ORIGIN);
+
+    expect(grant).not.toBeNull();
+    expect(
+      check_grant(local_grant_storage, grant!, CALENDAR_WEB_ORIGIN, Date.now()),
+    ).toEqual({ state: "approved", user_id: USER_ID });
+
+    const stored = JSON.parse(
+      window.localStorage.getItem(HANDOFF_GRANT_KEY_PREFIX + grant)!,
+    );
+
+    expect(stored.expires_at - Date.now()).toBeLessThanOrEqual(60_000);
+    expect(
+      check_grant(local_grant_storage, grant!, MAIL_WEB_ORIGIN, Date.now()),
+    ).toEqual({ state: "denied" });
+  });
+
+  it("writes nothing without a signed-in user", () => {
+    mocks.cached_user = null;
+
+    expect(mint_panel_handoff_grant(CALENDAR_WEB_ORIGIN)).toBeNull();
+    expect(window.localStorage.length).toBe(0);
+  });
+});
+
 describe("start_sibling_sign_in", () => {
   it("opens the approval window and keeps the grant once approved", async () => {
     const open = vi.fn(() => ({}) as Window);
@@ -183,5 +217,21 @@ describe("obtain_sibling_session", () => {
 
     expect(await obtain_sibling_session("/register")).toBeNull();
     expect(mocks.request).not.toHaveBeenCalled();
+  });
+});
+
+describe("can_attempt_sibling_handoff", () => {
+  it("restores a session on the family invite page", () => {
+    expect(can_attempt_sibling_handoff("/join/family")).toBe(true);
+  });
+
+  it("skips signed-out flows", () => {
+    expect(can_attempt_sibling_handoff("/register")).toBe(false);
+    expect(can_attempt_sibling_handoff("/family/claim/abc")).toBe(false);
+    expect(can_attempt_sibling_handoff("/reset-password")).toBe(false);
+  });
+
+  it("restores a session on mailbox pages", () => {
+    expect(can_attempt_sibling_handoff("/inbox")).toBe(true);
   });
 });
