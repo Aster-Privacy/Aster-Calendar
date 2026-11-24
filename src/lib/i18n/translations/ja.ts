@@ -11718,6 +11718,9 @@ export const ja = {
     event_duplicated: "予定を複製しました",
     event_moved: "{{calendar}} に移動しました",
     duplicate_title_prefix: "{{title}} のコピー",
+    duplicate_needs_calendar:
+      "この予定を複製するには、まずカレンダーを作成してください。",
+    event_duplicated_to: "コピーを {{calendar}} に追加しました",
     create_menu_event: "予定",
     create_menu_all_day: "終日の予定",
     create_menu_options: "その他の作成オプション",

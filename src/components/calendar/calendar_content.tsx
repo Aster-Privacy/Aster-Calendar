@@ -65,6 +65,7 @@ import {
 } from "@/components/calendar/calendar_utils";
 import { calendar_now } from "@/services/calendar/view_zone";
 import { is_read_only_event } from "@/services/calendar/display_colors";
+import { NoDuplicateTargetError } from "@/services/calendar/duplicate_event";
 import { build_event_link } from "@/components/calendar/event_link";
 import { CalendarHeader } from "@/components/calendar/calendar_header";
 import { build_compact_period_title } from "@/components/calendar/calendar_period_title";
@@ -1104,10 +1105,28 @@ export function CalendarContent({
     on_delete_request: state.set_event_to_delete,
     on_duplicate: async (event) => {
       try {
-        await state.handle_duplicate_event(event);
-        show_toast(state.t("calendar.event_duplicated"), "success");
-      } catch {
-        show_toast(state.t("calendar.event_save_failed"), "error");
+        const created = await state.handle_duplicate_event(event);
+
+        if (created.calendar_id === event.calendar_id) {
+          show_toast(state.t("calendar.event_duplicated"), "success");
+        } else {
+          show_toast(
+            state.t("calendar.event_duplicated_to", {
+              calendar:
+                state.calendar_by_id.get(created.calendar_id)?.name ?? "",
+            }),
+            "success",
+          );
+        }
+      } catch (error) {
+        show_toast(
+          state.t(
+            error instanceof NoDuplicateTargetError
+              ? "calendar.duplicate_needs_calendar"
+              : "calendar.event_save_failed",
+          ),
+          "error",
+        );
       }
     },
     on_edit: state.handle_edit_event,

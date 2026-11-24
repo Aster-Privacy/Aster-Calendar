@@ -11997,6 +11997,9 @@ export const nl = {
     event_duplicated: "Afspraak gedupliceerd",
     event_moved: "Verplaatst naar {{calendar}}",
     duplicate_title_prefix: "Kopie van {{title}}",
+    duplicate_needs_calendar:
+      "Maak eerst een agenda om deze afspraak te dupliceren.",
+    event_duplicated_to: "Kopie toegevoegd aan {{calendar}}",
     create_menu_event: "Afspraak",
     create_menu_all_day: "Afspraak van hele dag",
     create_menu_options: "Meer aanmaakopties",

@@ -12198,6 +12198,9 @@ export const ru = {
     event_duplicated: "Событие продублировано",
     event_moved: "Перемещено в {{calendar}}",
     duplicate_title_prefix: "Копия {{title}}",
+    duplicate_needs_calendar:
+      "Чтобы продублировать это событие, сначала создайте календарь.",
+    event_duplicated_to: "Копия добавлена в {{calendar}}",
     create_menu_event: "Событие",
     create_menu_all_day: "Событие на весь день",
     create_menu_options: "Другие варианты создания",

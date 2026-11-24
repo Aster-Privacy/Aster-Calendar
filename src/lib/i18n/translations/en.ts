@@ -11700,6 +11700,9 @@ export const en: Translations = {
     event_duplicated: "Event duplicated",
     event_moved: "Moved to {{calendar}}",
     duplicate_title_prefix: "Copy of {{title}}",
+    duplicate_needs_calendar:
+      "To duplicate this event, create a calendar first.",
+    event_duplicated_to: "Copy added to {{calendar}}",
     create_menu_event: "Event",
     create_menu_all_day: "All-day event",
     create_menu_options: "More create options",

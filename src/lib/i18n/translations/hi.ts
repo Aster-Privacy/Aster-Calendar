@@ -11206,6 +11206,9 @@ export const hi = {
     event_duplicated: "इवेंट की प्रतिलिपि बनी",
     event_moved: "{{calendar}} में ले जाया गया",
     duplicate_title_prefix: "{{title}} की प्रतिलिपि",
+    duplicate_needs_calendar:
+      "इस इवेंट की प्रतिलिपि बनाने के लिए, पहले एक कैलेंडर बनाएं।",
+    event_duplicated_to: "प्रतिलिपि {{calendar}} में जोड़ी गई",
     create_menu_event: "इवेंट",
     create_menu_all_day: "पूरे दिन का इवेंट",
     create_menu_options: "बनाने के और विकल्प",

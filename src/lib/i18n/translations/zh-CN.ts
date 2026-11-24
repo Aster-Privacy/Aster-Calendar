@@ -10664,6 +10664,8 @@ export const zh_CN = {
     event_duplicated: "已创建活动副本",
     event_moved: "已移至{{calendar}}",
     duplicate_title_prefix: "{{title}} 的副本",
+    duplicate_needs_calendar: "要复制此活动，请先创建一个日历。",
+    event_duplicated_to: "已将副本添加到{{calendar}}",
     create_menu_event: "活动",
     create_menu_all_day: "全天活动",
     create_menu_options: "更多创建选项",

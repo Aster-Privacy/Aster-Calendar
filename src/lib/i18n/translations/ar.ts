@@ -11730,6 +11730,8 @@ export const ar = {
     event_duplicated: "تم تكرار الحدث",
     event_moved: "تم النقل إلى {{calendar}}",
     duplicate_title_prefix: "نسخة من {{title}}",
+    duplicate_needs_calendar: "لتكرار هذا الحدث، أنشئ تقويمًا أولًا.",
+    event_duplicated_to: "تمت إضافة نسخة إلى {{calendar}}",
     create_menu_event: "حدث",
     create_menu_all_day: "حدث ليوم كامل",
     create_menu_options: "خيارات إنشاء إضافية",

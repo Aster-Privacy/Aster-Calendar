@@ -12164,6 +12164,9 @@ export const fr = {
     event_duplicated: "Événement dupliqué",
     event_moved: "Déplacé vers {{calendar}}",
     duplicate_title_prefix: "Copie de {{title}}",
+    duplicate_needs_calendar:
+      "Pour dupliquer cet événement, créez d'abord un calendrier.",
+    event_duplicated_to: "Copie ajoutée à {{calendar}}",
     create_menu_event: "Événement",
     create_menu_all_day: "Événement d'une journée",
     create_menu_options: "Plus d'options de création",

@@ -1139,6 +1139,8 @@ export interface CalendarTranslations {
   event_duplicated: string;
   event_moved: string;
   duplicate_title_prefix: string;
+  duplicate_needs_calendar: string;
+  event_duplicated_to: string;
   create_menu_event: string;
   create_menu_all_day: string;
   create_menu_options: string;
