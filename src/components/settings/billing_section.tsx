@@ -78,7 +78,10 @@ import {
   type AcademicDiscountStatusResponse,
 } from "@/services/api/billing";
 import { request_cache } from "@/services/api/request_cache";
-import { use_storage_usage, invalidate_storage_usage } from "@/hooks/use_storage_usage";
+import {
+  use_storage_usage,
+  invalidate_storage_usage,
+} from "@/hooks/use_storage_usage";
 import { use_special_offer_checkout } from "@/hooks/use_special_offer_checkout";
 import { special_offer_promo_code } from "@/lib/special_offer";
 import { refresh_special_offer_status } from "@/stores/special_offer_status";
@@ -163,6 +166,14 @@ interface BillingCache {
 const FREE_ADVANTAGES_PLAN = "star";
 
 let billing_cache: BillingCache | null = null;
+const academic_status_cache = new Map<
+  string,
+  AcademicDiscountStatusResponse | null
+>();
+
+export function forget_academic_status_cache(): void {
+  academic_status_cache.clear();
+}
 
 function request_billing_bundle() {
   return Promise.all([
@@ -322,8 +333,14 @@ export function BillingSection() {
     useState<CreditBalanceResponse | null>(
       () => cached?.credit_balance ?? null,
     );
+  const academic_cache_key = user_id ?? "";
   const [academic_status, set_academic_status] =
-    useState<AcademicDiscountStatusResponse | null>(null);
+    useState<AcademicDiscountStatusResponse | null>(
+      () => academic_status_cache.get(academic_cache_key) ?? null,
+    );
+  const [academic_settled, set_academic_settled] = useState(() =>
+    academic_status_cache.has(academic_cache_key),
+  );
   const [is_initial_load, set_is_initial_load] = useState(
     () => cached === null,
   );
@@ -469,10 +486,19 @@ export function BillingSection() {
   }, []);
 
   const refresh_academic_status = useCallback(async () => {
-    const res = await get_academic_discount_status();
+    try {
+      const res = await get_academic_discount_status();
 
-    if (res.data) set_academic_status(res.data);
-  }, []);
+      if (res.data) {
+        academic_status_cache.set(academic_cache_key, res.data);
+        set_academic_status(res.data);
+      }
+    } catch {
+      return;
+    } finally {
+      set_academic_settled(true);
+    }
+  }, [academic_cache_key]);
 
   useEffect(() => {
     refresh_academic_status();
@@ -1268,7 +1294,7 @@ export function BillingSection() {
       )
     : 0;
 
-  if (is_initial_load || skeleton_visible) {
+  if (is_initial_load || !academic_settled || skeleton_visible) {
     return <SettingsSkeleton variant="billing" />;
   }
 

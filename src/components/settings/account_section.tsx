@@ -108,6 +108,7 @@ import {
 } from "@/components/ui/select";
 import { InfoPopover } from "@/components/ui/info_popover";
 import { use_plan_limits } from "@/hooks/use_plan_limits";
+import { plan_settled } from "@/components/settings/plan_gate";
 import { open_profile_picture_dialog } from "@/stores/profile_picture_dialog_store";
 import { is_onion_host } from "@/lib/onion_host";
 import { SETTINGS_ANCHORS } from "@/lib/settings_links";
@@ -207,11 +208,10 @@ function RecoveryModal({
   );
 }
 
-function FreePlanBanner() {
+function FreePlanBanner({ plan_code }: { plan_code: string | null }) {
   const { t } = use_i18n();
-  const { limits } = use_plan_limits();
 
-  if (is_onion_host() || !limits || limits.plan_code !== "free") return null;
+  if (is_onion_host() || plan_code !== "free") return null;
 
   return (
     <Island padding="md" tone="accent">
@@ -246,6 +246,11 @@ export function AccountSection() {
   const account_email = user?.email ?? "";
   const { preferences, update_preference, reset_to_defaults } =
     use_preferences();
+  const {
+    limits: plan_limits,
+    plan_code,
+    is_loading: plan_is_loading,
+  } = use_plan_limits();
 
   const copy_primary_address = useCallback(
     async (address: string) => {
@@ -628,13 +633,20 @@ export function AccountSection() {
   const has_custom_picture = !!user?.profile_picture;
   const picture = user?.profile_picture || "/profile.webp";
 
-  if (is_initial_load) {
+  if (
+    is_initial_load ||
+    !plan_settled({
+      has_limits: plan_limits !== null,
+      plan_code,
+      is_loading: plan_is_loading,
+    })
+  ) {
     return <SettingsSkeleton variant="profile" />;
   }
 
   return (
     <IslandSections>
-      <FreePlanBanner />
+      <FreePlanBanner plan_code={plan_code} />
 
       {load_failed && <LoadFailedNotice on_retry={reload_account_data} />}
 

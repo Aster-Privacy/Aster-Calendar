@@ -121,7 +121,9 @@ interface BatchDeleteApiOperation {
 }
 
 export type EventBatchOperation =
-  BatchCreateApiOperation | BatchUpdateApiOperation | BatchDeleteApiOperation;
+  | BatchCreateApiOperation
+  | BatchUpdateApiOperation
+  | BatchDeleteApiOperation;
 
 export interface EventBatchResult {
   client_ref?: string;
@@ -148,7 +150,9 @@ export interface PlannedEventDelete {
 }
 
 export type PlannedEventOperation =
-  PlannedEventCreate | PlannedEventUpdate | PlannedEventDelete;
+  | PlannedEventCreate
+  | PlannedEventUpdate
+  | PlannedEventDelete;
 
 export interface EventOperationPlan {
   operations: PlannedEventOperation[];
@@ -311,6 +315,14 @@ export async function list_calendars(): Promise<{ data: DecryptedCalendar[] }> {
   }
 
   return { data: calendar_sync_engine.get_calendars() };
+}
+
+export function peek_calendars(): DecryptedCalendar[] {
+  try {
+    return calendar_sync_engine.get_calendars();
+  } catch {
+    return [];
+  }
 }
 
 export async function create_calendar(

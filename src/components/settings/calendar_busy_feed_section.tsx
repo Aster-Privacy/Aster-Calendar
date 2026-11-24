@@ -57,8 +57,78 @@ import {
   revoke_busy_feed,
 } from "@/services/calendar/busy_feed";
 
+export interface BusyFeedsState {
+  feeds: Map<string, BusyFeedSummary>;
+  is_available: boolean | null;
+  reload: () => Promise<void>;
+}
+
+interface BusyFeedsSnapshot {
+  feeds: Map<string, BusyFeedSummary>;
+  is_available: boolean | null;
+}
+
+const busy_feeds_cache = new Map<string, BusyFeedsSnapshot>();
+
+const EMPTY_BUSY_FEEDS: BusyFeedsSnapshot = {
+  feeds: new Map(),
+  is_available: null,
+};
+
+export function busy_feeds_settled(is_available: boolean | null): boolean {
+  return is_available !== null;
+}
+
+export function forget_busy_feeds_cache(): void {
+  busy_feeds_cache.clear();
+}
+
+export function use_busy_feeds(): BusyFeedsState {
+  const { user } = use_auth();
+  const cache_key = user?.id ?? "";
+  const [snapshot, set_snapshot] = useState<BusyFeedsSnapshot>(
+    () => busy_feeds_cache.get(cache_key) ?? EMPTY_BUSY_FEEDS,
+  );
+
+  const store = useCallback(
+    (next: BusyFeedsSnapshot) => {
+      if (cache_key) busy_feeds_cache.set(cache_key, next);
+      set_snapshot(next);
+    },
+    [cache_key],
+  );
+
+  const reload = useCallback(async () => {
+    try {
+      const result = await list_busy_feeds();
+
+      if (!result.data) {
+        store({ feeds: new Map(), is_available: false });
+
+        return;
+      }
+
+      store({
+        feeds: new Map(
+          result.data.feeds.map((feed) => [feed.calendar_id, feed]),
+        ),
+        is_available: true,
+      });
+    } catch {
+      store({ feeds: new Map(), is_available: false });
+    }
+  }, [store]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  return { ...snapshot, reload };
+}
+
 interface CalendarBusyFeedSectionProps {
   calendars: DecryptedCalendar[];
+  busy_feeds: BusyFeedsState;
 }
 
 interface LinkDialogState {
@@ -68,14 +138,12 @@ interface LinkDialogState {
 
 export function CalendarBusyFeedSection({
   calendars,
+  busy_feeds,
 }: CalendarBusyFeedSectionProps) {
   const { t, language } = use_i18n();
   const { user } = use_auth();
   const { preferences } = use_preferences();
-  const [feeds, set_feeds] = useState<Map<string, BusyFeedSummary>>(
-    () => new Map(),
-  );
-  const [is_available, set_is_available] = useState<boolean | null>(null);
+  const { feeds, is_available, reload } = busy_feeds;
   const [working_id, set_working_id] = useState<string | null>(null);
   const [link_dialog, set_link_dialog] = useState<LinkDialogState | null>(null);
   const [stop_target, set_stop_target] = useState<DecryptedCalendar | null>(
@@ -84,29 +152,6 @@ export function CalendarBusyFeedSection({
   const [renew_target, set_renew_target] = useState<DecryptedCalendar | null>(
     null,
   );
-
-  const reload = useCallback(async () => {
-    try {
-      const result = await list_busy_feeds();
-
-      if (!result.data) {
-        set_is_available(false);
-
-        return;
-      }
-
-      set_feeds(
-        new Map(result.data.feeds.map((feed) => [feed.calendar_id, feed])),
-      );
-      set_is_available(true);
-    } catch {
-      set_is_available(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void reload();
-  }, [reload]);
 
   const format_updated = (value: string | null) => {
     if (!value) return t("calendar.busy_feed_waiting");
