@@ -2034,6 +2034,16 @@ textarea.aster_input {
   border-radius: 9999px;
 }
 
+.aster_simple_toast_host .bg-modal-bg.border {
+  max-width: min(92vw, 28rem);
+}
+
+.aster_simple_toast_host .bg-modal-bg.border > span.font-medium {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .aster_simple_toast_host > [role="status"] {
   display: grid;
   justify-items: center;
