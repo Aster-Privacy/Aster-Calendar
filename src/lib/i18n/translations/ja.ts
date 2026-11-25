@@ -1267,6 +1267,25 @@ export const ja = {
     search_labels: "ラベルを検索",
     enter_label_name: "ラベル名を入力",
     leaving_aster_mail: "Aster Calendar から移動します",
+    link_dialog_title: "このリンクを開きますか？",
+    link_dialog_body: "このリンクは Aster Calendar の外部にある Web ページを開きます。",
+    link_dialog_mail_title: "メールアプリを開きますか？",
+    link_dialog_mail_body: "このリンクは、デバイスのメールアプリでこのアドレス宛ての新規メッセージを作成します。",
+    link_dialog_blocked_title: "このリンクは開けません",
+    link_dialog_blocked_body:
+      "この種類のリンクはコードを実行したり行き先を隠したりできるため、Aster Calendar では開きません。",
+    link_dialog_show_full: "完全なアドレスを表示",
+    link_dialog_copy: "リンクをコピー",
+    link_dialog_warnings_label: "開く前に確認してください",
+    link_dialog_warning_http:
+      "この Web ページは安全な接続を使用していないため、同じネットワーク上の他の人が送信内容を見たり変更したりできます。",
+    link_dialog_warning_lookalike:
+      "このアドレスは {{host}} と表示されることもあります。異なる文字体系の文字が混在しているため、別の Web サイトのように見える場合があります。",
+    link_dialog_warning_mismatch:
+      "リンクのテキストには {{shown}} と表示されていますが、実際には {{site}} が開きます。",
+    link_dialog_warning_ip:
+      "このリンクは Web サイト名ではなく数字のアドレスを使用しているため、ページの運営者がわかりにくくなっています。",
+    link_dialog_full_address: "完全なアドレス",
     unlock_aster_mail: "Aster Calendar のロックを解除",
     aster_mail_locked: "Aster Calendar はロックされています",
     merge_contacts: "連絡先を結合",
