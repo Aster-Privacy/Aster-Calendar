@@ -2441,9 +2441,12 @@ button.press_scale:active {
 
 .app_rail_icon {
   display: block;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   flex-shrink: 0;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .app_rail_toggle {

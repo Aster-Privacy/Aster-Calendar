@@ -26,7 +26,6 @@ import { XMarkIcon } from "@heroicons/react/24/outline";
 import { Button, Tooltip } from "@aster/ui";
 
 import { DatedCalendarImage } from "@/components/icons/dated_calendar_image";
-import { AppRailIcon } from "@/components/icons/app_rail_icon";
 import { request_open_calendar_event } from "@/components/calendar/up_next_card";
 import { use_panel_transition } from "@/components/layout/use_panel_transition";
 import { use_panel_inset } from "@/hooks/use_panel_inset";
@@ -72,7 +71,6 @@ export function QuickAgendaPanel({
       <div className="flex h-12 flex-shrink-0 items-center gap-2 ps-3 pe-2">
         <DatedCalendarImage
           className="h-[18px] w-[18px] flex-shrink-0"
-          fallback={<AppRailIcon name="calendar" />}
           kind="app"
         />
         <h2 className="flex-1 truncate text-[15px] font-medium text-txt-primary">

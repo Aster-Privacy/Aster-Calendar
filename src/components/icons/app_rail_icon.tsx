@@ -18,26 +18,52 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import { CalendarDaysIcon, UsersIcon } from "@heroicons/react/24/outline";
-
-import { AsterSecurityMark } from "@/components/icons/aster_security_mark";
+import contacts_icon_src from "@/assets/app_rail/contacts.png?inline";
+import security_icon_src from "@/assets/app_rail/security.png?inline";
+import { DatedCalendarImage } from "@/components/icons/dated_calendar_image";
 
 export type AppRailIconName = "calendar" | "contacts" | "security";
+
+type BrandIconName = Exclude<AppRailIconName, "calendar">;
 
 interface AppRailIconProps {
   name: AppRailIconName;
 }
 
+const ICON_SIZE = 24;
 const ICON_CLASS = "app_rail_icon";
+
+const BRAND_ICON_SRC: Record<BrandIconName, string> = {
+  contacts: contacts_icon_src,
+  security: security_icon_src,
+};
+
+function BrandIcon({ name }: { name: BrandIconName }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={ICON_CLASS}
+      data-app-rail-icon={name}
+      focusable="false"
+      height={ICON_SIZE}
+      viewBox={`0 0 ${ICON_SIZE} ${ICON_SIZE}`}
+      width={ICON_SIZE}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <image
+        height={ICON_SIZE}
+        href={BRAND_ICON_SRC[name]}
+        preserveAspectRatio="xMidYMid meet"
+        width={ICON_SIZE}
+      />
+    </svg>
+  );
+}
 
 export function AppRailIcon({ name }: AppRailIconProps) {
   if (name === "calendar") {
-    return <CalendarDaysIcon aria-hidden="true" className={ICON_CLASS} />;
+    return <DatedCalendarImage className={ICON_CLASS} kind="rail" />;
   }
 
-  if (name === "contacts") {
-    return <UsersIcon aria-hidden="true" className={ICON_CLASS} />;
-  }
-
-  return <AsterSecurityMark className={ICON_CLASS} />;
+  return <BrandIcon name={name} />;
 }
