@@ -4709,6 +4709,11 @@ html[data-input-modality="keyboard"]
   opacity: 0.6;
 }
 
+.profile_picture_cell {
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 120px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .profile_picture_stage,
   .profile_picture_option,
