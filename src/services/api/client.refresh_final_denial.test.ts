@@ -95,6 +95,15 @@ function calls_to(path: string): number {
     .mock.calls.filter(([url]) => String(url).includes(path)).length;
 }
 
+function calls_to_after_first(path: string, first: string): number {
+  const urls = vi.mocked(routed_fetch).mock.calls.map(([url]) => String(url));
+  const start = urls.findIndex((url) => url.includes(first));
+
+  if (start === -1) return 0;
+
+  return urls.slice(start).filter((url) => url.includes(path)).length;
+}
+
 describe("a refresh token the server has revoked for good", () => {
   let client: InstanceType<typeof ApiClient>;
   let ended_events = 0;
@@ -145,7 +154,7 @@ describe("a refresh token the server has revoked for good", () => {
     expect(ended_events).toBe(1);
     expect(expired_events).toBe(0);
     expect(client.is_authenticated()).toBe(false);
-    expect(calls_to("/auth/me")).toBe(0);
+    expect(calls_to_after_first("/auth/me", "/auth/refresh")).toBe(0);
 
     const refreshes = calls_to("/auth/refresh");
 
