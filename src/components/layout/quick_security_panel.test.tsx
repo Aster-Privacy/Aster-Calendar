@@ -24,6 +24,8 @@ import { createRoot, type Root } from "react-dom/client";
 
 import { QuickSecurityPanel } from "./quick_security_panel";
 
+import { get_panel_inset } from "@/hooks/use_panel_inset";
+
 const totp_status = vi.fn();
 const hardware_keys = vi.fn();
 const login_alerts = vi.fn();
@@ -128,7 +130,6 @@ describe("quick security panel", () => {
     });
     container.remove();
     vi.clearAllMocks();
-    document.documentElement.style.removeProperty("--quick_panel_inset");
   });
 
   it("fetches nothing while it stays closed", async () => {
@@ -265,9 +266,7 @@ describe("quick security panel", () => {
   it("writes the panel inset while it is open", async () => {
     await render_panel();
 
-    expect(
-      document.documentElement.style.getPropertyValue("--quick_panel_inset"),
-    ).toBe("0px");
+    expect(get_panel_inset()).toBe(0);
   });
 
   it("offers a retry when a status request returns an error", async () => {
