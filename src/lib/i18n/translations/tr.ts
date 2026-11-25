@@ -578,9 +578,6 @@ export const tr = {
       "Ödemeniz alınamadı. Erişim {{days}} gün içinde kısıtlanacak.",
     billing_alert_action: "Öde",
     dismiss: "Kapat",
-    web_sandbox_off_title: "Web içeriği sistem korumalı alanı olmadan çalışıyor",
-    web_sandbox_off_body:
-      "Bu bilgisayarda Aster Calendar, bubblewrap korumalı alanını başlatamıyor, bu nedenle web içeriği korumalı alan olmadan çalışıyor. Yeniden açmak için bubblewrap paketini yükleyin, ayrıcalıksız kullanıcı ad alanlarına izin verin ve Aster Calendar uygulamasını yeniden başlatın.",
     load_content: "Yükle",
     open_link: "Bağlantıyı aç",
     no_icon: "Simge yok",
@@ -10300,6 +10297,8 @@ export const tr = {
       "Başka bir Aster uygulamasında hesap değiştirdiniz. Bu hesabı burada kullanmak için hesaba giriş yapın.",
     session_identity_mismatch:
       "Bu cihazda başka bir hesapla oturum açılmıştı, hesapları ayrı tutmak için oturumunuzu kapattık. Yeniden giriş yapmanız yeterli. Verileriniz olduğu gibi duruyor.",
+    vault_rolled_back:
+      "Bu cihazda, sunucunun gönderdiğinden daha yeni bir şifreleme anahtarı kopyası var, bu yüzden Aster Calendar eski kopyayı kullanmadı. Tekrar oturum açın. Bu sorun devam ederse destek ekibiyle iletişime geçin.",
     key_material_unavailable:
       "Özel anahtarlarınız bu cihazda kilitli. Şifreniz onları açacaktır. Sunucudaki anahtarlarınız değişmedi.",
     storage_compromised:
@@ -11176,6 +11175,9 @@ export const tr = {
     busy_feed_copied: "Bağlantı kopyalandı",
     busy_feed_error: "Meşgul zaman paylaşımı güncellenemedi. Tekrar deneyin.",
     busy_feed_publish_later: "Bağlantı hazır. Meşgul zamanlarınız bir sonraki güncellemeden sonra görünür.",
+    busy_feed_paused: "Duraklatıldı. Mevcut bağlantınızla paylaşmaya devam etmek için bunu açın.",
+    busy_feed_resumed: "Meşgul zamanlar yeniden paylaşılıyor",
+    busy_feed_resumed_later: "Paylaşım açık. Meşgul zamanlarınız bir sonraki güncellemeden sonra görünür.",
     settings_info_birthdays:
       "Her kişinin doğum gününü salt okunur tüm gün girişi olarak her yıl takvime ekler.",
     settings_subscriptions: "Abonelikler",

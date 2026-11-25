@@ -478,6 +478,9 @@ export interface CalendarTranslations {
   busy_feed_copied: string;
   busy_feed_error: string;
   busy_feed_publish_later: string;
+  busy_feed_paused: string;
+  busy_feed_resumed: string;
+  busy_feed_resumed_later: string;
   settings_info_birthdays: string;
   settings_subscriptions: string;
   settings_subscriptions_title: string;
@@ -2291,8 +2294,6 @@ export interface CommonTranslations {
   billing_alert_body_days: string;
   billing_alert_action: string;
   dismiss: string;
-  web_sandbox_off_title: string;
-  web_sandbox_off_body: string;
   load_content: string;
   open_link: string;
   no_icon: string;
@@ -9977,6 +9978,7 @@ export interface ErrorTranslations {
   session_expired_login: string;
   session_account_switched: string;
   session_identity_mismatch: string;
+  vault_rolled_back: string;
   key_material_unavailable: string;
   storage_compromised: string;
   registration_failed: string;

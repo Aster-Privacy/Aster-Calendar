@@ -571,9 +571,6 @@ export const nl = {
       "Je betaling is niet gelukt. De toegang wordt over {{days}} dagen beperkt.",
     billing_alert_action: "Betalen",
     dismiss: "Negeren",
-    web_sandbox_off_title: "Webinhoud draait zonder de systeemsandbox",
-    web_sandbox_off_body:
-      "Op deze computer kan Aster Calendar de bubblewrap-sandbox niet starten, dus webinhoud draait zonder sandbox. Installeer het pakket bubblewrap, sta niet-geprivilegieerde gebruikersnaamruimten toe en start Aster Calendar opnieuw om de sandbox weer in te schakelen.",
     load_content: "Laden",
     open_link: "Link openen",
     no_icon: "Geen pictogram",
@@ -10408,6 +10405,8 @@ export const nl = {
       "Je bent in een andere Aster-app van account gewisseld. Meld je hier aan met dat account om het te gebruiken.",
     session_identity_mismatch:
       "Op dit apparaat was een ander account aangemeld, dus hebben we je afgemeld om de accounts gescheiden te houden. Opnieuw aanmelden is genoeg. Je gegevens zijn onaangetast.",
+    vault_rolled_back:
+      "Dit apparaat heeft een nieuwere kopie van je versleutelingssleutels dan de kopie die de server stuurde, dus Aster Calendar heeft de oudere kopie niet gebruikt. Log opnieuw in. Neem contact op met support als dit blijft gebeuren.",
     key_material_unavailable:
       "Je privésleutels zijn vergrendeld op dit apparaat. Je wachtwoord ontgrendelt ze. Je sleutels op de server zijn onaangetast.",
     storage_compromised:
@@ -11307,6 +11306,9 @@ export const nl = {
     busy_feed_copied: "Link gekopieerd",
     busy_feed_error: "Kan het delen van bezette tijden niet bijwerken. Probeer het opnieuw.",
     busy_feed_publish_later: "De link is klaar. Je bezette tijden verschijnen na de volgende update.",
+    busy_feed_paused: "Gepauzeerd. Zet dit aan om te blijven delen met je huidige link.",
+    busy_feed_resumed: "Bezette tijden worden weer gedeeld",
+    busy_feed_resumed_later: "Delen staat aan. Je bezette tijden verschijnen na de volgende update.",
     settings_info_birthdays:
       "Voegt de verjaardag van elk contact toe als alleen-lezen hele-dag-item, jaarlijks herhaald.",
     settings_subscriptions: "Abonnementen",

@@ -54,7 +54,6 @@ import {
 } from "@/services/crypto/ratchet_plaintext_cache";
 import { clear_escrow_miss_cache } from "@/services/crypto/message_escrow";
 import { reset_special_offer_status } from "@/stores/special_offer_status";
-import { ignore_error } from "@/lib/ignore_error";
 import { safe_local_keys, safe_local_remove } from "@/lib/safe_storage";
 import {
   clear_billing_cache,
@@ -62,6 +61,24 @@ import {
 import {
   clear_family_cache,
 } from "@/components/settings/billing/family_section/family_cache";
+
+const SERVER_SIGN_OUT_TIMEOUT_MS = 3000;
+
+function settle_within<T>(task: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise<T | null>((resolve) => {
+    const timer = setTimeout(() => resolve(null), ms);
+
+    task
+      .then(
+        (value) => value,
+        () => null,
+      )
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      });
+  });
+}
 
 export async function purge_all_local_data(): Promise<boolean> {
   const errors: Error[] = [];
@@ -79,14 +96,10 @@ export async function purge_all_local_data(): Promise<boolean> {
 
   api_client.begin_intentional_logout();
   if (ends_shared_session) {
-    try {
-      await logout_user();
-    } catch (caught) {
-      ignore_error(
-        "contexts/auth/purge_local_data:purge_all_local_data",
-        caught,
-      );
-    }
+    await settle_within(
+      Promise.resolve().then(logout_user),
+      SERVER_SIGN_OUT_TIMEOUT_MS,
+    );
   }
 
   try {

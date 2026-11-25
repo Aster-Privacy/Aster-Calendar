@@ -77,6 +77,7 @@ import {
 } from "@/services/calendar/busy_feed";
 
 const CALENDAR = "calendar_1";
+const OPTED_IN = () => ["calendar_1", "calendar_2"];
 const NOW = new Date("2026-03-01T12:03:30Z");
 const DAY = 86_400;
 
@@ -427,7 +428,7 @@ describe("publishing", () => {
   });
 
   it("uploads only the computed blocks to the calendar's endpoint", async () => {
-    await publish_busy_calendar(CALENDAR, "me@aster.test", { now: NOW });
+    await publish_busy_calendar(CALENDAR, "me@aster.test", OPTED_IN, { now: NOW });
 
     expect(mocks.put).toHaveBeenCalledTimes(1);
     const [path, body] = mocks.put.mock.calls[0];
@@ -440,23 +441,26 @@ describe("publishing", () => {
   });
 
   it("skips an unchanged upload unless forced", async () => {
-    await publish_busy_calendar(CALENDAR, null, { now: NOW });
-    const skipped = await publish_busy_calendar(CALENDAR, null, { now: NOW });
+    await publish_busy_calendar(CALENDAR, null, OPTED_IN, { now: NOW });
+    const skipped = await publish_busy_calendar(CALENDAR, null, OPTED_IN, { now: NOW });
 
     expect(skipped).toBeNull();
     expect(mocks.put).toHaveBeenCalledTimes(1);
 
-    await publish_busy_calendar(CALENDAR, null, { now: NOW, force: true });
+    await publish_busy_calendar(CALENDAR, null, OPTED_IN, {
+        now: NOW,
+        force: true,
+      });
     expect(mocks.put).toHaveBeenCalledTimes(2);
   });
 
   it("retries after a failed upload", async () => {
     mocks.put.mockResolvedValueOnce({ error: "failed", status: 500 });
     expect(
-      await publish_busy_calendar(CALENDAR, null, { now: NOW }),
+      await publish_busy_calendar(CALENDAR, null, OPTED_IN, { now: NOW }),
     ).toBeNull();
     expect(
-      await publish_busy_calendar(CALENDAR, null, { now: NOW }),
+      await publish_busy_calendar(CALENDAR, null, OPTED_IN, { now: NOW }),
     ).not.toBeNull();
     expect(mocks.put).toHaveBeenCalledTimes(2);
   });
@@ -471,7 +475,7 @@ describe("publishing", () => {
       .mockRejectedValueOnce(new Error("offline"))
       .mockResolvedValue({ data: [] });
 
-    expect(await publish_all_busy_feeds(null)).toBe(1);
+    expect(await publish_all_busy_feeds(null, OPTED_IN)).toBe(1);
     expect(mocks.put).toHaveBeenCalledWith(
       "/calendar/v1/busy_feeds/calendar_2/busy",
       expect.objectContaining({ blocks: [] }),
@@ -483,7 +487,10 @@ describe("publishing", () => {
     mocks.list_event_masters.mockResolvedValue({ data: [] });
 
     expect(
-      await publish_busy_calendar(CALENDAR, null, { now: NOW, force: true }),
+      await publish_busy_calendar(CALENDAR, null, OPTED_IN, {
+        now: NOW,
+        force: true,
+      }),
     ).toBeNull();
     expect(mocks.put).not.toHaveBeenCalled();
 
@@ -491,7 +498,7 @@ describe("publishing", () => {
     mocks.list_event_masters.mockResolvedValue({ data: [make_event()] });
 
     expect(
-      await publish_busy_calendar(CALENDAR, null, { now: NOW }),
+      await publish_busy_calendar(CALENDAR, null, OPTED_IN, { now: NOW }),
     ).not.toBeNull();
     expect(mocks.put).toHaveBeenCalledTimes(1);
   });
@@ -501,7 +508,10 @@ describe("publishing", () => {
     mocks.list_event_masters.mockResolvedValue({ data: [] });
 
     expect(
-      await publish_busy_calendar(CALENDAR, null, { now: NOW, force: true }),
+      await publish_busy_calendar(CALENDAR, null, OPTED_IN, {
+        now: NOW,
+        force: true,
+      }),
     ).toBeNull();
     expect(mocks.put).not.toHaveBeenCalled();
   });
@@ -510,7 +520,10 @@ describe("publishing", () => {
     mocks.get_calendar.mockReturnValue(undefined);
 
     expect(
-      await publish_busy_calendar(CALENDAR, null, { now: NOW, force: true }),
+      await publish_busy_calendar(CALENDAR, null, OPTED_IN, {
+        now: NOW,
+        force: true,
+      }),
     ).toBeNull();
     expect(mocks.put).not.toHaveBeenCalled();
   });
@@ -530,7 +543,7 @@ describe("publishing", () => {
     });
 
     expect(
-      await publish_all_busy_feeds(null, {
+      await publish_all_busy_feeds(null, OPTED_IN, {
         force: true,
         should_continue: () => active,
       }),
@@ -542,7 +555,7 @@ describe("publishing", () => {
   it("does nothing when sharing is unavailable", async () => {
     mocks.get.mockResolvedValue({ error: "not found", status: 404 });
 
-    expect(await publish_all_busy_feeds(null)).toBe(0);
+    expect(await publish_all_busy_feeds(null, OPTED_IN)).toBe(0);
     expect(mocks.list_event_masters).not.toHaveBeenCalled();
   });
 
@@ -562,5 +575,166 @@ describe("publishing", () => {
     expect(busy_upload_fingerprint(first)).toBe(
       busy_upload_fingerprint(second),
     );
+  });
+});
+
+describe("busy-time opt-in", () => {
+  const SERVER_FEEDS = {
+    data: {
+      feeds: [
+        { calendar_id: "calendar_1" },
+        { calendar_id: "private_calendar" },
+        { calendar_id: "shared_with_me" },
+        { calendar_id: "unknown_calendar" },
+      ],
+    },
+  };
+
+  beforeEach(() => {
+    forget_busy_fingerprints();
+    mocks.put.mockReset();
+    mocks.get.mockReset();
+    mocks.get.mockResolvedValue(SERVER_FEEDS);
+    mocks.list_event_masters.mockReset();
+    mocks.list_event_masters.mockResolvedValue({
+      data: [
+        make_event(),
+        make_event({ calendar_id: "private_calendar" }),
+        make_event({ calendar_id: "shared_with_me" }),
+      ],
+    });
+    mocks.settled.mockReset();
+    mocks.settled.mockReturnValue(true);
+    mocks.get_calendar.mockReset();
+    mocks.get_calendar.mockImplementation((id: string) => ({ id }));
+    mocks.put.mockResolvedValue({
+      data: { published_at: "2026-03-01T12:04:00Z", block_count: 1 },
+    });
+  });
+
+  function put_paths(): string[] {
+    return mocks.put.mock.calls.map((call) => call[0] as string);
+  }
+
+  it("publishes nothing for calendars the server lists but you never opted in", async () => {
+    expect(
+      await publish_all_busy_feeds(null, () => ["calendar_1"], { force: true }),
+    ).toBe(1);
+    expect(put_paths()).toEqual(["/calendar/v1/busy_feeds/calendar_1/busy"]);
+  });
+
+  it("publishes nothing and lists nothing when you have no opt-ins", async () => {
+    expect(await publish_all_busy_feeds(null, () => [], { force: true })).toBe(
+      0,
+    );
+    expect(mocks.get).not.toHaveBeenCalled();
+    expect(mocks.list_event_masters).not.toHaveBeenCalled();
+    expect(mocks.put).not.toHaveBeenCalled();
+  });
+
+  it("refuses a direct publish for a calendar that is not opted in", async () => {
+    for (const calendar_id of [
+      "private_calendar",
+      "shared_with_me",
+      "unknown_calendar",
+    ]) {
+      expect(
+        await publish_busy_calendar(calendar_id, null, () => ["calendar_1"], {
+          now: NOW,
+          force: true,
+        }),
+      ).toBeNull();
+    }
+    expect(mocks.list_event_masters).not.toHaveBeenCalled();
+    expect(mocks.put).not.toHaveBeenCalled();
+  });
+
+  it("skips an opted-in calendar that is not loaded on this device", async () => {
+    mocks.get_calendar.mockImplementation((id: string) =>
+      id === "calendar_1" ? { id } : undefined,
+    );
+
+    expect(
+      await publish_all_busy_feeds(
+        null,
+        () => ["calendar_1", "shared_with_me"],
+        { force: true },
+      ),
+    ).toBe(1);
+    expect(put_paths()).toEqual(["/calendar/v1/busy_feeds/calendar_1/busy"]);
+  });
+
+  it("does not publish an opted-in calendar the server does not list", async () => {
+    mocks.get.mockResolvedValue({
+      data: { feeds: [{ calendar_id: "calendar_2" }] },
+    });
+
+    expect(
+      await publish_all_busy_feeds(null, () => ["calendar_1"], { force: true }),
+    ).toBe(0);
+    expect(mocks.put).not.toHaveBeenCalled();
+  });
+
+  it("ignores malformed feed lists", async () => {
+    mocks.get.mockResolvedValue({
+      data: { feeds: [null, 7, { calendar_id: 3 }, { calendar_id: "calendar_1" }] },
+    });
+
+    expect(
+      await publish_all_busy_feeds(null, () => ["calendar_1"], { force: true }),
+    ).toBe(1);
+
+    mocks.get.mockResolvedValue({ data: { feeds: "calendar_1" } });
+    expect(
+      await publish_all_busy_feeds(null, () => ["calendar_1"], { force: true }),
+    ).toBe(0);
+    expect(mocks.put).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops publishing once you turn sharing off", async () => {
+    let opt_ins: string[] = ["calendar_1"];
+
+    expect(
+      await publish_all_busy_feeds(null, () => opt_ins, { force: true }),
+    ).toBe(1);
+
+    opt_ins = [];
+    expect(
+      await publish_all_busy_feeds(null, () => opt_ins, { force: true }),
+    ).toBe(0);
+    expect(mocks.put).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops an upload when sharing is turned off while it is being prepared", async () => {
+    let opt_ins: string[] = ["calendar_1"];
+
+    mocks.list_event_masters.mockImplementation(async () => {
+      opt_ins = [];
+
+      return { data: [make_event()] };
+    });
+
+    expect(
+      await publish_busy_calendar(CALENDAR, null, () => opt_ins, {
+        now: NOW,
+        force: true,
+      }),
+    ).toBeNull();
+    expect(mocks.put).not.toHaveBeenCalled();
+  });
+
+  it("keeps existing links paused after an upgrade until you confirm them", async () => {
+    let opt_ins: string[] = [];
+
+    expect(
+      await publish_all_busy_feeds(null, () => opt_ins, { force: true }),
+    ).toBe(0);
+    expect(mocks.put).not.toHaveBeenCalled();
+
+    opt_ins = ["calendar_1"];
+    expect(
+      await publish_all_busy_feeds(null, () => opt_ins, { force: true }),
+    ).toBe(1);
+    expect(put_paths()).toEqual(["/calendar/v1/busy_feeds/calendar_1/busy"]);
   });
 });

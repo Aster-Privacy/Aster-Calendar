@@ -536,9 +536,6 @@ export const zh_CN = {
     billing_alert_body_days: "付款未成功。访问权限将在 {{days}} 天后受限。",
     billing_alert_action: "付款",
     dismiss: "忽略",
-    web_sandbox_off_title: "网页内容正在没有系统沙盒的情况下运行",
-    web_sandbox_off_body:
-      "在这台电脑上，Aster Calendar 无法启动 bubblewrap 沙盒，因此网页内容在没有沙盒的情况下运行。要重新启用沙盒，请安装 bubblewrap 软件包并允许非特权用户命名空间，然后重新启动 Aster Calendar。",
     load_content: "加载",
     open_link: "打开链接",
     no_icon: "无图标",
@@ -9266,6 +9263,8 @@ export const zh_CN = {
       "你在另一个 Aster 应用中切换了账户。要在此处使用该账户，请登录。",
     session_identity_mismatch:
       "此设备曾登录另一个账户，为了保持账户彼此独立，我们已将您退出登录。重新登录即可，您的数据未受影响。",
+    vault_rolled_back:
+      "此设备上的加密密钥副本比服务器发送的更新，因此 Aster Calendar 未使用较旧的副本。请重新登录。如果此问题持续出现，请联系支持团队。",
     key_material_unavailable:
       "您的私钥在此设备上被锁定。您的密码可以解锁它们。服务器上的密钥未受影响。",
     storage_compromised:
@@ -10047,6 +10046,9 @@ export const zh_CN = {
     busy_feed_copied: "链接已复制",
     busy_feed_error: "无法更新忙碌时间共享。请重试。",
     busy_feed_publish_later: "链接已就绪。你的忙碌时间将在下次更新后显示。",
+    busy_feed_paused: "已暂停。要继续使用当前链接共享，请开启此项。",
+    busy_feed_resumed: "已恢复共享忙碌时间",
+    busy_feed_resumed_later: "共享已开启。你的忙碌时间将在下次更新后显示。",
     settings_info_birthdays:
       "将每位联系人的生日作为只读全天条目每年添加到日历。",
     settings_subscriptions: "订阅",

@@ -142,7 +142,8 @@ export function CalendarBusyFeedSection({
 }: CalendarBusyFeedSectionProps) {
   const { t, language } = use_i18n();
   const { user } = use_auth();
-  const { preferences } = use_preferences();
+  const { preferences, update_preference } = use_preferences();
+  const opt_ins = preferences.calendar_busy_feed_calendars ?? [];
   const { feeds, is_available, reload } = busy_feeds;
   const [working_id, set_working_id] = useState<string | null>(null);
   const [link_dialog, set_link_dialog] = useState<LinkDialogState | null>(null);
@@ -171,6 +172,44 @@ export function CalendarBusyFeedSection({
     }
   };
 
+  const opt_in = (calendar_id: string): readonly string[] => {
+    if (opt_ins.includes(calendar_id)) return opt_ins;
+
+    const next = [...opt_ins, calendar_id];
+
+    update_preference("calendar_busy_feed_calendars", next, true);
+
+    return next;
+  };
+
+  const opt_out = (calendar_id: string) => {
+    if (!opt_ins.includes(calendar_id)) return;
+
+    update_preference(
+      "calendar_busy_feed_calendars",
+      opt_ins.filter((id) => id !== calendar_id),
+      true,
+    );
+  };
+
+  const publish_now = async (
+    calendar_id: string,
+    allowed: readonly string[],
+  ): Promise<boolean> => {
+    try {
+      return (
+        (await publish_busy_calendar(
+          calendar_id,
+          user?.email ?? null,
+          () => allowed,
+          { force: true },
+        )) !== null
+      );
+    } catch {
+      return false;
+    }
+  };
+
   const issue_link = async (calendar: DecryptedCalendar) => {
     if (working_id) return;
 
@@ -185,11 +224,9 @@ export function CalendarBusyFeedSection({
         return;
       }
 
-      try {
-        await publish_busy_calendar(calendar.id, user?.email ?? null, {
-          force: true,
-        });
-      } catch {
+      const allowed = opt_in(calendar.id);
+
+      if (!(await publish_now(calendar.id, allowed))) {
         show_toast(t("calendar.busy_feed_publish_later"), "info");
       }
 
@@ -205,12 +242,33 @@ export function CalendarBusyFeedSection({
     }
   };
 
+  const resume_sharing = async (calendar: DecryptedCalendar) => {
+    if (working_id) return;
+
+    set_working_id(calendar.id);
+
+    try {
+      const allowed = opt_in(calendar.id);
+
+      if (await publish_now(calendar.id, allowed)) {
+        show_toast(t("calendar.busy_feed_resumed"), "success");
+      } else {
+        show_toast(t("calendar.busy_feed_resumed_later"), "info");
+      }
+
+      await reload();
+    } finally {
+      set_working_id(null);
+    }
+  };
+
   const stop_sharing = async () => {
     const calendar = stop_target;
 
     if (!calendar || working_id) return;
 
     set_working_id(calendar.id);
+    opt_out(calendar.id);
 
     try {
       const result = await revoke_busy_feed(calendar.id);
@@ -256,7 +314,9 @@ export function CalendarBusyFeedSection({
       >
         {calendars.map((calendar) => {
           const feed = feeds.get(calendar.id);
-          const is_shared = feed !== undefined;
+          const has_link = feed !== undefined;
+          const is_shared = has_link && opt_ins.includes(calendar.id);
+          const is_paused = has_link && !is_shared;
 
           return (
             <IslandRow
@@ -264,7 +324,9 @@ export function CalendarBusyFeedSection({
               description={
                 is_shared
                   ? format_updated(feed.published_at)
-                  : t("calendar.busy_feed_not_shared")
+                  : is_paused
+                    ? t("calendar.busy_feed_paused")
+                    : t("calendar.busy_feed_not_shared")
               }
               icon={
                 <span
@@ -280,7 +342,9 @@ export function CalendarBusyFeedSection({
                 checked: is_shared,
                 disabled: working_id !== null,
                 on_change: (next) => {
-                  if (next) {
+                  if (next && is_paused) {
+                    void resume_sharing(calendar);
+                  } else if (next) {
                     void issue_link(calendar);
                   } else {
                     set_stop_target(calendar);
@@ -288,7 +352,7 @@ export function CalendarBusyFeedSection({
                 },
               }}
               trailing={
-                is_shared ? (
+                has_link ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
@@ -304,11 +368,13 @@ export function CalendarBusyFeedSection({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="min-w-[190px]">
-                      <DropdownMenuItem
-                        onSelect={() => set_renew_target(calendar)}
-                      >
-                        {t("calendar.busy_feed_new_link")}
-                      </DropdownMenuItem>
+                      {is_shared && (
+                        <DropdownMenuItem
+                          onSelect={() => set_renew_target(calendar)}
+                        >
+                          {t("calendar.busy_feed_new_link")}
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem
                         className="text-danger focus:text-danger"
                         onSelect={() => set_stop_target(calendar)}

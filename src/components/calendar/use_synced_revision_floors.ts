@@ -25,6 +25,7 @@ import { useEffect, useRef } from "react";
 import {
   floors_to_publish,
   inherit_synced_floors,
+  tombstones_to_publish,
 } from "@/services/calendar/revision_floor_sync";
 
 export const FLOOR_PUBLISH_DELAY_MS = 10_000;
@@ -35,6 +36,9 @@ interface SyncedRevisionFloorsOptions {
   stored: unknown;
   change_token: unknown;
   publish: (floors: SyncedRevisionFloors) => void;
+  stored_tombstones?: unknown;
+  publish_tombstones?: (tombstones: SyncedRevisionFloors) => void;
+  on_tombstones_inherited?: () => void;
 }
 
 export function use_synced_revision_floors({
@@ -43,17 +47,28 @@ export function use_synced_revision_floors({
   stored,
   change_token,
   publish,
+  stored_tombstones,
+  publish_tombstones,
+  on_tombstones_inherited,
 }: SyncedRevisionFloorsOptions): void {
   const stored_ref = useRef(stored);
   const publish_ref = useRef(publish);
+  const stored_tombstones_ref = useRef(stored_tombstones);
+  const publish_tombstones_ref = useRef(publish_tombstones);
+  const inherited_ref = useRef(on_tombstones_inherited);
 
   stored_ref.current = stored;
   publish_ref.current = publish;
+  stored_tombstones_ref.current = stored_tombstones;
+  publish_tombstones_ref.current = publish_tombstones;
+  inherited_ref.current = on_tombstones_inherited;
 
   useEffect(() => {
     if (!loaded) return;
-    inherit_synced_floors(stored);
-  }, [loaded, stored]);
+    if (inherit_synced_floors(stored, stored_tombstones)) {
+      inherited_ref.current?.();
+    }
+  }, [loaded, stored, stored_tombstones]);
 
   useEffect(() => {
     if (!loaded || !settled) return;
@@ -62,6 +77,12 @@ export function use_synced_revision_floors({
       const next = floors_to_publish(stored_ref.current);
 
       if (next) publish_ref.current(next);
+      if (!publish_tombstones_ref.current) return;
+      const next_tombstones = tombstones_to_publish(
+        stored_tombstones_ref.current,
+      );
+
+      if (next_tombstones) publish_tombstones_ref.current(next_tombstones);
     }, FLOOR_PUBLISH_DELAY_MS);
 
     return () => {

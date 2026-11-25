@@ -589,9 +589,6 @@ export const fr = {
       "Votre paiement n'a pas abouti. L'accès sera limité dans {{days}} jours.",
     billing_alert_action: "Payer",
     dismiss: "Ignorer",
-    web_sandbox_off_title: "Le contenu web s'exécute sans le bac à sable du système",
-    web_sandbox_off_body:
-      "Sur cet ordinateur, Aster Calendar ne peut pas démarrer le bac à sable bubblewrap, donc le contenu web s'exécute sans lui. Pour le réactiver, installez le paquet bubblewrap, autorisez les espaces de noms utilisateur non privilégiés, puis redémarrez Aster Calendar.",
     load_content: "Charger",
     open_link: "Ouvrir le lien",
     no_icon: "Pas d'icône",
@@ -10593,6 +10590,8 @@ export const fr = {
       "Vous avez changé de compte dans une autre app Aster. Pour utiliser ce compte ici, connectez-vous à celui-ci.",
     session_identity_mismatch:
       "Cet appareil était connecté à un autre compte, nous vous avons donc déconnecté pour garder les comptes séparés. Il suffit de vous reconnecter. Vos données sont intactes.",
+    vault_rolled_back:
+      "Cet appareil possède une copie plus récente de vos clés de chiffrement que celle envoyée par le serveur, donc Aster Calendar n'a pas utilisé l'ancienne copie. Reconnectez-vous. Si le problème persiste, contactez l'assistance.",
     key_material_unavailable:
       "Vos clés privées sont verrouillées sur cet appareil. Votre mot de passe les déverrouillera. Vos clés sur le serveur sont intactes.",
     max_accounts:
@@ -11462,6 +11461,9 @@ export const fr = {
     busy_feed_copied: "Lien copié",
     busy_feed_error: "Impossible de mettre à jour le partage des heures occupées. Réessayez.",
     busy_feed_publish_later: "Le lien est prêt. Vos heures occupées apparaîtront après la prochaine mise à jour.",
+    busy_feed_paused: "En pause. Pour continuer à partager avec votre lien actuel, activez cette option.",
+    busy_feed_resumed: "Les heures occupées sont de nouveau partagées",
+    busy_feed_resumed_later: "Le partage est activé. Vos heures occupées apparaîtront après la prochaine mise à jour.",
     settings_info_birthdays:
       "Ajoute l'anniversaire de chaque contact en entrée journée entière en lecture seule, répétée chaque année.",
     settings_subscriptions: "Abonnements",

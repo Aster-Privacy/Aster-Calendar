@@ -498,9 +498,6 @@ export const de = {
       "Ihre Zahlung war nicht erfolgreich. Der Zugriff wird in {{days}} Tagen eingeschränkt.",
     billing_alert_action: "Bezahlen",
     dismiss: "Verwerfen",
-    web_sandbox_off_title: "Webinhalte laufen ohne die System-Sandbox",
-    web_sandbox_off_body:
-      "Auf diesem Computer kann Aster Calendar die bubblewrap-Sandbox nicht starten, daher laufen Webinhalte ohne sie. Um sie wieder zu aktivieren, installieren Sie das Paket bubblewrap, erlauben Sie unprivilegierte User-Namespaces und starten Sie Aster Calendar neu.",
     load_content: "Laden",
     open_link: "Link öffnen",
     no_icon: "Kein Symbol",
@@ -10591,6 +10588,8 @@ export const de = {
       "Sie haben in einer anderen Aster-App das Konto gewechselt. Um dieses Konto hier zu verwenden, melden Sie sich damit an.",
     session_identity_mismatch:
       "Auf diesem Gerät war ein anderes Konto angemeldet, deshalb haben wir Sie abgemeldet, damit die Konten getrennt bleiben. Melden Sie sich erneut an. Ihre Daten sind unberührt.",
+    vault_rolled_back:
+      "Dieses Gerät hat eine neuere Kopie deiner Verschlüsselungsschlüssel als die vom Server gesendete, daher hat Aster Calendar die ältere Kopie nicht verwendet. Melde dich erneut an. Wenn das weiterhin passiert, wende dich an den Support.",
     key_material_unavailable:
       "Ihre privaten Schlüssel sind auf diesem Gerät gesperrt. Ihr Passwort entsperrt sie. Ihre Schlüssel auf dem Server sind unverändert.",
     max_accounts:
@@ -11472,6 +11471,9 @@ export const de = {
     busy_feed_copied: "Link kopiert",
     busy_feed_error: "Die Freigabe der belegten Zeiten konnte nicht aktualisiert werden. Versuche es erneut.",
     busy_feed_publish_later: "Der Link ist bereit. Deine belegten Zeiten erscheinen nach der nächsten Aktualisierung.",
+    busy_feed_paused: "Pausiert. Um weiter mit deinem aktuellen Link zu teilen, schalte dies ein.",
+    busy_feed_resumed: "Belegte Zeiten werden wieder geteilt",
+    busy_feed_resumed_later: "Teilen ist aktiviert. Deine belegten Zeiten erscheinen nach der nächsten Aktualisierung.",
     settings_info_birthdays:
       "Fügt den Geburtstag jedes Kontakts als schreibgeschützten ganztägigen Eintrag hinzu, jährlich wiederholt.",
     settings_subscriptions: "Abonnements",

@@ -28,14 +28,17 @@ import {
   is_rolled_back,
   is_tombstoned,
   known_revision,
+  apply_synced_tombstones,
   lift_tombstone,
   load_revisions,
   next_revision,
+  note_server_delete,
   observe_revision,
   record_tombstone,
   release_revision,
   reset_revisions,
   settle_revision,
+  take_own_tombstones,
   take_revision_snapshot,
 } from "./revision_ledger";
 
@@ -258,5 +261,89 @@ describe("revision_ledger", () => {
     expect(
       Object.keys(take_revision_snapshot()?.event_tombstones ?? {}),
     ).toHaveLength(5000);
+  });
+
+  it("keeps tombstones of own deletes when the server floods deletes", () => {
+    observe_revision("event", "mine", 100);
+    record_tombstone("event", "mine");
+    for (let index = 0; index < 6000; index += 1) {
+      observe_revision("event", `junk${index}`, 1_000 + index);
+      note_server_delete("event", `junk${index}`);
+    }
+
+    expect(is_rolled_back("event", "mine", 100)).toBe(true);
+    expect(take_own_tombstones().event).toEqual({ mine: 100 });
+    expect(
+      Object.keys(take_revision_snapshot()?.event_observed_tombstones ?? {}),
+    ).toHaveLength(5000);
+  });
+
+  it("ignores server deletes for rows this device never read", () => {
+    note_server_delete("event", "unknown");
+    note_server_delete("calendar", "");
+
+    expect(is_tombstoned("event", "unknown")).toBe(false);
+    expect(take_revision_snapshot()).toBeNull();
+  });
+
+  it("keeps server deletes out of the tombstones it shares", () => {
+    observe_revision("event", "e1", 100);
+    note_server_delete("event", "e1");
+
+    expect(is_rolled_back("event", "e1", 100)).toBe(true);
+    expect(take_own_tombstones().event).toEqual({});
+  });
+
+  it("splits a stored ledger from before the change by revision", () => {
+    load_revisions({
+      event_tombstones: { kept: 300, unread: 0 },
+      calendar_tombstones: { c1: 40 },
+    });
+
+    expect(take_own_tombstones()).toEqual({
+      event: { kept: 300 },
+      calendar: { c1: 40 },
+    });
+    expect(is_rolled_back("event", "unread", 0)).toBe(true);
+
+    observe_revision("event", "seen", 500);
+    note_server_delete("event", "seen");
+    const snapshot = take_revision_snapshot();
+
+    reset_revisions();
+    load_revisions(snapshot ?? {});
+
+    expect(take_own_tombstones().event).toEqual({ kept: 300 });
+    expect(is_rolled_back("event", "seen", 500)).toBe(true);
+  });
+
+  it("rejects the deleted copy on a device that inherits the shared tombstone", () => {
+    expect(
+      apply_synced_tombstones({ event: { e1: 2000 }, calendar: { c1: 10 } }),
+    ).toBe(true);
+
+    expect(is_rolled_back("event", "e1", 2000)).toBe(true);
+    expect(is_rolled_back("event", "e1", 2001)).toBe(false);
+    expect(is_tombstoned("calendar", "c1")).toBe(true);
+    expect(
+      apply_synced_tombstones({ event: { e1: 2000 }, calendar: {} }),
+    ).toBe(false);
+  });
+
+  it("skips a shared tombstone older than a copy this device confirmed", () => {
+    observe_revision("event", "e1", 3000);
+
+    expect(apply_synced_tombstones({ event: { e1: 2000 } })).toBe(false);
+    expect(is_tombstoned("event", "e1")).toBe(false);
+  });
+
+  it("ignores malformed shared tombstones", () => {
+    expect(apply_synced_tombstones(null)).toBe(false);
+    expect(
+      apply_synced_tombstones({
+        event: { "": 5, zero: 0, bad: "x" as unknown as number },
+      }),
+    ).toBe(false);
+    expect(take_revision_snapshot()).toBeNull();
   });
 });

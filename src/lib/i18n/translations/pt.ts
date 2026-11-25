@@ -508,9 +508,6 @@ export const pt = {
       "O seu pagamento não foi concluído. O acesso será limitado dentro de {{days}} dias.",
     billing_alert_action: "Pagar",
     dismiss: "Dispensar",
-    web_sandbox_off_title: "O conteúdo web é executado sem a sandbox do sistema",
-    web_sandbox_off_body:
-      "Neste computador, Aster Calendar não consegue iniciar a sandbox bubblewrap, por isso o conteúdo web é executado sem ela. Para a voltar a ativar, instale o pacote bubblewrap, permita espaços de nomes de utilizador sem privilégios e reinicie Aster Calendar.",
     load_content: "Carregar",
     open_link: "Abrir ligação",
     no_icon: "Sem ícone",
@@ -10573,6 +10570,8 @@ export const pt = {
       "Mudou de conta noutra app Aster. Para utilizar essa conta aqui, inicie sessão com ela.",
     session_identity_mismatch:
       "Este dispositivo estava com sessão iniciada noutra conta, por isso terminámos a sessão para manter as contas separadas. Basta iniciar sessão novamente. Os seus dados estão intactos.",
+    vault_rolled_back:
+      "Este dispositivo tem uma cópia mais recente das suas chaves de encriptação do que a enviada pelo servidor, por isso o Aster Calendar não utilizou a cópia mais antiga. Inicie sessão novamente. Se isto continuar a acontecer, contacte o suporte.",
     key_material_unavailable:
       "As suas chaves privadas estão bloqueadas neste dispositivo. A sua palavra-passe irá desbloqueá-las. As suas chaves no servidor permanecem intactas.",
     max_accounts:
@@ -11430,6 +11429,9 @@ export const pt = {
     busy_feed_copied: "Ligação copiada",
     busy_feed_error: "Não foi possível atualizar a partilha de horas ocupadas. Tente novamente.",
     busy_feed_publish_later: "A ligação está pronta. As suas horas ocupadas aparecem após a próxima atualização.",
+    busy_feed_paused: "Em pausa. Para continuar a partilhar com a sua ligação atual, ative esta opção.",
+    busy_feed_resumed: "As horas ocupadas voltaram a ser partilhadas",
+    busy_feed_resumed_later: "A partilha está ativada. As suas horas ocupadas aparecem após a próxima atualização.",
     settings_info_birthdays:
       "Adiciona o aniversário de cada contato como entrada de dia inteiro somente leitura, repetida anualmente.",
     settings_subscriptions: "Assinaturas",

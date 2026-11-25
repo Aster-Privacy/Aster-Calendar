@@ -872,17 +872,24 @@ fn is_local_app_url(url: &tauri::Url, allow_dev_hosts: bool) -> bool {
     }
 }
 
-pub(crate) fn require_primary_webview(window: &tauri::WebviewWindow) -> Result<(), String> {
-    if window.label() != "main" {
+fn check_primary_webview(
+    label: &str,
+    url: Option<&tauri::Url>,
+    allow_dev_hosts: bool,
+) -> Result<(), String> {
+    if label != "main" {
         return Err("command not available in this window".to_string());
     }
-    let url = window
-        .url()
-        .map_err(|_| "command not available in this window".to_string())?;
-    if !is_local_app_url(&url, cfg!(debug_assertions)) {
+    let url = url.ok_or_else(|| "command not available in this window".to_string())?;
+    if !is_local_app_url(url, allow_dev_hosts) {
         return Err("command not available on this page".to_string());
     }
     Ok(())
+}
+
+pub(crate) fn require_primary_webview(window: &tauri::WebviewWindow) -> Result<(), String> {
+    let url = window.url().ok();
+    check_primary_webview(window.label(), url.as_ref(), cfg!(debug_assertions))
 }
 
 #[tauri::command]
@@ -1607,6 +1614,20 @@ mod tests {
             assert!(!is_local_app_url(&tauri::Url::parse(url).unwrap(), false), "{url}");
         }
         assert!(is_local_app_url(&tauri::Url::parse("http://127.0.0.1:1420/").unwrap(), true));
+    }
+
+    #[test]
+    fn primary_webview_check_needs_the_main_window_on_a_local_page() {
+        let local = tauri::Url::parse("tauri://localhost/").unwrap();
+        let remote = tauri::Url::parse("https://app.astermail.org/").unwrap();
+        let dev = tauri::Url::parse("http://127.0.0.1:1420/").unwrap();
+        assert!(check_primary_webview("main", Some(&local), false).is_ok());
+        assert!(check_primary_webview("main", Some(&dev), true).is_ok());
+        assert!(check_primary_webview("main", Some(&dev), false).is_err());
+        assert!(check_primary_webview("main", Some(&remote), false).is_err());
+        assert!(check_primary_webview("main", Some(&remote), true).is_err());
+        assert!(check_primary_webview("main", None, false).is_err());
+        assert!(check_primary_webview("popup", Some(&local), false).is_err());
     }
 
     #[test]

@@ -31,14 +31,20 @@ import {
   floors_to_publish,
   inherit_synced_floors,
   MAX_SYNCED_FLOORS,
+  MAX_SYNCED_TOMBSTONES,
   merge_synced_floors,
+  merge_synced_tombstones,
   read_synced_floors,
+  tombstones_to_publish,
 } from "@/services/calendar/revision_floor_sync";
 import {
   accept_revision,
   is_rolled_back,
+  is_tombstoned,
   known_revision,
+  note_server_delete,
   observe_revision,
+  record_tombstone,
   reset_revisions,
 } from "@/services/calendar/revision_ledger";
 import { TEMP_ID_PREFIX } from "@/services/calendar/temp_id";
@@ -180,6 +186,131 @@ describe("synced revision floors", () => {
     expect(publish).toHaveBeenCalledTimes(1);
     expect(publish).toHaveBeenCalledWith({
       event: { e1: 200, e2: 900 },
+      calendar: {},
+    });
+
+    await act(async () => {
+      root?.unmount();
+    });
+  });
+
+  it("lets a new device refuse the last copy of an event deleted elsewhere", () => {
+    inherit_synced_floors({ event: { e1: 2000 }, calendar: {} });
+
+    expect(is_rolled_back("event", "e1", 2000)).toBe(false);
+
+    expect(
+      inherit_synced_floors(
+        { event: { e1: 2000 }, calendar: {} },
+        { event: { e1: 2000 }, calendar: {} },
+      ),
+    ).toBe(true);
+    expect(is_rolled_back("event", "e1", 2000)).toBe(true);
+    expect(is_rolled_back("event", "e1", 2001)).toBe(false);
+  });
+
+  it("publishes own deletes and leaves server deletes out", () => {
+    observe_revision("event", "mine", 300);
+    record_tombstone("event", "mine");
+    observe_revision("event", "theirs", 400);
+    note_server_delete("event", "theirs");
+
+    expect(tombstones_to_publish({ event: {}, calendar: {} })).toEqual({
+      event: { mine: 300 },
+      calendar: {},
+    });
+    expect(
+      tombstones_to_publish({ event: { mine: 300 }, calendar: {} }),
+    ).toBeNull();
+  });
+
+  it("stops sharing a tombstone once a newer copy is confirmed", () => {
+    observe_revision("event", "e1", 300);
+    record_tombstone("event", "e1");
+    accept_revision("event", "e1", 500);
+
+    expect(is_tombstoned("event", "e1")).toBe(false);
+    expect(
+      tombstones_to_publish({ event: { e1: 300, e2: 50 }, calendar: {} }),
+    ).toEqual({ event: { e2: 50 }, calendar: {} });
+  });
+
+  it("keeps the shared tombstones bounded by revision", () => {
+    const many: Record<string, number> = {};
+
+    for (let index = 0; index < MAX_SYNCED_TOMBSTONES + 10; index += 1) {
+      many[`e${index}`] = index + 1;
+    }
+
+    const merged = merge_synced_tombstones({ event: many, calendar: {} }, {});
+
+    expect(Object.keys(merged.event)).toHaveLength(MAX_SYNCED_TOMBSTONES);
+    expect(merged.event.e0).toBeUndefined();
+    expect(merged.event[`e${MAX_SYNCED_TOMBSTONES + 9}`]).toBe(
+      MAX_SYNCED_TOMBSTONES + 10,
+    );
+  });
+
+  it("stores the tombstones in the encrypted preferences with an empty default", () => {
+    expect(DEFAULT_PREFERENCES.calendar_revision_tombstones).toEqual({
+      event: {},
+      calendar: {},
+    });
+
+    const merged = build_merged_preferences(
+      { calendar_revision_tombstones: { event: { e1: 7 }, calendar: {} } },
+      null,
+    );
+
+    expect(merged.calendar_revision_tombstones).toEqual({
+      event: { e1: 7 },
+      calendar: {},
+    });
+  });
+
+  it("inherits and publishes tombstones from the hook", async () => {
+    vi.useFakeTimers();
+    const publish = vi.fn();
+    const publish_tombstones = vi.fn();
+    const on_tombstones_inherited = vi.fn();
+    const container = document.createElement("div");
+    let root: Root | null = null;
+    const stored_tombstones = { event: { gone: 700 }, calendar: {} };
+
+    function Probe({ token }: { token: number }) {
+      use_synced_revision_floors({
+        loaded: true,
+        settled: true,
+        stored: { event: {}, calendar: {} },
+        change_token: token,
+        publish,
+        stored_tombstones,
+        publish_tombstones,
+        on_tombstones_inherited,
+      });
+
+      return null;
+    }
+
+    await act(async () => {
+      root = createRoot(container);
+      root.render(createElement(Probe, { token: 1 }));
+    });
+
+    expect(on_tombstones_inherited).toHaveBeenCalledTimes(1);
+    expect(is_rolled_back("event", "gone", 700)).toBe(true);
+
+    observe_revision("event", "local", 900);
+    record_tombstone("event", "local");
+
+    await act(async () => {
+      root?.render(createElement(Probe, { token: 2 }));
+      vi.advanceTimersByTime(10_000);
+    });
+
+    expect(on_tombstones_inherited).toHaveBeenCalledTimes(1);
+    expect(publish_tombstones).toHaveBeenCalledWith({
+      event: { gone: 700, local: 900 },
       calendar: {},
     });
 

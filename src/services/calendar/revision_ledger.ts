@@ -29,6 +29,8 @@ export interface RevisionSnapshot {
   calendar_pending?: Record<string, number>;
   event_tombstones?: Record<string, number>;
   calendar_tombstones?: Record<string, number>;
+  event_observed_tombstones?: Record<string, number>;
+  calendar_observed_tombstones?: Record<string, number>;
 }
 
 const revisions: Record<RevisionKind, Map<string, number>> = {
@@ -51,7 +53,13 @@ const tombstones: Record<RevisionKind, Map<string, number>> = {
   calendar: new Map(),
 };
 
+const own_tombstones: Record<RevisionKind, Map<string, number>> = {
+  event: new Map(),
+  calendar: new Map(),
+};
+
 const MAX_TOMBSTONES = 5000;
+const MAX_OWN_TOMBSTONES = 5000;
 
 let is_dirty = false;
 
@@ -95,7 +103,7 @@ export function accept_revision(
 ): void {
   if (!id || revision <= 0 || revision === known_revision(kind, id)) return;
   if (revision < (confirmed[kind].get(id) ?? 0)) return;
-  if (tombstones[kind].delete(id)) is_dirty = true;
+  if (drop_tombstone(kind, id)) is_dirty = true;
   revisions[kind].set(id, revision);
   confirmed[kind].set(id, revision);
   is_dirty = true;
@@ -119,7 +127,7 @@ export function settle_revision(kind: RevisionKind, id: string): void {
 }
 
 export function release_revision(kind: RevisionKind, id: string): void {
-  if (tombstones[kind].delete(id)) is_dirty = true;
+  if (drop_tombstone(kind, id)) is_dirty = true;
   if (!pending[kind].delete(id)) return;
   const floor = confirmed[kind].get(id) ?? 0;
 
@@ -134,13 +142,33 @@ export function is_rolled_back(
   revision: number,
 ): boolean {
   if (revision < known_revision(kind, id)) return true;
-  const tombstone = tombstones[kind].get(id);
+  const tombstone = tombstone_revision(kind, id);
 
   return tombstone !== undefined && revision <= tombstone;
 }
 
+function tombstone_revision(
+  kind: RevisionKind,
+  id: string,
+): number | undefined {
+  const own = own_tombstones[kind].get(id);
+  const observed = tombstones[kind].get(id);
+
+  if (own === undefined) return observed;
+  if (observed === undefined) return own;
+
+  return Math.max(own, observed);
+}
+
+function drop_tombstone(kind: RevisionKind, id: string): boolean {
+  const dropped_own = own_tombstones[kind].delete(id);
+  const dropped_observed = tombstones[kind].delete(id);
+
+  return dropped_own || dropped_observed;
+}
+
 export function is_tombstoned(kind: RevisionKind, id: string): boolean {
-  return tombstones[kind].has(id);
+  return own_tombstones[kind].has(id) || tombstones[kind].has(id);
 }
 
 export function record_tombstone(kind: RevisionKind, id: string): void {
@@ -148,16 +176,50 @@ export function record_tombstone(kind: RevisionKind, id: string): void {
   const revision = Math.max(
     known_revision(kind, id),
     confirmed_revision(kind, id),
-    tombstones[kind].get(id) ?? 0,
+    tombstone_revision(kind, id) ?? 0,
   );
 
-  if (tombstones[kind].get(id) === revision) return;
+  if (own_tombstones[kind].get(id) === revision) return;
+  set_own_tombstone(own_tombstones[kind], id, revision);
+  is_dirty = true;
+}
+
+export function note_server_delete(kind: RevisionKind, id: string): void {
+  if (!id) return;
+  const revision = Math.max(
+    known_revision(kind, id),
+    confirmed_revision(kind, id),
+  );
+
+  if (revision <= 0 || (tombstone_revision(kind, id) ?? 0) >= revision) {
+    return;
+  }
   set_tombstone(tombstones[kind], id, revision);
   is_dirty = true;
 }
 
 export function lift_tombstone(kind: RevisionKind, id: string): void {
-  if (tombstones[kind].delete(id)) is_dirty = true;
+  if (drop_tombstone(kind, id)) is_dirty = true;
+}
+
+function set_own_tombstone(
+  target: Map<string, number>,
+  id: string,
+  revision: number,
+): void {
+  target.set(id, revision);
+  if (target.size <= MAX_OWN_TOMBSTONES) return;
+
+  let oldest_id: string | null = null;
+  let oldest_revision = Infinity;
+
+  for (const [key, value] of target) {
+    if (value < oldest_revision) {
+      oldest_id = key;
+      oldest_revision = value;
+    }
+  }
+  if (oldest_id !== null) target.delete(oldest_id);
 }
 
 function set_tombstone(
@@ -180,11 +242,13 @@ function clear_tombstone_below(
   id: string,
   revision: number,
 ): void {
-  const tombstone = tombstones[kind].get(id);
+  for (const target of [own_tombstones[kind], tombstones[kind]]) {
+    const tombstone = target.get(id);
 
-  if (tombstone === undefined || revision <= tombstone) return;
-  tombstones[kind].delete(id);
-  is_dirty = true;
+    if (tombstone === undefined || revision <= tombstone) continue;
+    target.delete(id);
+    is_dirty = true;
+  }
 }
 
 function load_tombstones(
@@ -199,6 +263,50 @@ function load_tombstones(
       id,
       Math.max(read_revision(value), target.get(id) ?? 0),
     );
+  }
+}
+
+function load_own_tombstones(
+  target: Map<string, number>,
+  source: Record<string, number> | undefined,
+): void {
+  if (!source || typeof source !== "object") return;
+  for (const [id, value] of Object.entries(source)) {
+    if (!id) continue;
+    set_own_tombstone(
+      target,
+      id,
+      Math.max(read_revision(value), target.get(id) ?? 0),
+    );
+  }
+}
+
+function load_legacy_tombstones(
+  kind: RevisionKind,
+  source: Record<string, number> | undefined,
+): void {
+  if (!source || typeof source !== "object") return;
+  const own: Record<string, number> = {};
+  const observed: Record<string, number> = {};
+
+  for (const [id, value] of Object.entries(source)) {
+    if (read_revision(value) > 0) own[id] = value;
+    else observed[id] = value;
+  }
+  load_tombstones(tombstones[kind], observed);
+  load_own_tombstones(own_tombstones[kind], own);
+}
+
+function load_tombstone_pair(
+  kind: RevisionKind,
+  own: Record<string, number> | undefined,
+  observed: Record<string, number> | undefined,
+): void {
+  if (observed && typeof observed === "object") {
+    load_own_tombstones(own_tombstones[kind], own);
+    load_tombstones(tombstones[kind], observed);
+  } else {
+    load_legacy_tombstones(kind, own);
   }
 }
 
@@ -221,8 +329,16 @@ export function load_revisions(snapshot: Partial<RevisionSnapshot>): void {
   load_map(confirmed.calendar, snapshot.calendar_confirmed);
   load_map(pending.event, snapshot.event_pending);
   load_map(pending.calendar, snapshot.calendar_pending);
-  load_tombstones(tombstones.event, snapshot.event_tombstones);
-  load_tombstones(tombstones.calendar, snapshot.calendar_tombstones);
+  load_tombstone_pair(
+    "event",
+    snapshot.event_tombstones,
+    snapshot.event_observed_tombstones,
+  );
+  load_tombstone_pair(
+    "calendar",
+    snapshot.calendar_tombstones,
+    snapshot.calendar_observed_tombstones,
+  );
 }
 
 export function reset_revisions(): void {
@@ -234,6 +350,8 @@ export function reset_revisions(): void {
   pending.calendar.clear();
   tombstones.event.clear();
   tombstones.calendar.clear();
+  own_tombstones.event.clear();
+  own_tombstones.calendar.clear();
   is_dirty = false;
 }
 
@@ -248,8 +366,10 @@ export function take_revision_snapshot(): RevisionSnapshot | null {
     calendar_confirmed: Object.fromEntries(confirmed.calendar),
     event_pending: Object.fromEntries(pending.event),
     calendar_pending: Object.fromEntries(pending.calendar),
-    event_tombstones: Object.fromEntries(tombstones.event),
-    calendar_tombstones: Object.fromEntries(tombstones.calendar),
+    event_tombstones: Object.fromEntries(own_tombstones.event),
+    calendar_tombstones: Object.fromEntries(own_tombstones.calendar),
+    event_observed_tombstones: Object.fromEntries(tombstones.event),
+    calendar_observed_tombstones: Object.fromEntries(tombstones.calendar),
   };
 }
 
@@ -273,4 +393,48 @@ export function apply_revision_floors(
   load_map(revisions.event, floors.event);
   load_map(confirmed.calendar, floors.calendar);
   load_map(revisions.calendar, floors.calendar);
+}
+
+function positive_entries(
+  source: Map<string, number>,
+): Record<string, number> {
+  const result: Record<string, number> = {};
+
+  for (const [id, revision] of source) {
+    if (revision > 0) result[id] = revision;
+  }
+
+  return result;
+}
+
+export function take_own_tombstones(): RevisionFloors {
+  return {
+    event: positive_entries(own_tombstones.event),
+    calendar: positive_entries(own_tombstones.calendar),
+  };
+}
+
+export function apply_synced_tombstones(
+  synced: Partial<RevisionFloors> | null | undefined,
+): boolean {
+  if (!synced || typeof synced !== "object") return false;
+  let is_changed = false;
+
+  for (const kind of ["event", "calendar"] as const) {
+    const source = synced[kind];
+
+    if (!source || typeof source !== "object") continue;
+    for (const [id, value] of Object.entries(source)) {
+      const revision = read_revision(value);
+
+      if (!id || revision <= 0) continue;
+      if (confirmed_revision(kind, id) > revision) continue;
+      if ((own_tombstones[kind].get(id) ?? 0) >= revision) continue;
+      set_own_tombstone(own_tombstones[kind], id, revision);
+      is_changed = true;
+    }
+  }
+  if (is_changed) is_dirty = true;
+
+  return is_changed;
 }

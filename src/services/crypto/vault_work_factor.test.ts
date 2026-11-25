@@ -36,6 +36,7 @@ import {
   mark_level2_admitted,
   reset_level2_state,
 } from "./vault_level2";
+import { pin_vault_generation } from "./vault_generation";
 
 const USER_ID = "user-1";
 const VAULT = { identity_key: "id", data_kek: "kek" } as unknown as EncryptedVault;
@@ -108,6 +109,7 @@ const clock = { now: 1_000_000 };
 beforeEach(() => {
   reset_level2_state();
   clock.now = 1_000_000;
+  localStorage.clear();
 });
 
 describe("upgrade_vault_work_factor", () => {
@@ -145,6 +147,27 @@ describe("upgrade_vault_work_factor", () => {
     expect(await upgrade_vault_work_factor(USER_ID, deps)).toBe("upgraded");
     expect(put_vault).toHaveBeenCalledTimes(2);
     expect(server.iterations).toBe(600000);
+  });
+
+  it("upgrades a vault another app left without a generation after a pin", async () => {
+    mark_level2_admitted();
+    pin_vault_generation(USER_ID, { ...VAULT, vault_generation: 5 });
+    const { deps, put_vault } = make_deps(null);
+
+    expect(await upgrade_vault_work_factor(USER_ID, deps)).toBe("upgraded");
+    expect(put_vault).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves a server vault holding keys the account replaced alone", async () => {
+    mark_level2_admitted();
+    pin_vault_generation(USER_ID, { ...VAULT, vault_generation: 5 });
+    pin_vault_generation(USER_ID, { ...VAULT, identity_key: "id-replacement" });
+    const { deps, put_vault, encrypt, on_written } = make_deps(null);
+
+    expect(await upgrade_vault_work_factor(USER_ID, deps)).toBe("failed");
+    expect(encrypt).not.toHaveBeenCalled();
+    expect(put_vault).not.toHaveBeenCalled();
+    expect(on_written).not.toHaveBeenCalled();
   });
 
   it("does nothing when the account is not admitted", async () => {

@@ -504,9 +504,6 @@ export const pt_br = {
       "Seu pagamento não foi concluído. O acesso será limitado em {{days}} dias.",
     billing_alert_action: "Pagar",
     dismiss: "Dispensar",
-    web_sandbox_off_title: "O conteúdo da web está sendo executado sem a sandbox do sistema",
-    web_sandbox_off_body:
-      "Neste computador, Aster Calendar não consegue iniciar a sandbox bubblewrap, então o conteúdo da web é executado sem ela. Para ativá-la de novo, instale o pacote bubblewrap, permita namespaces de usuário sem privilégios e reinicie Aster Calendar.",
     load_content: "Carregar",
     open_link: "Abrir link",
     no_icon: "Sem ícone",
@@ -10511,6 +10508,8 @@ export const pt_br = {
       "Você trocou de conta em outro app da Aster. Para usar essa conta aqui, entre nela.",
     session_identity_mismatch:
       "Este dispositivo estava conectado a outra conta, então desconectamos você para manter as contas separadas. Basta entrar novamente. Seus dados estão intactos.",
+    vault_rolled_back:
+      "Este dispositivo tem uma cópia mais recente das suas chaves de criptografia do que a enviada pelo servidor, então o Aster Calendar não usou a cópia mais antiga. Entre novamente. Se isso continuar acontecendo, fale com o suporte.",
     key_material_unavailable:
       "Suas chaves privadas estão bloqueadas neste dispositivo. Sua senha as desbloqueará. Suas chaves no servidor estão intactas.",
     max_accounts:
@@ -11416,6 +11415,9 @@ export const pt_br = {
     busy_feed_copied: "Link copiado",
     busy_feed_error: "Não foi possível atualizar o compartilhamento de horários ocupados. Tente novamente.",
     busy_feed_publish_later: "O link está pronto. Seus horários ocupados aparecem após a próxima atualização.",
+    busy_feed_paused: "Pausado. Para continuar compartilhando com seu link atual, ative esta opção.",
+    busy_feed_resumed: "Os horários ocupados voltaram a ser compartilhados",
+    busy_feed_resumed_later: "O compartilhamento está ativado. Seus horários ocupados aparecem após a próxima atualização.",
     settings_info_birthdays:
       "Adiciona o aniversário de cada contato ao seu calendário como entrada de dia inteiro somente leitura, repetida todo ano.",
     settings_subscriptions: "Assinaturas",
