@@ -2616,6 +2616,34 @@ button.press_scale:active {
     0 0 0 4px var(--text-primary);
 }
 
+.color_swatch_row {
+  gap: clamp(4px, 1.5vw, 8px);
+}
+
+.color_row_swatch {
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--text-primary) 14%, transparent);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition:
+    transform 0.15s ease,
+    outline-color 0.15s ease;
+}
+
+.color_row_swatch:hover {
+  transform: scale(1.08);
+}
+
+.color_row_swatch[data-selected="true"] {
+  outline-color: var(--text-primary);
+}
+
+html:not([data-input-modality="keyboard"])
+  .color_row_swatch[data-selected="true"]:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
 .quick_contacts_footer {
   border-top: 1px solid var(--border-primary);
 }
