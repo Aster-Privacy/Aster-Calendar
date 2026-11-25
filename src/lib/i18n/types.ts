@@ -10166,6 +10166,41 @@ export interface GuardTranslations {
   sign_in_waiting_chip: string;
   sign_in_waiting_description: string;
   sign_in_waiting_title: string;
+  approve_number_rejected: string;
+  error_action_invalid: string;
+  error_device_keys: string;
+  error_device_pending: string;
+  error_device_pending_soon: string;
+  error_device_required: string;
+  error_device_unknown: string;
+  error_disabled: string;
+  error_held: string;
+  error_held_soon: string;
+  error_last_device: string;
+  error_not_allowed: string;
+  error_offline: string;
+  error_paused: string;
+  error_paused_soon: string;
+  error_request_conflict: string;
+  error_request_gone: string;
+  error_step_up: string;
+  error_too_many: string;
+  error_too_many_soon: string;
+  error_upgrade: string;
+  error_veto_invalid: string;
+  setup_already_on: string;
+  sign_in_again: string;
+  sign_in_no_method: string;
+  sign_in_on_hold: string;
+  sign_in_on_hold_title: string;
+  sign_in_on_hold_until: string;
+  sign_in_paused_until: string;
+  sign_in_rescue_failed: string;
+  sign_in_rescue_in_progress: string;
+  sign_in_rescue_not_allowed: string;
+  sign_in_rescue_only: string;
+  sign_in_rescue_paused: string;
+  sign_in_where_to_approve: string;
 }
 
 export type TranslationKey =

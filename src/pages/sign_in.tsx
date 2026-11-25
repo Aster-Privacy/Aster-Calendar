@@ -85,6 +85,7 @@ import { login_safety_error_key } from "@/services/crypto/auth_salt_guard";
 import { api_client } from "@/services/api/client";
 import { same_address_ignoring_dots } from "@/utils/address_dots";
 import { DatedCalendarLogo } from "@/components/calendar/dated_calendar_logo";
+import { sign_in_error_text } from "@/components/guard/sign_in_error_text";
 import { GuardSignInPanel } from "@/components/guard/guard_sign_in_gate";
 import { SiblingSessionButton } from "@/pages/sign_in/sibling_session_button";
 import {
@@ -542,7 +543,9 @@ export default function SignInPage() {
         } else if (response.server_code === "GUARD_REQUIRED") {
           if (signed_in_password !== password) set_password(signed_in_password);
         } else {
-          set_error(response.error);
+          set_error(
+            sign_in_error_text(t, response, t("errors.login_failed")),
+          );
         }
         set_is_loading(false);
         set_captcha_token("");

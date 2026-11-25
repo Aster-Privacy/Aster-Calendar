@@ -18,6 +18,7 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
+import { default_guard_device_name } from "@/services/guard/guard_device_label";
 import type { ReauthProof } from "./step_up";
 
 import { api_client, ApiResponse } from "./client";
@@ -195,7 +196,7 @@ export async function verify_webauthn_assertion(request: {
 }): Promise<ApiResponse<TotpVerifyResponse>> {
   const response = await api_client.post<TotpVerifyResponse>(
     "/core/v1/auth/hardware-keys/assert/verify",
-    request,
+    { ...request, device_label: default_guard_device_name() },
   );
 
   if (response.data) {

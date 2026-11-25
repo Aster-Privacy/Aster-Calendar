@@ -18,6 +18,7 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
+import { default_guard_device_name } from "@/services/guard/guard_device_label";
 import { array_to_base64, base64_to_array } from "./base64";
 
 import {
@@ -189,6 +190,7 @@ export async function sign_in_v3<T>(
     return await api_client.post<T>(FINISH_PATH, {
       state_id,
       credential_finalization: array_to_base64(finalization),
+      device_label: default_guard_device_name(),
     });
   } finally {
     input.fill(0);

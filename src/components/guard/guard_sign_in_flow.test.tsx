@@ -179,6 +179,21 @@ function hit(path: string): boolean {
     .mock.calls.some(([url]) => String(url).split("?")[0].endsWith(path));
 }
 
+function sent_to(path: string): {
+  headers: Record<string, string>;
+  body: Record<string, unknown>;
+} {
+  const call = vi
+    .mocked(routed_fetch)
+    .mock.calls.find(([url]) => String(url).split("?")[0].endsWith(path));
+  const init = (call?.[1] ?? {}) as RequestInit;
+
+  return {
+    headers: (init.headers ?? {}) as Record<string, string>,
+    body: JSON.parse(String(init.body ?? "{}")) as Record<string, unknown>,
+  };
+}
+
 async function settle() {
   for (let i = 0; i < 30; i++) {
     await act(async () => {
@@ -316,5 +331,40 @@ describe("guard sign-in flow", () => {
     expect(hit("/core/v1/auth/hardware-keys/assert/verify")).toBe(true);
     expect(result.server_code).toBe("GUARD_REQUIRED");
     await expect_waiting_flow();
+  });
+
+  it("names the device and asks for Guard on every second step", async () => {
+    guard_required_on("/core/v1/auth/totp/verify");
+    await act(async () =>
+      verify_totp_login({
+        pending_login_token: "plt",
+        code: "123456",
+      } as Parameters<typeof verify_totp_login>[0]),
+    );
+    const totp = sent_to("/core/v1/auth/totp/verify");
+
+    expect(totp.headers["X-Aster-Guard"]).toBe("1");
+    expect(typeof totp.body.device_label).toBe("string");
+
+    guard_required_on("/core/v1/auth/totp/backup-code");
+    await act(async () =>
+      verify_backup_code_login({
+        pending_login_token: "plt",
+        code: "abcd-efgh",
+      } as Parameters<typeof verify_backup_code_login>[0]),
+    );
+    const backup = sent_to("/core/v1/auth/totp/backup-code");
+
+    expect(backup.headers["X-Aster-Guard"]).toBe("1");
+    expect(typeof backup.body.device_label).toBe("string");
+
+    guard_required_on("/core/v1/auth/login");
+    await act(async () =>
+      login_user({ user_hash: "uh_fake" } as Parameters<typeof login_user>[0]),
+    );
+    const password = sent_to("/core/v1/auth/login");
+
+    expect(password.headers["X-Aster-Guard"]).toBe("1");
+    expect(typeof password.body.device_label).toBe("string");
   });
 });

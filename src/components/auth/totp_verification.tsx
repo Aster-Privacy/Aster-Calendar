@@ -29,6 +29,11 @@ import {
   verify_totp_login,
   TotpVerifyResponse,
 } from "@/services/api/totp";
+import { default_guard_device_name } from "@/services/guard/guard_device_label";
+import {
+  is_guard_sign_in_error,
+  sign_in_error_text,
+} from "@/components/guard/sign_in_error_text";
 
 const TOTP_CODE_LENGTH = 6;
 
@@ -68,13 +73,16 @@ export function TotpVerification({
       code,
       pending_login_token,
       trust_device,
+      device_label: default_guard_device_name(),
       remember_me,
     });
 
     if (response.error) {
       const kind = classify_totp_error(response);
 
-      if (kind === "locked") {
+      if (is_guard_sign_in_error(response)) {
+        set_error(sign_in_error_text(t, response, t("common.something_went_wrong")));
+      } else if (kind === "locked") {
         set_error(t("auth.two_fa_temporarily_locked"));
       } else if (kind === "replayed") {
         set_error(t("auth.two_fa_code_already_used"));
