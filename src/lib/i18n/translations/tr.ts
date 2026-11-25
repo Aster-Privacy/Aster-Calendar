@@ -884,6 +884,7 @@ export const tr = {
     history: "Geçmiş",
     all_mail: "Tüm postalar",
     import_contacts: "Kişileri İçe Aktar",
+    import_contacts_short: "İçe aktar",
     import_choose_file_desc:
       "Kişileri içe aktarmak için bir dosya seçin. Desteklenen formatlar: vCard (.vcf) ve CSV.",
     click_to_select_file: "Dosya seçmek için tıklayın",
@@ -1221,6 +1222,26 @@ export const tr = {
     search_labels: "Etiketlerde ara",
     enter_label_name: "Etiket adını girin",
     leaving_aster_mail: "Aster Calendar'dan çıkılıyor",
+    link_dialog_title: "Bu bağlantı açılsın mı?",
+    link_dialog_body: "Bu bağlantı, Aster Calendar dışında bir web sayfası açar.",
+    link_dialog_mail_title: "E-posta uygulamanız açılsın mı?",
+    link_dialog_mail_body:
+      "Bu bağlantı, cihazınızın e-posta uygulamasında bu adrese yeni bir ileti oluşturur.",
+    link_dialog_blocked_title: "Bu bağlantı açılamıyor",
+    link_dialog_blocked_body:
+      "Aster Calendar bu tür bağlantıları açmaz, çünkü kod çalıştırabilir veya nereye gittiklerini gizleyebilirler.",
+    link_dialog_show_full: "Tam adresi göster",
+    link_dialog_copy: "Bağlantıyı kopyala",
+    link_dialog_warnings_label: "Açmadan önce kontrol edin",
+    link_dialog_warning_http:
+      "Bu web sayfası güvenli bağlantı kullanmıyor, bu nedenle ağdaki başkaları gönderdiklerinizi görebilir veya değiştirebilir.",
+    link_dialog_warning_lookalike:
+      "Bu adres {{host}} olarak da görünebilir. Farklı alfabelerden harfleri karıştırdığı için başka bir web sitesine benzeyebilir.",
+    link_dialog_warning_mismatch:
+      "Bağlantı metni {{shown}} gösteriyor, ancak bağlantı {{site}} adresini açıyor.",
+    link_dialog_warning_ip:
+      "Bu bağlantı web sitesi adı yerine sayısal bir adres kullanıyor, bu nedenle sayfayı kimin yönettiğini anlamak daha zor.",
+    link_dialog_full_address: "Tam adres",
     unlock_aster_mail: "Aster Calendar kilidini aç",
     aster_mail_locked: "Aster Calendar kilitli",
     merge_contacts: "Kişileri Birleştir",
@@ -4321,6 +4342,8 @@ export const tr = {
     billing_pay_yearly: "Yıllık öde",
     billing_pay_monthly: "Aylık öde",
     billing_billed_yearly_total: "Yıllık {{amount}} olarak faturalandırılır",
+    plan_most_popular: "En popüler",
+    plan_billed_monthly: "Aylık faturalandırılır",
     billing_billed_monthly: "Her ay faturalandırılır",
     billing_save_percent: "%{{percent}} tasarruf edin",
     billing_select_plan_hint: "Devam etmek için bir plan seçin",

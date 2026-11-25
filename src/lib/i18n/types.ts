@@ -2660,6 +2660,7 @@ export interface CommonTranslations {
   history: string;
   all_mail: string;
   import_contacts: string;
+  import_contacts_short: string;
   import_choose_file_desc: string;
   click_to_select_file: string;
   or_drag_and_drop: string;
@@ -2960,6 +2961,20 @@ export interface CommonTranslations {
   search_labels: string;
   enter_label_name: string;
   leaving_aster_mail: string;
+  link_dialog_title: string;
+  link_dialog_body: string;
+  link_dialog_mail_title: string;
+  link_dialog_mail_body: string;
+  link_dialog_blocked_title: string;
+  link_dialog_blocked_body: string;
+  link_dialog_show_full: string;
+  link_dialog_copy: string;
+  link_dialog_warnings_label: string;
+  link_dialog_warning_http: string;
+  link_dialog_warning_lookalike: string;
+  link_dialog_warning_mismatch: string;
+  link_dialog_warning_ip: string;
+  link_dialog_full_address: string;
   unlock_aster_mail: string;
   aster_mail_locked: string;
   merge_contacts: string;
@@ -4621,6 +4636,8 @@ export interface SettingsTranslations {
   billing_pay_yearly: string;
   billing_pay_monthly: string;
   billing_billed_yearly_total: string;
+  plan_most_popular: string;
+  plan_billed_monthly: string;
   billing_billed_monthly: string;
   billing_save_percent: string;
   billing_select_plan_hint: string;

@@ -298,27 +298,33 @@ export function ActionToast({ position }: ActionToastProps) {
           }}
         >
           <div
-            className={`rounded-[var(--aster-radius-floating,16px)] shadow-[var(--aster-floating-shadow)] flex max-w-[calc(100vw-32px)] flex-col bg-[var(--aster-floating-bg,var(--modal-bg))] ${
+            className={`rounded-[var(--aster-radius-floating,16px)] shadow-[var(--aster-floating-shadow)] flex flex-col bg-[var(--aster-floating-bg,var(--modal-bg))] ${
               toast.progress ? "gap-2.5 px-4 py-3" : "gap-2 px-4 py-2.5"
             }`}
             style={{
-              minWidth: toast.progress ? "300px" : undefined,
+              minWidth: toast.progress
+                ? "min(300px, calc(100vw - 32px))"
+                : undefined,
+              maxWidth: "min(480px, calc(100vw - 32px))",
             }}
           >
-            <div className="flex items-center gap-2 whitespace-nowrap">
+            <div className="flex items-center gap-2">
               <span className="flex-shrink-0 text-txt-primary">
                 {get_icon_for_action(toast.action_type)}
               </span>
               <span
-                className={`min-w-0 truncate text-[13px] font-medium text-txt-primary ${
-                  toast.progress ? "flex-1" : ""
+                className={`min-w-0 text-[13px] font-medium leading-snug text-txt-primary ${
+                  toast.progress
+                    ? "flex-1 truncate"
+                    : "line-clamp-2 break-words"
                 }`}
+                title={toast.progress ? undefined : toast.message}
               >
                 {toast.message}
               </span>
               {toast.on_undo && !toast.progress && (
                 <button
-                  className="inline-flex items-center text-[13px] font-medium ms-1 underline text-brand"
+                  className="inline-flex flex-shrink-0 items-center whitespace-nowrap text-[13px] font-medium ms-1 underline text-brand"
                   disabled={is_undoing}
                   onClick={handle_undo}
                 >
@@ -328,7 +334,7 @@ export function ActionToast({ position }: ActionToastProps) {
               )}
               {toast.on_view_message && (
                 <button
-                  className="text-[13px] font-medium ms-1 underline text-brand"
+                  className="flex-shrink-0 whitespace-nowrap text-[13px] font-medium ms-1 underline text-brand"
                   onClick={toast.on_view_message}
                 >
                   {t("mail.view_message")}

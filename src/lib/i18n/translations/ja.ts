@@ -942,6 +942,7 @@ export const ja = {
     history: "履歴",
     all_mail: "すべてのメール",
     import_contacts: "連絡先をインポート",
+    import_contacts_short: "インポート",
     import_choose_file_desc:
       "連絡先をインポートするファイルを選択してください。対応形式：vCard (.vcf) およびCSV。",
     click_to_select_file: "クリックしてファイルを選択",
@@ -1267,6 +1268,25 @@ export const ja = {
     search_labels: "ラベルを検索",
     enter_label_name: "ラベル名を入力",
     leaving_aster_mail: "Aster Calendar から移動します",
+    link_dialog_title: "このリンクを開きますか？",
+    link_dialog_body: "このリンクは Aster Calendar の外部にある Web ページを開きます。",
+    link_dialog_mail_title: "メールアプリを開きますか？",
+    link_dialog_mail_body: "このリンクは、デバイスのメールアプリでこのアドレス宛ての新規メッセージを作成します。",
+    link_dialog_blocked_title: "このリンクは開けません",
+    link_dialog_blocked_body:
+      "この種類のリンクはコードを実行したり行き先を隠したりできるため、Aster Calendar では開きません。",
+    link_dialog_show_full: "完全なアドレスを表示",
+    link_dialog_copy: "リンクをコピー",
+    link_dialog_warnings_label: "開く前に確認してください",
+    link_dialog_warning_http:
+      "この Web ページは安全な接続を使用していないため、同じネットワーク上の他の人が送信内容を見たり変更したりできます。",
+    link_dialog_warning_lookalike:
+      "このアドレスは {{host}} と表示されることもあります。異なる文字体系の文字が混在しているため、別の Web サイトのように見える場合があります。",
+    link_dialog_warning_mismatch:
+      "リンクのテキストには {{shown}} と表示されていますが、実際には {{site}} が開きます。",
+    link_dialog_warning_ip:
+      "このリンクは Web サイト名ではなく数字のアドレスを使用しているため、ページの運営者がわかりにくくなっています。",
+    link_dialog_full_address: "完全なアドレス",
     unlock_aster_mail: "Aster Calendar のロックを解除",
     aster_mail_locked: "Aster Calendar はロックされています",
     merge_contacts: "連絡先を結合",
@@ -4325,6 +4345,8 @@ export const ja = {
     billing_pay_yearly: "年払い",
     billing_pay_monthly: "月払い",
     billing_billed_yearly_total: "年額 {{amount}} で請求",
+    plan_most_popular: "一番人気",
+    plan_billed_monthly: "月払い",
     billing_billed_monthly: "毎月請求",
     billing_save_percent: "{{percent}}% お得",
     billing_select_plan_hint: "続けるにはプランを選択してください",

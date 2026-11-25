@@ -888,6 +888,7 @@ export const ru = {
     history: "История",
     all_mail: "Все письма",
     import_contacts: "Импорт контактов",
+    import_contacts_short: "Импорт",
     import_choose_file_desc:
       "Выберите файл для импорта контактов. Поддерживаемые форматы: vCard (.vcf) и CSV.",
     click_to_select_file: "Нажмите для выбора файла",
@@ -1227,6 +1228,27 @@ export const ru = {
     search_labels: "Поиск меток",
     enter_label_name: "Введите название метки",
     leaving_aster_mail: "Вы покидаете Aster Calendar",
+    link_dialog_title: "Открыть ссылку?",
+    link_dialog_body:
+      "Эта ссылка открывает веб-страницу за пределами Aster Calendar.",
+    link_dialog_mail_title: "Открыть почтовое приложение?",
+    link_dialog_mail_body:
+      "Эта ссылка создаст новое письмо на этот адрес в почтовом приложении устройства.",
+    link_dialog_blocked_title: "Эту ссылку нельзя открыть",
+    link_dialog_blocked_body:
+      "Aster Calendar не открывает такие ссылки, потому что они могут запускать код или скрывать, куда ведут.",
+    link_dialog_show_full: "Показать полный адрес",
+    link_dialog_copy: "Копировать ссылку",
+    link_dialog_warnings_label: "Проверьте перед открытием",
+    link_dialog_warning_http:
+      "Эта страница не использует защищённое соединение, поэтому другие пользователи сети могут видеть или изменять отправляемые данные.",
+    link_dialog_warning_lookalike:
+      "Этот адрес также может отображаться как {{host}}. В нём смешаны буквы разных алфавитов, из-за чего он может выглядеть как другой сайт.",
+    link_dialog_warning_mismatch:
+      "В тексте ссылки указано {{shown}}, но ссылка открывает {{site}}.",
+    link_dialog_warning_ip:
+      "Эта ссылка использует числовой адрес вместо названия сайта, поэтому сложнее понять, кому принадлежит страница.",
+    link_dialog_full_address: "Полный адрес",
     unlock_aster_mail: "Разблокировать Aster Calendar",
     aster_mail_locked: "Aster Calendar заблокирован",
     merge_contacts: "Объединить контакты",
@@ -4512,6 +4534,8 @@ export const ru = {
     billing_pay_yearly: "Платить раз в год",
     billing_pay_monthly: "Платить ежемесячно",
     billing_billed_yearly_total: "{{amount}} в год",
+    plan_most_popular: "Самый популярный",
+    plan_billed_monthly: "Оплата ежемесячно",
     billing_billed_monthly: "Списание каждый месяц",
     billing_save_percent: "Экономия {{percent}}%",
     billing_select_plan_hint: "Выберите тариф, чтобы продолжить",

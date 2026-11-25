@@ -877,6 +877,7 @@ export const nl = {
     history: "Geschiedenis",
     all_mail: "Alle e-mail",
     import_contacts: "Contacten importeren",
+    import_contacts_short: "Importeren",
     import_choose_file_desc:
       "Kies een bestand om contacten uit te importeren. Ondersteunde formaten: vCard (.vcf) en CSV.",
     click_to_select_file: "Klik om bestand te selecteren",
@@ -1193,6 +1194,26 @@ export const nl = {
     search_labels: "Labels zoeken",
     enter_label_name: "Voer labelnaam in",
     leaving_aster_mail: "Aster Calendar verlaten",
+    link_dialog_title: "Deze link openen?",
+    link_dialog_body: "Deze link opent een webpagina buiten Aster Calendar.",
+    link_dialog_mail_title: "Je e-mailapp openen?",
+    link_dialog_mail_body:
+      "Deze link maakt in de e-mailapp van je apparaat een nieuw bericht aan dit adres.",
+    link_dialog_blocked_title: "Deze link kan niet worden geopend",
+    link_dialog_blocked_body:
+      "Aster Calendar opent dit type link niet, omdat het code kan uitvoeren of kan verbergen waar het naartoe leidt.",
+    link_dialog_show_full: "Volledig adres tonen",
+    link_dialog_copy: "Link kopiëren",
+    link_dialog_warnings_label: "Controleer dit voordat je opent",
+    link_dialog_warning_http:
+      "Deze webpagina gebruikt geen beveiligde verbinding, dus anderen op het netwerk kunnen zien of wijzigen wat je verstuurt.",
+    link_dialog_warning_lookalike:
+      "Dit adres kan ook verschijnen als {{host}}. Het mengt letters uit verschillende alfabetten, waardoor het op een andere website kan lijken.",
+    link_dialog_warning_mismatch:
+      "De linktekst toont {{shown}}, maar de link opent {{site}}.",
+    link_dialog_warning_ip:
+      "Deze link gebruikt een numeriek adres in plaats van een websitenaam, dus het is lastiger te zien wie de pagina beheert.",
+    link_dialog_full_address: "Volledig adres",
     unlock_aster_mail: "Aster Calendar ontgrendelen",
     aster_mail_locked: "Aster Calendar is vergrendeld",
     merge_contacts: "Contacten samenvoegen",
@@ -4313,6 +4334,8 @@ export const nl = {
     billing_pay_yearly: "Jaarlijks betalen",
     billing_pay_monthly: "Maandelijks betalen",
     billing_billed_yearly_total: "{{amount}} per jaar gefactureerd",
+    plan_most_popular: "Meest gekozen",
+    plan_billed_monthly: "Maandelijks gefactureerd",
     billing_billed_monthly: "Elke maand gefactureerd",
     billing_save_percent: "Bespaar {{percent}}%",
     billing_select_plan_hint: "Kies een abonnement om door te gaan",

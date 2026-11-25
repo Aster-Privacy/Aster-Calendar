@@ -37,9 +37,14 @@ import {
   LOCKDOWN_CHANGED_EVENT,
 } from "@/services/lockdown_store";
 import { is_trusted_link } from "@/lib/trusted_link_domains";
+import { describe_link } from "@/lib/link_destination";
 
 interface ExternalLinkContextType {
-  handle_external_link: (url: string) => void;
+  handle_external_link: (
+    url: string,
+    link_text?: string | null,
+    trigger?: HTMLElement | null,
+  ) => void;
 }
 
 const ExternalLinkContext = createContext<ExternalLinkContextType | undefined>(
@@ -47,13 +52,17 @@ const ExternalLinkContext = createContext<ExternalLinkContextType | undefined>(
 );
 
 interface ExternalLinkClickEvent extends CustomEvent {
-  detail: { url: string };
+  detail: { url: string; link_text?: string | null };
 }
 
 export function ExternalLinkProvider({ children }: { children: ReactNode }) {
   const { preferences, update_preference } = use_preferences();
   const [is_modal_open, set_is_modal_open] = useState(false);
   const [pending_url, set_pending_url] = useState<string>("");
+  const [pending_text, set_pending_text] = useState<string>("");
+  const [pending_trigger, set_pending_trigger] = useState<HTMLElement | null>(
+    null,
+  );
   const [lockdown_active, set_lockdown_active] = useState(() =>
     is_any_lockdown_active(),
   );
@@ -98,11 +107,13 @@ export function ExternalLinkProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const handle_external_link = useCallback(
-    (url: string) => {
+    (url: string, link_text?: string | null, trigger?: HTMLElement | null) => {
       const currently_locked = lockdown_active || is_any_lockdown_active();
+      const is_blocked = describe_link(url).kind === "blocked";
 
       if (
         !currently_locked &&
+        !is_blocked &&
         (preferences.external_link_warning_dismissed || is_trusted_link(url))
       ) {
         open_url(url);
@@ -111,22 +122,31 @@ export function ExternalLinkProvider({ children }: { children: ReactNode }) {
       }
 
       set_pending_url(url);
+      set_pending_text(link_text ?? "");
+      set_pending_trigger(trigger ?? null);
       set_is_modal_open(true);
     },
     [lockdown_active, preferences.external_link_warning_dismissed, open_url],
   );
 
   const handle_confirm = useCallback(() => {
-    if (pending_url && !lockdown_active && !is_any_lockdown_active()) {
+    if (
+      pending_url &&
+      describe_link(pending_url).kind !== "blocked" &&
+      !lockdown_active &&
+      !is_any_lockdown_active()
+    ) {
       open_url(pending_url);
     }
     set_is_modal_open(false);
     set_pending_url("");
+    set_pending_text("");
   }, [pending_url, lockdown_active, open_url]);
 
   const handle_cancel = useCallback(() => {
     set_is_modal_open(false);
     set_pending_url("");
+    set_pending_text("");
   }, []);
 
   const handle_dismiss_permanently = useCallback(() => {
@@ -138,7 +158,10 @@ export function ExternalLinkProvider({ children }: { children: ReactNode }) {
       const custom_event = e as ExternalLinkClickEvent;
 
       if (custom_event.detail?.url) {
-        handle_external_link(custom_event.detail.url);
+        handle_external_link(
+          custom_event.detail.url,
+          custom_event.detail.link_text,
+        );
       }
     };
 
@@ -159,10 +182,12 @@ export function ExternalLinkProvider({ children }: { children: ReactNode }) {
       {children}
       <ExternalLinkWarningModal
         is_open={is_modal_open}
+        link_text={pending_text}
         lockdown_active={lockdown_active}
         on_close={handle_cancel}
         on_confirm={handle_confirm}
         on_dismiss_permanently={handle_dismiss_permanently}
+        return_focus_to={pending_trigger}
         url={pending_url}
       />
     </ExternalLinkContext.Provider>

@@ -798,6 +798,7 @@ export const de = {
     history: "Verlauf",
     all_mail: "Alle Nachrichten",
     import_contacts: "Kontakte importieren",
+    import_contacts_short: "Importieren",
     import_choose_file_desc:
       "Wählen Sie eine Datei zum Importieren von Kontakten. Unterstützte Formate: vCard (.vcf) und CSV.",
     click_to_select_file: "Klicken Sie, um eine Datei auszuwählen",
@@ -1084,6 +1085,27 @@ export const de = {
     search_labels: "Labels suchen",
     enter_label_name: "Label-Namen eingeben",
     leaving_aster_mail: "Aster Calendar verlassen",
+    link_dialog_title: "Diesen Link öffnen?",
+    link_dialog_body:
+      "Dieser Link öffnet eine Webseite außerhalb von Aster Calendar.",
+    link_dialog_mail_title: "E-Mail-App öffnen?",
+    link_dialog_mail_body:
+      "Dieser Link erstellt in der E-Mail-App Ihres Geräts eine neue Nachricht an diese Adresse.",
+    link_dialog_blocked_title: "Dieser Link kann nicht geöffnet werden",
+    link_dialog_blocked_body:
+      "Aster Calendar öffnet diese Art von Link nicht, da sie Code ausführen oder ihr Ziel verbergen kann.",
+    link_dialog_show_full: "Vollständige Adresse anzeigen",
+    link_dialog_copy: "Link kopieren",
+    link_dialog_warnings_label: "Vor dem Öffnen prüfen",
+    link_dialog_warning_http:
+      "Diese Webseite nutzt keine sichere Verbindung. Andere im Netzwerk können sehen oder ändern, was Sie senden.",
+    link_dialog_warning_lookalike:
+      "Diese Adresse kann auch als {{host}} erscheinen. Sie mischt Buchstaben aus verschiedenen Alphabeten und kann so wie eine andere Website aussehen.",
+    link_dialog_warning_mismatch:
+      "Der Linktext zeigt {{shown}}, aber der Link öffnet {{site}}.",
+    link_dialog_warning_ip:
+      "Dieser Link verwendet eine numerische Adresse statt eines Website-Namens. Dadurch ist schwerer zu erkennen, wer die Seite betreibt.",
+    link_dialog_full_address: "Vollständige Adresse",
     unlock_aster_mail: "Aster Calendar entsperren",
     aster_mail_locked: "Aster Calendar ist gesperrt",
     merge_contacts: "Kontakte zusammenführen",
@@ -4331,6 +4353,8 @@ export const de = {
     billing_pay_yearly: "Jährlich zahlen",
     billing_pay_monthly: "Monatlich zahlen",
     billing_billed_yearly_total: "{{amount}} pro Jahr abgerechnet",
+    plan_most_popular: "Am beliebtesten",
+    plan_billed_monthly: "Monatliche Abrechnung",
     billing_billed_monthly: "Monatliche Abrechnung",
     billing_save_percent: "{{percent}} % sparen",
     billing_select_plan_hint: "Wähle einen Tarif, um fortzufahren",

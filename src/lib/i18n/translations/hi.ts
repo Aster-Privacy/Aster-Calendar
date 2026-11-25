@@ -905,6 +905,7 @@ export const hi = {
     history: "इतिहास",
     all_mail: "सभी मेल",
     import_contacts: "संपर्क इंपोर्ट करें",
+    import_contacts_short: "इंपोर्ट करें",
     import_choose_file_desc:
       "संपर्क इंपोर्ट करने के लिए फ़ाइल चुनें। समर्थित फ़ॉर्मैट: vCard (.vcf) और CSV।",
     click_to_select_file: "फ़ाइल चुनने के लिए क्लिक करें",
@@ -1293,6 +1294,26 @@ export const hi = {
     search_labels: "लेबल खोजें",
     enter_label_name: "लेबल का नाम डालें",
     leaving_aster_mail: "Aster Calendar से बाहर जा रहे हैं",
+    link_dialog_title: "यह लिंक खोलें?",
+    link_dialog_body: "यह लिंक Aster Calendar के बाहर एक वेबपेज खोलता है।",
+    link_dialog_mail_title: "अपना ईमेल ऐप खोलें?",
+    link_dialog_mail_body:
+      "यह लिंक आपके डिवाइस के ईमेल ऐप में इस पते पर एक नया संदेश बनाता है।",
+    link_dialog_blocked_title: "यह लिंक नहीं खोला जा सकता",
+    link_dialog_blocked_body:
+      "Aster Calendar इस तरह के लिंक नहीं खोलता, क्योंकि ये कोड चला सकते हैं या अपनी असली मंज़िल छिपा सकते हैं।",
+    link_dialog_show_full: "पूरा पता दिखाएँ",
+    link_dialog_copy: "लिंक कॉपी करें",
+    link_dialog_warnings_label: "खोलने से पहले जाँचें",
+    link_dialog_warning_http:
+      "यह वेबपेज सुरक्षित कनेक्शन का इस्तेमाल नहीं करता, इसलिए नेटवर्क पर दूसरे लोग आपकी भेजी जानकारी देख या बदल सकते हैं।",
+    link_dialog_warning_lookalike:
+      "यह पता {{host}} के रूप में भी दिख सकता है। इसमें अलग-अलग लिपियों के अक्षर मिले हुए हैं, जिससे यह किसी दूसरी वेबसाइट जैसा दिख सकता है।",
+    link_dialog_warning_mismatch:
+      "लिंक के टेक्स्ट में {{shown}} दिखता है, लेकिन लिंक {{site}} खोलता है।",
+    link_dialog_warning_ip:
+      "यह लिंक वेबसाइट के नाम की जगह एक संख्या वाला पता इस्तेमाल करता है, इसलिए यह पता लगाना मुश्किल है कि पेज कौन चलाता है।",
+    link_dialog_full_address: "पूरा पता",
     unlock_aster_mail: "Aster Calendar अनलॉक करें",
     aster_mail_locked: "Aster Calendar लॉक है",
     merge_contacts: "संपर्क मिलाएं",
@@ -3472,6 +3493,8 @@ export const hi = {
     billing_pay_yearly: "सालाना भुगतान करें",
     billing_pay_monthly: "मासिक भुगतान करें",
     billing_billed_yearly_total: "सालाना {{amount}} बिल किया जाता है",
+    plan_most_popular: "सबसे लोकप्रिय",
+    plan_billed_monthly: "मासिक बिलिंग",
     billing_billed_monthly: "हर महीने बिल किया जाता है",
     billing_save_percent: "{{percent}}% बचाएँ",
     billing_select_plan_hint: "जारी रखने के लिए एक प्लान चुनें",

@@ -2034,6 +2034,16 @@ textarea.aster_input {
   border-radius: 9999px;
 }
 
+.aster_simple_toast_host .bg-modal-bg.border {
+  max-width: min(92vw, 28rem);
+}
+
+.aster_simple_toast_host .bg-modal-bg.border > span.font-medium {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .aster_simple_toast_host > [role="status"] {
   display: grid;
   justify-items: center;
@@ -2614,6 +2624,34 @@ button.press_scale:active {
   box-shadow:
     0 0 0 2px var(--modal-bg),
     0 0 0 4px var(--text-primary);
+}
+
+.color_swatch_row {
+  gap: clamp(4px, 1.5vw, 8px);
+}
+
+.color_row_swatch {
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--text-primary) 14%, transparent);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition:
+    transform 0.15s ease,
+    outline-color 0.15s ease;
+}
+
+.color_row_swatch:hover {
+  transform: scale(1.08);
+}
+
+.color_row_swatch[data-selected="true"] {
+  outline-color: var(--text-primary);
+}
+
+html:not([data-input-modality="keyboard"])
+  .color_row_swatch[data-selected="true"]:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
 }
 
 .quick_contacts_footer {
@@ -3731,6 +3769,38 @@ html:not(.dark) .sender_logo_light > img {
   border-radius: 9999px;
 }
 
+.sender_logo_fill_105 > img {
+  transform: scale(1.05);
+}
+
+.sender_logo_fill_110 > img {
+  transform: scale(1.1);
+}
+
+.sender_logo_fill_115 > img {
+  transform: scale(1.15);
+}
+
+.sender_logo_fill_120 > img {
+  transform: scale(1.2);
+}
+
+.sender_logo_fill_125 > img {
+  transform: scale(1.25);
+}
+
+.sender_logo_fill_130 > img {
+  transform: scale(1.3);
+}
+
+.sender_logo_fill_140 > img {
+  transform: scale(1.4);
+}
+
+.sender_logo_fill_150 > img {
+  transform: scale(1.5);
+}
+
 .account_avatar_ring {
   --plan-ring-gap-color: var(--bg-secondary);
   display: inline-flex;
@@ -4647,6 +4717,11 @@ html[data-input-modality="keyboard"]
 
 .profile_picture_tile:disabled:not(:has(.aster_scrim)) img {
   opacity: 0.6;
+}
+
+.profile_picture_cell {
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 120px;
 }
 
 @media (prefers-reduced-motion: reduce) {

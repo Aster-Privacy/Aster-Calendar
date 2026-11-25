@@ -791,6 +791,7 @@ export const pt = {
     history: "Histórico",
     all_mail: "Todo o correio",
     import_contacts: "Importar contactos",
+    import_contacts_short: "Importar",
     import_choose_file_desc:
       "Escolha um ficheiro a partir do qual importar contactos. Formatos suportados: vCard (.vcf) e CSV.",
     click_to_select_file: "Clique para selecionar um ficheiro",
@@ -1136,6 +1137,26 @@ export const pt = {
     search_labels: "Pesquisar etiquetas",
     enter_label_name: "Introduza o nome da etiqueta",
     leaving_aster_mail: "A sair do Aster Calendar",
+    link_dialog_title: "Abrir esta ligação?",
+    link_dialog_body: "Esta ligação abre uma página web fora do Aster Calendar.",
+    link_dialog_mail_title: "Abrir a app de email?",
+    link_dialog_mail_body:
+      "Esta ligação cria uma nova mensagem para este endereço na app de email do dispositivo.",
+    link_dialog_blocked_title: "Não é possível abrir esta ligação",
+    link_dialog_blocked_body:
+      "O Aster Calendar não abre este tipo de ligação porque pode executar código ou ocultar o destino.",
+    link_dialog_show_full: "Mostrar endereço completo",
+    link_dialog_copy: "Copiar ligação",
+    link_dialog_warnings_label: "Verifique antes de abrir",
+    link_dialog_warning_http:
+      "Esta página web não usa uma ligação segura, por isso outras pessoas na rede podem ver ou alterar o que envia.",
+    link_dialog_warning_lookalike:
+      "Este endereço também pode aparecer como {{host}}. Mistura letras de alfabetos diferentes, o que o pode fazer parecer outro site.",
+    link_dialog_warning_mismatch:
+      "O texto da ligação mostra {{shown}}, mas a ligação abre {{site}}.",
+    link_dialog_warning_ip:
+      "Esta ligação usa um endereço numérico em vez do nome de um site, por isso é mais difícil saber quem gere a página.",
+    link_dialog_full_address: "Endereço completo",
     unlock_aster_mail: "Desbloquear o Aster Calendar",
     aster_mail_locked: "O Aster Calendar está bloqueado",
     merge_contacts: "Combinar contactos",
@@ -4442,6 +4463,8 @@ export const pt = {
     billing_pay_yearly: "Pagar anualmente",
     billing_pay_monthly: "Pagar mensalmente",
     billing_billed_yearly_total: "Cobrado {{amount}} por ano",
+    plan_most_popular: "Mais popular",
+    plan_billed_monthly: "Faturação mensal",
     billing_billed_monthly: "Cobrado todo mês",
     billing_save_percent: "Economize {{percent}}%",
     billing_select_plan_hint: "Selecione um plano para continuar",

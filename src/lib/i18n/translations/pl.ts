@@ -901,6 +901,7 @@ export const pl = {
     history: "Historia",
     all_mail: "Cała poczta",
     import_contacts: "Importuj kontakty",
+    import_contacts_short: "Importuj",
     import_choose_file_desc:
       "Wybierz plik do importu kontaktów. Obsługiwane formaty: vCard (.vcf) i CSV.",
     click_to_select_file: "Kliknij, aby wybrać plik",
@@ -1247,6 +1248,26 @@ export const pl = {
     search_labels: "Szukaj etykiet",
     enter_label_name: "Wprowadź nazwę etykiety",
     leaving_aster_mail: "Opuszczasz Aster Calendar",
+    link_dialog_title: "Otworzyć ten link?",
+    link_dialog_body: "Ten link otwiera stronę internetową poza Aster Calendar.",
+    link_dialog_mail_title: "Otworzyć aplikację pocztową?",
+    link_dialog_mail_body:
+      "Ten link tworzy nową wiadomość na ten adres w aplikacji pocztowej na urządzeniu.",
+    link_dialog_blocked_title: "Nie można otworzyć tego linku",
+    link_dialog_blocked_body:
+      "Aster Calendar nie otwiera tego typu linków, ponieważ mogą uruchamiać kod lub ukrywać miejsce docelowe.",
+    link_dialog_show_full: "Pokaż pełny adres",
+    link_dialog_copy: "Kopiuj link",
+    link_dialog_warnings_label: "Sprawdź przed otwarciem",
+    link_dialog_warning_http:
+      "Ta strona nie używa bezpiecznego połączenia, więc inne osoby w sieci mogą zobaczyć lub zmienić wysyłane dane.",
+    link_dialog_warning_lookalike:
+      "Ten adres może też wyglądać jak {{host}}. Łączy litery z różnych alfabetów, przez co może przypominać inną witrynę.",
+    link_dialog_warning_mismatch:
+      "Tekst linku pokazuje {{shown}}, ale link otwiera {{site}}.",
+    link_dialog_warning_ip:
+      "Ten link używa adresu liczbowego zamiast nazwy witryny, więc trudniej ustalić, kto prowadzi stronę.",
+    link_dialog_full_address: "Pełny adres",
     unlock_aster_mail: "Odblokuj Aster Calendar",
     aster_mail_locked: "Aster Calendar jest zablokowany",
     merge_contacts: "Scal kontakty",
@@ -4551,6 +4572,8 @@ export const pl = {
     billing_pay_yearly: "Płać rocznie",
     billing_pay_monthly: "Płać miesięcznie",
     billing_billed_yearly_total: "Rozliczane {{amount}} rocznie",
+    plan_most_popular: "Najpopularniejszy",
+    plan_billed_monthly: "Płatność co miesiąc",
     billing_billed_monthly: "Rozliczane co miesiąc",
     billing_save_percent: "Oszczędź {{percent}}%",
     billing_select_plan_hint: "Wybierz plan, aby kontynuować",

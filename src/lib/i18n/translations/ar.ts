@@ -868,6 +868,7 @@ export const ar = {
     history: "السجل",
     all_mail: "كل الرسائل",
     import_contacts: "استيراد جهات الاتصال",
+    import_contacts_short: "استيراد",
     import_choose_file_desc:
       "اختر ملفًا لاستيراد جهات الاتصال منه. الصيغ المدعومة: vCard (.vcf) وCSV.",
     click_to_select_file: "انقر لاختيار ملف",
@@ -1185,6 +1186,26 @@ export const ar = {
     search_labels: "بحث في التصنيفات",
     enter_label_name: "أدخل اسم التصنيف",
     leaving_aster_mail: "مغادرة Aster Calendar",
+    link_dialog_title: "هل تريد فتح هذا الرابط؟",
+    link_dialog_body: "يفتح هذا الرابط صفحة ويب خارج Aster Calendar.",
+    link_dialog_mail_title: "هل تريد فتح تطبيق البريد؟",
+    link_dialog_mail_body:
+      "ينشئ هذا الرابط رسالة جديدة إلى هذا العنوان في تطبيق البريد على جهازك.",
+    link_dialog_blocked_title: "لا يمكن فتح هذا الرابط",
+    link_dialog_blocked_body:
+      "لا يفتح Aster Calendar هذا النوع من الروابط لأنه قد يشغّل تعليمات برمجية أو يخفي وجهته.",
+    link_dialog_show_full: "إظهار العنوان الكامل",
+    link_dialog_copy: "نسخ الرابط",
+    link_dialog_warnings_label: "تحقق قبل الفتح",
+    link_dialog_warning_http:
+      "لا تستخدم صفحة الويب هذه اتصالاً آمناً، لذا يمكن لآخرين على الشبكة رؤية ما ترسله أو تغييره.",
+    link_dialog_warning_lookalike:
+      "قد يظهر هذا العنوان أيضاً بالشكل {{host}}. فهو يمزج أحرفاً من أبجديات مختلفة، مما قد يجعله يشبه موقع ويب آخر.",
+    link_dialog_warning_mismatch:
+      "يعرض نص الرابط {{shown}}، لكن الرابط يفتح {{site}}.",
+    link_dialog_warning_ip:
+      "يستخدم هذا الرابط عنواناً رقمياً بدلاً من اسم موقع ويب، لذا يصعب معرفة من يدير الصفحة.",
+    link_dialog_full_address: "العنوان الكامل",
     unlock_aster_mail: "فتح قفل Aster Calendar",
     aster_mail_locked: "Aster Calendar مقفل",
     merge_contacts: "دمج جهات الاتصال",
@@ -4495,6 +4516,8 @@ export const ar = {
     billing_pay_yearly: "الدفع سنويًا",
     billing_pay_monthly: "الدفع شهريًا",
     billing_billed_yearly_total: "تُفوتر {{amount}} سنويًا",
+    plan_most_popular: "الأكثر شيوعًا",
+    plan_billed_monthly: "فوترة شهرية",
     billing_billed_monthly: "تُفوتر كل شهر",
     billing_save_percent: "وفّر {{percent}}٪",
     billing_select_plan_hint: "اختر خطة للمتابعة",

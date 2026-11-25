@@ -901,6 +901,7 @@ export const it = {
     history: "Cronologia",
     all_mail: "Tutta la posta",
     import_contacts: "Importa contatti",
+    import_contacts_short: "Importa",
     import_choose_file_desc:
       "Scegli un file da cui importare i contatti. Formati supportati: vCard (.vcf) e CSV.",
     click_to_select_file: "Clicca per selezionare un file",
@@ -1244,6 +1245,26 @@ export const it = {
     search_labels: "Cerca etichette",
     enter_label_name: "Inserisci nome etichetta",
     leaving_aster_mail: "Esci da Aster Calendar",
+    link_dialog_title: "Aprire questo link?",
+    link_dialog_body: "Questo link apre una pagina web esterna ad Aster Calendar.",
+    link_dialog_mail_title: "Aprire l'app di posta?",
+    link_dialog_mail_body:
+      "Questo link crea un nuovo messaggio a questo indirizzo nell'app di posta del dispositivo.",
+    link_dialog_blocked_title: "Impossibile aprire questo link",
+    link_dialog_blocked_body:
+      "Aster Calendar non apre questo tipo di link perché può eseguire codice o nascondere la destinazione.",
+    link_dialog_show_full: "Mostra indirizzo completo",
+    link_dialog_copy: "Copia link",
+    link_dialog_warnings_label: "Da controllare prima di aprire",
+    link_dialog_warning_http:
+      "Questa pagina web non usa una connessione sicura, quindi altre persone sulla rete possono vedere o modificare ciò che invia.",
+    link_dialog_warning_lookalike:
+      "Questo indirizzo può apparire anche come {{host}}. Mescola lettere di alfabeti diversi e può sembrare un altro sito web.",
+    link_dialog_warning_mismatch:
+      "Il testo del link mostra {{shown}}, ma il link apre {{site}}.",
+    link_dialog_warning_ip:
+      "Questo link usa un indirizzo numerico invece del nome di un sito web, quindi è più difficile capire chi gestisce la pagina.",
+    link_dialog_full_address: "Indirizzo completo",
     unlock_aster_mail: "Sblocca Aster Calendar",
     aster_mail_locked: "Aster Calendar è bloccato",
     merge_contacts: "Unisci contatti",
@@ -5262,6 +5283,8 @@ export const it = {
     billing_pay_yearly: "Paga annualmente",
     billing_pay_monthly: "Paga mensilmente",
     billing_billed_yearly_total: "Fatturato {{amount}} all'anno",
+    plan_most_popular: "Il più scelto",
+    plan_billed_monthly: "Fatturazione mensile",
     billing_billed_monthly: "Fatturato ogni mese",
     billing_save_percent: "Risparmia il {{percent}}%",
     billing_select_plan_hint: "Seleziona un piano per continuare",

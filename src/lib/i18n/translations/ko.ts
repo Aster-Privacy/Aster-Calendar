@@ -949,6 +949,7 @@ export const ko = {
     history: "기록",
     all_mail: "전체 메일",
     import_contacts: "연락처 가져오기",
+    import_contacts_short: "가져오기",
     import_choose_file_desc:
       "가져올 연락처 파일을 선택하세요. 지원 형식: vCard (.vcf) 및 CSV.",
     click_to_select_file: "파일을 선택하려면 클릭하세요",
@@ -1274,6 +1275,24 @@ export const ko = {
     search_labels: "라벨 검색",
     enter_label_name: "라벨 이름 입력",
     leaving_aster_mail: "Aster Calendar에서 나가는 중",
+    link_dialog_title: "이 링크를 열까요?",
+    link_dialog_body: "이 링크는 Aster Calendar 외부의 웹 페이지를 엽니다.",
+    link_dialog_mail_title: "이메일 앱을 열까요?",
+    link_dialog_mail_body: "이 링크는 기기의 이메일 앱에서 이 주소로 보내는 새 메시지를 만듭니다.",
+    link_dialog_blocked_title: "이 링크를 열 수 없습니다",
+    link_dialog_blocked_body:
+      "이 유형의 링크는 코드를 실행하거나 이동할 곳을 숨길 수 있어서 Aster Calendar에서 열지 않습니다.",
+    link_dialog_show_full: "전체 주소 보기",
+    link_dialog_copy: "링크 복사",
+    link_dialog_warnings_label: "열기 전에 확인하세요",
+    link_dialog_warning_http:
+      "이 웹 페이지는 보안 연결을 사용하지 않으므로 같은 네트워크의 다른 사람이 보내는 내용을 보거나 바꿀 수 있습니다.",
+    link_dialog_warning_lookalike:
+      "이 주소는 {{host}}(으)로 표시될 수도 있습니다. 서로 다른 문자 체계의 글자가 섞여 있어 다른 웹사이트처럼 보일 수 있습니다.",
+    link_dialog_warning_mismatch:
+      "링크 텍스트에는 {{shown}}(이)라고 표시되지만 실제로는 {{site}}을(를) 엽니다.",
+    link_dialog_warning_ip: "이 링크는 웹사이트 이름 대신 숫자 주소를 사용하므로 페이지 운영자를 알기 어렵습니다.",
+    link_dialog_full_address: "전체 주소",
     unlock_aster_mail: "Aster Calendar 잠금 해제",
     aster_mail_locked: "Aster Calendar가 잠겨 있습니다",
     merge_contacts: "연락처 병합",
@@ -4382,6 +4401,8 @@ export const ko = {
     billing_pay_yearly: "연간 결제",
     billing_pay_monthly: "월간 결제",
     billing_billed_yearly_total: "연 {{amount}} 청구",
+    plan_most_popular: "가장 인기",
+    plan_billed_monthly: "매월 청구",
     billing_billed_monthly: "매월 청구",
     billing_save_percent: "{{percent}}% 절약",
     billing_select_plan_hint: "계속하려면 플랜을 선택하세요",

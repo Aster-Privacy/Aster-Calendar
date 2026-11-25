@@ -908,6 +908,7 @@ export const fr = {
     history: "Historique",
     all_mail: "Tous les messages",
     import_contacts: "Importer des contacts",
+    import_contacts_short: "Importer",
     import_choose_file_desc:
       "Choisissez un fichier pour importer des contacts. Formats pris en charge : vCard (.vcf) et CSV.",
     click_to_select_file: "Cliquez pour sélectionner un fichier",
@@ -1254,6 +1255,26 @@ export const fr = {
     search_labels: "Rechercher des libellés",
     enter_label_name: "Saisir le nom du libellé",
     leaving_aster_mail: "Quitter Aster Calendar",
+    link_dialog_title: "Ouvrir ce lien ?",
+    link_dialog_body: "Ce lien ouvre une page web en dehors d'Aster Calendar.",
+    link_dialog_mail_title: "Ouvrir votre app de messagerie ?",
+    link_dialog_mail_body:
+      "Ce lien crée un nouveau message à cette adresse dans l'app de messagerie de votre appareil.",
+    link_dialog_blocked_title: "Impossible d'ouvrir ce lien",
+    link_dialog_blocked_body:
+      "Aster Calendar n'ouvre pas ce type de lien, car il peut exécuter du code ou masquer sa destination.",
+    link_dialog_show_full: "Afficher l'adresse complète",
+    link_dialog_copy: "Copier le lien",
+    link_dialog_warnings_label: "À vérifier avant d'ouvrir",
+    link_dialog_warning_http:
+      "Cette page web n'utilise pas de connexion sécurisée : d'autres personnes sur le réseau peuvent voir ou modifier ce que vous envoyez.",
+    link_dialog_warning_lookalike:
+      "Cette adresse peut aussi s'afficher sous la forme {{host}}. Elle mélange des lettres de différents alphabets, ce qui peut la faire ressembler à un autre site web.",
+    link_dialog_warning_mismatch:
+      "Le texte du lien affiche {{shown}}, mais le lien ouvre {{site}}.",
+    link_dialog_warning_ip:
+      "Ce lien utilise une adresse numérique au lieu d'un nom de site web, il est donc plus difficile de savoir qui gère la page.",
+    link_dialog_full_address: "Adresse complète",
     unlock_aster_mail: "Déverrouiller Aster Calendar",
     aster_mail_locked: "Aster Calendar est verrouillé",
     merge_contacts: "Fusionner les contacts",
@@ -4435,6 +4456,8 @@ export const fr = {
     billing_pay_yearly: "Payer annuellement",
     billing_pay_monthly: "Payer mensuellement",
     billing_billed_yearly_total: "Facturé {{amount}} par an",
+    plan_most_popular: "Le plus populaire",
+    plan_billed_monthly: "Facturé chaque mois",
     billing_billed_monthly: "Facturé chaque mois",
     billing_save_percent: "Économisez {{percent}} %",
     billing_select_plan_hint: "Sélectionnez un forfait pour continuer",
