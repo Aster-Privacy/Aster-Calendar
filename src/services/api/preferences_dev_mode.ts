@@ -28,6 +28,10 @@ import {
   retry_after_account_key_load,
 } from "@/services/crypto/account_data_writer";
 import { decrypt_aes_gcm_with_fallback } from "@/services/crypto/legacy_keks";
+import {
+  is_usable_identity_key,
+  with_identity_key,
+} from "@/services/crypto/identity_key_required";
 
 interface GetDevModeApiResponse {
   encrypted_dev_mode: string | null;
@@ -50,7 +54,9 @@ export async function derive_dev_mode_key_raw(
 }
 
 async function derive_dev_mode_key(vault: EncryptedVault): Promise<CryptoKey> {
-  const raw = await derive_dev_mode_key_raw(vault.identity_key);
+  const raw = await derive_dev_mode_key_raw(
+    with_identity_key(vault).identity_key,
+  );
 
   return crypto.subtle.importKey(
     "raw",
@@ -90,7 +96,9 @@ async function decrypt_dev_mode(
   nonce: string,
   vault: EncryptedVault,
 ): Promise<boolean> {
-  const key = await derive_dev_mode_key(vault);
+  const key = is_usable_identity_key(vault.identity_key)
+    ? await derive_dev_mode_key(vault)
+    : null;
   const encrypted_data = Uint8Array.from(atob(encrypted), (c) =>
     c.charCodeAt(0),
   );

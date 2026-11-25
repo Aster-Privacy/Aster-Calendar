@@ -24,6 +24,7 @@ import { sha256 } from "@noble/hashes/sha256";
 
 import { array_to_base64, base64_to_array } from "./base64";
 import { zero_uint8_array } from "./secure_memory";
+import { is_usable_identity_key } from "./identity_key_required";
 import { notify_account_keys_added } from "./account_key_events";
 import {
   ACCOUNT_DATA_CONTEXTS,
@@ -289,25 +290,6 @@ export async function load_legacy_keks_into_memory(
   }
 }
 
-const PLACEHOLDER_PREVIOUS_KEYS = new Set([
-  "undefined",
-  "null",
-  "nan",
-  "[object object]",
-]);
-
-function is_usable_previous_key(
-  previous_key: unknown,
-): previous_key is string {
-  if (typeof previous_key !== "string") return false;
-
-  const trimmed = previous_key.trim();
-
-  return (
-    trimmed.length > 0 && !PLACEHOLDER_PREVIOUS_KEYS.has(trimmed.toLowerCase())
-  );
-}
-
 export async function load_previous_key_derived_keks_into_memory(
   previous_keys: string[] | undefined,
 ): Promise<void> {
@@ -316,7 +298,7 @@ export async function load_previous_key_derived_keks_into_memory(
   }
 
   for (const previous_key of previous_keys) {
-    if (!is_usable_previous_key(previous_key)) continue;
+    if (!is_usable_identity_key(previous_key)) continue;
 
     for (const context of PREVIOUS_KEY_CONTEXTS) {
       try {
@@ -507,11 +489,13 @@ export async function append_legacy_key_raw_bytes(
 }
 
 export async function decrypt_aes_gcm_with_fallback(
-  primary_key: CryptoKey,
+  primary_key: CryptoKey | null,
   ciphertext: BufferSource,
   iv: BufferSource,
 ): Promise<ArrayBuffer> {
   try {
+    if (!primary_key) throw new Error("primary key unavailable");
+
     return await crypto.subtle.decrypt(
       { name: "AES-GCM", iv },
       primary_key,

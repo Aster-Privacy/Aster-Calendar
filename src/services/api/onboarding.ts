@@ -24,6 +24,10 @@ import { api_client } from "./client";
 
 import { HASH_ALG } from "@/services/crypto/constants";
 import { decrypt_aes_gcm_with_fallback } from "@/services/crypto/legacy_keks";
+import {
+  is_usable_identity_key,
+  with_identity_key,
+} from "@/services/crypto/identity_key_required";
 import { ignore_error } from "@/lib/ignore_error";
 
 export interface OnboardingState {
@@ -48,7 +52,7 @@ async function derive_onboarding_key(
   vault: EncryptedVault,
 ): Promise<CryptoKey> {
   const key_material = new TextEncoder().encode(
-    vault.identity_key + "astermail-onboarding-v1",
+    with_identity_key(vault).identity_key + "astermail-onboarding-v1",
   );
   const hash = await crypto.subtle.digest(HASH_ALG, key_material);
 
@@ -86,7 +90,9 @@ async function decrypt_onboarding_state(
   nonce: string,
   vault: EncryptedVault,
 ): Promise<OnboardingState> {
-  const key = await derive_onboarding_key(vault);
+  const key = is_usable_identity_key(vault.identity_key)
+    ? await derive_onboarding_key(vault)
+    : null;
   const encrypted_data = Uint8Array.from(atob(encrypted), (c) =>
     c.charCodeAt(0),
   );

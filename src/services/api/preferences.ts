@@ -35,6 +35,10 @@ import {
   decrypt_aes_gcm_with_fallback,
   sealed_under_public_constant,
 } from "@/services/crypto/legacy_keks";
+import {
+  is_usable_identity_key,
+  with_identity_key,
+} from "@/services/crypto/identity_key_required";
 import { array_to_base64, base64_to_array } from "@/services/crypto/envelope";
 import {
   DEFAULT_ENABLED_CATEGORIES,
@@ -442,7 +446,9 @@ export async function derive_preferences_key_raw(
 async function derive_preferences_key(
   vault: EncryptedVault,
 ): Promise<CryptoKey> {
-  const raw = await derive_preferences_key_raw(vault.identity_key);
+  const raw = await derive_preferences_key_raw(
+    with_identity_key(vault).identity_key,
+  );
 
   return crypto.subtle.importKey(
     "raw",
@@ -480,7 +486,9 @@ async function decrypt_preferences(
   nonce: string,
   vault: EncryptedVault,
 ): Promise<UserPreferences> {
-  const key = await derive_preferences_key(vault);
+  const key = is_usable_identity_key(vault.identity_key)
+    ? await derive_preferences_key(vault)
+    : null;
   const encrypted_data = Uint8Array.from(atob(encrypted), (c) =>
     c.charCodeAt(0),
   );
@@ -581,7 +589,9 @@ export async function convert_preferences_to_account_key(
   try {
     plaintext = new Uint8Array(
       await decrypt_aes_gcm_with_fallback(
-        await derive_preferences_key(vault),
+        is_usable_identity_key(vault.identity_key)
+          ? await derive_preferences_key(vault)
+          : null,
         ciphertext,
         stored_nonce,
       ),
