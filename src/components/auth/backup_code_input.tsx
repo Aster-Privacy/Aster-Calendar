@@ -29,6 +29,11 @@ import {
   verify_backup_code_login,
   TotpVerifyResponse,
 } from "@/services/api/totp";
+import { default_guard_device_name } from "@/services/guard/guard_device_label";
+import {
+  is_guard_sign_in_error,
+  sign_in_error_text,
+} from "@/components/guard/sign_in_error_text";
 
 const BACKUP_CODE_LENGTH = 12;
 const LEGACY_BACKUP_CODE_LENGTH = 8;
@@ -114,13 +119,18 @@ export function BackupCodeInput({
       code: format_backup_code(normalized),
       pending_login_token,
       trust_device,
+      device_label: default_guard_device_name(),
       remember_me,
     });
 
     if (response.error) {
       const kind = classify_totp_error(response);
 
-      if (kind === "locked") {
+      if (is_guard_sign_in_error(response)) {
+        set_error(
+          sign_in_error_text(t, response, t("common.something_went_wrong")),
+        );
+      } else if (kind === "locked") {
         set_error(t("auth.two_fa_temporarily_locked"));
       } else if (kind === "rate_limited") {
         set_error(t("auth.too_many_2fa_attempts"));

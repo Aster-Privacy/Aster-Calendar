@@ -88,6 +88,12 @@ vi.mock("./use_sign_in_page", () => ({
     hub_accounts: [],
     hub_signing_in_id: null,
     handle_hub_account: vi.fn(),
+    guard_gate: {
+      guard_start: null,
+      set_guard_user_hash: vi.fn(),
+      clear_guard: vi.fn(),
+    },
+    handle_guard_complete: vi.fn(),
     is_adding_account: page_state.is_adding_account,
     set_is_adding_account: vi.fn(),
     is_authenticated: page_state.is_authenticated,

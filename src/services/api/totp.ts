@@ -18,6 +18,7 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
+import { default_guard_device_name } from "@/services/guard/guard_device_label";
 import type { ReauthProof } from "./step_up";
 
 import { api_client, ApiResponse } from "./client";
@@ -122,7 +123,7 @@ export async function verify_totp_login(
 ): Promise<ApiResponse<TotpVerifyResponse>> {
   const response = await api_client.post<TotpVerifyResponse>(
     "/core/v1/auth/totp/verify",
-    request,
+    { device_label: default_guard_device_name(), ...request },
   );
 
   if (response.data) {
@@ -144,7 +145,7 @@ export async function verify_backup_code_login(
 ): Promise<ApiResponse<TotpVerifyResponse>> {
   const response = await api_client.post<TotpVerifyResponse>(
     "/core/v1/auth/totp/backup-code",
-    request,
+    { device_label: default_guard_device_name(), ...request },
   );
 
   if (response.data) {
