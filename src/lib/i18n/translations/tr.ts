@@ -20,6 +20,10 @@
 //
 export const tr = {
   common: {
+    merge_primary_label: "Birincil",
+    merge_primary_description:
+      "Birincil kişi bilgilerini korur ve tüm e-posta adreslerini alır. Diğer kişiler çöp kutusuna gider.",
+    merge_make_primary: "Birincil yap",
     add_group: "Grup ekle",
     add_new_group: "Yeni grup",
     add_to_group: "Gruba ekle",

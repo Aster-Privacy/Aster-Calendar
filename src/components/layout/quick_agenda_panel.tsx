@@ -64,7 +64,7 @@ export function QuickAgendaPanel({
     <aside
       ref={panel_ref}
       aria-label={t("common.app_name_calendar")}
-      className={`quick_agenda_panel absolute inset-0 flex-col overflow-hidden rounded-lg bg-surf-primary md:rounded-xl ${
+      className={`quick_agenda_panel absolute inset-y-0 start-0 end-1.5 flex-col overflow-hidden rounded-lg bg-surf-primary md:end-2.5 md:rounded-xl ${
         is_visible ? "flex" : "hidden"
       } ${is_closing ? "quick_panel_closing" : "z-10"}`}
     >

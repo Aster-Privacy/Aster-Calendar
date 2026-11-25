@@ -20,6 +20,10 @@
 //
 export const nl = {
   common: {
+    merge_primary_label: "Primair",
+    merge_primary_description:
+      "Het primaire contact houdt zijn gegevens en krijgt alle e-mailadressen. De andere contacten gaan naar de prullenmand.",
+    merge_make_primary: "Primair maken",
     add_group: "Groep toevoegen",
     add_new_group: "Nieuwe groep",
     add_to_group: "Aan groep toevoegen",
