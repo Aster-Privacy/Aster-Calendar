@@ -1789,6 +1789,9 @@ export interface MailRulesTranslations {
 }
 
 export interface CommonTranslations {
+  merge_primary_label: string;
+  merge_primary_description: string;
+  merge_make_primary: string;
   post_quantum_unavailable_title: string;
   post_quantum_unavailable_message: string;
   post_quantum_send_anyway: string;
