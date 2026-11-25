@@ -51,7 +51,9 @@ vi.mock("@/services/account_manager", () => ({
 import {
   check_and_pin_identity,
   has_peer_advertised_pq,
+  has_peer_signed_pq,
   remembered_peer_x3dh_version,
+  trust_recipient_keys,
 } from "@/services/crypto/ratchet_identity_pin";
 import {
   clear_ratchet_verification_status,
@@ -140,6 +142,43 @@ describe("ratchet identity pin pq memory and failure modes", () => {
     h.key = null;
 
     expect(await remembered_peer_x3dh_version("grace")).toBe(1);
+  });
+
+  it("remembers that a peer signed its post-quantum key", async () => {
+    expect(await has_peer_signed_pq("henry")).toBe(false);
+
+    await check_and_pin_identity("henry", KEY_A, true, true, null, false, false);
+    expect(await has_peer_signed_pq("henry")).toBe(false);
+
+    await check_and_pin_identity("henry", KEY_A, true, true, null, false, true);
+    expect(await has_peer_signed_pq("henry")).toBe(true);
+
+    await check_and_pin_identity("henry", KEY_A, true, true, null, false, false);
+    expect(await has_peer_signed_pq("henry")).toBe(true);
+  });
+
+  it("keeps the signed pq flag across a verified rotation", async () => {
+    await check_and_pin_identity("ivy", KEY_A, true, true, null, false, true);
+
+    expect(
+      await check_and_pin_identity("ivy", KEY_B, true, true, null, false, false),
+    ).toBe("rotated");
+    expect(await has_peer_signed_pq("ivy")).toBe(true);
+  });
+
+  it("keeps the signed pq flag when keys are trusted again", async () => {
+    await check_and_pin_identity("jack", KEY_A, true, true, null, false, true);
+    await trust_recipient_keys("jack", KEY_B, null);
+
+    expect(await has_peer_signed_pq("jack")).toBe(true);
+    expect(await has_peer_advertised_pq("jack")).toBe(true);
+  });
+
+  it("reports no signed pq flag when the pin store is unavailable", async () => {
+    await check_and_pin_identity("kate", KEY_A, true, true, null, false, true);
+    h.key = null;
+
+    expect(await has_peer_signed_pq("kate")).toBe(false);
   });
 
   it("returns unknown instead of ok when the pin store is unavailable", async () => {

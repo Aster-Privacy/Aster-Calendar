@@ -52,6 +52,7 @@ import {
   check_owner_key_pin,
   flag_recipient_untrusted,
   has_peer_advertised_pq,
+  has_peer_signed_pq,
   remembered_peer_x3dh_version,
   is_recipient_bundle_accepted,
   is_recipient_flagged_untrusted,
@@ -594,9 +595,16 @@ async function encrypt_for_ratchet_recipient_unlocked(
       record_bundle_verification(bundle_peer, bundle_verification);
 
       const advertises_pq = Boolean(bundle.pq_kem_public_key);
+      const signs_pq =
+        !is_bundle_verification_rejected(bundle_verification) &&
+        bundle_has_signed_pq_identity(
+          bundle,
+          signature_covers_pq_identity(bundle_verification),
+        );
       const pq_downgraded =
         bundle_is_downgraded(bundle) ||
-        (!advertises_pq && (await has_peer_advertised_pq(bundle_peer)));
+        (!advertises_pq && (await has_peer_advertised_pq(bundle_peer))) ||
+        (!signs_pq && (await has_peer_signed_pq(bundle_peer)));
 
       if (is_bundle_untrusted(bundle_verification)) {
         await flag_recipient_untrusted(bundle_peer);
@@ -630,6 +638,7 @@ async function encrypt_for_ratchet_recipient_unlocked(
         advertises_pq,
         bundle.x3dh_max_version,
         resolved_bundle.scoped,
+        signs_pq,
       );
 
       if (identity_pin_status === "drift") {
@@ -870,17 +879,30 @@ export async function recipient_post_quantum_status(
     return "untrusted";
   }
 
-  if (bundle_supports_pq(bundle)) {
-    return !is_bundle_verification_rejected(verification) &&
-      bundle_has_signed_pq_identity(
-        bundle,
-        signature_covers_pq_identity(verification),
-      )
-      ? "supported"
-      : "unsupported";
+  if (
+    !is_bundle_verification_rejected(verification) &&
+    bundle_has_signed_pq_identity(
+      bundle,
+      signature_covers_pq_identity(verification),
+    )
+  ) {
+    return "supported";
   }
 
-  return bundle_is_downgraded(bundle) ? "downgraded" : "unsupported";
+  if (!bundle_supports_pq(bundle) && bundle_is_downgraded(bundle)) {
+    return "downgraded";
+  }
+
+  const vouched =
+    verification.verdict === "verified" || verification.verdict === "legacy";
+
+  if (!vouched) return "unsupported";
+
+  return (await has_peer_signed_pq(
+    (recipient_email ?? recipient_username).toLowerCase(),
+  ))
+    ? "downgraded"
+    : "unsupported";
 }
 
 export async function recipient_supports_post_quantum(
