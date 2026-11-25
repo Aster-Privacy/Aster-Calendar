@@ -35,6 +35,11 @@ import {
   decrypt_aes_gcm_with_fallback,
   sealed_under_public_constant,
 } from "@/services/crypto/legacy_keks";
+import {
+  is_usable_identity_key,
+  with_identity_key,
+} from "@/services/crypto/identity_key_required";
+import { hold_calendar_floors } from "@/services/calendar/preferences_floor_hold";
 import { array_to_base64, base64_to_array } from "@/services/crypto/envelope";
 import {
   DEFAULT_ENABLED_CATEGORIES,
@@ -67,6 +72,14 @@ export function expected_user_headers(): Record<string, string> {
   const expected_user_id = api_client.get_expected_user_id();
 
   return expected_user_id ? { [EXPECTED_USER_HEADER]: expected_user_id } : {};
+}
+
+function floor_account_id(): string | null {
+  try {
+    return api_client.get_expected_user_id();
+  } catch {
+    return null;
+  }
 }
 
 export function report_session_user_mismatch(): void {
@@ -442,7 +455,9 @@ export async function derive_preferences_key_raw(
 async function derive_preferences_key(
   vault: EncryptedVault,
 ): Promise<CryptoKey> {
-  const raw = await derive_preferences_key_raw(vault.identity_key);
+  const raw = await derive_preferences_key_raw(
+    with_identity_key(vault).identity_key,
+  );
 
   return crypto.subtle.importKey(
     "raw",
@@ -461,7 +476,9 @@ async function encrypt_preferences(
     (await account_data_write_key("astermail-preferences-v1")) ??
     (await derive_preferences_key(vault));
   const nonce = crypto.getRandomValues(new Uint8Array(12));
-  const data = new TextEncoder().encode(JSON.stringify(preferences));
+  const data = new TextEncoder().encode(
+    JSON.stringify(hold_calendar_floors(preferences, floor_account_id())),
+  );
 
   const encrypted = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv: nonce },
@@ -480,7 +497,9 @@ async function decrypt_preferences(
   nonce: string,
   vault: EncryptedVault,
 ): Promise<UserPreferences> {
-  const key = await derive_preferences_key(vault);
+  const key = is_usable_identity_key(vault.identity_key)
+    ? await derive_preferences_key(vault)
+    : null;
   const encrypted_data = Uint8Array.from(atob(encrypted), (c) =>
     c.charCodeAt(0),
   );
@@ -581,7 +600,9 @@ export async function convert_preferences_to_account_key(
   try {
     plaintext = new Uint8Array(
       await decrypt_aes_gcm_with_fallback(
-        await derive_preferences_key(vault),
+        is_usable_identity_key(vault.identity_key)
+          ? await derive_preferences_key(vault)
+          : null,
         ciphertext,
         stored_nonce,
       ),
@@ -1651,9 +1672,12 @@ export async function get_preferences(
 
     const preferences = result;
 
-    let merged = build_merged_preferences(
-      preferences as unknown as Record<string, unknown>,
-      get_cached_preferences(),
+    let merged = hold_calendar_floors(
+      build_merged_preferences(
+        preferences as unknown as Record<string, unknown>,
+        get_cached_preferences(),
+      ),
+      floor_account_id(),
     );
 
     let needs_migration_save = false;

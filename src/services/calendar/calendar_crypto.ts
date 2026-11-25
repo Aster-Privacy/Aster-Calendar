@@ -38,6 +38,10 @@ import {
   get_account_data_crypto_keys,
   get_account_data_write_key,
 } from "@/services/crypto/legacy_keks";
+import {
+  stored_v3_floor,
+  store_v3_floor,
+} from "@/services/calendar/calendar_v3_floor_store";
 
 export const CALENDAR_KEY_CONTEXT = "astermail-calendar-v2";
 export const CALENDAR_BLOB_FORMAT_V1 = 1;
@@ -91,34 +95,8 @@ export function encode_binding(binding: CalendarBinding): Uint8Array {
   return new TextEncoder().encode(parts.join("\n"));
 }
 
-const V3_FLOOR_STORAGE_PREFIX = "aster_calendar_v3_floor:";
-
 let v3_floor_active = false;
 let v3_floor_account: string | null = null;
-const v3_floor_accounts = new Set<string>();
-
-function stored_v3_floor(account_id: string): boolean {
-  if (v3_floor_accounts.has(account_id)) return true;
-  try {
-    const is_stored =
-      window.localStorage.getItem(V3_FLOOR_STORAGE_PREFIX + account_id) === "1";
-
-    if (is_stored) v3_floor_accounts.add(account_id);
-
-    return is_stored;
-  } catch {
-    return false;
-  }
-}
-
-function store_v3_floor(account_id: string): void {
-  v3_floor_accounts.add(account_id);
-  try {
-    window.localStorage.setItem(V3_FLOOR_STORAGE_PREFIX + account_id, "1");
-  } catch {
-    return;
-  }
-}
 
 export function set_calendar_v3_floor(
   active: boolean,

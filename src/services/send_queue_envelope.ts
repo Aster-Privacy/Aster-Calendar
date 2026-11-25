@@ -30,6 +30,7 @@ import {
   get_passphrase_from_memory,
   get_vault_from_memory,
 } from "./crypto/memory_key_store";
+import { is_usable_identity_key } from "./crypto/identity_key_required";
 import { seal_sent_envelope_when_enabled } from "./crypto/sent_copy_seal";
 import { zero_uint8_array } from "./crypto/secure_memory";
 import { plain_text_to_html } from "./send_queue_recipients";
@@ -65,7 +66,7 @@ export async function create_sent_envelope(
   const vault = get_vault_from_memory();
   const passphrase_bytes = get_passphrase_bytes();
 
-  if (!vault || !vault.identity_key) {
+  if (!vault || !is_usable_identity_key(vault.identity_key)) {
     throw create_error(
       "vault_unavailable",
       get_active_translations().errors.encryption_keys_unavailable,

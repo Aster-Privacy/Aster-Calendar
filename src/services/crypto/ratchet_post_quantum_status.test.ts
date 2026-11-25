@@ -31,6 +31,7 @@ const h = vi.hoisted(() => ({
   owner_pin: "ok" as "first" | "ok" | "changed" | "unknown",
   accepted: false,
   identity: null as Record<string, unknown> | null,
+  signed_pq_seen: false,
 }));
 
 vi.mock("../api/keys", () => ({
@@ -44,6 +45,7 @@ vi.mock("./ratchet_identity_pin", async (import_original) => ({
   check_owner_key_pin: vi.fn(async () => h.owner_pin),
   is_recipient_flagged_untrusted: vi.fn(async () => false),
   is_recipient_bundle_accepted: vi.fn(async () => h.accepted),
+  has_peer_signed_pq: vi.fn(async () => h.signed_pq_seen),
 }));
 
 vi.mock("./key_manager_pgp", () => ({
@@ -102,6 +104,37 @@ describe("recipient_post_quantum_status", () => {
     h.verification = { verdict: "verified", format: "v2", strict: true };
     h.bootstrap = null;
     h.identity = null;
+    h.signed_pq_seen = false;
+  });
+
+  it("reports downgraded when a peer that signed its post-quantum key stops signing it", async () => {
+    h.signed_pq_seen = true;
+    h.verification = { verdict: "verified", format: "v1", strict: false };
+
+    await expect(
+      recipient_post_quantum_status("a@astermail.org", "b@aster.cx", "b"),
+    ).resolves.toBe("downgraded");
+  });
+
+  it("reports downgraded when a peer that signed its post-quantum key drops it", async () => {
+    h.signed_pq_seen = true;
+    h.bundle = {
+      kem_identity_key: "kem",
+      signed_prekey: "spk",
+      signed_prekey_signature: "sig",
+    };
+
+    await expect(
+      recipient_post_quantum_status("a@astermail.org", "b@aster.cx", "b"),
+    ).resolves.toBe("downgraded");
+  });
+
+  it("keeps reporting supported for a signed bundle when the floor is set", async () => {
+    h.signed_pq_seen = true;
+
+    await expect(
+      recipient_post_quantum_status("a@astermail.org", "b@aster.cx", "b"),
+    ).resolves.toBe("supported");
   });
 
   it("reports supported for a verified bundle whose signature covers the post-quantum key", async () => {

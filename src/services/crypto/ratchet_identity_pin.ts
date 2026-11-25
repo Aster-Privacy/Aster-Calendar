@@ -70,6 +70,7 @@ interface StoredIdentityPin {
   verified: boolean;
   pinned_at: number;
   pq_seen?: boolean;
+  pq_signed_seen?: boolean;
   x3dh_seen?: number;
   rotated?: boolean;
   address_rooted?: boolean;
@@ -85,6 +86,12 @@ export type IdentityPinLookup = IdentityPinRecord | "unreadable" | null;
 
 function rooted_field(address_rooted: boolean): { address_rooted?: true } {
   return address_rooted ? { address_rooted: true } : {};
+}
+
+function signed_pq_field(signed: boolean | undefined): {
+  pq_signed_seen?: true;
+} {
+  return signed ? { pq_signed_seen: true } : {};
 }
 
 export interface IdentityChangeRecord {
@@ -144,6 +151,7 @@ export async function check_and_pin_identity(
   advertises_pq: boolean = false,
   advertised_x3dh: number | null = null,
   address_rooted: boolean = false,
+  signs_pq: boolean = false,
 ): Promise<IdentityPinStatus> {
   try {
     if (!pin_id || !kem_identity_key) {
@@ -155,6 +163,7 @@ export async function check_and_pin_identity(
     const uid = await current_account_uid();
     const existing = await load_pin(storage_key, uid, pin_id);
     const pq_seen = Boolean(existing?.pq_seen) || advertises_pq;
+    const pq_signed_seen = Boolean(existing?.pq_signed_seen) || signs_pq;
     const x3dh_seen = highest_x3dh_seen(
       existing?.x3dh_seen,
       advertised_x3dh,
@@ -171,6 +180,7 @@ export async function check_and_pin_identity(
           verified,
           pinned_at: Date.now(),
           pq_seen,
+          ...signed_pq_field(pq_signed_seen),
           x3dh_seen,
           ...rooted_field(rooted),
         } satisfies StoredIdentityPin,
@@ -194,6 +204,7 @@ export async function check_and_pin_identity(
           verified,
           pinned_at: Date.now(),
           pq_seen,
+          ...signed_pq_field(pq_signed_seen),
           x3dh_seen,
           rotated: true,
           ...rooted_field(rooted),
@@ -221,6 +232,7 @@ export async function check_and_pin_identity(
     if (
       (verified && !existing.verified) ||
       pq_seen !== Boolean(existing.pq_seen) ||
+      pq_signed_seen !== Boolean(existing.pq_signed_seen) ||
       x3dh_seen !== highest_x3dh_seen(existing.x3dh_seen, null) ||
       rooted !== Boolean(existing.address_rooted)
     ) {
@@ -232,6 +244,7 @@ export async function check_and_pin_identity(
           ...existing,
           verified: existing.verified || verified,
           pq_seen,
+          ...signed_pq_field(pq_signed_seen),
           x3dh_seen,
           ...rooted_field(rooted),
         } satisfies StoredIdentityPin,
@@ -463,6 +476,7 @@ export async function trust_recipient_keys(
         verified: false,
         pinned_at: Date.now(),
         pq_seen: Boolean(existing?.pq_seen),
+        ...signed_pq_field(existing?.pq_signed_seen),
         x3dh_seen: existing?.x3dh_seen,
         ...rooted_field(address_rooted),
       } satisfies StoredIdentityPin,
@@ -516,6 +530,20 @@ export async function remembered_peer_x3dh_version(
     return highest_x3dh_seen(existing?.x3dh_seen, null);
   } catch {
     return 1;
+  }
+}
+
+export async function has_peer_signed_pq(pin_id: string): Promise<boolean> {
+  try {
+    if (!pin_id) return false;
+
+    const storage_key = await get_pin_storage_key();
+    const uid = await current_account_uid();
+    const existing = await load_pin(storage_key, uid, pin_id);
+
+    return existing?.pq_signed_seen === true;
+  } catch {
+    return false;
   }
 }
 
@@ -635,6 +663,7 @@ async function accept_rotated_pin(uid: string | null, pin_id: string): Promise<v
         verified: pin.verified,
         pinned_at: pin.pinned_at,
         pq_seen: pin.pq_seen,
+        ...signed_pq_field(pin.pq_signed_seen),
         x3dh_seen: pin.x3dh_seen,
         ...rooted_field(pin.address_rooted === true),
       } satisfies StoredIdentityPin,

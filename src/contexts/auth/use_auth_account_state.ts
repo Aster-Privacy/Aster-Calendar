@@ -45,6 +45,7 @@ import {
   with_timeout,
 } from "./auth_helpers";
 import { clear_signed_out_account_caches } from "./signed_out_account_caches";
+import { restore_from_server_vault } from "./stale_local_vault_restore";
 
 import {
   init_desktop_device_auth,
@@ -595,6 +596,18 @@ export function use_auth_account_state() {
           } catch (caught) {
             ignore_error("contexts/auth/use_auth_account_state:init", caught);
           }
+        }
+
+        if (
+          !has_keys &&
+          refused_rolled_back_vault &&
+          (await restore_from_server_vault(current.id, current.user.id))
+        ) {
+          has_keys = true;
+          refused_rolled_back_vault = false;
+          await seed_login_salt_record_from_session().catch((caught) =>
+            ignore_error("contexts/auth/use_auth_account_state:init", caught),
+          );
         }
 
         if (
