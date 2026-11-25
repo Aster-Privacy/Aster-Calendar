@@ -584,9 +584,6 @@ export const it = {
       "Il tuo pagamento non è andato a buon fine. L'accesso sarà limitato tra {{days}} giorni.",
     billing_alert_action: "Paga",
     dismiss: "Ignora",
-    web_sandbox_off_title: "I contenuti web vengono eseguiti senza la sandbox di sistema",
-    web_sandbox_off_body:
-      "Su questo computer Aster Calendar non riesce ad avviare la sandbox bubblewrap, quindi i contenuti web vengono eseguiti senza. Per riattivarla, installi il pacchetto bubblewrap, consenta gli spazi dei nomi utente non privilegiati e riavvii Aster Calendar.",
     load_content: "Carica",
     open_link: "Apri link",
     no_icon: "Nessuna icona",
@@ -10515,6 +10512,8 @@ export const it = {
       "Hai cambiato account in un'altra app Aster. Per usare quell'account qui, accedi con quell'account.",
     session_identity_mismatch:
       "Questo dispositivo era connesso a un altro account, quindi ti abbiamo disconnesso per tenere gli account separati. Basta accedere di nuovo. I tuoi dati sono intatti.",
+    vault_rolled_back:
+      "Questo dispositivo ha una copia più recente delle tue chiavi di crittografia rispetto a quella inviata dal server, quindi Aster Calendar non ha usato la copia precedente. Accedi di nuovo. Se il problema persiste, contatta l'assistenza.",
     key_material_unavailable:
       "Le sue chiavi private sono bloccate su questo dispositivo. La sua password le sbloccherà. Le sue chiavi sul server sono intatte.",
     max_accounts:
@@ -11383,6 +11382,9 @@ export const it = {
     busy_feed_copied: "Link copiato",
     busy_feed_error: "Impossibile aggiornare la condivisione degli orari occupati. Riprova.",
     busy_feed_publish_later: "Il link è pronto. I tuoi orari occupati appariranno dopo il prossimo aggiornamento.",
+    busy_feed_paused: "In pausa. Per continuare a condividere con il link attuale, attiva questa opzione.",
+    busy_feed_resumed: "Gli orari occupati sono di nuovo condivisi",
+    busy_feed_resumed_later: "La condivisione è attiva. I tuoi orari occupati appariranno dopo il prossimo aggiornamento.",
     settings_info_birthdays:
       "Aggiunge il compleanno di ogni contatto come voce di giornata intera in sola lettura, ripetuta ogni anno.",
     settings_subscriptions: "Sottoscrizioni",

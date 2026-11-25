@@ -60,6 +60,7 @@ import {
   verify_vault_roundtrip,
 } from "./ensure_ratchet_keys";
 import { with_vault_write_lock } from "./vault_write_lock";
+import { next_vault_generation } from "./vault_generation";
 import {
   merge_identity_keys_with,
   merge_recovered_identity_keys,
@@ -427,6 +428,7 @@ export async function commit_recovered_keys(
     legacy_identity_keys: identity_keys.legacy_identity_keys,
     legacy_keks: absorbed_keks.list,
     ratchet_previous_keys,
+    vault_generation: next_vault_generation(user_id, vault),
   };
 
   const { encrypted_vault, vault_nonce } = await encrypt_vault(

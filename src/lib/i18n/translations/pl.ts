@@ -584,9 +584,6 @@ export const pl = {
       "Twoja płatność się nie powiodła. Dostęp zostanie ograniczony za {{days}} dni.",
     billing_alert_action: "Zapłać",
     dismiss: "Odrzuć",
-    web_sandbox_off_title: "Treści internetowe działają bez piaskownicy systemowej",
-    web_sandbox_off_body:
-      "Na tym komputerze Aster Calendar nie może uruchomić piaskownicy bubblewrap, więc treści internetowe działają bez niej. Aby ją ponownie włączyć, zainstaluj pakiet bubblewrap, zezwól na nieuprzywilejowane przestrzenie nazw użytkowników i uruchom ponownie Aster Calendar.",
     load_content: "Załaduj",
     open_link: "Otwórz link",
     no_icon: "Brak ikony",
@@ -10643,6 +10640,8 @@ export const pl = {
       "Przełączono konto w innej aplikacji Aster. Aby używać tego konta tutaj, zaloguj się na nie.",
     session_identity_mismatch:
       "To urządzenie było zalogowane na inne konto, więc wylogowaliśmy Cię, aby konta pozostały oddzielone. Wystarczy zalogować się ponownie. Twoje dane są nienaruszone.",
+    vault_rolled_back:
+      "To urządzenie ma nowszą kopię Twoich kluczy szyfrowania niż ta wysłana przez serwer, więc Aster Calendar nie użył starszej kopii. Zaloguj się ponownie. Jeśli problem będzie się powtarzał, skontaktuj się z pomocą techniczną.",
     key_material_unavailable:
       "Twoje prywatne klucze są zablokowane na tym urządzeniu. Hasło je odblokuje. Klucze na serwerze nie zostały zmienione.",
     storage_compromised:
@@ -11543,6 +11542,9 @@ export const pl = {
     busy_feed_copied: "Skopiowano link",
     busy_feed_error: "Nie udało się zaktualizować udostępniania zajętych terminów. Spróbuj ponownie.",
     busy_feed_publish_later: "Link jest gotowy. Twoje zajęte terminy pojawią się po następnej aktualizacji.",
+    busy_feed_paused: "Wstrzymano. Aby dalej udostępniać za pomocą obecnego linku, włącz tę opcję.",
+    busy_feed_resumed: "Zajęte terminy są znów udostępniane",
+    busy_feed_resumed_later: "Udostępnianie jest włączone. Twoje zajęte terminy pojawią się po następnej aktualizacji.",
     settings_info_birthdays:
       "Dodaje urodziny każdego kontaktu jako wpis całodniowy tylko do odczytu, powtarzany co roku.",
     settings_subscriptions: "Subskrypcje",

@@ -32,6 +32,8 @@ use tokio_tungstenite::tungstenite::http::HeaderValue;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async_tls_with_config, Connector};
 
+use crate::device::crypto::require_primary_webview;
+
 const SYNC_SOCKET_EVENT: &str = "aster://sync-socket";
 const PRIMARY_WINDOW: &str = "main";
 const SOCKET_ORIGIN: &str = "https://tauri.localhost";
@@ -82,13 +84,6 @@ struct SocketEvent {
     id: u64,
     kind: &'static str,
     data: Option<String>,
-}
-
-fn require_primary_webview(window: &tauri::WebviewWindow) -> Result<(), String> {
-    if window.label() != PRIMARY_WINDOW {
-        return Err("command not available in this window".to_string());
-    }
-    Ok(())
 }
 
 fn validate_socket_url(raw: &str) -> Result<reqwest::Url, String> {

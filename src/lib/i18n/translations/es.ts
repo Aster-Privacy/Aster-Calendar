@@ -589,9 +589,6 @@ export const es = {
       "Tu pago no se completó. El acceso se limitará en {{days}} días.",
     billing_alert_action: "Pagar",
     dismiss: "Descartar",
-    web_sandbox_off_title: "El contenido web se ejecuta sin el aislamiento del sistema",
-    web_sandbox_off_body:
-      "En este equipo, Aster Calendar no puede iniciar el aislamiento de bubblewrap, así que el contenido web se ejecuta sin él. Para volver a activarlo, instala el paquete bubblewrap, permite los espacios de nombres de usuario sin privilegios y reinicia Aster Calendar.",
     load_content: "Cargar",
     open_link: "Abrir enlace",
     no_icon: "Sin icono",
@@ -10465,6 +10462,8 @@ export const es = {
       "Cambiaste de cuenta en otra app de Aster. Para usar esa cuenta aquí, inicia sesión con ella.",
     session_identity_mismatch:
       "Este dispositivo tenía la sesión iniciada en otra cuenta, así que cerramos la sesión para mantener las cuentas separadas. Basta con volver a iniciar sesión. Tus datos están intactos.",
+    vault_rolled_back:
+      "Este dispositivo tiene una copia más reciente de tus claves de cifrado que la que envió el servidor, así que Aster Calendar no usó la copia anterior. Vuelve a iniciar sesión. Si esto sigue ocurriendo, contacta con el soporte.",
     key_material_unavailable:
       "Tus claves privadas están bloqueadas en este dispositivo. Tu contraseña las desbloqueará. Tus claves en el servidor no se han tocado.",
     max_accounts:
@@ -11320,6 +11319,9 @@ export const es = {
     busy_feed_copied: "Enlace copiado",
     busy_feed_error: "No se pudo actualizar el uso compartido de horas ocupadas. Inténtalo de nuevo.",
     busy_feed_publish_later: "El enlace está listo. Tus horas ocupadas aparecerán después de la próxima actualización.",
+    busy_feed_paused: "En pausa. Para seguir compartiendo con tu enlace actual, actívalo.",
+    busy_feed_resumed: "Las horas ocupadas se vuelven a compartir",
+    busy_feed_resumed_later: "El uso compartido está activado. Tus horas ocupadas aparecerán después de la próxima actualización.",
     settings_info_birthdays:
       "Añade el cumpleaños de cada contacto como entrada de día completo de solo lectura, repetida cada año.",
     settings_subscriptions: "Suscripciones",

@@ -701,6 +701,12 @@ export function use_calendar_state() {
     stored: preferences.calendar_revision_floors,
     change_token: events,
     publish: (floors) => update_preference("calendar_revision_floors", floors),
+    stored_tombstones: preferences.calendar_revision_tombstones,
+    publish_tombstones: (tombstones) =>
+      update_preference("calendar_revision_tombstones", tombstones),
+    on_tombstones_inherited: () => {
+      void calendar_sync_engine.recheck_tombstoned_rows();
+    },
   });
 
   useEffect(() => {

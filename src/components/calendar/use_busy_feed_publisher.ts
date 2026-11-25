@@ -21,6 +21,7 @@
 import { useEffect, useRef } from "react";
 
 import { use_auth } from "@/contexts/auth/use_auth_hook";
+import { use_preferences } from "@/contexts/preferences_context";
 import { subscribe_calendar_changes } from "@/services/api/calendar";
 import { is_app_network_locked } from "@/services/app_lock_network_gate";
 import {
@@ -35,6 +36,7 @@ const VISIBLE_REFRESH_MS = 60 * 60 * 1000;
 
 export function use_busy_feed_publisher(): void {
   const { user, current_account_id } = use_auth();
+  const { preferences } = use_preferences();
   const email_ref = useRef<{ account_id: string | null; email: string | null }>(
     { account_id: current_account_id, email: user?.email ?? null },
   );
@@ -43,6 +45,19 @@ export function use_busy_feed_publisher(): void {
     account_id: current_account_id,
     email: user?.email ?? null,
   };
+
+  const opt_ins = preferences.calendar_busy_feed_calendars ?? [];
+  const opt_ins_ref = useRef<readonly string[]>(opt_ins);
+  const schedule_soon_ref = useRef<(() => void) | null>(null);
+  const opt_ins_key = JSON.stringify(opt_ins);
+
+  opt_ins_ref.current = opt_ins;
+
+  useEffect(() => {
+    if (opt_ins_key) {
+      schedule_soon_ref.current?.();
+    }
+  }, [opt_ins_key]);
 
   useEffect(() => {
     if (!current_account_id) {
@@ -55,6 +70,7 @@ export function use_busy_feed_publisher(): void {
     let queued = false;
     let last_run_ms = 0;
     let debounce_timer: number | null = null;
+    let soon_timer: number | null = null;
 
     forget_busy_fingerprints();
 
@@ -76,10 +92,14 @@ export function use_busy_feed_publisher(): void {
       running = true;
 
       try {
-        await publish_all_busy_feeds(email_ref.current.email, {
-          force,
-          should_continue: owns_session,
-        });
+        await publish_all_busy_feeds(
+          email_ref.current.email,
+          () => opt_ins_ref.current,
+          {
+            force,
+            should_continue: owns_session,
+          },
+        );
         last_run_ms = Date.now();
       } catch {
         last_run_ms = Date.now();
@@ -107,6 +127,17 @@ export function use_busy_feed_publisher(): void {
       }, CHANGE_DEBOUNCE_MS);
     };
 
+    schedule_soon_ref.current = () => {
+      if (soon_timer !== null) {
+        window.clearTimeout(soon_timer);
+      }
+
+      soon_timer = window.setTimeout(() => {
+        soon_timer = null;
+        void run(false);
+      }, FIRST_PUBLISH_DELAY_MS);
+    };
+
     const on_visible = () => {
       if (
         document.visibilityState === "visible" &&
@@ -130,7 +161,13 @@ export function use_busy_feed_publisher(): void {
 
     return () => {
       cancelled = true;
+      schedule_soon_ref.current = null;
       window.clearTimeout(first_timer);
+
+      if (soon_timer !== null) {
+        window.clearTimeout(soon_timer);
+      }
+
       window.clearInterval(interval);
 
       if (debounce_timer !== null) {

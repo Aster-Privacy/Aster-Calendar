@@ -23,12 +23,38 @@ import { useEffect, useRef, useState } from "react";
 import { LockIcon } from "@/components/common/icons";
 import { use_preferences } from "@/contexts/preferences_context";
 import { use_i18n } from "@/lib/i18n/context";
-import { discover_external_keys_batch } from "@/services/api/keys";
+import {
+  discover_external_keys_batch,
+  type ExternalKeyInfo,
+} from "@/services/api/keys";
+import {
+  lookup_owner_key_pin,
+  owner_key_fingerprint,
+} from "@/services/crypto/ratchet_identity_pin";
 import { pin_guest_key, unpin_guest_key } from "@/services/guest_key_pins";
 import { is_internal_recipient } from "@/services/recipient_classification";
 
 export type GuestEncryptionStatus =
-  "encrypted" | "transit" | "checking" | "unknown";
+  "encrypted" | "transit" | "checking" | "unknown" | "key_invalid";
+
+export async function guest_key_status(
+  info: ExternalKeyInfo,
+): Promise<GuestEncryptionStatus> {
+  if (!info.will_encrypt || !info.found || !info.public_key) return "transit";
+
+  const saved = await lookup_owner_key_pin(info.email.trim().toLowerCase());
+
+  if (saved === "unreadable") return "unknown";
+  if (saved === null) return "encrypted";
+
+  try {
+    return (await owner_key_fingerprint(info.public_key)) === saved
+      ? "encrypted"
+      : "key_invalid";
+  } catch {
+    return "key_invalid";
+  }
+}
 
 export function use_guest_encryption(
   emails: string[],
@@ -80,20 +106,24 @@ export function use_guest_encryption(
     let active = true;
 
     discover_external_keys_batch(external)
-      .then((result) => {
+      .then(async (result) => {
         if (!active) return;
 
-        const found = new Map<string, boolean>();
+        const found = new Map<string, GuestEncryptionStatus>();
+        const checked = await Promise.all(
+          (result.data ?? []).map(
+            async (info) => [info, await guest_key_status(info)] as const,
+          ),
+        );
 
-        for (const info of result.data ?? []) {
+        if (!active) return;
+
+        for (const [info, status] of checked) {
           const address = info.email.toLowerCase();
-          const client_can_encrypt = Boolean(
-            info.will_encrypt && info.found && info.public_key,
-          );
 
-          found.set(address, client_can_encrypt);
+          found.set(address, status);
 
-          if (client_can_encrypt && info.public_key) {
+          if (status === "encrypted" && info.public_key) {
             pin_guest_key(address, info.public_key);
           } else {
             unpin_guest_key(address);
@@ -104,17 +134,15 @@ export function use_guest_encryption(
           const next = new Map(previous);
 
           for (const email of external) {
-            const will_encrypt = found.get(email);
+            const status = found.get(email);
 
             next.set(
               email,
-              will_encrypt === undefined
+              status === undefined
                 ? result.error
                   ? "unknown"
                   : "transit"
-                : will_encrypt
-                  ? "encrypted"
-                  : "transit",
+                : status,
             );
           }
 
@@ -168,13 +196,15 @@ export function GuestEncryptionLock({
   const label =
     status === "encrypted"
       ? t("common.end_to_end_encrypted_label")
-      : status === "unknown"
-        ? t("common.encryption_status_unknown")
-        : t("common.protected_in_transit");
+      : status === "key_invalid"
+        ? t("common.recipient_key_outdated")
+        : status === "unknown"
+          ? t("common.encryption_status_unknown")
+          : t("common.protected_in_transit");
   const color =
     status === "encrypted"
       ? "var(--accent-color)"
-      : status === "unknown"
+      : status === "unknown" || status === "key_invalid"
         ? "var(--color-warning)"
         : "var(--text-muted)";
 

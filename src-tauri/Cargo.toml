@@ -27,6 +27,7 @@ tokio-tungstenite = { version = "0.30", default-features = false, features = ["c
 futures-util = "0.3"
 dirs = "7"
 libsqlite3-sys = { version = "0.40", features = ["bundled"] }
+hyper-util = { version = "0.1.20", default-features = false, features = ["client-proxy", "client-proxy-system"] }
 reqwest = { version = "0.12", default-features = false, features = ["socks", "rustls-tls", "charset", "http2", "cookies", "macos-system-configuration"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 rustls-pki-types = "1"

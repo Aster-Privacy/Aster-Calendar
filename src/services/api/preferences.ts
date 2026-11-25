@@ -303,7 +303,12 @@ export interface UserPreferences {
     hidden?: boolean;
   }[];
   calendar_tag_colors: Record<string, string>;
+  calendar_busy_feed_calendars: string[];
   calendar_revision_floors: {
+    event: Record<string, number>;
+    calendar: Record<string, number>;
+  };
+  calendar_revision_tombstones: {
     event: Record<string, number>;
     calendar: Record<string, number>;
   };
@@ -1127,7 +1132,9 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   calendar_tour_completed: false,
   calendar_ics_subscriptions: [],
   calendar_tag_colors: {},
+  calendar_busy_feed_calendars: [],
   calendar_revision_floors: { event: {}, calendar: {} },
+  calendar_revision_tombstones: { event: {}, calendar: {} },
   encrypt_emails: false,
   warn_external_recipients: true,
   auto_discover_keys: false,
@@ -1368,6 +1375,28 @@ function normalize_swipe_action(raw: unknown, fallback: string): string {
 }
 
 const NULLABLE_PREFERENCE_KEYS = new Set<string>(["default_signature_id"]);
+const MAX_BUSY_FEED_CALENDARS = 500;
+const MAX_CALENDAR_ID_LENGTH = 128;
+
+export function sanitize_busy_feed_calendars(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  const ids = new Set<string>();
+
+  for (const id of value) {
+    if (
+      typeof id === "string" &&
+      id.length > 0 &&
+      id.length <= MAX_CALENDAR_ID_LENGTH
+    ) {
+      ids.add(id);
+    }
+
+    if (ids.size >= MAX_BUSY_FEED_CALENDARS) break;
+  }
+
+  return Array.from(ids);
+}
 
 export function build_merged_preferences(
   server: Record<string, unknown>,
@@ -1445,6 +1474,9 @@ export function build_merged_preferences(
   );
 
   merged.calendar_tag_colors = sanitize_tag_colors(merged.calendar_tag_colors);
+  merged.calendar_busy_feed_calendars = sanitize_busy_feed_calendars(
+    merged.calendar_busy_feed_calendars,
+  );
 
   merged.custom_categories = sanitize_custom_categories(
     merged.custom_categories,

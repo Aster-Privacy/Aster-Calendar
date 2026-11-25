@@ -642,9 +642,6 @@ export const ko = {
       "결제가 완료되지 않았습니다. {{days}}일 후에 액세스가 제한됩니다.",
     billing_alert_action: "결제하기",
     dismiss: "닫기",
-    web_sandbox_off_title: "웹 콘텐츠가 시스템 샌드박스 없이 실행되고 있습니다",
-    web_sandbox_off_body:
-      "이 컴퓨터에서는 Aster Calendar이(가) bubblewrap 샌드박스를 시작할 수 없어 웹 콘텐츠가 샌드박스 없이 실행됩니다. 다시 켜려면 bubblewrap 패키지를 설치하고 권한 없는 사용자 네임스페이스를 허용한 다음 Aster Calendar을(를) 다시 시작하세요.",
     load_content: "로드",
     open_link: "링크 열기",
     no_icon: "아이콘 없음",
@@ -10001,6 +9998,8 @@ export const ko = {
       "다른 Aster 앱에서 계정을 전환했습니다. 여기에서 해당 계정을 사용하려면 로그인하세요.",
     session_identity_mismatch:
       "이 기기가 다른 계정으로 로그인되어 있어 계정을 분리하기 위해 로그아웃했습니다. 다시 로그인하기만 하면 됩니다. 데이터는 그대로입니다.",
+    vault_rolled_back:
+      "이 기기에는 서버가 보낸 것보다 최신 암호화 키 사본이 있으므로 Aster Calendar이(가) 이전 사본을 사용하지 않았습니다. 다시 로그인하세요. 이 문제가 계속되면 지원팀에 문의하세요.",
     key_material_unavailable:
       "키 자료를 사용할 수 없습니다. 로그아웃 후 다시 로그인하면 됩니다.",
     storage_compromised:
@@ -10848,6 +10847,9 @@ export const ko = {
     busy_feed_copied: "링크가 복사됨",
     busy_feed_error: "바쁜 시간 공유를 업데이트하지 못했습니다. 다시 시도하세요.",
     busy_feed_publish_later: "링크가 준비되었습니다. 다음 업데이트 후에 바쁜 시간이 표시됩니다.",
+    busy_feed_paused: "일시 중지됨. 현재 링크로 계속 공유하려면 이 옵션을 켜세요.",
+    busy_feed_resumed: "바쁜 시간을 다시 공유합니다",
+    busy_feed_resumed_later: "공유가 켜져 있습니다. 다음 업데이트 후에 바쁜 시간이 표시됩니다.",
     settings_info_birthdays:
       "각 연락처의 생일을 읽기 전용 종일 항목으로 매년 캘린더에 추가합니다.",
     settings_subscriptions: "구독",

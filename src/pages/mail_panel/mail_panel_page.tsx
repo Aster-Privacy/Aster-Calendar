@@ -55,6 +55,7 @@ import {
   start_of_day,
   week_start_day_index,
 } from "@/components/calendar/calendar_utils";
+import { RsvpReplyConfirmDialog } from "@/components/calendar/rsvp_reply_confirm_dialog";
 import { EncryptionInfoDropdown } from "@/components/common/encryption_info_dropdown";
 import { ActionToast } from "@/components/toast/action_toast";
 import { SimpleToast, show_toast } from "@/components/toast/simple_toast";
@@ -66,10 +67,16 @@ import {
   get_app_lock_config,
   is_session_unlocked,
 } from "@/services/app_lock_store";
-import { send_reply } from "@/services/calendar/invite_mail";
+import { sanitize_calendar_email } from "@/services/calendar/sanitize";
 import { reply_identity } from "@/services/calendar/invite_sender";
 import { set_own_response } from "@/services/calendar/invite_store";
-import { event_organizer_email, same_address } from "@/services/calendar/itip";
+import { event_organizer_email } from "@/services/calendar/itip";
+import {
+  build_rsvp_reply_request,
+  deliver_rsvp_reply,
+  type RsvpReplyOutcome,
+  type RsvpReplyRequest,
+} from "@/services/calendar/rsvp_reply";
 import { is_own_address } from "@/services/calendar/own_addresses";
 import {
   calendar_now,
@@ -389,6 +396,25 @@ export function PanelBody({
     reload,
   });
 
+  const [pending_rsvp_reply, set_pending_rsvp_reply] =
+    useState<RsvpReplyRequest | null>(null);
+
+  const show_rsvp_outcome = useCallback(
+    (outcome: RsvpReplyOutcome) => {
+      const sent = outcome === "sent";
+
+      show_toast(
+        t(
+          sent
+            ? "calendar.invite_card_reply_sent"
+            : "calendar.invite_card_reply_send_failed",
+        ),
+        sent ? "success" : "error",
+      );
+    },
+    [t],
+  );
+
   const handle_respond = useCallback(
     async (
       event: DecryptedCalendarEvent,
@@ -428,38 +454,68 @@ export function PanelBody({
           return;
         }
 
-        const organizer_party = updated.attendees.find((attendee) =>
-          same_address(attendee.email, organizer),
-        );
-        const sent = await send_reply({
+        if (!identity.resolved) {
+          show_toast(t("calendar.invite_reply_needs_address"), "error");
+
+          return;
+        }
+
+        const request = build_rsvp_reply_request({
           event: updated,
-          organizer: {
-            email: organizer,
-            display_name: organizer_party?.display_name ?? null,
-          },
-          attendee: {
-            email: identity.reply_email,
-            display_name: identity.display_name,
-          },
-          sender: identity.sender,
+          organizer_email: sanitize_calendar_email(organizer),
+          identity,
           response,
           t,
           language,
         });
+        const outcome = await deliver_rsvp_reply(request);
 
-        show_toast(
-          t(
-            sent
-              ? "calendar.invite_card_reply_sent"
-              : "calendar.invite_card_reply_send_failed",
-          ),
-          sent ? "success" : "error",
-        );
+        if (outcome === "needs_confirmation") {
+          set_pending_rsvp_reply(request);
+
+          return;
+        }
+
+        show_rsvp_outcome(outcome);
       } catch {
         show_toast(t("calendar.invite_save_failed"), "error");
       }
     },
-    [self_email, user?.display_name, reload, t, language],
+    [self_email, user?.display_name, reload, show_rsvp_outcome, t, language],
+  );
+
+  const confirm_rsvp_reply = useCallback(async () => {
+    const request = pending_rsvp_reply;
+
+    set_pending_rsvp_reply(null);
+
+    if (!request) return;
+
+    try {
+      const outcome = await deliver_rsvp_reply({
+        ...request,
+        confirmed_organizer: true,
+      });
+
+      show_rsvp_outcome(outcome === "sent" ? "sent" : "failed");
+    } catch {
+      show_rsvp_outcome("failed");
+    }
+  }, [pending_rsvp_reply, show_rsvp_outcome]);
+
+  const cancel_rsvp_reply = useCallback(() => {
+    set_pending_rsvp_reply(null);
+    show_toast(t("calendar.event_updated"), "success");
+  }, [t]);
+
+  const rsvp_dialog = (
+    <RsvpReplyConfirmDialog
+      on_cancel={cancel_rsvp_reply}
+      on_confirm={() => {
+        void confirm_rsvp_reply();
+      }}
+      organizer_email={pending_rsvp_reply?.organizer_email ?? null}
+    />
   );
 
   if (live_open_event) {
@@ -479,6 +535,7 @@ export function PanelBody({
           time_format={time_format}
         />
         {delete_dialogs}
+        {rsvp_dialog}
       </>
     );
   }
@@ -522,6 +579,7 @@ export function PanelBody({
         </>
       )}
       {delete_dialogs}
+      {rsvp_dialog}
     </div>
   );
 }

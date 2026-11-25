@@ -32,6 +32,12 @@ import {
 } from "./memory_key_store";
 import { collect_vault_key_fingerprints } from "./vault_key_fingerprints";
 import {
+  apply_generation_markers,
+  is_rolled_back_vault,
+  next_vault_generation,
+  VAULT_ROLLED_BACK,
+} from "./vault_generation";
+import {
   note_vault_written,
   vault_write_iterations,
   write_vault_at_level,
@@ -392,6 +398,10 @@ async function write_once(
     if (!server) return { status: "failed", error: "vault_unreadable" };
   }
 
+  if (server && is_rolled_back_vault(user_id, server)) {
+    return { status: "failed", error: VAULT_ROLLED_BACK };
+  }
+
   if (
     server &&
     request.owns_storage_key &&
@@ -408,7 +418,19 @@ async function write_once(
         request.next,
         request.owns_storage_key === true,
       )
-    : request.next;
+    : { ...request.next };
+
+  merged.vault_generation = next_vault_generation(
+    user_id,
+    ...(server ? [server] : []),
+    request.next,
+  );
+  apply_generation_markers(
+    user_id,
+    merged,
+    ...(server ? [server] : []),
+    request.next,
+  );
   const vault_key_fingerprints = await collect_vault_key_fingerprints(merged);
   const vault_format = Math.max(
     merged.vault_format ?? 1,

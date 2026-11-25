@@ -118,6 +118,7 @@ dependencies = [
  "futures-util",
  "hkdf",
  "hmac",
+ "hyper-util",
  "keyring",
  "libsqlite3-sys",
  "ml-kem",

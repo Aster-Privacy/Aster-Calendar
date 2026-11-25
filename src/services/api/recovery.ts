@@ -126,6 +126,7 @@ export async function complete_recovery(
   new_recovery_email?: RecoveryEmailReencryption,
   new_password_hash_v2?: string,
   vault_kdf_iterations?: number,
+  vault_generation?: number,
 ): Promise<ApiResponse<CompleteRecoveryResponse>> {
   return api_client.post<CompleteRecoveryResponse>(
     "/core/v1/recovery/complete",
@@ -149,6 +150,7 @@ export async function complete_recovery(
       new_recovery_email,
       new_password_hash_v2,
       vault_kdf_iterations,
+      vault_generation,
     },
   );
 }

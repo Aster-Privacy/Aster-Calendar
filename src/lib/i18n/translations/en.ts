@@ -567,9 +567,6 @@ export const en: Translations = {
       "Your payment did not go through. Access limited in {{days}} days.",
     billing_alert_action: "Pay",
     dismiss: "Dismiss",
-    web_sandbox_off_title: "Web content runs without the system sandbox",
-    web_sandbox_off_body:
-      "On this computer, Aster Calendar can't start the bubblewrap sandbox, so web content runs without it. To turn it back on, install the bubblewrap package and allow unprivileged user namespaces, then restart Aster Calendar.",
     load_content: "Load",
     open_link: "Open link",
     no_icon: "No icon",
@@ -10126,6 +10123,8 @@ export const en: Translations = {
       "You switched accounts in another Aster app. To use that account here, sign in to it.",
     session_identity_mismatch:
       "This device was signed in to a different account, so we signed you out to keep the accounts separate. Signing in again is all that is needed. Your data is untouched.",
+    vault_rolled_back:
+      "This device has a newer copy of your encryption keys than the one the server sent, so Aster Calendar didn't use the older copy. Sign in again. If this keeps happening, contact support.",
     key_material_unavailable:
       "Your private keys are locked on this device. Your password will unlock them. Your keys on the server are untouched.",
     storage_compromised:
@@ -11031,6 +11030,9 @@ export const en: Translations = {
     busy_feed_copied: "Link copied",
     busy_feed_error: "Couldn't update busy-time sharing. Try again.",
     busy_feed_publish_later: "The link is ready. Your busy times appear after the next update.",
+    busy_feed_paused: "Paused. To keep sharing with your current link, turn this on.",
+    busy_feed_resumed: "Busy times are shared again",
+    busy_feed_resumed_later: "Sharing is on. Your busy times appear after the next update.",
     settings_info_birthdays:
       "Adds each contact's birthday to your calendar as a read-only all-day entry, repeated yearly.",
     settings_subscriptions: "Subscriptions",

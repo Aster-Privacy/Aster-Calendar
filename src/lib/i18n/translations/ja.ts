@@ -637,9 +637,6 @@ export const ja = {
       "お支払いが完了しませんでした。{{days}}日後にアクセスが制限されます。",
     billing_alert_action: "支払う",
     dismiss: "閉じる",
-    web_sandbox_off_title: "Web コンテンツはシステムのサンドボックスなしで実行されています",
-    web_sandbox_off_body:
-      "このコンピュータでは Aster Calendar が bubblewrap サンドボックスを起動できないため、Web コンテンツはサンドボックスなしで実行されています。再度有効にするには、bubblewrap パッケージをインストールし、非特権ユーザー名前空間を許可してから Aster Calendar を再起動してください。",
     load_content: "読み込む",
     open_link: "リンクを開く",
     no_icon: "アイコンなし",
@@ -10209,6 +10206,8 @@ export const ja = {
       "別の Aster アプリでアカウントを切り替えました。ここでそのアカウントを使うには、サインインしてください。",
     session_identity_mismatch:
       "このデバイスは別のアカウントでサインインしていたため、アカウントを分離するためにサインアウトしました。もう一度サインインするだけで大丈夫です。データはそのままです。",
+    vault_rolled_back:
+      "このデバイスには、サーバーから送られたものより新しい暗号化キーのコピーがあるため、Aster Calendar は古いコピーを使用しませんでした。もう一度サインインしてください。この問題が続く場合は、サポートにお問い合わせください。",
     key_material_unavailable:
       "このデバイスで秘密鍵がロックされています。パスワードで解除できます。サーバー上の鍵には影響ありません。",
     storage_compromised:
@@ -11064,6 +11063,9 @@ export const ja = {
     busy_feed_copied: "リンクをコピーしました",
     busy_feed_error: "予定ありの時間の共有を更新できませんでした。もう一度お試しください。",
     busy_feed_publish_later: "リンクの準備ができました。次回の更新後に予定ありの時間が表示されます。",
+    busy_feed_paused: "一時停止中です。現在のリンクで共有を続けるには、オンにしてください。",
+    busy_feed_resumed: "予定ありの時間の共有を再開しました",
+    busy_feed_resumed_later: "共有はオンです。次回の更新後に予定ありの時間が表示されます。",
     settings_info_birthdays:
       "各連絡先の誕生日を読み取り専用の終日予定として毎年カレンダーに追加します。",
     settings_subscriptions: "登録カレンダー",
