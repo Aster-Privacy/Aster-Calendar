@@ -4341,6 +4341,8 @@ export const tr = {
     billing_pay_yearly: "Yıllık öde",
     billing_pay_monthly: "Aylık öde",
     billing_billed_yearly_total: "Yıllık {{amount}} olarak faturalandırılır",
+    plan_most_popular: "En popüler",
+    plan_billed_monthly: "Aylık faturalandırılır",
     billing_billed_monthly: "Her ay faturalandırılır",
     billing_save_percent: "%{{percent}} tasarruf edin",
     billing_select_plan_hint: "Devam etmek için bir plan seçin",

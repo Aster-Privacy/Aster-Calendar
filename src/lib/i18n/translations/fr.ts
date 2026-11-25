@@ -4455,6 +4455,8 @@ export const fr = {
     billing_pay_yearly: "Payer annuellement",
     billing_pay_monthly: "Payer mensuellement",
     billing_billed_yearly_total: "Facturé {{amount}} par an",
+    plan_most_popular: "Le plus populaire",
+    plan_billed_monthly: "Facturé chaque mois",
     billing_billed_monthly: "Facturé chaque mois",
     billing_save_percent: "Économisez {{percent}} %",
     billing_select_plan_hint: "Sélectionnez un forfait pour continuer",

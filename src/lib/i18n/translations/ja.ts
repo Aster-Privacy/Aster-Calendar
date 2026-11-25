@@ -4344,6 +4344,8 @@ export const ja = {
     billing_pay_yearly: "年払い",
     billing_pay_monthly: "月払い",
     billing_billed_yearly_total: "年額 {{amount}} で請求",
+    plan_most_popular: "一番人気",
+    plan_billed_monthly: "月払い",
     billing_billed_monthly: "毎月請求",
     billing_save_percent: "{{percent}}% お得",
     billing_select_plan_hint: "続けるにはプランを選択してください",

@@ -3492,6 +3492,8 @@ export const hi = {
     billing_pay_yearly: "सालाना भुगतान करें",
     billing_pay_monthly: "मासिक भुगतान करें",
     billing_billed_yearly_total: "सालाना {{amount}} बिल किया जाता है",
+    plan_most_popular: "सबसे लोकप्रिय",
+    plan_billed_monthly: "मासिक बिलिंग",
     billing_billed_monthly: "हर महीने बिल किया जाता है",
     billing_save_percent: "{{percent}}% बचाएँ",
     billing_select_plan_hint: "जारी रखने के लिए एक प्लान चुनें",

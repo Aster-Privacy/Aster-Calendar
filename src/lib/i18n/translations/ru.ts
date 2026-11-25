@@ -4533,6 +4533,8 @@ export const ru = {
     billing_pay_yearly: "Платить раз в год",
     billing_pay_monthly: "Платить ежемесячно",
     billing_billed_yearly_total: "{{amount}} в год",
+    plan_most_popular: "Самый популярный",
+    plan_billed_monthly: "Оплата ежемесячно",
     billing_billed_monthly: "Списание каждый месяц",
     billing_save_percent: "Экономия {{percent}}%",
     billing_select_plan_hint: "Выберите тариф, чтобы продолжить",

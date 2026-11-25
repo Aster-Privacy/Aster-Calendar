@@ -4352,6 +4352,8 @@ export const de = {
     billing_pay_yearly: "Jährlich zahlen",
     billing_pay_monthly: "Monatlich zahlen",
     billing_billed_yearly_total: "{{amount}} pro Jahr abgerechnet",
+    plan_most_popular: "Am beliebtesten",
+    plan_billed_monthly: "Monatliche Abrechnung",
     billing_billed_monthly: "Monatliche Abrechnung",
     billing_save_percent: "{{percent}} % sparen",
     billing_select_plan_hint: "Wähle einen Tarif, um fortzufahren",

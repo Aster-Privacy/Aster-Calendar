@@ -4571,6 +4571,8 @@ export const pl = {
     billing_pay_yearly: "Płać rocznie",
     billing_pay_monthly: "Płać miesięcznie",
     billing_billed_yearly_total: "Rozliczane {{amount}} rocznie",
+    plan_most_popular: "Najpopularniejszy",
+    plan_billed_monthly: "Płatność co miesiąc",
     billing_billed_monthly: "Rozliczane co miesiąc",
     billing_save_percent: "Oszczędź {{percent}}%",
     billing_select_plan_hint: "Wybierz plan, aby kontynuować",

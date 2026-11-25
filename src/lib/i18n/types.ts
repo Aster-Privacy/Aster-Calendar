@@ -4635,6 +4635,8 @@ export interface SettingsTranslations {
   billing_pay_yearly: string;
   billing_pay_monthly: string;
   billing_billed_yearly_total: string;
+  plan_most_popular: string;
+  plan_billed_monthly: string;
   billing_billed_monthly: string;
   billing_save_percent: string;
   billing_select_plan_hint: string;

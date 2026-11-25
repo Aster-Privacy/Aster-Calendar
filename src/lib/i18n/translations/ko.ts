@@ -4400,6 +4400,8 @@ export const ko = {
     billing_pay_yearly: "연간 결제",
     billing_pay_monthly: "월간 결제",
     billing_billed_yearly_total: "연 {{amount}} 청구",
+    plan_most_popular: "가장 인기",
+    plan_billed_monthly: "매월 청구",
     billing_billed_monthly: "매월 청구",
     billing_save_percent: "{{percent}}% 절약",
     billing_select_plan_hint: "계속하려면 플랜을 선택하세요",

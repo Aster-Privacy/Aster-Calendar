@@ -8611,6 +8611,8 @@ export const pt_br = {
     billing_pay_yearly: "Pagar anualmente",
     billing_pay_monthly: "Pagar mensalmente",
     billing_billed_yearly_total: "Cobrado {{amount}} por ano",
+    plan_most_popular: "Mais popular",
+    plan_billed_monthly: "Cobrança mensal",
     billing_billed_monthly: "Cobrado todo mês",
     billing_save_percent: "Economize {{percent}}%",
     billing_select_plan_hint: "Selecione um plano para continuar",

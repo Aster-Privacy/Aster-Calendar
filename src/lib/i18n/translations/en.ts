@@ -3388,6 +3388,8 @@ export const en: Translations = {
     billing_pay_yearly: "Pay yearly",
     billing_pay_monthly: "Pay monthly",
     billing_billed_yearly_total: "Billed {{amount}} a year",
+    plan_most_popular: "Most popular",
+    plan_billed_monthly: "Billed monthly",
     billing_billed_monthly: "Billed every month",
     billing_save_percent: "Save {{percent}}%",
     billing_select_plan_hint: "Select a plan to continue",

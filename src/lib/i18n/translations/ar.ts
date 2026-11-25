@@ -4515,6 +4515,8 @@ export const ar = {
     billing_pay_yearly: "الدفع سنويًا",
     billing_pay_monthly: "الدفع شهريًا",
     billing_billed_yearly_total: "تُفوتر {{amount}} سنويًا",
+    plan_most_popular: "الأكثر شيوعًا",
+    plan_billed_monthly: "فوترة شهرية",
     billing_billed_monthly: "تُفوتر كل شهر",
     billing_save_percent: "وفّر {{percent}}٪",
     billing_select_plan_hint: "اختر خطة للمتابعة",

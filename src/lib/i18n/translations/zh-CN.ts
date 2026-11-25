@@ -3994,6 +3994,8 @@ export const zh_CN = {
     billing_pay_yearly: "按年付费",
     billing_pay_monthly: "按月付费",
     billing_billed_yearly_total: "每年收费 {{amount}}",
+    plan_most_popular: "最受欢迎",
+    plan_billed_monthly: "按月计费",
     billing_billed_monthly: "每月收费",
     billing_save_percent: "节省 {{percent}}%",
     billing_select_plan_hint: "选择套餐以继续",

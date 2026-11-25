@@ -24,6 +24,7 @@ import type { AvailablePlan } from "@/services/api/billing";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import {
+  Badge,
   Button,
   Input,
   Select,
@@ -851,10 +852,7 @@ export const RegisterStepPlanSelection = ({
                         : t("settings.per_year_short")}
                     </span>
                     {billing_period === "yearly" && (
-                      <span
-                        className="ms-1 px-2 py-[3px] rounded-full text-[10px] font-bold uppercase tracking-wider text-[var(--accent-fg,#ffffff)]"
-                        style={{ backgroundColor: "var(--accent-blue)" }}
-                      >
+                      <Badge className="ms-1" color="green">
                         {t("settings.save_yearly", {
                           amount: format_price(
                             convert_cents(
@@ -864,7 +862,7 @@ export const RegisterStepPlanSelection = ({
                             currency,
                           ),
                         })}
-                      </span>
+                      </Badge>
                     )}
                   </div>
                   <p className="text-[13px] leading-relaxed text-txt-tertiary">
@@ -969,17 +967,14 @@ export const RegisterStepPlanSelection = ({
                         : t("settings.per_year_short")}
                     </span>
                     {saves > 0 && (
-                      <span
-                        className="ms-1 px-2 py-[3px] rounded-full text-[10px] font-bold uppercase tracking-wider text-[var(--accent-fg,#ffffff)]"
-                        style={{ backgroundColor: "var(--accent-blue)" }}
-                      >
+                      <Badge className="ms-1" color="green">
                         {t("settings.save_yearly", {
                           amount: format_price(
                             convert_cents(saves, currency),
                             currency,
                           ),
                         })}
-                      </span>
+                      </Badge>
                     )}
                   </div>
                   <p className="text-[13px] leading-relaxed text-txt-tertiary">

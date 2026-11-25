@@ -4333,6 +4333,8 @@ export const nl = {
     billing_pay_yearly: "Jaarlijks betalen",
     billing_pay_monthly: "Maandelijks betalen",
     billing_billed_yearly_total: "{{amount}} per jaar gefactureerd",
+    plan_most_popular: "Meest gekozen",
+    plan_billed_monthly: "Maandelijks gefactureerd",
     billing_billed_monthly: "Elke maand gefactureerd",
     billing_save_percent: "Bespaar {{percent}}%",
     billing_select_plan_hint: "Kies een abonnement om door te gaan",
