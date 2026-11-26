@@ -18,10 +18,12 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
+use std::collections::HashSet;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use hyper_util::client::proxy::matcher::Matcher;
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use reqwest::Url;
 
@@ -154,27 +156,101 @@ async fn resolve_feed_host(host: &str) -> Result<Vec<SocketAddr>, String> {
     checked_addresses(&system_lookup(), host).await
 }
 
+fn normalized_host(host: &str) -> String {
+    host.trim_start_matches('[')
+        .trim_end_matches(']')
+        .trim_end_matches('.')
+        .to_ascii_lowercase()
+}
+
+enum ClientProxy {
+    System,
+    #[cfg(test)]
+    Direct,
+    #[cfg(test)]
+    Fixed(reqwest::Proxy),
+}
+
+struct FeedRoute {
+    matcher: Matcher,
+    client_proxy: ClientProxy,
+    proxy_hosts: Mutex<HashSet<String>>,
+}
+
+impl FeedRoute {
+    fn system() -> Self {
+        Self::new(Matcher::from_system(), ClientProxy::System)
+    }
+
+    fn new(matcher: Matcher, client_proxy: ClientProxy) -> Self {
+        Self {
+            matcher,
+            client_proxy,
+            proxy_hosts: Mutex::new(HashSet::new()),
+        }
+    }
+
+    fn proxy_host_for(&self, url: &Url) -> Option<String> {
+        let intercept = self.matcher.intercept(&url.as_str().parse().ok()?)?;
+        intercept.uri().host().map(normalized_host)
+    }
+
+    fn is_proxy_host(&self, host: &str) -> bool {
+        self.proxy_hosts
+            .lock()
+            .map(|hosts| hosts.contains(&normalized_host(host)))
+            .unwrap_or(false)
+    }
+
+    fn admit_hop(&self, raw: &str) -> Result<Url, String> {
+        let url = check_feed_url(raw)?;
+        let host = url.host_str().map(normalized_host).unwrap_or_default();
+        let proxy_host = self.proxy_host_for(&url);
+        let mut hosts = self
+            .proxy_hosts
+            .lock()
+            .map_err(|_| LOAD_FAILED.to_string())?;
+        if hosts.contains(&host) || proxy_host.as_deref() == Some(host.as_str()) {
+            return Err("feed host is not allowed".to_string());
+        }
+        if let Some(proxy_host) = proxy_host {
+            hosts.insert(proxy_host);
+        }
+        Ok(url)
+    }
+}
+
 struct FeedResolver {
     lookup: HostLookup,
+    route: Arc<FeedRoute>,
 }
 
 impl Resolve for FeedResolver {
     fn resolve(&self, name: Name) -> Resolving {
         let host = name.as_str().to_string();
         let lookup = self.lookup.clone();
+        let is_proxy = self.route.is_proxy_host(&host);
         Box::pin(async move {
-            let addrs = checked_addresses(&lookup, &host).await?;
+            let addrs = if is_proxy {
+                let found = lookup(host).await?;
+                if found.is_empty() {
+                    return Err(LOAD_FAILED.into());
+                }
+                found
+            } else {
+                checked_addresses(&lookup, &host).await?
+            };
             Ok(Box::new(addrs.into_iter()) as Addrs)
         })
     }
 }
 
-fn redirect_policy() -> reqwest::redirect::Policy {
-    reqwest::redirect::Policy::custom(|attempt| {
+fn redirect_policy(route: Arc<FeedRoute>) -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(move |attempt| {
         if attempt.previous().len() >= FEED_MAX_REDIRECTS {
             return attempt.error("too many redirects");
         }
-        match check_feed_url(attempt.url().as_str()) {
+        match route.admit_hop(attempt.url().as_str()) {
             Ok(_) => attempt.follow(),
             Err(reason) => attempt.error(reason),
         }
@@ -198,26 +274,34 @@ async fn read_capped(mut response: reqwest::Response) -> Result<Vec<u8>, String>
     Ok(body)
 }
 
-fn build_feed_client(lookup: HostLookup) -> Result<reqwest::Client, String> {
-    reqwest::Client::builder()
-        .redirect(redirect_policy())
-        .dns_resolver(Arc::new(FeedResolver { lookup }))
-        .no_proxy()
+fn build_feed_client(lookup: HostLookup, route: Arc<FeedRoute>) -> Result<reqwest::Client, String> {
+    let builder = reqwest::Client::builder()
+        .redirect(redirect_policy(route.clone()))
         .https_only(true)
         .connect_timeout(FEED_CONNECT_TIMEOUT)
         .timeout(FEED_TIMEOUT)
-        .user_agent(FEED_USER_AGENT)
+        .user_agent(FEED_USER_AGENT);
+    let builder = match &route.client_proxy {
+        ClientProxy::System => builder,
+        #[cfg(test)]
+        ClientProxy::Direct => builder.no_proxy(),
+        #[cfg(test)]
+        ClientProxy::Fixed(proxy) => builder.proxy(proxy.clone()),
+    };
+    builder
+        .dns_resolver(Arc::new(FeedResolver { lookup, route }))
         .build()
         .map_err(|_| LOAD_FAILED.to_string())
 }
 
 pub async fn fetch_feed(raw: &str) -> Result<String, String> {
-    fetch_feed_with(raw, system_lookup()).await
+    fetch_feed_with(raw, system_lookup(), FeedRoute::system()).await
 }
 
-async fn fetch_feed_with(raw: &str, lookup: HostLookup) -> Result<String, String> {
-    let url = check_feed_url(raw)?;
-    let client = build_feed_client(lookup)?;
+async fn fetch_feed_with(raw: &str, lookup: HostLookup, route: FeedRoute) -> Result<String, String> {
+    let route = Arc::new(route);
+    let url = route.admit_hop(raw)?;
+    let client = build_feed_client(lookup, route)?;
     let response = client
         .get(url)
         .header("accept", "text/calendar, text/plain, */*")
@@ -413,12 +497,133 @@ mod tests {
         });
         let url = format!("https://feed.example.test:{port}/cal.ics");
         let (result, accepted) = tokio::join!(
-            fetch_feed_with(&url, lookup),
+            fetch_feed_with(&url, lookup, direct_route()),
             tokio::time::timeout(Duration::from_secs(2), listener.accept())
         );
         assert!(result.is_err());
         assert!(calls.load(std::sync::atomic::Ordering::SeqCst) >= 1, "the stub resolver was never consulted");
         assert!(accepted.is_err(), "the feed client connected to a local address");
+    }
+
+    fn direct_route() -> FeedRoute {
+        FeedRoute::new(Matcher::builder().build(), ClientProxy::Direct)
+    }
+
+    fn proxied_route(proxy: &str, bypass: &str) -> FeedRoute {
+        let matcher = Matcher::builder()
+            .all(proxy.to_string())
+            .no(bypass.to_string())
+            .build();
+        let client_proxy = reqwest::Proxy::all(proxy)
+            .unwrap()
+            .no_proxy(reqwest::NoProxy::from_string(bypass));
+        FeedRoute::new(matcher, ClientProxy::Fixed(client_proxy))
+    }
+
+    fn recording_lookup(addr: SocketAddr) -> (HostLookup, Arc<Mutex<Vec<String>>>) {
+        let names = Arc::new(Mutex::new(Vec::new()));
+        let seen = names.clone();
+        let lookup: HostLookup = Arc::new(move |host: String| -> LookupFuture {
+            seen.lock().unwrap().push(host);
+            Box::pin(async move { Ok(vec![addr]) })
+        });
+        (lookup, names)
+    }
+
+    async fn first_request(listener: &tokio::net::TcpListener) -> Option<String> {
+        use tokio::io::AsyncReadExt;
+        let (mut socket, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+            .await
+            .ok()?
+            .ok()?;
+        let mut received = Vec::new();
+        let mut buf = [0u8; 1024];
+        while !received.windows(4).any(|w| w == b"\r\n\r\n") {
+            let read = tokio::time::timeout(Duration::from_secs(2), socket.read(&mut buf))
+                .await
+                .ok()?
+                .ok()?;
+            if read == 0 {
+                break;
+            }
+            received.extend_from_slice(&buf[..read]);
+        }
+        Some(String::from_utf8_lossy(&received).into_owned())
+    }
+
+    #[tokio::test]
+    async fn sends_the_feed_request_through_the_system_proxy() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (lookup, names) = recording_lookup(addr);
+        let route = proxied_route(&format!("http://proxy.example.test:{}", addr.port()), "");
+        let (result, request) = tokio::join!(
+            fetch_feed_with("https://feeds.example.com/team.ics", lookup, route),
+            first_request(&listener)
+        );
+        assert!(result.is_err());
+        let request = request.expect("the feed request never reached the proxy");
+        assert!(request.starts_with("CONNECT feeds.example.com:443 "), "{request}");
+        assert_eq!(*names.lock().unwrap(), vec!["proxy.example.test".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn refuses_a_feed_served_from_the_proxy_host() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (lookup, names) = recording_lookup(addr);
+        let route = proxied_route(&format!("http://proxy.example.test:{}", addr.port()), "");
+        let url = format!("https://proxy.example.test:{}/cal.ics", addr.port());
+        let (result, accepted) = tokio::join!(
+            fetch_feed_with(&url, lookup, route),
+            tokio::time::timeout(Duration::from_secs(1), listener.accept())
+        );
+        assert!(result.is_err());
+        assert!(accepted.is_err(), "the feed client connected to the proxy host as a feed");
+        assert!(names.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn hosts_outside_the_proxy_keep_the_local_address_check() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (lookup, names) = recording_lookup(addr);
+        let route = proxied_route(
+            &format!("http://proxy.example.test:{}", addr.port()),
+            "feeds.example.com",
+        );
+        let url = format!("https://feeds.example.com:{}/cal.ics", addr.port());
+        let (result, accepted) = tokio::join!(
+            fetch_feed_with(&url, lookup, route),
+            tokio::time::timeout(Duration::from_secs(1), listener.accept())
+        );
+        assert!(result.is_err());
+        assert!(accepted.is_err(), "the feed client connected to a local address");
+        assert_eq!(*names.lock().unwrap(), vec!["feeds.example.com".to_string()]);
+    }
+
+    #[test]
+    fn redirects_keep_every_check_behind_a_proxy() {
+        let route = proxied_route("http://proxy.example.test:3128", "");
+        assert!(route.admit_hop("https://feeds.example.com/team.ics").is_ok());
+        assert!(route.is_proxy_host("PROXY.example.test."));
+        assert!(!route.is_proxy_host("feeds.example.com"));
+        for rejected in [
+            "https://proxy.example.test/cal.ics",
+            "https://127.0.0.1/cal.ics",
+            "https://router.local/cal.ics",
+            "http://feeds.example.com/team.ics",
+        ] {
+            assert!(route.admit_hop(rejected).is_err(), "{rejected}");
+        }
+    }
+
+    #[test]
+    fn a_direct_route_exempts_no_host_from_the_check() {
+        let route = direct_route();
+        assert!(route.admit_hop("https://feeds.example.com/team.ics").is_ok());
+        assert!(!route.is_proxy_host("feeds.example.com"));
+        assert!(route.proxy_hosts.lock().unwrap().is_empty());
     }
 
     #[tokio::test]

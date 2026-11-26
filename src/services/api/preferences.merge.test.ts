@@ -23,6 +23,7 @@ import { describe, it, expect } from "vitest";
 import {
   build_merged_preferences,
   DEFAULT_PREFERENCES,
+  sanitize_busy_feed_calendars,
   type UserPreferences,
 } from "./preferences";
 
@@ -339,5 +340,49 @@ describe("build_merged_preferences subject hiding default", () => {
     const merged = build_merged_preferences(server, null);
 
     expect(merged.obscure_subject_when_encrypted).toBe(true);
+  });
+});
+
+describe("calendar_busy_feed_calendars", () => {
+  it("starts empty so existing links stay paused until you confirm them", () => {
+    const server: Record<string, unknown> = { ...DEFAULT_PREFERENCES };
+
+    delete server.calendar_busy_feed_calendars;
+
+    expect(
+      build_merged_preferences(server, null).calendar_busy_feed_calendars,
+    ).toEqual([]);
+  });
+
+  it("keeps the opted-in calendar ids from the encrypted blob", () => {
+    const merged = build_merged_preferences(
+      {
+        ...DEFAULT_PREFERENCES,
+        calendar_busy_feed_calendars: ["calendar_1", "calendar_2"],
+      },
+      null,
+    );
+
+    expect(merged.calendar_busy_feed_calendars).toEqual([
+      "calendar_1",
+      "calendar_2",
+    ]);
+  });
+
+  it("drops malformed and duplicate entries", () => {
+    expect(sanitize_busy_feed_calendars("calendar_1")).toEqual([]);
+    expect(sanitize_busy_feed_calendars(null)).toEqual([]);
+    expect(
+      sanitize_busy_feed_calendars([
+        "calendar_1",
+        "calendar_1",
+        "",
+        7,
+        null,
+        { id: "x" },
+        "a".repeat(129),
+        "calendar_2",
+      ]),
+    ).toEqual(["calendar_1", "calendar_2"]);
   });
 });

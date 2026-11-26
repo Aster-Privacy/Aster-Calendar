@@ -29,6 +29,21 @@ declare global {
 }
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
+const OUTLINE_ICON_PATHS = [
+  "M6.75 3v2.25M17.25 3v2.25",
+  "M15 19.128a9.38 9.38 0 0 0 2.625.372",
+];
+
+function expect_no_outline_icon(container: HTMLElement) {
+  const markup = container.innerHTML;
+
+  for (const path of OUTLINE_ICON_PATHS) {
+    expect(markup).not.toContain(path);
+  }
+  expect(container.querySelector("img")).toBeNull();
+  expect(container.querySelector("svg[stroke]")).toBeNull();
+}
+
 describe("app rail icon", () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -45,33 +60,46 @@ describe("app rail icon", () => {
   });
 
   it.each(["contacts", "security"] as const)(
-    "masks the %s artwork with the accent color",
+    "draws the %s brand artwork from the bundle",
     (name) => {
       act(() => root.render(<AppRailIcon name={name} />));
 
-      const wrapper = container.querySelector<HTMLElement>(".app_rail_icon");
-      const detail = container.querySelector("img");
+      const icon = container.querySelector("svg.app_rail_icon");
+      const href = icon?.querySelector("image")?.getAttribute("href");
 
-      expect(
-        wrapper?.style.getPropertyValue("--app-rail-icon-tint"),
-      ).toContain(`/icons/${name}/${name}_tint_72.png`);
-      expect(detail?.getAttribute("src")).toBe(
-        `/icons/${name}/${name}_detail_24.png`,
-      );
+      expect(icon?.getAttribute("data-app-rail-icon")).toBe(name);
+      expect(icon?.getAttribute("aria-hidden")).toBe("true");
+      expect(icon?.getAttribute("viewBox")).toBe("0 0 24 24");
+      expect(href?.startsWith("data:image/png;base64,")).toBe(true);
+      expect_no_outline_icon(container);
     },
   );
 
-  it.each(["contacts", "security"] as const)(
-    "falls back to a vector icon when the %s artwork fails to load",
+  it("draws the dated calendar from the bundled rail artwork", () => {
+    act(() => root.render(<AppRailIcon name="calendar" />));
+
+    const icon = container.querySelector("svg.app_rail_icon");
+    const href = icon?.querySelector("image")?.getAttribute("href");
+
+    expect(icon?.getAttribute("data-dated-calendar-icon")).toBe("rail");
+    expect(href?.startsWith("data:image/png;base64,")).toBe(true);
+    expect_no_outline_icon(container);
+  });
+
+  it.each(["calendar", "contacts", "security"] as const)(
+    "keeps the %s brand artwork when the image reports an error",
     (name) => {
       act(() => root.render(<AppRailIcon name={name} />));
 
+      const before = container.innerHTML;
+
       act(() => {
-        container.querySelector("img")?.dispatchEvent(new Event("error"));
+        container.querySelector("image")?.dispatchEvent(new Event("error"));
       });
 
-      expect(container.querySelector(".app_rail_icon")).toBeNull();
-      expect(container.querySelector("svg")).not.toBeNull();
+      expect(container.innerHTML).toBe(before);
+      expect(container.querySelector("svg.app_rail_icon image")).not.toBeNull();
+      expect_no_outline_icon(container);
     },
   );
 });

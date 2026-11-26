@@ -25,6 +25,7 @@ import { api_client } from "@/services/api/client";
 import { list_event_masters } from "@/services/api/calendar";
 import { expand_events } from "@/services/calendar/recurrence";
 import { is_own_address } from "@/services/calendar/own_addresses";
+import { calendar_sync_engine } from "@/services/calendar/sync_engine";
 
 export const BUSY_BLOCK_STEP_SECONDS = 300;
 export const BUSY_PAST_DAYS = 7;
@@ -264,21 +265,59 @@ export async function upload_busy_blocks(
 
 const published_fingerprints = new Map<string, string>();
 
+export type BusyFeedOptIns = () => readonly string[];
+
+export interface BusyPublishOptions {
+  force?: boolean;
+  now?: Date;
+  should_continue?: () => boolean;
+}
+
+function may_continue(options: BusyPublishOptions): boolean {
+  return options.should_continue ? options.should_continue() : true;
+}
+
+function cache_is_trustworthy(calendar_id: string): boolean {
+  return (
+    calendar_sync_engine.has_settled_first_sync() &&
+    calendar_sync_engine.has_completed_pull() &&
+    calendar_sync_engine.get_calendar(calendar_id) !== undefined
+  );
+}
+
 export function forget_busy_fingerprints(): void {
   published_fingerprints.clear();
+}
+
+function is_opted_in(opt_ins: BusyFeedOptIns, calendar_id: string): boolean {
+  return opt_ins().includes(calendar_id);
 }
 
 export async function publish_busy_calendar(
   calendar_id: string,
   self_email: string | null | undefined,
-  options: { force?: boolean; now?: Date } = {},
+  opt_ins: BusyFeedOptIns,
+  options: BusyPublishOptions = {},
 ): Promise<BusyPublishResult | null> {
+  if (!is_opted_in(opt_ins, calendar_id)) {
+    return null;
+  }
+
   const now = options.now ?? new Date();
   const window = busy_window(now);
   const masters = await list_event_masters(
     new Date(window.start * 1000),
     new Date(window.end * 1000),
   );
+
+  if (
+    !may_continue(options) ||
+    !cache_is_trustworthy(calendar_id) ||
+    !is_opted_in(opt_ins, calendar_id)
+  ) {
+    return null;
+  }
+
   const upload = compute_busy_upload(
     masters.data,
     calendar_id,
@@ -307,17 +346,41 @@ export async function publish_busy_calendar(
 
 export async function publish_all_busy_feeds(
   self_email: string | null | undefined,
-  options: { force?: boolean } = {},
+  opt_ins: BusyFeedOptIns,
+  options: { force?: boolean; should_continue?: () => boolean } = {},
 ): Promise<number> {
+  if (opt_ins().length === 0) {
+    return 0;
+  }
+
   const listed = await list_busy_feeds();
-  const feeds = listed.data?.feeds ?? [];
+  const listed_feeds: unknown = listed.data?.feeds;
+  const feeds: unknown[] = Array.isArray(listed_feeds) ? listed_feeds : [];
+  const listed_ids = new Set(
+    feeds
+      .map((feed) =>
+        feed && typeof feed === "object"
+          ? (feed as { calendar_id?: unknown }).calendar_id
+          : undefined,
+      )
+      .filter((id): id is string => typeof id === "string"),
+  );
   let published = 0;
 
-  for (const feed of feeds) {
+  for (const calendar_id of listed_ids) {
+    if (options.should_continue && !options.should_continue()) break;
+    if (!is_opted_in(opt_ins, calendar_id)) continue;
+
     try {
-      const result = await publish_busy_calendar(feed.calendar_id, self_email, {
-        force: options.force,
-      });
+      const result = await publish_busy_calendar(
+        calendar_id,
+        self_email,
+        opt_ins,
+        {
+          force: options.force,
+          should_continue: options.should_continue,
+        },
+      );
 
       if (result) published += 1;
     } catch {

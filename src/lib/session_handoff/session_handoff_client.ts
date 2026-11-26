@@ -146,7 +146,12 @@ export function open_bridge_channel(
   sibling_origin: string,
 ): Promise<HandoffChannel | null> {
   return new Promise((resolve) => {
-    if (typeof document === "undefined" || !document.body) {
+    if (
+      typeof document === "undefined" ||
+      !document.body ||
+      sibling_origin === window.location.origin ||
+      get_handoff_sibling_origin(window.location.origin) !== sibling_origin
+    ) {
       resolve(null);
 
       return;

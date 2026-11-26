@@ -39,6 +39,8 @@ use tauri::{
 };
 use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
+use crate::device::crypto::require_primary_webview;
+
 pub const APP_IDENTIFIER: &str = "com.astermail.calendar";
 
 const LINK_ACTIVATED_EVENT: &str = "aster://link-activated";
@@ -203,7 +205,10 @@ struct TrayLabels {
 }
 
 #[tauri::command]
-fn set_tray_labels(state: State<TrayMenuState>, labels: TrayLabels) {
+fn set_tray_labels(window: tauri::WebviewWindow, state: State<TrayMenuState>, labels: TrayLabels) {
+    if require_primary_webview(&window).is_err() {
+        return;
+    }
     let Ok(guard) = state.0.lock() else { return };
     let Some(items) = guard.as_ref() else { return };
     let _ = items.show.set_text(&labels.show);
@@ -225,7 +230,10 @@ fn set_tray_labels(state: State<TrayMenuState>, labels: TrayLabels) {
 }
 
 #[tauri::command]
-fn set_tray_visible(state: State<TrayState>, visible: bool) {
+fn set_tray_visible(window: tauri::WebviewWindow, state: State<TrayState>, visible: bool) {
+    if require_primary_webview(&window).is_err() {
+        return;
+    }
     let Ok(guard) = state.0.lock() else { return };
     if let Some(tray) = guard.as_ref() {
         let _ = tray.set_visible(visible);
@@ -233,14 +241,20 @@ fn set_tray_visible(state: State<TrayState>, visible: bool) {
 }
 
 #[tauri::command]
-fn set_close_to_tray(state: State<CloseToTrayState>, enabled: bool) {
+fn set_close_to_tray(window: tauri::WebviewWindow, state: State<CloseToTrayState>, enabled: bool) {
+    if require_primary_webview(&window).is_err() {
+        return;
+    }
     if let Ok(mut guard) = state.0.lock() {
         *guard = enabled;
     }
 }
 
 #[tauri::command]
-fn set_tray_tooltip(state: State<TrayState>, tooltip: String) {
+fn set_tray_tooltip(window: tauri::WebviewWindow, state: State<TrayState>, tooltip: String) {
+    if require_primary_webview(&window).is_err() {
+        return;
+    }
     let Ok(guard) = state.0.lock() else { return };
     if let Some(tray) = guard.as_ref() {
         let _ = tray.set_tooltip(Some(&tooltip));
@@ -248,17 +262,24 @@ fn set_tray_tooltip(state: State<TrayState>, tooltip: String) {
 }
 
 #[tauri::command]
-fn frontend_ready(state: State<boot_guard::BootState>) {
+fn frontend_ready(window: tauri::WebviewWindow, state: State<boot_guard::BootState>) {
+    if require_primary_webview(&window).is_err() {
+        return;
+    }
     state.mark_script_ran();
 }
 
 #[tauri::command]
-fn frontend_painted(state: State<boot_guard::BootState>) {
+fn frontend_painted(window: tauri::WebviewWindow, state: State<boot_guard::BootState>) {
+    if require_primary_webview(&window).is_err() {
+        return;
+    }
     state.mark_painted();
 }
 
 #[tauri::command]
 fn set_content_protection(window: tauri::WebviewWindow, enabled: bool) -> std::result::Result<(), String> {
+    require_primary_webview(&window)?;
     window
         .set_content_protected(enabled)
         .map_err(|e| e.to_string())
@@ -279,7 +300,12 @@ fn open_in_default_handler(app: &tauri::AppHandle, url: String) {
 }
 
 #[tauri::command]
-async fn open_external_url(app: tauri::AppHandle, url: String) -> std::result::Result<(), String> {
+async fn open_external_url(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    url: String,
+) -> std::result::Result<(), String> {
+    require_primary_webview(&window)?;
     if url.chars().any(|c| c.is_control() || c.is_whitespace()) {
         return Err("url contains invalid characters".into());
     }
@@ -409,7 +435,10 @@ fn clear_stale_webkit_keychain() {
 
 #[cfg(target_os = "macos")]
 #[tauri::command]
-fn reset_webkit_crypto_keychain() -> bool {
+fn reset_webkit_crypto_keychain(window: tauri::WebviewWindow) -> bool {
+    if require_primary_webview(&window).is_err() {
+        return false;
+    }
     use std::sync::atomic::Ordering;
 
     if WEBKIT_KEYCHAIN_RESET_DONE.swap(true, Ordering::SeqCst) {
@@ -423,7 +452,8 @@ fn reset_webkit_crypto_keychain() -> bool {
 
 #[cfg(not(target_os = "macos"))]
 #[tauri::command]
-fn reset_webkit_crypto_keychain() -> bool {
+fn reset_webkit_crypto_keychain(window: tauri::WebviewWindow) -> bool {
+    let _ = require_primary_webview(&window);
     false
 }
 
@@ -850,5 +880,87 @@ mod navigation_tests {
             let parsed = Url::parse(url).expect("valid url");
             assert!(is_app_navigation_for_build(&parsed, false), "{url}");
         }
+    }
+}
+
+#[cfg(test)]
+mod command_gate_tests {
+    const SOURCES: [(&str, &str); 6] = [
+        ("main.rs", include_str!("main.rs")),
+        ("badge.rs", include_str!("badge.rs")),
+        ("calendar_feed.rs", include_str!("calendar_feed.rs")),
+        ("sync_socket.rs", include_str!("sync_socket.rs")),
+        ("webkit_sandbox.rs", include_str!("webkit_sandbox.rs")),
+        ("device/crypto.rs", include_str!("device/crypto.rs")),
+    ];
+
+    const UNGATED: [&str; 6] = [
+        "webkit_sandbox_status",
+        "crypto_pbkdf2",
+        "crypto_hkdf",
+        "crypto_aes_gcm_encrypt",
+        "crypto_aes_gcm_decrypt",
+        "crypto_hmac_sign",
+    ];
+
+    fn commands(source: &str) -> Vec<(String, String)> {
+        let source = source.replace("\r\n", "\n");
+        let marker = ["#[tauri", "::command]"].concat();
+        source
+            .split(marker.as_str())
+            .skip(1)
+            .map(|chunk| {
+                let body = chunk.split("\n}\n").next().unwrap_or("");
+                let name = body
+                    .split("fn ")
+                    .nth(1)
+                    .and_then(|rest| rest.split(['(', '<']).next())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                (name, body.to_string())
+            })
+            .collect()
+    }
+
+    #[test]
+    fn every_command_checks_the_calling_window() {
+        let mut seen = 0;
+        for (file, source) in SOURCES {
+            for (name, body) in commands(source) {
+                seen += 1;
+                assert!(!name.is_empty(), "{file}");
+                if UNGATED.contains(&name.as_str()) {
+                    assert!(!body.contains("WebviewWindow"), "{file}: {name}");
+                    continue;
+                }
+                assert!(
+                    body.contains("require_primary_webview(&window)"),
+                    "{file}: {name} does not check the calling window"
+                );
+            }
+        }
+        assert!(seen >= 37, "{seen}");
+    }
+
+    #[test]
+    fn ungated_commands_only_compute_or_report() {
+        for (_, source) in SOURCES {
+            for (name, body) in commands(source) {
+                if !UNGATED.contains(&name.as_str()) {
+                    continue;
+                }
+                for sink in ["AppHandle", "State<", "std::fs", "keyring", "reqwest", "emit"] {
+                    assert!(!body.contains(sink), "{name} uses {sink}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn sync_socket_uses_the_shared_window_check() {
+        let source = include_str!("sync_socket.rs");
+        assert!(!source.contains("fn require_primary_webview"));
+        assert!(source.contains("use crate::device::crypto::require_primary_webview;"));
     }
 }

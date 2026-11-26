@@ -67,6 +67,7 @@ import {
   ModalFooter,
 } from "@/components/ui/modal";
 import { PROFILE_COLORS } from "@/constants/profile";
+import { ColorSwatchRow } from "@/components/ui/color_swatch_row";
 import { get_initials, get_active_locale } from "@/lib/initials";
 import { get_contrast_text } from "@/lib/avatar_color";
 import {
@@ -108,6 +109,7 @@ import {
 } from "@/components/ui/select";
 import { InfoPopover } from "@/components/ui/info_popover";
 import { use_plan_limits } from "@/hooks/use_plan_limits";
+import { plan_settled } from "@/components/settings/plan_gate";
 import { open_profile_picture_dialog } from "@/stores/profile_picture_dialog_store";
 import { is_onion_host } from "@/lib/onion_host";
 import { SETTINGS_ANCHORS } from "@/lib/settings_links";
@@ -207,11 +209,10 @@ function RecoveryModal({
   );
 }
 
-function FreePlanBanner() {
+function FreePlanBanner({ plan_code }: { plan_code: string | null }) {
   const { t } = use_i18n();
-  const { limits } = use_plan_limits();
 
-  if (is_onion_host() || !limits || limits.plan_code !== "free") return null;
+  if (is_onion_host() || plan_code !== "free") return null;
 
   return (
     <Island padding="md" tone="accent">
@@ -246,6 +247,11 @@ export function AccountSection() {
   const account_email = user?.email ?? "";
   const { preferences, update_preference, reset_to_defaults } =
     use_preferences();
+  const {
+    limits: plan_limits,
+    plan_code,
+    is_loading: plan_is_loading,
+  } = use_plan_limits();
 
   const copy_primary_address = useCallback(
     async (address: string) => {
@@ -625,16 +631,59 @@ export function AccountSection() {
     set_show_step_up(true);
   };
 
+  const save_profile_color = async (c: string, prev: string) => {
+    const revert = async () => {
+      set_color(prev);
+      update_preference("profile_color", prev, true);
+      if (user) {
+        await update_user({
+          ...user,
+          profile_color: prev || undefined,
+        }).catch((caught) =>
+          ignore_error(
+            "components/settings/account_section:revert_color",
+            caught,
+          ),
+        );
+      }
+      show_toast(t("common.failed_save_profile_color"), "error");
+    };
+
+    color_saving_ref.current = true;
+    try {
+      set_color(c);
+      update_preference("profile_color", c, true);
+      if (user) {
+        await update_user({ ...user, profile_color: c });
+      }
+      const response = await update_profile_color(c);
+
+      if (response.error) await revert();
+    } catch (caught) {
+      ignore_error("components/settings/account_section:update_color", caught);
+      await revert();
+    } finally {
+      color_saving_ref.current = false;
+    }
+  };
+
   const has_custom_picture = !!user?.profile_picture;
   const picture = user?.profile_picture || "/profile.webp";
 
-  if (is_initial_load) {
+  if (
+    is_initial_load ||
+    !plan_settled({
+      has_limits: plan_limits !== null,
+      plan_code,
+      is_loading: plan_is_loading,
+    })
+  ) {
     return <SettingsSkeleton variant="profile" />;
   }
 
   return (
     <IslandSections>
-      <FreePlanBanner />
+      <FreePlanBanner plan_code={plan_code} />
 
       {load_failed && <LoadFailedNotice on_retry={reload_account_data} />}
 
@@ -678,78 +727,24 @@ export function AccountSection() {
               <CameraIcon className="w-6 h-6 text-white" />
             </span>
           </button>
-          <div
-            aria-label={t("auth.profile_color")}
-            className="flex items-center gap-2.5"
-            role="radiogroup"
-          >
-            {PROFILE_COLORS.map((c) => {
-              const is_selected = c === color;
-
-              return (
-                <button
-                  key={c}
-                  aria-checked={is_selected}
-                  aria-label={c}
-                  className="relative w-9 h-9 rounded-full"
-                  role="radio"
-                  style={{
-                    backgroundColor: c,
-                    outline: is_selected
-                      ? "2px solid var(--text-primary)"
-                      : "none",
-                    outlineOffset: 2,
-                    boxShadow: is_selected
-                      ? `0 2px 8px ${c}50`
-                      : `inset 0 2px 4px rgba(255,255,255,0.3), inset 0 -2px 4px rgba(0,0,0,0.15), 0 2px 6px ${c}30`,
-                  }}
-                  type="button"
-                  onClick={async () => {
-                    const prev = color;
-                    const revert = async () => {
-                      set_color(prev);
-                      update_preference("profile_color", prev, true);
-                      if (user) {
-                        await update_user({
-                          ...user,
-                          profile_color: prev || undefined,
-                        }).catch((caught) =>
-                          ignore_error(
-                            "components/settings/account_section:revert_color",
-                            caught,
-                          ),
-                        );
-                      }
-                      show_toast(
-                        t("common.failed_save_profile_color"),
-                        "error",
-                      );
-                    };
-
-                    color_saving_ref.current = true;
-                    try {
-                      set_color(c);
-                      update_preference("profile_color", c, true);
-                      if (user) {
-                        await update_user({ ...user, profile_color: c });
-                      }
-                      const response = await update_profile_color(c);
-
-                      if (response.error) await revert();
-                    } catch (caught) {
-                      ignore_error(
-                        "components/settings/account_section:update_color",
-                        caught,
-                      );
-                      await revert();
-                    } finally {
-                      color_saving_ref.current = false;
-                    }
-                  }}
-                />
-              );
-            })}
-          </div>
+          <ColorSwatchRow
+            class_name="w-full max-w-[360px]"
+            label={t("auth.profile_color")}
+            max_swatch_size={36}
+            value={color}
+            on_change={(hex) => {
+              color_saving_ref.current = true;
+              set_color(hex);
+            }}
+            on_commit={(hex) =>
+              void save_profile_color(
+                hex,
+                user?.profile_color ||
+                  preferences.profile_color ||
+                  PROFILE_COLORS[5],
+              )
+            }
+          />
         </div>
       </Island>
 
@@ -764,6 +759,7 @@ export function AccountSection() {
 
       <IslandSection divided>
         <IslandRow
+          className="[&>.aster_island_row_trailing]:-me-2.5"
           description={
             address_eligibility_failed ? (
               <>
@@ -793,10 +789,13 @@ export function AccountSection() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="flex min-w-0 max-w-full shrink items-center gap-1.5 rounded-full px-2.5 py-1 -me-2.5 transition-colors hover:bg-[color-mix(in_srgb,var(--text-primary)_6%,transparent)]"
+                  className="flex min-w-0 max-w-full shrink items-center gap-1.5 rounded-full px-2.5 py-1 transition-colors hover:bg-[color-mix(in_srgb,var(--text-primary)_6%,transparent)]"
                   type="button"
                 >
-                  <span className="block text-sm font-medium text-txt-secondary truncate max-w-[16rem]">
+                  <span
+                    className="block min-w-0 text-sm font-medium text-txt-secondary truncate"
+                    title={account_email}
+                  >
                     {account_email}
                   </span>
                   <ChevronDownIcon className="w-4 h-4 shrink-0 text-txt-muted" />

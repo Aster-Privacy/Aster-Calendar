@@ -20,7 +20,9 @@
 //
 import type { Attachment } from "@/types/attachment";
 
-import { discover_external_keys_batch } from "./api/keys";
+import { bound_key_armor, discover_external_keys_batch } from "./api/keys";
+import { check_owner_key_pin } from "./crypto/ratchet_identity_pin";
+import { KeyPinUnavailableError } from "./crypto/ratchet_types";
 import { array_to_base64, base64_to_array } from "./crypto/base64";
 import { with_aes_kw_fallback } from "./crypto/webcrypto_aes_kw";
 import {
@@ -275,6 +277,41 @@ async function discover_keys(
   return by_address;
 }
 
+async function assert_key_bound(
+  recipient: string,
+  public_key: string,
+): Promise<string> {
+  const armored = await bound_key_armor(recipient, public_key, null);
+
+  if (!armored) throw encryption_failure();
+
+  return armored;
+}
+
+async function assert_key_unchanged(
+  recipient: string,
+  public_key: string,
+): Promise<void> {
+  const status = await check_owner_key_pin(
+    normalize_address(recipient),
+    public_key,
+  ).catch((caught) => {
+    if (!(caught instanceof KeyPinUnavailableError)) throw caught;
+
+    throw create_error(
+      "encryption_failed",
+      get_active_translations().errors.key_trust_check_failed,
+    );
+  });
+
+  if (status !== "changed") return;
+
+  throw create_error(
+    "encryption_failed",
+    get_active_translations().errors.recipient_key_untrusted,
+  );
+}
+
 export async function build_client_pgp_copies(
   params: ClientPgpCopyParams,
 ): Promise<Record<string, string>> {
@@ -301,7 +338,14 @@ export async function build_client_pgp_copies(
       discovered.get(normalize_address(recipient));
 
     if (!public_key) throw encryption_failure();
-    keys.push({ recipient, public_key });
+    keys.push({
+      recipient,
+      public_key: await assert_key_bound(recipient, public_key),
+    });
+  }
+
+  for (const { recipient, public_key } of keys) {
+    await assert_key_unchanged(recipient, public_key);
   }
 
   const entity = await build_inner_entity(params);

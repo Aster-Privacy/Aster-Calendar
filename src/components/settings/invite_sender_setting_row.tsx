@@ -19,6 +19,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 import type { SenderOption } from "@/hooks/use_sender_aliases";
+import type { InviteSenders } from "@/components/calendar/use_invite_senders";
 
 import { SettingControlRow } from "@aster/ui";
 
@@ -71,14 +72,26 @@ function SenderOptionLabel({
   );
 }
 
-export function InviteSenderSettingRow() {
+export function saved_invite_sender(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+export function use_settings_invite_senders(): InviteSenders {
+  const { preferences } = use_preferences();
+
+  return use_invite_senders([
+    saved_invite_sender(preferences.calendar_default_invite_sender),
+  ]);
+}
+
+export function InviteSenderSettingRow({
+  senders,
+}: {
+  senders: InviteSenders;
+}) {
   const { t } = use_i18n();
   const { preferences, update_preference } = use_preferences();
-  const saved =
-    typeof preferences.calendar_default_invite_sender === "string"
-      ? preferences.calendar_default_invite_sender.trim()
-      : "";
-  const senders = use_invite_senders([saved]);
+  const saved = saved_invite_sender(preferences.calendar_default_invite_sender);
   const resolution = resolve_invite_sender({
     options: senders.all_options,
     requested: saved,

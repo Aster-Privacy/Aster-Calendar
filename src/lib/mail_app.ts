@@ -19,9 +19,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
 import { open_external } from "@/utils/open_link";
+import { sibling_app_launch_url } from "@/contexts/auth/sibling_session_handoff";
 
 export const MAIL_APP_URL = "https://app.astermail.org";
 
 export function open_mail_app(): void {
-  open_external(MAIL_APP_URL);
+  open_external(sibling_app_launch_url(MAIL_APP_URL));
 }

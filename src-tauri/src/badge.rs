@@ -54,6 +54,7 @@ fn update_tray_icon(window: &tauri::WebviewWindow, has_unread: bool) {
 
 #[tauri::command]
 pub fn set_unread_badge(window: tauri::WebviewWindow, count: u32) -> std::result::Result<(), String> {
+    crate::device::crypto::require_primary_webview(&window)?;
     #[cfg(not(target_os = "macos"))]
     update_tray_icon(&window, count > 0);
     #[cfg(windows)]

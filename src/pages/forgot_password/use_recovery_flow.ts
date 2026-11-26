@@ -575,6 +575,7 @@ export function use_recovery_flow() {
           new_recovery_email,
           password_hash_v2,
           kdf_field.vault_kdf_iterations,
+          vault.vault_generation,
         ),
     );
 

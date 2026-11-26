@@ -26,7 +26,6 @@ import { useLocation } from "react-router-dom";
 
 import {
   get_stored_encrypted_vault,
-  clear_stored_encrypted_vault,
   get_session_passphrase,
   clear_session_passphrase,
   is_session_passphrase_pin_locked,
@@ -38,6 +37,11 @@ import {
   with_timeout,
 } from "./auth_helpers";
 import { clear_signed_out_account_caches } from "./signed_out_account_caches";
+import {
+  clear_pending_sign_out,
+  mark_sign_out_pending,
+  run_pending_sign_out,
+} from "./pending_sign_out";
 import { use_auth_account_state } from "./use_auth_account_state";
 
 import { user_facing_error } from "@/utils/user_facing_error";
@@ -52,11 +56,11 @@ import {
   clear_vault_from_memory,
   re_trigger_keys_ready,
 } from "@/services/crypto/memory_key_store";
+import { refuse_rolled_back_vault } from "@/services/crypto/vault_generation";
 import {
   type User,
   type StoredAccount,
   get_all_accounts,
-  remove_account as storage_remove_account,
   switch_account as storage_switch_account,
   update_account_user,
   get_account_kind,
@@ -108,7 +112,6 @@ import {
   take_url_account_request,
 } from "@/lib/account_index_url";
 import {
-  clear_app_lock_config,
   clear_session_unlock,
 } from "@/services/app_lock_store";
 import { release_app_lock } from "@/services/app_lock_unlock";
@@ -147,6 +150,10 @@ async function resume_surviving_account(
 
   return false;
 }
+
+const SIGN_OUT_NETWORK_BUDGET_MS = 4000;
+const SIGN_OUT_WIPE_BUDGET_MS = 4000;
+const SIGN_OUT_FALLBACK_MS = 10000;
 
 export function use_auth_provider_state() {
   const {
@@ -401,6 +408,7 @@ export function use_auth_provider_state() {
 
   const clear_local_auth_data = useCallback(async () => {
     await purge_all_local_data();
+    clear_pending_sign_out();
 
     set_state({
       user: null,
@@ -422,6 +430,13 @@ export function use_auth_provider_state() {
     const other = state.accounts.find((a) => a.id !== current_id);
     let nav_target = other ? "/" : "/sign-in";
     let reload_into_survivor = false;
+    const keeps_survivor = Boolean(other && current_id);
+
+    mark_sign_out_pending(
+      other && current_id
+        ? { kind: "account", account_id: current_id, survivor_id: other.id }
+        : { kind: "all" },
+    );
     const fallback_timer = window.setTimeout(() => {
       try {
         if ("__TAURI_INTERNALS__" in window) return;
@@ -432,9 +447,9 @@ export function use_auth_provider_state() {
           caught,
         );
       }
-    }, 6000);
+    }, SIGN_OUT_FALLBACK_MS);
 
-    if (!(other && current_id)) mark_explicit_sign_out();
+    if (!keeps_survivor) mark_explicit_sign_out();
 
     try {
       api_client.allow_shared_session_end();
@@ -445,70 +460,64 @@ export function use_auth_provider_state() {
         safe_log_error(e);
       }
 
-      if (other && current_id) {
-        await with_timeout(
-          forget_device_account(
-            (await get_all_accounts()).find((a) => a.id === current_id)
-              ?.device_id,
-          ),
-          2000,
-        ).catch((caught) =>
-          ignore_error(
-            "contexts/auth/use_auth_provider_state:use_auth_provider_state",
-            caught,
-          ),
-        );
-      } else {
-        await with_timeout(clear_device_session(), 2000).catch((caught) =>
-          ignore_error(
-            "contexts/auth/use_auth_provider_state:use_auth_provider_state",
-            caught,
-          ),
-        );
-      }
-
-      if (current_id && uses_account_hub()) {
-        await with_timeout(sign_out_hub_accounts([current_id]), 2500).catch(
-          (caught) =>
+      const release_remote_session = async (): Promise<void> => {
+        if (other && current_id) {
+          await with_timeout(
+            forget_device_account(
+              (await get_all_accounts()).find((a) => a.id === current_id)
+                ?.device_id,
+            ),
+            2000,
+          ).catch((caught) =>
             ignore_error(
               "contexts/auth/use_auth_provider_state:use_auth_provider_state",
               caught,
             ),
-        );
-      }
-
-      if (current_id) {
-        await with_timeout(release_app_lock(current_id), 4000).catch(
-          (caught) =>
+          );
+        } else {
+          await with_timeout(clear_device_session(), 2000).catch((caught) =>
             ignore_error(
               "contexts/auth/use_auth_provider_state:use_auth_provider_state",
               caught,
             ),
-        );
-      }
+          );
+        }
 
-      await with_timeout(api_client.post("/core/v1/auth/logout", {}), 3000);
+        if (current_id && uses_account_hub()) {
+          await with_timeout(sign_out_hub_accounts([current_id]), 2500).catch(
+            (caught) =>
+              ignore_error(
+                "contexts/auth/use_auth_provider_state:use_auth_provider_state",
+                caught,
+              ),
+          );
+        }
+
+        if (current_id) {
+          await with_timeout(release_app_lock(current_id), 4000).catch(
+            (caught) =>
+              ignore_error(
+                "contexts/auth/use_auth_provider_state:use_auth_provider_state",
+                caught,
+              ),
+          );
+        }
+
+        await with_timeout(api_client.post("/core/v1/auth/logout", {}), 3000);
+      };
+
+      await with_timeout(release_remote_session(), SIGN_OUT_NETWORK_BUDGET_MS);
       await with_timeout(
         announce_sign_out([current_id ?? state.user?.id]),
         1000,
       );
 
       if (other && current_id) {
-        stop_session_timeout();
-        clear_vault_from_memory();
-        await with_timeout(clear_signed_out_account_caches(current_id), 3000);
-        clear_stored_encrypted_vault(current_id);
-        await with_timeout(clear_session_passphrase(current_id), 2000);
-        clear_session_timeout_data(current_id);
-        clear_app_lock_config(current_id);
-        clear_session_unlock(current_id);
-        api_client.clear_dev_token();
-
-        await with_timeout(api_client.clear_session_cookies(), 2000);
-
-        await with_timeout(storage_remove_account(current_id), 2000);
-        await with_timeout(storage_switch_account(other.id), 2000);
-        api_client.clear_in_memory_token();
+        await run_pending_sign_out({
+          kind: "account",
+          account_id: current_id,
+          survivor_id: other.id,
+        });
 
         if (await resume_surviving_account(other)) {
           reload_into_survivor = true;
@@ -531,7 +540,7 @@ export function use_auth_provider_state() {
         set_is_adding_account(true);
         nav_target = `/sign-in?u=${encodeURIComponent(survivor_local)}`;
       } else {
-        await with_timeout(clear_local_auth_data(), 4000);
+        await with_timeout(clear_local_auth_data(), SIGN_OUT_WIPE_BUDGET_MS);
         nav_target = "/sign-in";
       }
     } catch (e) {
@@ -561,6 +570,7 @@ export function use_auth_provider_state() {
   ]);
 
   const logout_all_handler = useCallback(async () => {
+    mark_sign_out_pending({ kind: "all" });
     const fallback_timer = window.setTimeout(() => {
       try {
         if ("__TAURI_INTERNALS__" in window) return;
@@ -571,7 +581,7 @@ export function use_auth_provider_state() {
           caught,
         );
       }
-    }, 6000);
+    }, SIGN_OUT_FALLBACK_MS);
 
     mark_explicit_sign_out();
 
@@ -584,23 +594,30 @@ export function use_auth_provider_state() {
         safe_log_error(e);
       }
 
-      await with_timeout(clear_device_session(), 2000).catch((caught) =>
-        ignore_error(
-          "contexts/auth/use_auth_provider_state:use_auth_provider_state",
-          caught,
-        ),
-      );
-
-      if (uses_account_hub()) {
-        await with_timeout(sign_out_hub_accounts("all"), 2500).catch((caught) =>
+      const release_remote_sessions = async (): Promise<void> => {
+        await with_timeout(clear_device_session(), 2000).catch((caught) =>
           ignore_error(
             "contexts/auth/use_auth_provider_state:use_auth_provider_state",
             caught,
           ),
         );
-      }
 
-      await with_timeout(api_client.post("/core/v1/auth/logout-all", {}), 3000);
+        if (uses_account_hub()) {
+          await with_timeout(sign_out_hub_accounts("all"), 2500).catch((caught) =>
+            ignore_error(
+              "contexts/auth/use_auth_provider_state:use_auth_provider_state",
+              caught,
+            ),
+          );
+        }
+
+        await with_timeout(api_client.post("/core/v1/auth/logout-all", {}), 3000);
+      };
+
+      await with_timeout(
+        release_remote_sessions(),
+        SIGN_OUT_NETWORK_BUDGET_MS,
+      );
       await with_timeout(
         announce_sign_out([
           state.current_account_id,
@@ -610,7 +627,7 @@ export function use_auth_provider_state() {
         1000,
       );
 
-      await with_timeout(clear_local_auth_data(), 4000);
+      await with_timeout(clear_local_auth_data(), SIGN_OUT_WIPE_BUDGET_MS);
     } catch (e) {
       safe_log_error(e);
     } finally {
@@ -742,6 +759,21 @@ export function use_auth_provider_state() {
       );
     };
 
+    const handle_session_ended = async () => {
+      if (api_client.is_intentional_logout()) return;
+
+      session_expired_muted_until.current = Date.now() + 15000;
+      sync_client.disconnect();
+      api_client.clear_auth_data();
+      api_client.set_authenticated(false);
+
+      await sign_out_keeping_other_accounts(
+        "common.session_expired_sign_in",
+        "session_expired",
+        keep_pairing_after_session_expiry(),
+      );
+    };
+
     const handle_session_timeout = async () => {
       sync_client.disconnect();
 
@@ -786,6 +818,8 @@ export function use_auth_provider_state() {
       handle_identity_mismatch_event,
     );
 
+    window.addEventListener("astermail:session-ended", handle_session_ended);
+
     window.addEventListener(
       "astermail:session-timeout",
       handle_session_timeout,
@@ -809,6 +843,10 @@ export function use_auth_provider_state() {
       window.removeEventListener(
         "astermail:identity-mismatch",
         handle_identity_mismatch_event,
+      );
+      window.removeEventListener(
+        "astermail:session-ended",
+        handle_session_ended,
       );
       window.removeEventListener(
         "astermail:session-timeout",
@@ -1124,11 +1162,10 @@ export function use_auth_provider_state() {
 
   const set_vault = useCallback(
     async (vault: EncryptedVault, passphrase: string) => {
-      await store_vault_in_memory(
-        vault,
-        passphrase,
-        state.user?.id ?? state.current_account_id ?? undefined,
-      );
+      const owner_id = state.user?.id ?? state.current_account_id ?? undefined;
+
+      refuse_rolled_back_vault(owner_id, vault);
+      await store_vault_in_memory(vault, passphrase, owner_id);
 
       if (state.current_account_id) {
         start_session_timeout(state.current_account_id);

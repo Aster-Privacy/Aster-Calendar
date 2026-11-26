@@ -32,6 +32,7 @@ import {
   type SealedVault,
   type VaultKdfIterations,
 } from "./vault_level2";
+import { is_rolled_back_vault } from "./vault_generation";
 
 export const VAULT_CHANGED = "VAULT_CHANGED";
 
@@ -215,6 +216,9 @@ async function attempt_vault_work_factor(
       passphrase,
       VAULT_KDF_ITERATIONS_LEGACY,
     );
+
+    if (is_rolled_back_vault(user_id, vault)) return "failed";
+
     const sealed = await deps.encrypt(
       vault,
       passphrase,

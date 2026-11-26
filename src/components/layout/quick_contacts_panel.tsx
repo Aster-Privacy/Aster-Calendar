@@ -49,11 +49,8 @@ import {
   UsersIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
-import {
-  CheckIcon,
-  StarIcon as StarSolidIcon,
-} from "@heroicons/react/24/solid";
-import { PillButton, Spinner, Tooltip } from "@aster/ui";
+import { StarIcon as StarSolidIcon } from "@heroicons/react/24/solid";
+import { Checkbox, PillButton, Spinner, Tooltip } from "@aster/ui";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -816,7 +813,7 @@ export function QuickContactsPanel({
       <aside
         ref={panel_ref}
         aria-label={t("common.contacts")}
-        className={`quick_contacts_panel absolute inset-0 flex-col overflow-hidden rounded-lg bg-surf-primary md:rounded-xl ${
+        className={`quick_contacts_panel absolute inset-y-0 start-0 end-1.5 flex-col overflow-hidden rounded-lg bg-surf-primary md:end-2.5 md:rounded-xl ${
           is_visible ? "flex" : "hidden"
         } ${is_closing ? "quick_panel_closing" : "z-10"}`}
       >
@@ -890,17 +887,18 @@ export function QuickContactsPanel({
               open={is_group_picker_open}
               onOpenChange={set_is_group_picker_open}
             >
-              <DropdownMenuTrigger asChild>
-                <Button
-                  aria-label={t("common.add_to_group")}
-                  className="h-8 w-8 flex-shrink-0 text-txt-secondary"
-                  size="icon"
-                  title={t("common.add_to_group")}
-                  variant="ghost"
-                >
-                  <UserGroupIcon className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
+              <Tooltip position="bottom" tip={t("common.add_to_group")}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    aria-label={t("common.add_to_group")}
+                    className="h-8 w-8 flex-shrink-0 text-txt-secondary"
+                    size="icon"
+                    variant="ghost"
+                  >
+                    <UserGroupIcon className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </Tooltip>
               <DropdownMenuContent align="end" className="max-h-64 w-56">
                 {groups.length === 0 ? (
                   <DropdownMenuLabel className="font-normal text-txt-muted">
@@ -939,17 +937,18 @@ export function QuickContactsPanel({
               open={is_bulk_menu_open}
               onOpenChange={set_is_bulk_menu_open}
             >
-              <DropdownMenuTrigger asChild>
-                <Button
-                  aria-label={t("common.more_actions")}
-                  className="h-8 w-8 flex-shrink-0 text-txt-secondary"
-                  size="icon"
-                  title={t("common.more_actions")}
-                  variant="ghost"
-                >
-                  <EllipsisHorizontalIcon className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
+              <Tooltip position="bottom" tip={t("common.more_actions")}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    aria-label={t("common.more_actions")}
+                    className="h-8 w-8 flex-shrink-0 text-txt-secondary"
+                    size="icon"
+                    variant="ghost"
+                  >
+                    <EllipsisHorizontalIcon className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </Tooltip>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem
                   disabled={selection_count < 2}
@@ -991,14 +990,16 @@ export function QuickContactsPanel({
                 onChange={(e) => set_query(e.target.value)}
               />
               {query.length > 0 && (
-                <button
-                  aria-label={t("common.clear")}
-                  className="quick_contacts_search_clear flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full"
-                  type="button"
-                  onClick={() => set_query("")}
-                >
-                  <XMarkIcon className="h-3.5 w-3.5" />
-                </button>
+                <Tooltip position="bottom" tip={t("common.clear")}>
+                  <button
+                    aria-label={t("common.clear")}
+                    className="quick_contacts_search_clear flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full"
+                    type="button"
+                    onClick={() => set_query("")}
+                  >
+                    <XMarkIcon className="h-3.5 w-3.5" />
+                  </button>
+                </Tooltip>
               )}
             </div>
             <span className="contact_encryption_info flex h-7 w-7 flex-shrink-0 items-center justify-center">
@@ -1114,15 +1115,12 @@ export function QuickContactsPanel({
                         : select_all_visible
                     }
                   >
-                    <span
-                      aria-hidden
-                      className="quick_contacts_select_box flex h-[18px] w-[18px] items-center justify-center rounded-[5px]"
-                      data-checked={all_visible_selected}
-                    >
-                      {all_visible_selected && (
-                        <CheckIcon className="h-3 w-3" strokeWidth={3} />
-                      )}
-                    </span>
+                    <Checkbox
+                      aria-hidden="true"
+                      checked={all_visible_selected}
+                      className="pointer-events-none"
+                      tabIndex={-1}
+                    />
                   </button>
                 </Tooltip>
               </span>
@@ -1131,7 +1129,7 @@ export function QuickContactsPanel({
         )}
 
         {!detail_contact && active_group && (
-          <div className="aster_island aster_island_tone_accent mx-3 mb-2 flex flex-shrink-0 items-center gap-2 px-3 py-2 text-[12.5px]">
+          <div className="quick_contacts_notice mx-3 mb-2 flex flex-shrink-0 items-center gap-2 px-3 py-2 text-[12.5px]">
             <ContactGroupGlyph
               color={active_group.color}
               icon={active_group.icon}
@@ -1151,7 +1149,7 @@ export function QuickContactsPanel({
           !is_groups_tab &&
           !is_selecting &&
           duplicate_count > 0 && (
-            <div className="aster_island aster_island_tone_accent mx-3 mb-2 flex flex-shrink-0 items-center gap-2 px-3 py-2 text-[12.5px]">
+            <div className="quick_contacts_notice mx-3 mb-2 flex flex-shrink-0 items-center gap-2 px-3 py-2 text-[12.5px]">
               <span className="min-w-0 flex-1 truncate">
                 {t("common.duplicates_found", { count: duplicate_count })}
               </span>
@@ -1411,8 +1409,13 @@ export function QuickContactsPanel({
                           onClick={() => toggle_selected(contact.id)}
                         >
                           {selected_ids.has(contact.id) ? (
-                            <span className="quick_contacts_select_dot flex h-[30px] w-[30px] items-center justify-center rounded-full">
-                              <CheckIcon className="h-4 w-4" />
+                            <span className="quick_contacts_select_slot flex h-[30px] w-[30px] items-center justify-center">
+                              <Checkbox
+                                checked
+                                aria-hidden="true"
+                                className="pointer-events-none"
+                                tabIndex={-1}
+                              />
                             </span>
                           ) : (
                             <>
@@ -1427,7 +1430,12 @@ export function QuickContactsPanel({
                                 aria-hidden
                                 className="quick_contacts_avatar_hint absolute inset-0 flex items-center justify-center rounded-full"
                               >
-                                <CheckIcon className="h-4 w-4" />
+                                <Checkbox
+                                  aria-hidden="true"
+                                  checked={false}
+                                  className="pointer-events-none"
+                                  tabIndex={-1}
+                                />
                               </span>
                             </>
                           )}
@@ -1530,7 +1538,7 @@ export function QuickContactsPanel({
           >
             <ArrowUpTrayIcon className="flex-shrink-0" />
             <span className="truncate leading-5">
-              {t("common.import_contacts")}
+              {t("common.import_contacts_short")}
             </span>
           </button>
           <button

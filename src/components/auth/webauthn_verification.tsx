@@ -24,6 +24,7 @@ import { Button } from "@aster/ui";
 import { use_i18n } from "@/lib/i18n/context";
 import { Spinner } from "@/components/ui/spinner";
 import { TotpVerifyResponse } from "@/services/api/totp";
+import { sign_in_error_text } from "@/components/guard/sign_in_error_text";
 import {
   initiate_webauthn_assertion,
   perform_webauthn_assertion,
@@ -129,7 +130,9 @@ export function WebauthnVerification({
           set_error(result.error || "");
         }
       } else {
-        set_error(result.error || t("common.something_went_wrong"));
+        set_error(
+          sign_in_error_text(t, result, t("common.something_went_wrong")),
+        );
       }
 
       ensure_options();

@@ -22,17 +22,13 @@ import { memo, useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AppRailView } from "@aster/ui";
 
-import {
-  AppRailIcon,
-  app_rail_logo,
-} from "@/components/icons/app_rail_icon";
+import { AppRailIcon } from "@/components/icons/app_rail_icon";
 import { QuickAgendaPanel } from "@/components/layout/quick_agenda_panel";
 import { QuickContactsPanel } from "@/components/layout/quick_contacts_panel";
 import { QuickSecurityPanel } from "@/components/layout/quick_security_panel";
 import { use_panel_transition } from "@/components/layout/use_panel_transition";
 import { use_i18n } from "@/lib/i18n/context";
 import { use_preferences } from "@/contexts/preferences_context";
-import { DatedCalendarImage } from "@/components/icons/dated_calendar_image";
 import {
   read_rail_contacts_open,
   write_rail_contacts_open,
@@ -219,20 +215,13 @@ function AppRailComponent({
           key: "calendar",
           label: t("common.app_name_calendar"),
           selected: is_agenda_open,
-          fallback_icon: (
-            <DatedCalendarImage
-              className="h-6 w-6 shrink-0"
-              fallback={<AppRailIcon name="calendar" />}
-              kind="app"
-            />
-          ),
+          fallback_icon: <AppRailIcon name="calendar" />,
           on_click: on_calendar_click,
         },
         {
           key: "contacts",
           label: t("common.contacts"),
           selected: is_contacts_open,
-          ...app_rail_logo("contacts"),
           fallback_icon: <AppRailIcon name="contacts" />,
           on_click: toggle_contacts,
         },
@@ -240,7 +229,6 @@ function AppRailComponent({
           key: "security",
           label: t("common.security_center"),
           selected: is_security_open,
-          ...app_rail_logo("security"),
           fallback_icon: <AppRailIcon name="security" />,
           on_click: toggle_security,
         },

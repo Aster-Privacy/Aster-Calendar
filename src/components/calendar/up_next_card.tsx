@@ -334,7 +334,7 @@ export const UpNextCard = memo(function UpNextCard({
 
   if (failed && !data) return null;
 
-  const label_class = "text-[10px] font-medium tracking-wide text-txt-muted";
+  const label_class = "text-[13px] font-medium text-txt-secondary";
 
   if (!data) {
     return (
@@ -342,8 +342,8 @@ export const UpNextCard = memo(function UpNextCard({
         <div className="mb-1 flex items-center justify-between">
           <span className={label_class}>{t("calendar.up_next")}</span>
         </div>
-        <div className="h-[18px] w-3/4 rounded bg-[var(--aster-hover)]" />
-        <div className="mt-1 h-[14px] w-1/2 rounded bg-[var(--aster-hover)]" />
+        <div className="h-5 w-3/4 rounded bg-[var(--aster-hover)]" />
+        <div className="mt-1 h-4 w-1/2 rounded bg-[var(--aster-hover)]" />
       </div>
     );
   }
@@ -354,7 +354,7 @@ export const UpNextCard = memo(function UpNextCard({
         <div className="mb-1 flex items-center justify-between">
           <span className={label_class}>{t("calendar.up_next")}</span>
         </div>
-        <p className="truncate text-[11px] leading-[18px] text-txt-muted">
+        <p className="truncate text-xs leading-5 text-txt-muted">
           {t("calendar.up_next_empty")}
         </p>
       </div>
@@ -412,7 +412,7 @@ export const UpNextCard = memo(function UpNextCard({
         <span className={label_class}>{t("calendar.up_next")}</span>
         {badge && (
           <span
-            className="flex-shrink-0 text-[10px] tabular-nums font-medium"
+            className="flex-shrink-0 text-xs tabular-nums font-medium"
             style={{
               color: is_ongoing
                 ? "var(--accent-color)"
@@ -429,11 +429,11 @@ export const UpNextCard = memo(function UpNextCard({
           className="h-3 w-[3px] flex-shrink-0 rounded-full"
           style={{ backgroundColor: color }}
         />
-        <span className="truncate text-[12px] font-medium leading-[18px] text-txt-primary">
+        <span className="truncate text-[14px] font-medium leading-5 text-txt-primary">
           {title}
         </span>
       </span>
-      <span className="mt-0.5 block truncate text-[10px] tabular-nums text-txt-muted">
+      <span className="mt-0.5 block truncate text-xs tabular-nums text-txt-muted">
         {`${day_label}, ${time_label}`}
       </span>
     </button>

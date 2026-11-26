@@ -50,6 +50,7 @@ import {
   get_account_key_generation,
   append_legacy_key_raw_bytes,
 } from "./legacy_keks";
+import { pin_vault_generation } from "./vault_generation";
 
 import { clear_preview_memo } from "@/utils/preview_text";
 import { HASH_ALG } from "@/services/crypto/constants";
@@ -462,9 +463,13 @@ export async function store_vault_in_memory(
   clear_vault_from_memory({ keep_account_keys: same_owner });
 
   vault_owner_id = next_owner_id;
-  if (next_owner_id !== null) last_vault_owner_id = next_owner_id;
+  if (next_owner_id !== null) {
+    last_vault_owner_id = next_owner_id;
+    pin_vault_generation(next_owner_id, vault);
+  }
 
   vault_in_memory = {
+    ...vault,
     identity_key: vault.identity_key,
     previous_keys: vault.previous_keys ? [...vault.previous_keys] : [],
     legacy_identity_keys: vault.legacy_identity_keys

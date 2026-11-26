@@ -21,6 +21,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 
 import app_icon_src from "@/assets/app_icons/calendar.png?inline";
+import rail_icon_src from "@/assets/app_rail/calendar.png?inline";
 
 type Rect = readonly [number, number, number, number];
 
@@ -32,7 +33,12 @@ interface DatedIconSpec {
   output_height: number;
 }
 
-export type DatedCalendarIcon = "logo_light" | "logo_dark" | "app" | "mark";
+export type DatedCalendarIcon =
+  | "logo_light"
+  | "logo_dark"
+  | "app"
+  | "mark"
+  | "rail";
 
 export interface LabelMetrics {
   left: number;
@@ -109,6 +115,13 @@ const SPECS: Record<DatedCalendarIcon, DatedIconSpec> = {
     panel: [203, 210, 419, 405],
     erase: [235, 247, 376, 368],
     output_height: 192,
+  },
+  rail: {
+    src: rail_icon_src,
+    natural_size: [256, 256],
+    panel: [95, 100, 231, 223],
+    erase: null,
+    output_height: 72,
   },
 };
 

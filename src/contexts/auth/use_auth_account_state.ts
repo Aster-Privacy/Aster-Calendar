@@ -36,6 +36,7 @@ import {
 import { decrypt_vault_with_lock } from "./vault_decryption";
 import {
   obtain_sibling_session,
+  should_attempt_boot_handoff,
   type SiblingSessionLogin,
 } from "./sibling_session_handoff";
 import {
@@ -45,6 +46,7 @@ import {
   with_timeout,
 } from "./auth_helpers";
 import { clear_signed_out_account_caches } from "./signed_out_account_caches";
+import { restore_from_server_vault } from "./stale_local_vault_restore";
 
 import {
   init_desktop_device_auth,
@@ -109,6 +111,10 @@ import {
   flush_pending_login_enrollment,
   seed_login_salt_record_from_session,
 } from "@/services/crypto/login_proof";
+import { VaultRolledBackError } from "@/services/crypto/vault_generation";
+
+import { refuse_rolled_back_vault_with_notice } from "./rolled_back_vault_notice";
+import { finish_pending_sign_out } from "./pending_sign_out";
 
 export function use_auth_account_state() {
   const { t } = use_i18n();
@@ -291,13 +297,21 @@ export function use_auth_account_state() {
   useEffect(() => {
     const init = async () => {
       try {
+        await finish_pending_sign_out().catch((caught) =>
+          ignore_error("contexts/auth/use_auth_account_state:init", caught),
+        );
         const data = await initialize_accounts();
 
         const current = await get_current_account();
 
-        if (!current) {
-          if (await try_sibling_handoff()) return;
+        if (
+          should_attempt_boot_handoff(current !== null) &&
+          (await try_sibling_handoff())
+        ) {
+          return;
+        }
 
+        if (!current) {
           api_client.set_authenticated(false);
           set_state((prev) => ({
             ...prev,
@@ -338,6 +352,13 @@ export function use_auth_account_state() {
         const pin_locked_at_start = is_session_passphrase_pin_locked(
           current.id,
         );
+
+        let refused_rolled_back_vault = false;
+        const note_rolled_back_vault = (caught: unknown) => {
+          if (caught instanceof VaultRolledBackError) {
+            refused_rolled_back_vault = true;
+          }
+        };
 
         const restore_session_keys = async (): Promise<boolean> => {
           if (has_vault_in_memory_for(current.user.id)) return true;
@@ -385,6 +406,7 @@ export function use_auth_account_state() {
 
             return vault !== null;
           } catch (caught) {
+            note_rolled_back_vault(caught);
             ignore_error("contexts/auth/use_auth_account_state:init", caught);
 
             return false;
@@ -569,6 +591,7 @@ export function use_auth_account_state() {
                     );
                   }
                 } catch (caught) {
+                  note_rolled_back_vault(caught);
                   ignore_error(
                     "contexts/auth/use_auth_account_state:init",
                     caught,
@@ -583,6 +606,18 @@ export function use_auth_account_state() {
 
         if (
           !has_keys &&
+          refused_rolled_back_vault &&
+          (await restore_from_server_vault(current.id, current.user.id))
+        ) {
+          has_keys = true;
+          refused_rolled_back_vault = false;
+          await seed_login_salt_record_from_session().catch((caught) =>
+            ignore_error("contexts/auth/use_auth_account_state:init", caught),
+          );
+        }
+
+        if (
+          !has_keys &&
           !pin_locked_at_start &&
           (await get_account_kind(current.id)) !== "shared" &&
           (await try_sibling_handoff(current.user.id))
@@ -591,6 +626,10 @@ export function use_auth_account_state() {
         }
 
         if (!has_keys) {
+          if (refused_rolled_back_vault) {
+            show_toast(t("errors.vault_rolled_back"), "error");
+          }
+
           sync_client.disconnect();
           api_client.set_authenticated(false);
 
@@ -837,6 +876,11 @@ export function use_auth_account_state() {
         }
       }
 
+      refuse_rolled_back_vault_with_notice(
+        user.id,
+        vault,
+        () => show_toast(t("errors.vault_rolled_back"), "error"),
+      );
       await store_vault_in_memory(vault, passphrase, user.id);
       api_client.set_expected_user_id(user.id);
 
@@ -950,6 +994,11 @@ export function use_auth_account_state() {
         safe_log_error(e);
       }
 
+      refuse_rolled_back_vault_with_notice(
+        user.id,
+        vault,
+        () => show_toast(t("errors.vault_rolled_back"), "error"),
+      );
       await store_vault_in_memory(vault, passphrase, user.id);
       api_client.set_expected_user_id(user.id);
 

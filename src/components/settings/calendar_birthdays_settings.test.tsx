@@ -60,9 +60,18 @@ vi.mock("@aster/ui", async (original) => ({
 
 vi.mock("@/services/api/calendar", () => ({
   list_calendars: vi.fn(async () => ({ data: [] })),
+  peek_calendars: () => [],
+}));
+
+vi.mock("@/services/calendar/busy_feed", () => ({
+  list_busy_feeds: vi.fn(async () => ({ data: { feeds: [] } })),
+  create_busy_feed_link: vi.fn(),
+  publish_busy_calendar: vi.fn(),
+  revoke_busy_feed: vi.fn(),
 }));
 
 vi.mock("@/components/calendar/calendar_edit_dialog", () => ({
+  CalendarClearDialog: () => null,
   CalendarDeleteDialog: () => null,
   CalendarEditDialog: () => null,
 }));

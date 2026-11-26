@@ -123,6 +123,9 @@ const { calendar_sync_engine, handle_calendar_mutation_frame } =
   await import("@/services/calendar/sync_engine");
 const { MemorySyncStore, read_sync_meta, set_sync_store_adapter } =
   await import("@/services/calendar/sync_store");
+const { apply_synced_tombstones, take_own_tombstones } = await import(
+  "@/services/calendar/revision_ledger"
+);
 
 const ACCOUNT = "acct-1";
 
@@ -339,6 +342,25 @@ describe("calendar sync engine", () => {
 
     expect(calendar_sync_engine.awaiting_first_sync()).toBe(false);
     expect(calendar_sync_engine.has_settled_first_sync()).toBe(true);
+  });
+
+  it("reports a completed pull only after one succeeds", async () => {
+    set_online(false);
+
+    await calendar_sync_engine.initial_load();
+
+    expect(calendar_sync_engine.has_settled_first_sync()).toBe(true);
+    expect(calendar_sync_engine.has_completed_pull()).toBe(false);
+
+    set_online(true);
+    get.mockResolvedValue(empty_calendars());
+
+    expect(await calendar_sync_engine.pull_delta()).toBe(true);
+    expect(calendar_sync_engine.has_completed_pull()).toBe(true);
+
+    calendar_sync_engine.reset();
+
+    expect(calendar_sync_engine.has_completed_pull()).toBe(false);
   });
 
   it("decrypts rows that arrived before the vault once keys are ready", async () => {
@@ -1293,6 +1315,51 @@ describe("calendar sync engine revision ledger", () => {
     await calendar_sync_engine.initial_load();
 
     expect(titles()).toEqual([]);
+  });
+
+  it("hides an event deleted on another device once the shared tombstone arrives", async () => {
+    serve([stamped("Meeting", 2000, 2)]);
+    await calendar_sync_engine.initial_load();
+
+    expect(titles()).toEqual(["Meeting"]);
+
+    apply_synced_tombstones({ event: { "evt-1": 2000 }, calendar: {} });
+    await calendar_sync_engine.recheck_tombstoned_rows();
+
+    expect(titles()).toEqual([]);
+
+    calendar_sync_engine.reset();
+    serve([stamped("Meeting", 2000, 2)]);
+    await calendar_sync_engine.initial_load();
+
+    expect(titles()).toEqual([]);
+  });
+
+  it("refuses a replayed deleted event on a fresh device with the shared tombstone", async () => {
+    serve([]);
+    await calendar_sync_engine.initial_load();
+    apply_synced_tombstones({ event: { "evt-1": 2000 }, calendar: {} });
+    serve([stamped("Meeting", 2000, 2)]);
+    await calendar_sync_engine.pull_delta();
+
+    expect(titles()).toEqual([]);
+
+    serve([stamped("Moved", 2500, 3)]);
+    await calendar_sync_engine.pull_delta();
+
+    expect(titles()).toEqual(["Moved"]);
+  });
+
+  it("does not share server deletes as own deletes", async () => {
+    serve([stamped("Meeting", 2000, 2)]);
+    await calendar_sync_engine.initial_load();
+    serve([{ ...stamped("Meeting", 2000, 3), deleted: true }]);
+    await calendar_sync_engine.pull_delta();
+
+    expect(take_own_tombstones().event).toEqual({});
+    expect((await read_sync_meta(ACCOUNT)).event_observed_tombstones).toEqual({
+      "evt-1": 2000,
+    });
   });
 
   it("accepts a deleted event again at a higher revision", async () => {

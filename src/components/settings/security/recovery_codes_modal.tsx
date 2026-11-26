@@ -63,6 +63,7 @@ import {
   store_vault_in_memory,
 } from "@/services/crypto/memory_key_store";
 import { store_encrypted_vault } from "@/contexts/auth/session_passphrase";
+import { is_rolled_back_vault } from "@/services/crypto/vault_generation";
 import {
   generate_recovery_key,
   encrypt_vault_backup,
@@ -262,6 +263,10 @@ export function RecoveryCodesModal({
       const latest = await read_latest_vault(passphrase);
 
       if (!latest) return { failed: t("settings.failed_verify_password") };
+
+      if (user?.id && is_rolled_back_vault(user.id, latest.vault)) {
+        return { failed: t("errors.vault_rolled_back") };
+      }
 
       const updated_vault = { ...latest.vault, recovery_codes: new_codes };
       const new_backup = await encrypt_vault_backup(

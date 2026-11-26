@@ -57,14 +57,15 @@ import {
 import { explicit_language_preference } from "@/services/api/preferences";
 import { ThemeCard } from "@/components/settings/appearance/theme_card";
 import { SettingRow } from "@/components/settings/appearance/setting_row";
-import {
-  ColorSwatchPicker,
-} from "@/components/settings/appearance/color_swatch_picker";
-import {
-  TimeZonePicker,
-} from "@/components/settings/appearance/time_zone_picker";
+import { ColorSwatchPicker } from "@/components/settings/appearance/color_swatch_picker";
+import { TimeZonePicker } from "@/components/settings/appearance/time_zone_picker";
 import { get_supported_time_zones } from "@/lib/time_zones";
 import { use_plan_limits } from "@/hooks/use_plan_limits";
+import {
+  is_paid_plan_code,
+  plan_settled,
+} from "@/components/settings/plan_gate";
+import { SettingsSkeleton } from "@/components/settings/settings_skeleton";
 import { prompt_upgrade } from "@/components/settings/aliases/feature_lock";
 import { FONT_OPTIONS, DEFAULT_FONT_ID } from "@/lib/font_options";
 import {
@@ -100,8 +101,13 @@ export function AppearanceSection() {
     use_preferences();
   const { t, set_language } = use_i18n();
   const [show_more_themes, set_show_more_themes] = useState(false);
-  const { limits, load_failed: plan_load_failed } = use_plan_limits();
-  const is_paid_plan = limits ? limits.plan_code !== "free" : plan_load_failed;
+  const {
+    limits,
+    plan_code,
+    is_loading: plan_is_loading,
+    load_failed: plan_load_failed,
+  } = use_plan_limits();
+  const is_paid_plan = is_paid_plan_code(plan_code, plan_load_failed);
   const effective_theme_fields = get_effective_theme_fields(preferences);
   const theme_sync_enabled = is_theme_sync_enabled(preferences);
   useEffect(() => {
@@ -263,6 +269,16 @@ export function AppearanceSection() {
   const handle_time_zone_change = (value: string) => {
     update_preference("time_zone", value, true);
   };
+
+  if (
+    !plan_settled({
+      has_limits: limits !== null,
+      plan_code,
+      is_loading: plan_is_loading,
+    })
+  ) {
+    return <SettingsSkeleton />;
+  }
 
   return (
     <IslandSections>
@@ -473,7 +489,6 @@ export function AppearanceSection() {
               </SelectContent>
             </Select>
           </SettingRow>
-
         </Island>
 
         {is_paid_plan && (
@@ -627,9 +642,7 @@ export function AppearanceSection() {
         </SettingRow>
 
         <SettingRow
-          description={t(
-            "settings.time_zone_description_calendar",
-          )}
+          description={t("settings.time_zone_description_calendar")}
           label={t("settings.time_zone")}
         >
           <TimeZonePicker
@@ -639,7 +652,6 @@ export function AppearanceSection() {
           />
         </SettingRow>
       </IslandSection>
-
     </IslandSections>
   );
 }

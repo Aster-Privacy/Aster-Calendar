@@ -124,6 +124,23 @@ describe("AccountRecoverySection", () => {
     ).toBe("account-1");
   });
 
+  it("waits for recovery methods before rendering the section", async () => {
+    vi.mocked(get_recovery_methods).mockReturnValue(
+      new Promise(() => {}) as never,
+    );
+    await render();
+
+    expect(container.textContent).not.toContain("common.recover_data_title");
+    expect(container.querySelector("button")).toBeNull();
+  });
+
+  it("renders the section when loading recovery methods fails", async () => {
+    vi.mocked(get_recovery_methods).mockRejectedValue(new Error("offline"));
+    await render();
+
+    expect(container.querySelector("button")).not.toBeNull();
+  });
+
   it("hides the row when no older key sets are locked", async () => {
     vi.mocked(get_recovery_methods).mockResolvedValue(methods(0) as never);
     await render();

@@ -57,8 +57,78 @@ import {
   revoke_busy_feed,
 } from "@/services/calendar/busy_feed";
 
+export interface BusyFeedsState {
+  feeds: Map<string, BusyFeedSummary>;
+  is_available: boolean | null;
+  reload: () => Promise<void>;
+}
+
+interface BusyFeedsSnapshot {
+  feeds: Map<string, BusyFeedSummary>;
+  is_available: boolean | null;
+}
+
+const busy_feeds_cache = new Map<string, BusyFeedsSnapshot>();
+
+const EMPTY_BUSY_FEEDS: BusyFeedsSnapshot = {
+  feeds: new Map(),
+  is_available: null,
+};
+
+export function busy_feeds_settled(is_available: boolean | null): boolean {
+  return is_available !== null;
+}
+
+export function forget_busy_feeds_cache(): void {
+  busy_feeds_cache.clear();
+}
+
+export function use_busy_feeds(): BusyFeedsState {
+  const { user } = use_auth();
+  const cache_key = user?.id ?? "";
+  const [snapshot, set_snapshot] = useState<BusyFeedsSnapshot>(
+    () => busy_feeds_cache.get(cache_key) ?? EMPTY_BUSY_FEEDS,
+  );
+
+  const store = useCallback(
+    (next: BusyFeedsSnapshot) => {
+      if (cache_key) busy_feeds_cache.set(cache_key, next);
+      set_snapshot(next);
+    },
+    [cache_key],
+  );
+
+  const reload = useCallback(async () => {
+    try {
+      const result = await list_busy_feeds();
+
+      if (!result.data) {
+        store({ feeds: new Map(), is_available: false });
+
+        return;
+      }
+
+      store({
+        feeds: new Map(
+          result.data.feeds.map((feed) => [feed.calendar_id, feed]),
+        ),
+        is_available: true,
+      });
+    } catch {
+      store({ feeds: new Map(), is_available: false });
+    }
+  }, [store]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  return { ...snapshot, reload };
+}
+
 interface CalendarBusyFeedSectionProps {
   calendars: DecryptedCalendar[];
+  busy_feeds: BusyFeedsState;
 }
 
 interface LinkDialogState {
@@ -68,14 +138,13 @@ interface LinkDialogState {
 
 export function CalendarBusyFeedSection({
   calendars,
+  busy_feeds,
 }: CalendarBusyFeedSectionProps) {
   const { t, language } = use_i18n();
   const { user } = use_auth();
-  const { preferences } = use_preferences();
-  const [feeds, set_feeds] = useState<Map<string, BusyFeedSummary>>(
-    () => new Map(),
-  );
-  const [is_available, set_is_available] = useState<boolean | null>(null);
+  const { preferences, update_preference } = use_preferences();
+  const opt_ins = preferences.calendar_busy_feed_calendars ?? [];
+  const { feeds, is_available, reload } = busy_feeds;
   const [working_id, set_working_id] = useState<string | null>(null);
   const [link_dialog, set_link_dialog] = useState<LinkDialogState | null>(null);
   const [stop_target, set_stop_target] = useState<DecryptedCalendar | null>(
@@ -84,29 +153,6 @@ export function CalendarBusyFeedSection({
   const [renew_target, set_renew_target] = useState<DecryptedCalendar | null>(
     null,
   );
-
-  const reload = useCallback(async () => {
-    try {
-      const result = await list_busy_feeds();
-
-      if (!result.data) {
-        set_is_available(false);
-
-        return;
-      }
-
-      set_feeds(
-        new Map(result.data.feeds.map((feed) => [feed.calendar_id, feed])),
-      );
-      set_is_available(true);
-    } catch {
-      set_is_available(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void reload();
-  }, [reload]);
 
   const format_updated = (value: string | null) => {
     if (!value) return t("calendar.busy_feed_waiting");
@@ -126,6 +172,44 @@ export function CalendarBusyFeedSection({
     }
   };
 
+  const opt_in = (calendar_id: string): readonly string[] => {
+    if (opt_ins.includes(calendar_id)) return opt_ins;
+
+    const next = [...opt_ins, calendar_id];
+
+    update_preference("calendar_busy_feed_calendars", next, true);
+
+    return next;
+  };
+
+  const opt_out = (calendar_id: string) => {
+    if (!opt_ins.includes(calendar_id)) return;
+
+    update_preference(
+      "calendar_busy_feed_calendars",
+      opt_ins.filter((id) => id !== calendar_id),
+      true,
+    );
+  };
+
+  const publish_now = async (
+    calendar_id: string,
+    allowed: readonly string[],
+  ): Promise<boolean> => {
+    try {
+      return (
+        (await publish_busy_calendar(
+          calendar_id,
+          user?.email ?? null,
+          () => allowed,
+          { force: true },
+        )) !== null
+      );
+    } catch {
+      return false;
+    }
+  };
+
   const issue_link = async (calendar: DecryptedCalendar) => {
     if (working_id) return;
 
@@ -140,11 +224,9 @@ export function CalendarBusyFeedSection({
         return;
       }
 
-      try {
-        await publish_busy_calendar(calendar.id, user?.email ?? null, {
-          force: true,
-        });
-      } catch {
+      const allowed = opt_in(calendar.id);
+
+      if (!(await publish_now(calendar.id, allowed))) {
         show_toast(t("calendar.busy_feed_publish_later"), "info");
       }
 
@@ -160,12 +242,33 @@ export function CalendarBusyFeedSection({
     }
   };
 
+  const resume_sharing = async (calendar: DecryptedCalendar) => {
+    if (working_id) return;
+
+    set_working_id(calendar.id);
+
+    try {
+      const allowed = opt_in(calendar.id);
+
+      if (await publish_now(calendar.id, allowed)) {
+        show_toast(t("calendar.busy_feed_resumed"), "success");
+      } else {
+        show_toast(t("calendar.busy_feed_resumed_later"), "info");
+      }
+
+      await reload();
+    } finally {
+      set_working_id(null);
+    }
+  };
+
   const stop_sharing = async () => {
     const calendar = stop_target;
 
     if (!calendar || working_id) return;
 
     set_working_id(calendar.id);
+    opt_out(calendar.id);
 
     try {
       const result = await revoke_busy_feed(calendar.id);
@@ -211,7 +314,9 @@ export function CalendarBusyFeedSection({
       >
         {calendars.map((calendar) => {
           const feed = feeds.get(calendar.id);
-          const is_shared = feed !== undefined;
+          const has_link = feed !== undefined;
+          const is_shared = has_link && opt_ins.includes(calendar.id);
+          const is_paused = has_link && !is_shared;
 
           return (
             <IslandRow
@@ -219,7 +324,9 @@ export function CalendarBusyFeedSection({
               description={
                 is_shared
                   ? format_updated(feed.published_at)
-                  : t("calendar.busy_feed_not_shared")
+                  : is_paused
+                    ? t("calendar.busy_feed_paused")
+                    : t("calendar.busy_feed_not_shared")
               }
               icon={
                 <span
@@ -235,7 +342,9 @@ export function CalendarBusyFeedSection({
                 checked: is_shared,
                 disabled: working_id !== null,
                 on_change: (next) => {
-                  if (next) {
+                  if (next && is_paused) {
+                    void resume_sharing(calendar);
+                  } else if (next) {
                     void issue_link(calendar);
                   } else {
                     set_stop_target(calendar);
@@ -243,7 +352,7 @@ export function CalendarBusyFeedSection({
                 },
               }}
               trailing={
-                is_shared ? (
+                has_link ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
@@ -259,11 +368,13 @@ export function CalendarBusyFeedSection({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="min-w-[190px]">
-                      <DropdownMenuItem
-                        onSelect={() => set_renew_target(calendar)}
-                      >
-                        {t("calendar.busy_feed_new_link")}
-                      </DropdownMenuItem>
+                      {is_shared && (
+                        <DropdownMenuItem
+                          onSelect={() => set_renew_target(calendar)}
+                        >
+                          {t("calendar.busy_feed_new_link")}
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem
                         className="text-danger focus:text-danger"
                         onSelect={() => set_stop_target(calendar)}

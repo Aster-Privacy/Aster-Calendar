@@ -118,6 +118,7 @@ import {
   merge_vault_for_write,
   write_vault_merged,
 } from "./vault_cas_write";
+import { pin_vault_generation, VAULT_ROLLED_BACK } from "./vault_generation";
 
 const PASSWORD = "Vault-Cas-Passw0rd-23";
 const USER_ID = "11111111-2222-4333-8444-555555555555";
@@ -239,6 +240,7 @@ describe("merge_vault_for_write", () => {
 
 describe("write_vault_merged", () => {
   beforeEach(() => {
+    localStorage.clear();
     server.vault = null;
     server.puts = 0;
     server.conflicts = 0;
@@ -334,6 +336,72 @@ describe("write_vault_merged", () => {
 
     expect(result.status).toBe("written");
     expect("expected_vault_sha256" in server.bodies[0]).toBe(false);
+  });
+
+  it("writes onto an older server copy another app left without generation fields", LONG_TEST, async () => {
+    pin_vault_generation(USER_ID, {
+      ...stale_local_vault(),
+      vault_generation: 9,
+    });
+    await put_server_vault(stale_local_vault());
+
+    const local = stale_local_vault();
+    const result = await write_vault_merged({
+      next: { ...local, recovery_codes: ["c5"] },
+      base: local,
+      passphrase: PASSWORD,
+      user_id: USER_ID,
+    });
+
+    expect(result.status).toBe("written");
+    expect(server.puts).toBe(1);
+
+    const written = await read_server_vault();
+
+    expect(written.recovery_codes).toEqual(["c5"]);
+    expect(written.vault_generation).toBe(10);
+  });
+
+  it("writes onto an older server copy restored with a recovery code", LONG_TEST, async () => {
+    pin_vault_generation(USER_ID, {
+      ...stale_local_vault(),
+      vault_generation: 9,
+    });
+    await put_server_vault({ ...stale_local_vault(), vault_generation: 2 });
+
+    const local = stale_local_vault();
+    const result = await write_vault_merged({
+      next: { ...local, recovery_codes: ["c6"] },
+      base: local,
+      passphrase: PASSWORD,
+      user_id: USER_ID,
+    });
+
+    expect(result.status).toBe("written");
+    expect((await read_server_vault()).vault_generation).toBe(10);
+  });
+
+  it("refuses a server copy holding keys the account replaced", LONG_TEST, async () => {
+    pin_vault_generation(USER_ID, {
+      ...stale_local_vault(),
+      vault_generation: 9,
+    });
+    pin_vault_generation(USER_ID, {
+      ...stale_local_vault(),
+      identity_key: "identity-replacement",
+    });
+    await put_server_vault({ ...stale_local_vault(), vault_generation: 20 });
+
+    const local = stale_local_vault();
+    const result = await write_vault_merged({
+      next: { ...local, identity_key: "identity-replacement" },
+      base: local,
+      passphrase: PASSWORD,
+      user_id: USER_ID,
+    });
+
+    expect(result).toEqual({ status: "failed", error: VAULT_ROLLED_BACK });
+    expect(server.puts).toBe(0);
   });
 
   it("refuses a different account", async () => {

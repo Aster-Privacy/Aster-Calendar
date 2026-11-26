@@ -62,7 +62,8 @@ import { export_calendar_events } from "@/services/calendar/calendar_export";
 import { use_preferences } from "@/contexts/preferences_context";
 import { use_i18n } from "@/lib/i18n/context";
 import { format_bytes } from "@/lib/utils";
-import { list_calendars } from "@/services/api/calendar";
+import { SettingsSkeleton } from "@/components/settings/settings_skeleton";
+import { use_settings_calendars } from "@/components/settings/use_settings_calendars";
 import {
   BIRTHDAYS_IMPORT_TARGET,
   entries_for_target,
@@ -259,7 +260,10 @@ function CalendarImportCard({
         }
 
         set_preview(loaded);
-        if (!birthdays_removed_ref.current && is_birthday_import(loaded.parsed)) {
+        if (
+          !birthdays_removed_ref.current &&
+          is_birthday_import(loaded.parsed)
+        ) {
           set_target_id(BIRTHDAYS_IMPORT_TARGET);
         }
         set_phase("preview");
@@ -1155,33 +1159,13 @@ export function CalendarSubscriptionsCard() {
 }
 
 export function CalendarImportExportSection() {
-  const [calendars, set_calendars] = useState<DecryptedCalendar[]>([]);
-  const [default_calendar_id, set_default_calendar_id] = useState("");
+  const { calendars, is_settled } = use_settings_calendars();
+  const default_calendar_id =
+    (calendars.find((entry) => entry.is_default) ?? calendars[0])?.id ?? "";
 
-  useEffect(() => {
-    let cancelled = false;
-
-    list_calendars()
-      .then((result) => {
-        if (cancelled) {
-          return;
-        }
-
-        set_calendars(result.data);
-
-        const preferred =
-          result.data.find((entry) => entry.is_default) ?? result.data[0];
-
-        if (preferred) {
-          set_default_calendar_id(preferred.id);
-        }
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  if (!is_settled) {
+    return <SettingsSkeleton />;
+  }
 
   return (
     <IslandSections>

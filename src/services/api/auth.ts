@@ -18,6 +18,7 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
+import { default_guard_device_name } from "@/services/guard/guard_device_label";
 import type { StepUpCredentials } from "./step_up";
 
 import { api_client, ApiResponse } from "./client";
@@ -295,7 +296,10 @@ export async function login_user(
   const v1_proof = take_pending_login_v3(request.user_hash);
   const response =
     (v1_proof ? await sign_in_v3<LoginResponse>(request, v1_proof) : null) ??
-    (await api_client.post<LoginResponse>("/core/v1/auth/login", request));
+    (await api_client.post<LoginResponse>("/core/v1/auth/login", {
+      ...request,
+      device_label: default_guard_device_name(),
+    }));
 
   if (response.data && !is_totp_required_response(response.data)) {
     clear_csrf_cache();

@@ -26,12 +26,14 @@ import {
   decrypt_vault,
   type EncryptedVault,
 } from "@/services/crypto/key_manager";
+import { is_rolled_back_vault } from "@/services/crypto/vault_generation";
 
 export type PasswordChangeVaultFailure =
   | "session_expired"
   | "wrong_password"
   | "salt_collision"
   | "out_of_date"
+  | "rolled_back"
   | "unavailable";
 
 export const PASSWORD_CHANGE_VAULT_ERROR_KEYS: Record<
@@ -42,6 +44,7 @@ export const PASSWORD_CHANGE_VAULT_ERROR_KEYS: Record<
   wrong_password: "settings.current_password_incorrect",
   salt_collision: "errors.auth_salt_collision",
   out_of_date: "settings.password_change_vault_out_of_date",
+  rolled_back: "errors.vault_rolled_back",
   unavailable: "settings.failed_get_auth_data",
 };
 
@@ -133,6 +136,10 @@ export async function load_password_change_vault(
       vault_nonce,
       current_password,
     );
+
+    if (is_rolled_back_vault(user_id, vault)) {
+      return { kind: "error", reason: "rolled_back" };
+    }
 
     return { kind: "ok", vault, server_blob: { encrypted_vault, vault_nonce } };
   } catch (server_error) {

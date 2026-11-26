@@ -27,6 +27,7 @@ import {
   UserGroupIcon,
 } from "@heroicons/react/24/outline";
 import {
+  Badge,
   Button,
   Select,
   SelectContent,
@@ -40,6 +41,8 @@ import { checkout_error_text } from "./checkout_error_text";
 import { safe_local_set } from "@/lib/safe_storage";
 import { calendar_booking_available } from "@/lib/app_kind";
 import { calendar_plan_limits } from "@/lib/calendar_plan_limits";
+import { has_tauri_runtime } from "@/lib/tauri_runtime";
+import { PlanCheckList } from "@/components/settings/billing/plan_highlights";
 import { use_i18n } from "@/lib/i18n/context";
 import { LoadFailedNotice } from "@/components/settings/load_failed_notice";
 import { Spinner } from "@/components/ui/spinner";
@@ -155,40 +158,6 @@ function feature_list_for_tier(tier_id: string, t: TFunc): FeatureRow[] {
   return calendar_feature_list_for_tier(tier_id, t);
 }
 
-const CHECK_SVG = (
-  <svg
-    fill="none"
-    height="18"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    viewBox="0 0 24 24"
-    width="18"
-  >
-    <path
-      d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
-const CROSS_SVG = (
-  <svg
-    fill="none"
-    height="18"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    viewBox="0 0 24 24"
-    width="18"
-  >
-    <path
-      d="M9.75 9.75 14.25 14.25M14.25 9.75 9.75 14.25M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
 interface PlanUpgradeSelectionProps {
   heading: string;
   subheading: string;
@@ -207,15 +176,14 @@ export function PlanUpgradeSelection({
     "individual",
   );
   const [billing_period, set_billing_period] = useState<"monthly" | "yearly">(
-    "monthly",
+    "yearly",
   );
 
-  const yearly_save_percent = Math.max(
-    0,
+  const yearly_save_percent = Math.min(
     ...(plan_type === "family" ? FAMILY_PLAN_TIERS : PLAN_TIERS)
       .filter((tier) => tier.monthly_cents > 0)
       .map((tier) =>
-        Math.round(
+        Math.floor(
           ((tier.monthly_cents * 12 - tier.yearly_cents) /
             (tier.monthly_cents * 12)) *
             100,
@@ -344,7 +312,7 @@ export function PlanUpgradeSelection({
       // overlay is torn down with the page. On desktop, checkout opens in an
       // external browser and this window stays put, so clear the overlay here
       // instead of leaving it spinning forever.
-      if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+      if (has_tauri_runtime()) {
         set_is_finalizing(false);
       }
     },
@@ -388,10 +356,7 @@ export function PlanUpgradeSelection({
         try {
           await open_payment_url(res.data.checkout_url);
 
-          if (
-            typeof window !== "undefined" &&
-            "__TAURI_INTERNALS__" in window
-          ) {
+          if (has_tauri_runtime()) {
             set_is_finalizing(false);
           }
         } catch {
@@ -598,10 +563,7 @@ export function PlanUpgradeSelection({
                           : t("settings.per_year_short")}
                       </span>
                       {billing_period === "yearly" && (
-                        <span
-                          className="ms-1 px-2 py-[3px] rounded-full text-[10px] font-bold uppercase tracking-wider text-[var(--accent-fg,#ffffff)]"
-                          style={{ backgroundColor: "var(--accent-blue)" }}
-                        >
+                        <Badge className="ms-1" color="green">
                           {t("settings.save_yearly", {
                             amount: format_price(
                               convert_cents(
@@ -611,7 +573,7 @@ export function PlanUpgradeSelection({
                               currency,
                             ),
                           })}
-                        </span>
+                        </Badge>
                       )}
                     </div>
                     <p className="text-[13px] leading-relaxed text-txt-tertiary">
@@ -620,29 +582,13 @@ export function PlanUpgradeSelection({
                         : t("settings.family_plan_tagline")}
                     </p>
                   </div>
-                  <ul className="flex flex-col gap-3 flex-1">
-                    {features.map((feat, i) => (
-                      <li
-                        key={i}
-                        className="flex items-start gap-2.5 text-[13px] leading-snug"
-                        style={{
-                          color: feat.on
-                            ? "var(--text-primary)"
-                            : "var(--text-muted)",
-                        }}
-                      >
-                        <span
-                          className="shrink-0 mt-[1px]"
-                          style={{
-                            color: feat.on ? "var(--accent-blue)" : "#dc2626",
-                          }}
-                        >
-                          {feat.on ? CHECK_SVG : CROSS_SVG}
-                        </span>
-                        <span className="flex-1">{feat.label}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="flex-1">
+                    <PlanCheckList
+                      rows={features
+                        .filter((feat) => feat.on)
+                        .map((feat) => feat.label)}
+                    />
+                  </div>
                   <Button
                     className="w-full"
                     disabled={is_finalizing}
@@ -659,16 +605,16 @@ export function PlanUpgradeSelection({
         ) : (
           <div className="w-full grid gap-5 mt-10 md:grid-cols-3 max-w-5xl items-stretch">
             {PLAN_TIERS.map((tier) => {
-              const cents =
-                billing_period === "yearly"
-                  ? tier.yearly_cents
-                  : tier.monthly_cents;
+              const is_yearly = billing_period === "yearly";
+              const cents = is_yearly ? tier.yearly_cents : tier.monthly_cents;
               const display_price = format_price(
-                convert_cents(cents, currency),
+                convert_cents(
+                  is_yearly ? Math.round(cents / 12) : cents,
+                  currency,
+                ),
                 currency,
               );
-              const saves =
-                billing_period === "yearly" ? tier.savings_cents : 0;
+              const saves = is_yearly ? tier.savings_cents : 0;
               const has_api_plan = plans.some((p) => p.code === tier.id);
               const features = feature_list_for_tier(tier.id, t);
               const description = t(TIER_DESCRIPTION_KEYS[tier.id]);
@@ -676,7 +622,7 @@ export function PlanUpgradeSelection({
               return (
                 <div
                   key={tier.id}
-                  className="relative rounded-3xl border flex flex-col gap-6 p-7 transition-colors duration-300 hover:border-edge-primary"
+                  className="relative rounded-3xl border flex flex-col gap-5 p-7 transition-colors duration-300 hover:border-edge-primary"
                   style={{
                     borderColor: tier.is_recommended
                       ? "var(--accent-blue)"
@@ -686,61 +632,54 @@ export function PlanUpgradeSelection({
                       : "var(--bg-hover)",
                   }}
                 >
-                  <div className="flex flex-col gap-3">
+                  {tier.is_recommended && (
+                    <span
+                      className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--accent-fg,#ffffff)]"
+                      style={{ backgroundColor: "var(--accent-blue)" }}
+                    >
+                      {t("settings.plan_most_popular")}
+                    </span>
+                  )}
+                  <div className="flex flex-col gap-2">
                     <h3 className="text-lg font-bold leading-tight text-txt-primary">
                       {tier.name}
                     </h3>
-                    <div className="flex items-baseline gap-1.5 flex-wrap">
+                    <p className="text-[13px] leading-relaxed text-txt-tertiary">
+                      {description}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-baseline gap-1.5">
                       <span className="text-[40px] font-bold leading-none tracking-tight text-txt-primary">
                         {display_price}
                       </span>
                       <span className="text-sm text-txt-muted">
-                        {billing_period === "monthly"
-                          ? t("settings.per_month_short")
-                          : t("settings.per_year_short")}
+                        {t("settings.per_month_short")}
+                      </span>
+                    </div>
+                    <div className="flex min-h-[22px] flex-wrap items-center gap-2 text-[13px] text-txt-secondary">
+                      <span>
+                        {is_yearly
+                          ? t("settings.billing_billed_yearly_total", {
+                              amount: format_price(
+                                convert_cents(cents, currency),
+                                currency,
+                              ),
+                            })
+                          : t("settings.plan_billed_monthly")}
                       </span>
                       {saves > 0 && (
-                        <span
-                          className="ms-1 px-2 py-[3px] rounded-full text-[10px] font-bold uppercase tracking-wider text-[var(--accent-fg,#ffffff)]"
-                          style={{ backgroundColor: "var(--accent-blue)" }}
-                        >
+                        <Badge color="green">
                           {t("settings.save_yearly", {
                             amount: format_price(
                               convert_cents(saves, currency),
                               currency,
                             ),
                           })}
-                        </span>
+                        </Badge>
                       )}
                     </div>
-                    <p className="text-[13px] leading-relaxed text-txt-tertiary">
-                      {description}
-                    </p>
                   </div>
-
-                  <ul className="flex flex-col gap-3 flex-1">
-                    {features.map((f, i) => (
-                      <li
-                        key={i}
-                        className="flex items-start gap-2.5 text-[13px] leading-snug"
-                        style={{
-                          color: f.on
-                            ? "var(--text-primary)"
-                            : "var(--text-muted)",
-                        }}
-                      >
-                        <span
-                          className="shrink-0 mt-[1px]"
-                          style={{
-                            color: f.on ? "var(--accent-blue)" : "#dc2626",
-                          }}
-                        >
-                          {f.on ? CHECK_SVG : CROSS_SVG}
-                        </span>
-                        <span className="flex-1">{f.text}</span>
-                      </li>
-                    ))}
-                  </ul>
 
                   <Button
                     className="w-full"
@@ -751,6 +690,14 @@ export function PlanUpgradeSelection({
                   >
                     {t("auth.plan_select")}
                   </Button>
+
+                  <div className="h-px w-full bg-edge-secondary opacity-60" />
+
+                  <div className="flex flex-1 flex-col gap-3">
+                    <PlanCheckList
+                      rows={features.filter((f) => f.on).map((f) => f.text)}
+                    />
+                  </div>
                 </div>
               );
             })}

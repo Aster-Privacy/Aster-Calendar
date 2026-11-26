@@ -22,7 +22,7 @@ import type { TranslationKey } from "@/lib/i18n";
 import type { DecryptedCalendar } from "@/types/calendar";
 import type { UserPreferences } from "@/services/api/preferences";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Badge,
   IslandRow,
@@ -60,6 +60,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown_menu";
 import {
+  CalendarClearDialog,
   CalendarDeleteDialog,
   CalendarEditDialog,
 } from "@/components/calendar/calendar_edit_dialog";
@@ -76,11 +77,19 @@ import {
 } from "@/components/ui/select";
 import { InfoPopover } from "@/components/ui/info_popover";
 import { TimeZonePicker } from "@/components/settings/appearance/time_zone_picker";
-import { InviteSenderSettingRow } from "@/components/settings/invite_sender_setting_row";
-import { CalendarBusyFeedSection } from "@/components/settings/calendar_busy_feed_section";
+import {
+  InviteSenderSettingRow,
+  use_settings_invite_senders,
+} from "@/components/settings/invite_sender_setting_row";
+import {
+  busy_feeds_settled,
+  CalendarBusyFeedSection,
+  use_busy_feeds,
+} from "@/components/settings/calendar_busy_feed_section";
+import { SettingsSkeleton } from "@/components/settings/settings_skeleton";
+import { use_settings_calendars } from "@/components/settings/use_settings_calendars";
 import { use_preferences } from "@/contexts/preferences_context";
 import { use_i18n } from "@/lib/i18n/context";
-import { list_calendars } from "@/services/api/calendar";
 import {
   apply_calendar_visibility,
   set_calendar_hidden,
@@ -935,23 +944,8 @@ export function CalendarViewsSection() {
 export function CalendarEventsSection() {
   const { t } = use_i18n();
   const { preferences, update_preference } = use_preferences();
-  const [calendars, set_calendars] = useState<DecryptedCalendar[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    list_calendars()
-      .then((result) => {
-        if (!cancelled) {
-          set_calendars(result.data);
-        }
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { calendars, is_settled: calendars_settled } = use_settings_calendars();
+  const invite_senders = use_settings_invite_senders();
 
   const duration_label = (minutes: number) => {
     if (minutes < 60) {
@@ -967,6 +961,10 @@ export function CalendarEventsSection() {
 
   const reminder_label = (minutes: number) =>
     format_default_reminder(minutes, t);
+
+  if (!calendars_settled || invite_senders.loading) {
+    return <SettingsSkeleton />;
+  }
 
   return (
     <IslandSections>
@@ -1187,7 +1185,7 @@ export function CalendarEventsSection() {
           }
         />
 
-        <InviteSenderSettingRow />
+        <InviteSenderSettingRow senders={invite_senders} />
       </IslandSection>
 
       <IslandSection
@@ -1257,7 +1255,8 @@ export function CalendarNotificationsSection() {
   const { t } = use_i18n();
   const { preferences, update_preference } = use_preferences();
   const [permission, set_permission] = useState<NotificationPermission | null>(
-    null,
+    () =>
+      typeof Notification === "undefined" ? null : Notification.permission,
   );
 
   useEffect(() => {
@@ -1411,7 +1410,12 @@ export function CalendarListSection() {
   const unreadable_calendar_count = use_unreadable_calendar_count();
   const { preferences, update_preference, update_preferences } =
     use_preferences();
-  const [server_calendars, set_calendars] = useState<DecryptedCalendar[]>([]);
+  const {
+    calendars: server_calendars,
+    is_settled: calendars_settled,
+    reload,
+  } = use_settings_calendars();
+  const busy_feeds = use_busy_feeds();
   const { visibility, update: update_visibility } =
     use_local_calendar_visibility({
       calendars: server_calendars,
@@ -1422,7 +1426,6 @@ export function CalendarListSection() {
     () => apply_calendar_visibility(server_calendars, visibility),
     [server_calendars, visibility],
   );
-  const [is_loading, set_is_loading] = useState(true);
   const [editor, set_editor] = useState<{
     is_open: boolean;
     calendar: DecryptedCalendar | null;
@@ -1430,6 +1433,10 @@ export function CalendarListSection() {
   const [delete_target, set_delete_target] = useState<DecryptedCalendar | null>(
     null,
   );
+  const [clear_target, set_clear_target] = useState<DecryptedCalendar | null>(
+    null,
+  );
+  const close_clear = useCallback(() => set_clear_target(null), []);
   const [is_birthdays_editor_open, set_is_birthdays_editor_open] =
     useState(false);
   const birthdays_removed = preferences.calendar_birthdays_removed === true;
@@ -1470,37 +1477,6 @@ export function CalendarListSection() {
     );
   };
 
-  const reload = async () => {
-    try {
-      const result = await list_calendars();
-
-      set_calendars(result.data);
-    } catch {
-      return;
-    }
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-
-    list_calendars()
-      .then((result) => {
-        if (!cancelled) {
-          set_calendars(result.data);
-          set_is_loading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          set_is_loading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const default_calendar_id =
     calendars.find(
       (entry) => entry.id === preferences.calendar_default_calendar_id,
@@ -1527,6 +1503,10 @@ export function CalendarListSection() {
     void reload();
   };
 
+  if (!calendars_settled || !busy_feeds_settled(busy_feeds.is_available)) {
+    return <SettingsSkeleton />;
+  }
+
   return (
     <IslandSections>
       <SettingNote>{t("calendar.settings_sync_note")}</SettingNote>
@@ -1547,7 +1527,7 @@ export function CalendarListSection() {
           </Button>
         }
       >
-        {!is_loading && calendars.length === 0 && (
+        {calendars.length === 0 && (
           <IslandRow
             label={t(
               unreadable_calendar_count > 0
@@ -1611,6 +1591,12 @@ export function CalendarListSection() {
                       {t("calendar.settings_set_default_calendar")}
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuItem
+                    className="text-danger focus:text-danger"
+                    onSelect={() => set_clear_target(calendar)}
+                  >
+                    {t("calendar.clear_calendar_events")}
+                  </DropdownMenuItem>
                   {!calendar.is_default && (
                     <DropdownMenuItem
                       className="text-danger focus:text-danger"
@@ -1699,7 +1685,10 @@ export function CalendarListSection() {
         )}
       </IslandSection>
 
-      <CalendarBusyFeedSection calendars={server_calendars} />
+      <CalendarBusyFeedSection
+        busy_feeds={busy_feeds}
+        calendars={server_calendars}
+      />
 
       <CalendarEditDialog
         calendar={birthdays_calendar}
@@ -1725,6 +1714,8 @@ export function CalendarListSection() {
         on_close={() => set_delete_target(null)}
         on_deleted={handle_deleted}
       />
+
+      <CalendarClearDialog calendar={clear_target} on_close={close_clear} />
     </IslandSections>
   );
 }

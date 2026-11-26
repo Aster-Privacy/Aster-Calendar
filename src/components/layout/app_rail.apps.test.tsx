@@ -131,47 +131,44 @@ describe("app rail apps", () => {
     expect(rail_item("common.app_name_mail")).toBeUndefined();
   });
 
-  it("shows the Calendar app icon", async () => {
+  it.each([
+    ["common.app_name_calendar", "rail"],
+    ["common.contacts", "contacts"],
+    ["common.security_center", "security"],
+  ])("draws %s with the bundled brand artwork", async (label, marker) => {
     await render_rail();
 
-    const calendar_icon = rail_item("common.app_name_calendar")?.querySelector(
-      'svg[data-dated-calendar-icon="app"]',
-    );
+    const item = rail_item(label);
+    const icon = item?.querySelector("svg.app_rail_icon");
+    const href = icon?.querySelector("image")?.getAttribute("href");
 
-    expect(calendar_icon?.querySelector("image")?.getAttribute("href")).toMatch(
-      /^data:image\/png/,
-    );
     expect(
-      rail_item("common.app_name_calendar")?.querySelector("img"),
-    ).toBeNull();
+      icon?.getAttribute("data-app-rail-icon") ??
+        icon?.getAttribute("data-dated-calendar-icon"),
+    ).toBe(marker);
+    expect(href?.startsWith("data:image/png;base64,")).toBe(true);
+    expect(item?.querySelector("img")).toBeNull();
+    expect(item?.querySelector("svg[stroke]")).toBeNull();
   });
 
-  it("shows the Contacts and Security Center app logos", async () => {
+  it("never swaps the rail to outline icons when artwork reports an error", async () => {
     await render_rail();
 
-    const contacts_logo = rail_item("common.contacts")?.querySelector("img");
-    const security_logo = rail_item("common.security_center")?.querySelector(
-      "img",
-    );
+    const rail = container.querySelector(".app_rail_column");
+    const before = rail?.innerHTML;
 
-    expect(contacts_logo?.getAttribute("src")).toBe(
-      "/icons/contacts/contacts_rail_24.png",
+    act(() => {
+      rail
+        ?.querySelectorAll("image")
+        .forEach((image) => image.dispatchEvent(new Event("error")));
+    });
+
+    expect(rail?.innerHTML).toBe(before);
+    expect(rail?.querySelectorAll("svg.app_rail_icon image")).toHaveLength(3);
+    expect(rail?.innerHTML).not.toContain("M6.75 3v2.25M17.25 3v2.25");
+    expect(rail?.innerHTML).not.toContain(
+      "M15 19.128a9.38 9.38 0 0 0 2.625.372",
     );
-    expect(contacts_logo?.getAttribute("srcset")).toContain(
-      "/icons/contacts/contacts_rail_72.png 3x",
-    );
-    expect(security_logo?.getAttribute("src")).toBe(
-      "/icons/security/security_rail_24.png",
-    );
-    expect(security_logo?.getAttribute("srcset")).toContain(
-      "/icons/security/security_rail_48.png 2x",
-    );
-    expect(
-      rail_item("common.contacts")?.querySelector(".app_rail_icon"),
-    ).toBeNull();
-    expect(
-      rail_item("common.security_center")?.querySelector(".app_rail_icon"),
-    ).toBeNull();
   });
 
   it("never marks the Calendar shortcut as an open panel", async () => {

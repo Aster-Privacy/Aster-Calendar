@@ -63,6 +63,7 @@ export interface TranslationNamespace {
   calendar: CalendarTranslations;
   tasks: TasksTranslations;
   settings_search: SettingsSearchTranslations;
+  guard: GuardTranslations;
 }
 
 export interface TasksTranslations {
@@ -478,6 +479,9 @@ export interface CalendarTranslations {
   busy_feed_copied: string;
   busy_feed_error: string;
   busy_feed_publish_later: string;
+  busy_feed_paused: string;
+  busy_feed_resumed: string;
+  busy_feed_resumed_later: string;
   settings_info_birthdays: string;
   settings_subscriptions: string;
   settings_subscriptions_title: string;
@@ -641,6 +645,20 @@ export interface CalendarTranslations {
   edit_calendar: string;
   calendar_name_placeholder: string;
   delete_calendar_message: string;
+  clear_calendar_events: string;
+  clear_calendar_title: string;
+  clear_calendar_message: string;
+  clear_calendar_message_one?: string;
+  clear_calendar_counting: string;
+  clear_calendar_empty_title: string;
+  clear_calendar_empty_message: string;
+  clear_calendar_in_progress: string;
+  clear_calendar_done: string;
+  clear_calendar_done_one?: string;
+  clear_calendar_failed: string;
+  clear_calendar_partial_failed: string;
+  clear_calendar_partial_failed_one?: string;
+  clear_calendar_count_failed: string;
   tour_welcome_title: string;
   tour_welcome_description: string;
   tour_create_title: string;
@@ -1775,6 +1793,9 @@ export interface MailRulesTranslations {
 }
 
 export interface CommonTranslations {
+  merge_primary_label: string;
+  merge_primary_description: string;
+  merge_make_primary: string;
   post_quantum_unavailable_title: string;
   post_quantum_unavailable_message: string;
   post_quantum_send_anyway: string;
@@ -2274,8 +2295,6 @@ export interface CommonTranslations {
   billing_alert_body_days: string;
   billing_alert_action: string;
   dismiss: string;
-  web_sandbox_off_title: string;
-  web_sandbox_off_body: string;
   load_content: string;
   open_link: string;
   no_icon: string;
@@ -2643,6 +2662,7 @@ export interface CommonTranslations {
   history: string;
   all_mail: string;
   import_contacts: string;
+  import_contacts_short: string;
   import_choose_file_desc: string;
   click_to_select_file: string;
   or_drag_and_drop: string;
@@ -2943,6 +2963,20 @@ export interface CommonTranslations {
   search_labels: string;
   enter_label_name: string;
   leaving_aster_mail: string;
+  link_dialog_title: string;
+  link_dialog_body: string;
+  link_dialog_mail_title: string;
+  link_dialog_mail_body: string;
+  link_dialog_blocked_title: string;
+  link_dialog_blocked_body: string;
+  link_dialog_show_full: string;
+  link_dialog_copy: string;
+  link_dialog_warnings_label: string;
+  link_dialog_warning_http: string;
+  link_dialog_warning_lookalike: string;
+  link_dialog_warning_mismatch: string;
+  link_dialog_warning_ip: string;
+  link_dialog_full_address: string;
   unlock_aster_mail: string;
   aster_mail_locked: string;
   merge_contacts: string;
@@ -4604,6 +4638,8 @@ export interface SettingsTranslations {
   billing_pay_yearly: string;
   billing_pay_monthly: string;
   billing_billed_yearly_total: string;
+  plan_most_popular: string;
+  plan_billed_monthly: string;
   billing_billed_monthly: string;
   billing_save_percent: string;
   billing_select_plan_hint: string;
@@ -7577,6 +7613,8 @@ export interface SettingsTranslations {
   plan_everything_in: string;
   compare_features_show: string;
   compare_features_hide: string;
+  plan_compare_included: string;
+  plan_compare_not_included: string;
   compare_plans: string;
   feature: string;
   manage_payment_methods: string;
@@ -9941,6 +9979,7 @@ export interface ErrorTranslations {
   session_expired_login: string;
   session_account_switched: string;
   session_identity_mismatch: string;
+  vault_rolled_back: string;
   key_material_unavailable: string;
   storage_compromised: string;
   registration_failed: string;
@@ -10093,6 +10132,77 @@ export interface SurveyTranslations {
   submitted_thanks: string;
 }
 
+export interface GuardTranslations {
+  approve_expires_in: string;
+  rescue_applied_body: string;
+  rescue_applied_title: string;
+  rescue_sign_in: string;
+  rescue_stopped_body: string;
+  rescue_stopped_title: string;
+  rescue_waiting_title: string;
+  sign_in_back: string;
+  sign_in_code_hint: string;
+  sign_in_code_label: string;
+  sign_in_code_submit: string;
+  sign_in_code_wrong: string;
+  sign_in_completing: string;
+  sign_in_denied: string;
+  sign_in_denied_title: string;
+  sign_in_error: string;
+  sign_in_error_title: string;
+  sign_in_expired: string;
+  sign_in_expired_title: string;
+  sign_in_match_number: string;
+  sign_in_number_label: string;
+  sign_in_paused: string;
+  sign_in_rescue_hint: string;
+  sign_in_rescue_invalid: string;
+  sign_in_rescue_label: string;
+  sign_in_rescue_started: string;
+  sign_in_rescue_submit: string;
+  sign_in_starting: string;
+  sign_in_use_code: string;
+  sign_in_use_rescue: string;
+  sign_in_waiting_chip: string;
+  sign_in_waiting_description: string;
+  sign_in_waiting_title: string;
+  approve_number_rejected: string;
+  error_action_invalid: string;
+  error_device_keys: string;
+  error_device_pending: string;
+  error_device_pending_soon: string;
+  error_device_required: string;
+  error_device_unknown: string;
+  error_disabled: string;
+  error_held: string;
+  error_held_soon: string;
+  error_last_device: string;
+  error_not_allowed: string;
+  error_offline: string;
+  error_paused: string;
+  error_paused_soon: string;
+  error_request_conflict: string;
+  error_request_gone: string;
+  error_step_up: string;
+  error_too_many: string;
+  error_too_many_soon: string;
+  error_upgrade: string;
+  error_veto_invalid: string;
+  setup_already_on: string;
+  sign_in_again: string;
+  sign_in_no_method: string;
+  sign_in_on_hold: string;
+  sign_in_on_hold_title: string;
+  sign_in_on_hold_until: string;
+  sign_in_paused_until: string;
+  sign_in_rescue_failed: string;
+  sign_in_rescue_in_progress: string;
+  sign_in_rescue_not_allowed: string;
+  sign_in_rescue_only: string;
+  sign_in_rescue_paused: string;
+  sign_in_where_to_approve: string;
+}
+
 export type TranslationKey =
   | `common.${keyof CommonTranslations}`
   | `settings.${keyof SettingsTranslations}`
@@ -10110,6 +10220,7 @@ export type TranslationKey =
   | `survey.${keyof SurveyTranslations}`
   | `calendar.${keyof CalendarTranslations}`
   | `tasks.${keyof TasksTranslations}`
-  | `settings_search.${keyof SettingsSearchTranslations}`;
+  | `settings_search.${keyof SettingsSearchTranslations}`
+  | `guard.${keyof GuardTranslations}`;
 
 export type Translations = TranslationNamespace;

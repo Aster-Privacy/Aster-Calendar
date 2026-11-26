@@ -65,6 +65,7 @@ import {
   is_rolled_back,
   is_tombstoned,
   load_revisions,
+  note_server_delete,
   observe_revision,
   record_tombstone,
   reset_revisions,
@@ -258,6 +259,7 @@ export class CalendarSyncEngine {
   private generation = 0;
   private loaded = false;
   private initial_pull_settled = false;
+  private pull_completed = false;
   private load_promise: Promise<void> | null = null;
   private pull_promise: Promise<boolean> | null = null;
   private pull_again = false;
@@ -301,6 +303,44 @@ export class CalendarSyncEngine {
 
       if (!is_temp_row(bound_id)) record_tombstone(kind, bound_id);
     }
+  }
+
+  private note_server_deletes(kind: RevisionKind, ids: string[]): void {
+    for (const id of ids) {
+      const bound_id = this.id_binder(id);
+
+      if (!is_temp_row(bound_id)) note_server_delete(kind, bound_id);
+    }
+  }
+
+  async recheck_tombstoned_rows(): Promise<void> {
+    const account_id = this.account_id;
+
+    if (!account_id) return;
+    const generation = this.generation;
+    let is_changed = false;
+
+    for (const row of Array.from(this.calendar_rows.values())) {
+      if (!this.calendars.has(row.id)) continue;
+      if (!is_tombstoned("calendar", this.id_binder(row.id))) continue;
+      await this.decode_calendar(row);
+      if (!this.is_current(account_id, generation)) return;
+      is_changed = true;
+    }
+    for (const row of Array.from(this.event_rows.values())) {
+      if (!this.events.has(row.id)) continue;
+      if (
+        !is_tombstoned("event", this.id_binder(row.id)) &&
+        !this.in_deleted_calendar(row)
+      ) {
+        continue;
+      }
+      await this.decode_event(row);
+      if (!this.is_current(account_id, generation)) return;
+      is_changed = true;
+    }
+    await this.persist_bound_ledger();
+    if (is_changed) this.notify();
   }
 
   private in_deleted_calendar(row: CachedEventRow): boolean {
@@ -551,6 +591,10 @@ export class CalendarSyncEngine {
     return this.loaded && this.initial_pull_settled;
   }
 
+  has_completed_pull(): boolean {
+    return this.loaded && this.pull_completed;
+  }
+
   awaiting_first_sync(): boolean {
     return (
       this.loaded && !this.initial_pull_settled && this.event_rows.size === 0
@@ -564,14 +608,25 @@ export class CalendarSyncEngine {
       return this.pull_promise;
     }
 
-    this.pull_promise = this.pull_with_retries().finally(() => {
-      this.pull_promise = null;
-      void this.heal_unreadable_rows();
-      if (this.pull_again) {
-        this.pull_again = false;
-        this.schedule_pull(0);
-      }
-    });
+    const account_id = this.account_id;
+    const generation = this.generation;
+
+    this.pull_promise = this.pull_with_retries()
+      .then((completed) => {
+        if (completed && this.is_current(account_id, generation)) {
+          this.pull_completed = true;
+        }
+
+        return completed;
+      })
+      .finally(() => {
+        this.pull_promise = null;
+        void this.heal_unreadable_rows();
+        if (this.pull_again) {
+          this.pull_again = false;
+          this.schedule_pull(0);
+        }
+      });
 
     return this.pull_promise;
   }
@@ -1027,6 +1082,7 @@ export class CalendarSyncEngine {
     }
     this.loaded = false;
     this.initial_pull_settled = false;
+    this.pull_completed = false;
     this.event_rows.clear();
     this.events.clear();
     this.calendar_rows.clear();
@@ -1384,7 +1440,7 @@ export class CalendarSyncEngine {
       meta: cursor ? { calendars_cursor: cursor } : undefined,
     });
     if (!this.is_current(account_id, generation)) return;
-    this.record_tombstones("calendar", deletes);
+    this.note_server_deletes("calendar", deletes);
     for (const id of deletes) {
       this.calendar_rows.delete(id);
       this.calendars.delete(id);
@@ -1426,7 +1482,7 @@ export class CalendarSyncEngine {
       meta: cursor ? { events_cursor: cursor } : undefined,
     });
     if (!this.is_current(account_id, generation)) return;
-    this.record_tombstones("event", deletes);
+    this.note_server_deletes("event", deletes);
     for (const id of deletes) {
       this.event_rows.delete(id);
       this.events.delete(id);

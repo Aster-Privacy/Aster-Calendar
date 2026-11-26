@@ -204,7 +204,7 @@ describe("quick panel swap", () => {
         .find((line) => line.includes("className={`quick_"));
 
       expect(root_class).toBeDefined();
-      expect(root_class).toContain("absolute inset-0");
+      expect(root_class).toMatch(/absolute inset-(0|y-0 start-0)/);
       expect(root_class).not.toContain("flex-shrink-0");
       expect(root_class).not.toContain("w-[");
     }

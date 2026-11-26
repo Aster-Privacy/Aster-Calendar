@@ -369,7 +369,7 @@ function verify_digest(
   public_key: Uint8Array,
 ): boolean {
   try {
-    return p256.verify(signature, digest, public_key, { lowS: false });
+    return p256.verify(signature, digest, public_key, { lowS: true });
   } catch {
     return false;
   }

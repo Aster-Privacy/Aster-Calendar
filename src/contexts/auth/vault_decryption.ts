@@ -31,6 +31,7 @@ import {
   on_vault_cleared,
 } from "@/services/crypto/memory_key_store";
 import { reset_level2_state } from "@/services/crypto/vault_level2";
+import { refuse_rolled_back_vault } from "@/services/crypto/vault_generation";
 
 let vault_decryption_lock: Promise<void> | null = null;
 
@@ -75,6 +76,7 @@ export async function decrypt_vault_with_lock(
 
     const vault = await decrypt_vault(encrypted_vault, vault_nonce, passphrase);
 
+    refuse_rolled_back_vault(owner_user_id, vault);
     await store_vault_in_memory(vault, passphrase, owner_user_id);
 
     rewrap_legacy_entries().catch((caught) =>

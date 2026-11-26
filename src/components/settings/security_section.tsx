@@ -29,31 +29,21 @@ import { TotpDisableModal } from "./totp_disable_modal";
 import { RegenerateBackupCodesModal } from "./regenerate_backup_codes_modal";
 
 import { LoadFailedNotice } from "@/components/settings/load_failed_notice";
-import {
-  use_settings_panel_data,
-} from "@/components/settings/hooks/use_settings_prefetch";
+import { use_settings_panel_data } from "@/components/settings/hooks/use_settings_prefetch";
 import { DeleteAccountModal } from "@/components/modals/delete_account_modal";
 import { ConnectionSection } from "@/components/settings/connection_section";
 import { PasskeySection } from "@/components/settings/security/passkey_section";
 import { ConfirmationModal } from "@/components/modals/confirmation_modal";
-import {
-  LoginAlertsSessionsGroup,
-} from "@/components/settings/security/two_factor_section";
+import { LoginAlertsSessionsGroup } from "@/components/settings/security/two_factor_section";
 import { BasicsSection } from "@/components/settings/security/basics_section";
-import {
-  VanguardSection,
-} from "@/components/settings/security/vanguard_section";
+import { VanguardSection } from "@/components/settings/security/vanguard_section";
 import { SessionSection } from "@/components/settings/security/session_section";
-import {
-  TrustedDevicesSection,
-} from "@/components/settings/security/trusted_devices_section";
-import {
-  AccountRecoverySection,
-} from "@/components/settings/security/account_recovery_section";
-import {
-  AccountProtectionScore,
-} from "@/components/settings/security/account_protection_score";
+import { TrustedDevicesSection } from "@/components/settings/security/trusted_devices_section";
+import { AccountRecoverySection } from "@/components/settings/security/account_recovery_section";
+import { AccountProtectionScore } from "@/components/settings/security/account_protection_score";
 import { use_security } from "@/components/settings/hooks/use_security";
+import { security_ready } from "@/components/settings/security/security_ready";
+import { SettingsSkeleton } from "@/components/settings/settings_skeleton";
 import { use_recovery_status } from "@/hooks/use_recovery_status";
 import { show_toast } from "@/components/toast/simple_toast";
 import { use_i18n } from "@/lib/i18n/context";
@@ -137,6 +127,20 @@ export function SecuritySection({
       set_show_inline_totp_setup((prev) => !prev);
     }
   };
+
+  if (
+    !security_ready({
+      totp_known: security.totp_status !== null,
+      totp_status_failed: security.totp_status_failed,
+      login_alerts_loaded: security.login_alerts_loaded,
+      login_alerts_failed: security.login_alerts_failed,
+      login_events_loading: security.login_events_loading,
+      login_events_failed: security.login_events_failed,
+      login_events_count: security.login_events.length,
+    })
+  ) {
+    return <SettingsSkeleton />;
+  }
 
   return (
     <IslandSections>

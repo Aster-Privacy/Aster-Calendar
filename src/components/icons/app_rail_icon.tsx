@@ -18,114 +18,52 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
-import {
-  CalendarDaysIcon,
-  CheckCircleIcon,
-  UsersIcon,
-} from "@heroicons/react/24/outline";
+import contacts_icon_src from "@/assets/app_rail/contacts.png?inline";
+import security_icon_src from "@/assets/app_rail/security.png?inline";
+import { DatedCalendarImage } from "@/components/icons/dated_calendar_image";
 
-import { AsterSecurityMark } from "@/components/icons/aster_security_mark";
+export type AppRailIconName = "calendar" | "contacts" | "security";
 
-type AppRailLogoName = "contacts" | "security";
-
-export function app_rail_logo(name: AppRailLogoName): {
-  icon_src: string;
-  icon_src_set: string;
-} {
-  const base = `/icons/${name}/${name}_rail`;
-
-  return {
-    icon_src: `${base}_24.png`,
-    icon_src_set: `${base}_24.png 1x, ${base}_48.png 2x, ${base}_72.png 3x`,
-  };
-}
+type BrandIconName = Exclude<AppRailIconName, "calendar">;
 
 interface AppRailIconProps {
-  name: "calendar" | "contacts" | "security" | "tasks";
+  name: AppRailIconName;
 }
 
-export function AppRailIcon({ name }: AppRailIconProps) {
-  const [has_failed, set_has_failed] = useState(false);
+const ICON_SIZE = 24;
+const ICON_CLASS = "app_rail_icon";
 
-  const handle_error = useCallback(() => {
-    set_has_failed(true);
-  }, []);
+const BRAND_ICON_SRC: Record<BrandIconName, string> = {
+  contacts: contacts_icon_src,
+  security: security_icon_src,
+};
 
-  if (has_failed) {
-    if (name === "calendar") {
-      return <CalendarDaysIcon className="h-5 w-5 shrink-0" />;
-    }
-
-    if (name === "tasks") {
-      return <CheckCircleIcon className="h-5 w-5 shrink-0" />;
-    }
-
-    return name === "contacts" ? (
-      <UsersIcon className="h-5 w-5 shrink-0" />
-    ) : (
-      <AsterSecurityMark className="h-5 w-5 shrink-0" />
-    );
-  }
-
-  const base = `/icons/${name}/${name}`;
-  const tint_style = {
-    "--app-rail-icon-tint": `url("${base}_tint_72.png")`,
-  } as CSSProperties;
-
+function BrandIcon({ name }: { name: BrandIconName }) {
   return (
-    <span aria-hidden="true" className="app_rail_icon" style={tint_style}>
-      <img
-        alt=""
-        className="app_rail_icon_detail"
-        decoding="sync"
-        draggable={false}
-        height={24}
-        loading="eager"
-        src={`${base}_detail_24.png`}
-        srcSet={`${base}_detail_24.png 1x, ${base}_detail_48.png 2x, ${base}_detail_72.png 3x`}
-        width={24}
-        onError={handle_error}
+    <svg
+      aria-hidden="true"
+      className={ICON_CLASS}
+      data-app-rail-icon={name}
+      focusable="false"
+      height={ICON_SIZE}
+      viewBox={`0 0 ${ICON_SIZE} ${ICON_SIZE}`}
+      width={ICON_SIZE}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <image
+        height={ICON_SIZE}
+        href={BRAND_ICON_SRC[name]}
+        preserveAspectRatio="xMidYMid meet"
+        width={ICON_SIZE}
       />
-      {name === "calendar" && <RailCalendarDay />}
-    </span>
+    </svg>
   );
 }
 
-const day_overlay_style: CSSProperties = {
-  position: "absolute",
-  left: 8,
-  top: 9,
-  right: 3,
-  bottom: 4,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: 8,
-  lineHeight: 1,
-  fontWeight: 700,
-  fontVariantNumeric: "tabular-nums",
-  letterSpacing: "-0.02em",
-  color: "#ffffff",
-  pointerEvents: "none",
-  userSelect: "none",
-};
+export function AppRailIcon({ name }: AppRailIconProps) {
+  if (name === "calendar") {
+    return <DatedCalendarImage className={ICON_CLASS} kind="rail" />;
+  }
 
-function RailCalendarDay() {
-  const [day, set_day] = useState(() => new Date().getDate());
-
-  useEffect(() => {
-    const refresh = () => set_day(new Date().getDate());
-    const next = new Date();
-    next.setHours(24, 0, 0, 0);
-    const timer = setTimeout(refresh, next.getTime() - Date.now() + 1000);
-    document.addEventListener("visibilitychange", refresh);
-
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("visibilitychange", refresh);
-    };
-  }, [day]);
-
-  return <span style={day_overlay_style}>{day}</span>;
+  return <BrandIcon name={name} />;
 }

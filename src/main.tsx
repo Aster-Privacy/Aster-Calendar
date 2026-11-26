@@ -39,12 +39,11 @@ import {
 } from "@/lib/chunk_recovery";
 import { show_self_xss_warning } from "@/lib/security/console_warning";
 import { start_input_modality_tracking } from "@/lib/input_modality";
+import { start_press_feedback } from "@/lib/press_feedback";
 import { probe_webauthn_related_origins } from "@/lib/app_kind";
 import { install_global_error_reporting } from "@/services/error_reporter";
 import { connection_store } from "@/services/routing/connection_store";
-import {
-  apply_desktop_content_protection,
-} from "@/native/desktop_content_protection";
+import { apply_desktop_content_protection } from "@/native/desktop_content_protection";
 import { start_desktop_link_bridge } from "@/native/desktop_link_bridge";
 import { is_any_lockdown_active } from "@/services/lockdown_store";
 import { preload_initial_language } from "@/lib/i18n/context";
@@ -111,11 +110,11 @@ if (preload_initial_language() && !is_mail_panel) {
 }
 
 start_input_modality_tracking();
+start_press_feedback();
 void probe_webauthn_related_origins();
 install_global_error_reporting();
 start_date_favicon();
 capture_support_return();
-
 
 const cached_prefs_raw = safe_local_get("aster_preferences_cache");
 let low_network_on_startup = false;
@@ -205,7 +204,8 @@ window.addEventListener(
   "error",
   (event) => {
     const target = event.target as
-      (HTMLElement & { src?: string; href?: string }) | null;
+      | (HTMLElement & { src?: string; href?: string })
+      | null;
 
     if (
       target &&

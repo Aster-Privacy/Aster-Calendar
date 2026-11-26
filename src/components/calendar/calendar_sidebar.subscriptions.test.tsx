@@ -72,6 +72,7 @@ vi.mock("@/services/api/calendar", () => ({
 }));
 
 vi.mock("@/components/calendar/calendar_edit_dialog", () => ({
+  CalendarClearDialog: () => null,
   CalendarDeleteDialog: () => null,
   CalendarEditDialog: () => null,
 }));

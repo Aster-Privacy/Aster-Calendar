@@ -28,7 +28,11 @@ import {
   open_bridge_channel,
   request_sibling_session,
 } from "@/lib/session_handoff/session_handoff_client";
-import { generate_grant_id } from "@/lib/session_handoff/session_handoff_grant";
+import {
+  generate_grant_id,
+  local_grant_storage,
+  write_grant,
+} from "@/lib/session_handoff/session_handoff_grant";
 import {
   SESSION_APPROVAL_HASH_PREFIX,
   SESSION_BRIDGE_PATH,
@@ -51,9 +55,10 @@ const SKIPPED_PATH_PREFIXES = [
   "/signup",
   "/invite",
   "/forgot-password",
+  "/guard/veto",
+  "/cancel",
   "/reset-password",
   "/link-device",
-  "/join",
   "/family",
   "/view",
   "/book",
@@ -63,6 +68,8 @@ export const HANDOFF_GRANT_HASH_PREFIX = "#handoff=";
 
 const PENDING_GRANT_KEY = "aster_session_handoff_grant";
 const APPROVAL_WINDOW_FEATURES = "popup=yes,width=440,height=400";
+const PANEL_GRANT_TTL_MS = 60 * 1000;
+const SHARED_ACCOUNT_MARKER_PREFIX = "astermail_shared_grant_epoch_";
 
 export type SiblingSignInResult = "approved" | "blocked" | "failed";
 
@@ -74,7 +81,9 @@ export interface SiblingSessionLogin {
   vault_nonce: string;
 }
 
-function can_attempt_sibling_handoff(pathname: string): boolean {
+export function can_attempt_sibling_handoff(pathname: string): boolean {
+  if (typeof window === "undefined") return false;
+  if (has_tauri_runtime()) return false;
   if (sibling_app_origin() === null) return false;
 
   return !SKIPPED_PATH_PREFIXES.some(
@@ -103,6 +112,27 @@ function take_hash_grant(): string | null {
   const grant = hash.slice(HANDOFF_GRANT_HASH_PREFIX.length);
 
   return is_handoff_grant_id(grant) ? grant : null;
+}
+
+export function has_pending_handoff_grant(): boolean {
+  if (typeof window === "undefined") return false;
+
+  const { hash } = window.location;
+
+  if (
+    hash.startsWith(HANDOFF_GRANT_HASH_PREFIX) &&
+    is_handoff_grant_id(hash.slice(HANDOFF_GRANT_HASH_PREFIX.length))
+  ) {
+    return true;
+  }
+
+  return is_handoff_grant_id(safe_session_get(PENDING_GRANT_KEY));
+}
+
+export function should_attempt_boot_handoff(
+  has_current_account: boolean,
+): boolean {
+  return !has_current_account || has_pending_handoff_grant();
 }
 
 export function take_pending_handoff_grant(): string | null {
@@ -140,6 +170,66 @@ export async function start_sibling_sign_in(): Promise<SiblingSignInResult> {
   safe_session_set(PENDING_GRANT_KEY, grant);
 
   return "approved";
+}
+
+function is_shared_account(user_id: string): boolean {
+  try {
+    return (
+      window.localStorage.getItem(SHARED_ACCOUNT_MARKER_PREFIX + user_id) !==
+      null
+    );
+  } catch {
+    return true;
+  }
+}
+
+export function mint_panel_handoff_grant(audience: string): string | null {
+  if (typeof window === "undefined" || has_tauri_runtime()) return null;
+  if (get_handoff_sibling_origin(window.location.origin) !== audience) {
+    return null;
+  }
+
+  const user_id = api_client.get_cached_user_info()?.user_id;
+
+  if (!user_id) return null;
+  if (is_shared_account(user_id)) return null;
+  if (get_app_lock_config(user_id) !== null) return null;
+
+  const grant = generate_grant_id();
+  const now = Date.now();
+  const written = write_grant(
+    local_grant_storage,
+    grant,
+    {
+      user_id,
+      audience,
+      expires_at: now + PANEL_GRANT_TTL_MS,
+      state: "approved",
+    },
+    now,
+  );
+
+  return written ? grant : null;
+}
+
+export function sibling_app_launch_url(target: string): string {
+  let url: URL;
+
+  try {
+    url = new URL(target);
+  } catch {
+    return target;
+  }
+
+  if (url.origin !== sibling_app_origin()) return target;
+
+  const grant = mint_panel_handoff_grant(url.origin);
+
+  if (!grant) return target;
+
+  url.hash = HANDOFF_GRANT_HASH_PREFIX + grant;
+
+  return url.href;
 }
 
 async function verify_server_session(): Promise<string | null> {

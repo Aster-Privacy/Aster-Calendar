@@ -34,10 +34,19 @@ export function use_guarded_link() {
       }
 
       event.preventDefault();
-      handle_external_link(event.currentTarget.href);
+      handle_external_link(
+        event.currentTarget.href,
+        event.currentTarget.textContent,
+        event.currentTarget,
+      );
     },
     [handle_external_link],
   );
 
-  return { guard_link_click, open_guarded_link: handle_external_link };
+  const open_guarded_link = useCallback(
+    (url: string) => handle_external_link(url),
+    [handle_external_link],
+  );
+
+  return { guard_link_click, open_guarded_link };
 }
