@@ -11296,7 +11296,7 @@ export const nl = {
     busy_feed_link_title: "Je link voor bezette tijden",
     busy_feed_link_desc: "Plak deze link in je planningstool om te delen wanneer {{name}} bezet is.",
     busy_feed_copy: "Link kopiëren",
-    busy_feed_shared_detail: "De link toont alleen het begin en einde van elke bezette periode. Titels, locaties, gasten, notities en vrije tijd blijven privé en versleuteld.",
+    busy_feed_shared_detail: "De link toont alleen het begin en einde van elke bezette periode. Titels, locaties, gasten en notities blijven privé en versleuteld.",
     busy_feed_keep_private: "Iedereen met de link kan je bezette tijden zien, dus deel hem alleen met tools die je vertrouwt. Je kunt op elk moment in Instellingen een nieuwe link maken of stoppen met delen.",
     busy_feed_stop_title: "Stoppen met het delen van bezette tijden?",
     busy_feed_stop_message: "De link werkt direct niet meer, en planningstools die hem gebruiken kunnen niet meer zien wanneer je bezet bent.",

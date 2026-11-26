@@ -11532,7 +11532,7 @@ export const pl = {
     busy_feed_link_title: "Twój link do zajętych terminów",
     busy_feed_link_desc: "Aby udostępnić, kiedy kalendarz {{name}} jest zajęty, wklej ten link w narzędziu do planowania.",
     busy_feed_copy: "Kopiuj link",
-    busy_feed_shared_detail: "Link pokazuje tylko początek i koniec każdego zajętego okresu. Tytuły, miejsca, goście, notatki i wolny czas pozostają prywatne i zaszyfrowane.",
+    busy_feed_shared_detail: "Link pokazuje tylko początek i koniec każdego zajętego okresu. Tytuły, miejsca, goście i notatki pozostają prywatne i zaszyfrowane.",
     busy_feed_keep_private: "Każdy, kto ma link, widzi Twoje zajęte terminy, więc udostępniaj go tylko zaufanym narzędziom. W Ustawieniach możesz w każdej chwili utworzyć nowy link lub zatrzymać udostępnianie.",
     busy_feed_stop_title: "Zatrzymać udostępnianie zajętych terminów?",
     busy_feed_stop_message: "Link od razu przestaje działać, a narzędzia do planowania, które go używają, nie widzą już, kiedy jesteś zajęty.",

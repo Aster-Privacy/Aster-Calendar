@@ -11020,7 +11020,7 @@ export const en: Translations = {
     busy_feed_link_title: "Your busy-times link",
     busy_feed_link_desc: "To share when {{name}} is busy, paste this link into your scheduling tool.",
     busy_feed_copy: "Copy link",
-    busy_feed_shared_detail: "The link shows only the start and end of each busy period. Event titles, locations, guests, notes, and free time stay private and encrypted.",
+    busy_feed_shared_detail: "The link shows only the start and end of each busy period. Event titles, locations, guests, and notes stay private and encrypted.",
     busy_feed_keep_private: "Anyone with the link can see your busy times, so share it only with tools you trust. You can create a new link or stop sharing at any time in Settings.",
     busy_feed_stop_title: "Stop sharing busy times?",
     busy_feed_stop_message: "The link stops working right away, and scheduling tools that use it can no longer see when you're busy.",

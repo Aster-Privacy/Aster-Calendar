@@ -10837,7 +10837,7 @@ export const ko = {
     busy_feed_link_title: "내 바쁜 시간 링크",
     busy_feed_link_desc: "{{name}}이(가) 바쁜 시간을 공유하려면 이 링크를 일정 조율 도구에 붙여 넣으세요.",
     busy_feed_copy: "링크 복사",
-    busy_feed_shared_detail: "링크에는 각 바쁜 시간의 시작과 끝만 표시됩니다. 제목, 위치, 게스트, 메모, 빈 시간은 비공개로 암호화된 상태로 유지됩니다.",
+    busy_feed_shared_detail: "링크에는 각 바쁜 시간의 시작과 끝만 표시됩니다. 제목, 위치, 게스트, 메모는 비공개로 암호화된 상태로 유지됩니다.",
     busy_feed_keep_private: "링크가 있는 사람은 누구나 내 바쁜 시간을 볼 수 있으므로 신뢰하는 도구와만 공유하세요. 설정에서 언제든지 새 링크를 만들거나 공유를 중지할 수 있습니다.",
     busy_feed_stop_title: "바쁜 시간 공유를 중지할까요?",
     busy_feed_stop_message: "링크가 즉시 작동을 멈추며, 이 링크를 사용하는 일정 조율 도구는 더 이상 내가 바쁜 시간을 볼 수 없습니다.",

@@ -11419,7 +11419,7 @@ export const pt = {
     busy_feed_link_title: "A sua ligação de horas ocupadas",
     busy_feed_link_desc: "Para partilhar quando {{name}} está ocupado, cole esta ligação na sua ferramenta de agendamento.",
     busy_feed_copy: "Copiar ligação",
-    busy_feed_shared_detail: "A ligação mostra apenas o início e o fim de cada período ocupado. Títulos, locais, convidados, notas e tempo livre permanecem privados e encriptados.",
+    busy_feed_shared_detail: "A ligação mostra apenas o início e o fim de cada período ocupado. Títulos, locais, convidados e notas permanecem privados e encriptados.",
     busy_feed_keep_private: "Qualquer pessoa com a ligação pode ver as suas horas ocupadas, por isso partilhe-a apenas com ferramentas em que confia. Pode criar uma nova ligação ou parar de partilhar a qualquer momento nas Definições.",
     busy_feed_stop_title: "Parar de partilhar as horas ocupadas?",
     busy_feed_stop_message: "A ligação deixa de funcionar de imediato e as ferramentas de agendamento que a utilizam deixam de ver quando está ocupado.",

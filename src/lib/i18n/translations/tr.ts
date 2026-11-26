@@ -11165,7 +11165,7 @@ export const tr = {
     busy_feed_link_title: "Meşgul zamanlar bağlantınız",
     busy_feed_link_desc: "{{name}} takviminin ne zaman meşgul olduğunu paylaşmak için bu bağlantıyı planlama aracınıza yapıştırın.",
     busy_feed_copy: "Bağlantıyı kopyala",
-    busy_feed_shared_detail: "Bağlantı yalnızca her meşgul dönemin başlangıcını ve bitişini gösterir. Başlıklar, konumlar, davetliler, notlar ve boş zamanlar gizli ve şifreli kalır.",
+    busy_feed_shared_detail: "Bağlantı yalnızca her meşgul dönemin başlangıcını ve bitişini gösterir. Başlıklar, konumlar, davetliler ve notlar gizli ve şifreli kalır.",
     busy_feed_keep_private: "Bağlantıya sahip olan herkes meşgul zamanlarınızı görebilir, bu yüzden yalnızca güvendiğiniz araçlarla paylaşın. Ayarlar'dan istediğiniz zaman yeni bağlantı oluşturabilir veya paylaşımı durdurabilirsiniz.",
     busy_feed_stop_title: "Meşgul zamanların paylaşımı durdurulsun mu?",
     busy_feed_stop_message: "Bağlantı hemen çalışmayı durdurur ve onu kullanan planlama araçları artık ne zaman meşgul olduğunuzu göremez.",
