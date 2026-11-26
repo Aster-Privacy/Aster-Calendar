@@ -268,12 +268,24 @@ export function CalendarBusyFeedSection({
     if (!calendar || working_id) return;
 
     set_working_id(calendar.id);
+    const previous_opt_ins = opt_ins;
+    const restore_opt_in = () => {
+      if (previous_opt_ins.includes(calendar.id)) {
+        update_preference(
+          "calendar_busy_feed_calendars",
+          previous_opt_ins,
+          true,
+        );
+      }
+    };
+
     opt_out(calendar.id);
 
     try {
       const result = await revoke_busy_feed(calendar.id);
 
       if (result.error && result.status !== 404) {
+        restore_opt_in();
         show_toast(t("calendar.busy_feed_error"), "error");
 
         return;
@@ -283,6 +295,7 @@ export function CalendarBusyFeedSection({
       set_stop_target(null);
       await reload();
     } catch {
+      restore_opt_in();
       show_toast(t("calendar.busy_feed_error"), "error");
     } finally {
       set_working_id(null);

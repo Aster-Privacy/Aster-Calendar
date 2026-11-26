@@ -11405,7 +11405,7 @@ export const pt_br = {
     busy_feed_link_title: "Seu link de horários ocupados",
     busy_feed_link_desc: "Para compartilhar quando {{name}} está ocupado, cole este link na sua ferramenta de agendamento.",
     busy_feed_copy: "Copiar link",
-    busy_feed_shared_detail: "O link mostra apenas o início e o fim de cada período ocupado. Títulos, locais, convidados, notas e horários livres continuam privados e criptografados.",
+    busy_feed_shared_detail: "O link mostra apenas o início e o fim de cada período ocupado. Títulos, locais, convidados e notas continuam privados e criptografados.",
     busy_feed_keep_private: "Qualquer pessoa com o link pode ver seus horários ocupados, então compartilhe-o apenas com ferramentas de confiança. Você pode criar um novo link ou parar de compartilhar a qualquer momento em Configurações.",
     busy_feed_stop_title: "Parar de compartilhar horários ocupados?",
     busy_feed_stop_message: "O link para de funcionar imediatamente, e as ferramentas de agendamento que o usam não conseguem mais ver quando você está ocupado.",

@@ -11451,7 +11451,7 @@ export const fr = {
     busy_feed_link_title: "Votre lien des heures occupées",
     busy_feed_link_desc: "Pour indiquer quand {{name}} est occupé, collez ce lien dans votre outil de planification.",
     busy_feed_copy: "Copier le lien",
-    busy_feed_shared_detail: "Le lien n'indique que le début et la fin de chaque période occupée. Les titres, lieux, invités, notes et temps libres restent privés et chiffrés.",
+    busy_feed_shared_detail: "Le lien n'indique que le début et la fin de chaque période occupée. Les titres, lieux, invités et notes restent privés et chiffrés.",
     busy_feed_keep_private: "Toute personne disposant du lien peut voir vos heures occupées. Partagez-le donc uniquement avec des outils de confiance. Vous pouvez créer un nouveau lien ou arrêter le partage à tout moment dans les Réglages.",
     busy_feed_stop_title: "Arrêter de partager les heures occupées ?",
     busy_feed_stop_message: "Le lien cesse immédiatement de fonctionner et les outils de planification qui l'utilisent ne voient plus quand vous êtes occupé.",

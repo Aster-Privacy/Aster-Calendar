@@ -11461,7 +11461,7 @@ export const de = {
     busy_feed_link_title: "Dein Link für belegte Zeiten",
     busy_feed_link_desc: "Um zu teilen, wann {{name}} belegt ist, füge diesen Link in dein Planungstool ein.",
     busy_feed_copy: "Link kopieren",
-    busy_feed_shared_detail: "Der Link zeigt nur Beginn und Ende jedes belegten Zeitraums. Titel, Orte, Gäste, Notizen und freie Zeiten bleiben privat und verschlüsselt.",
+    busy_feed_shared_detail: "Der Link zeigt nur Beginn und Ende jedes belegten Zeitraums. Titel, Orte, Gäste und Notizen bleiben privat und verschlüsselt.",
     busy_feed_keep_private: "Jeder mit dem Link kann deine belegten Zeiten sehen. Teile ihn daher nur mit Tools, denen du vertraust. In den Einstellungen kannst du jederzeit einen neuen Link erstellen oder die Freigabe beenden.",
     busy_feed_stop_title: "Freigabe der belegten Zeiten beenden?",
     busy_feed_stop_message: "Der Link funktioniert sofort nicht mehr, und Planungstools, die ihn nutzen, sehen nicht mehr, wann du beschäftigt bist.",

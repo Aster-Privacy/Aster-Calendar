@@ -10036,7 +10036,7 @@ export const zh_CN = {
     busy_feed_link_title: "你的忙碌时间链接",
     busy_feed_link_desc: "要共享 {{name}} 的忙碌时间，请将此链接粘贴到你的日程安排工具中。",
     busy_feed_copy: "复制链接",
-    busy_feed_shared_detail: "该链接只显示每个忙碌时段的开始和结束。标题、地点、邀请对象、备注和空闲时间都保持私密并经过加密。",
+    busy_feed_shared_detail: "该链接只显示每个忙碌时段的开始和结束。标题、地点、邀请对象和备注都保持私密并经过加密。",
     busy_feed_keep_private: "任何拥有该链接的人都能看到你的忙碌时间，因此请只与你信任的工具共享。你可以随时在设置中创建新链接或停止共享。",
     busy_feed_stop_title: "要停止共享忙碌时间吗？",
     busy_feed_stop_message: "该链接会立即失效，使用它的日程安排工具将无法再看到你何时忙碌。",

@@ -11309,7 +11309,7 @@ export const es = {
     busy_feed_link_title: "Tu enlace de horas ocupadas",
     busy_feed_link_desc: "Para compartir cuándo {{name}} está ocupado, pega este enlace en tu herramienta de programación.",
     busy_feed_copy: "Copiar enlace",
-    busy_feed_shared_detail: "El enlace solo muestra el inicio y el fin de cada período ocupado. Los títulos, ubicaciones, invitados, notas y el tiempo libre siguen siendo privados y cifrados.",
+    busy_feed_shared_detail: "El enlace solo muestra el inicio y el fin de cada período ocupado. Los títulos, ubicaciones, invitados y notas siguen siendo privados y cifrados.",
     busy_feed_keep_private: "Cualquier persona con el enlace puede ver tus horas ocupadas, así que compártelo solo con herramientas de confianza. Puedes crear un enlace nuevo o dejar de compartir en cualquier momento en Ajustes.",
     busy_feed_stop_title: "¿Dejar de compartir las horas ocupadas?",
     busy_feed_stop_message: "El enlace deja de funcionar de inmediato y las herramientas de programación que lo usan ya no pueden ver cuándo estás ocupado.",
