@@ -26,6 +26,7 @@ import { to_reauth_proof } from "./step_up";
 
 import { HASH_ALG } from "@/services/crypto/constants";
 import { decrypt_aes_gcm_with_fallback } from "@/services/crypto/legacy_keks";
+import { with_identity_key } from "@/services/crypto/identity_key_required";
 import { hash_recovery_email } from "@/services/crypto/key_manager";
 import { ignore_error } from "@/lib/ignore_error";
 
@@ -88,8 +89,9 @@ function read_cached_recovery_data(): RecoveryEmailData | null {
 async function derive_recovery_email_key(
   vault: EncryptedVault,
 ): Promise<CryptoKey> {
+  const { identity_key } = with_identity_key(vault);
   const key_material = new TextEncoder().encode(
-    vault.identity_key + "astermail-recovery-email-v1",
+    identity_key + "astermail-recovery-email-v1",
   );
   const hash = await crypto.subtle.digest(HASH_ALG, key_material);
 
@@ -334,7 +336,10 @@ export async function resend_pending_verification(
   }
 }
 
-export type RecoveryEmailLinkStatus = "verified" | "not_verified" | "unreachable";
+export type RecoveryEmailLinkStatus =
+  | "verified"
+  | "not_verified"
+  | "unreachable";
 
 export async function get_recovery_email_link_status(
   token: string,
