@@ -31,6 +31,7 @@ import { use_i18n } from "@/lib/i18n/context";
 import mail_icon from "@/assets/app_icons/mail.png?inline";
 import { DatedCalendarImage } from "@/components/icons/dated_calendar_image";
 import { MAIL_WEB_ORIGIN } from "@/lib/session_handoff/session_handoff_protocol";
+import { sibling_app_launch_url } from "@/contexts/auth/sibling_session_handoff";
 import { open_external } from "@/utils/open_link";
 
 function is_desktop_shell(): boolean {
@@ -41,9 +42,20 @@ function open_app_link(
   event: MouseEvent<HTMLAnchorElement>,
   href: string | null,
 ) {
-  if (!href || !is_desktop_shell()) return;
+  if (!href) return;
+
+  if (is_desktop_shell()) {
+    event.preventDefault();
+    open_external(href);
+
+    return;
+  }
+
+  const launch_url = sibling_app_launch_url(href);
+
+  if (launch_url === href) return;
   event.preventDefault();
-  open_external(href);
+  window.open(launch_url, "_blank", "noopener,noreferrer");
 }
 
 const DOT_POSITIONS = [5, 12, 19];
