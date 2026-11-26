@@ -30,6 +30,7 @@ import type {} from "@/services/api/templates";
 import type {} from "@/services/api/blocked_senders";
 import type {} from "@/services/api/allowed_senders";
 import { base64_to_array } from "../base64";
+import { is_usable_identity_key } from "../identity_key_required";
 
 import {
   re_encrypt_alias_sub_items_recovery,
@@ -75,50 +76,15 @@ export async function check_and_run_recovery_reencryption(
 
   clear_pending_reencryption();
 
-  const [old_folder_hash_buf, old_tag_hash_buf] = await Promise.all([
-    crypto.subtle.digest(
-      HASH_ALG,
-      new TextEncoder().encode(
-        pending.old_identity_key + "astermail-labels-v1",
-      ),
-    ),
-    crypto.subtle.digest(
-      HASH_ALG,
-      new TextEncoder().encode(pending.old_identity_key + "astermail-tags-v1"),
-    ),
-  ]);
-
-  const old_folder_hash = new Uint8Array(old_folder_hash_buf);
-  const old_tag_hash = new Uint8Array(old_tag_hash_buf);
-
-  await Promise.all([
-    append_legacy_key_raw_bytes(old_folder_hash),
-    append_legacy_key_raw_bytes(old_tag_hash),
-  ]);
-
-  zero_uint8_array(old_folder_hash);
-  zero_uint8_array(old_tag_hash);
-
-  try {
-    await re_encrypt_tags(pending.old_identity_key, vault.identity_key);
-    await re_encrypt_folders(pending.old_identity_key, vault.identity_key);
-    await re_encrypt_preferences(
+  if (
+    is_usable_identity_key(pending.old_identity_key) &&
+    is_usable_identity_key(vault.identity_key)
+  ) {
+    await re_encrypt_identity_scoped_data(
       pending.old_identity_key,
       vault.identity_key,
       vault,
     );
-    await re_encrypt_drafts(pending.old_identity_key, vault.identity_key);
-    await re_encrypt_dev_mode(pending.old_identity_key, vault.identity_key);
-    await re_encrypt_recovery_email(
-      pending.old_identity_key,
-      vault.identity_key,
-    );
-    await re_encrypt_onboarding_state(
-      pending.old_identity_key,
-      vault.identity_key,
-    );
-  } catch {
-    /* silently fail */
   }
 
   if (!pending.old_data_kek) return;
@@ -168,5 +134,45 @@ export async function check_and_run_recovery_reencryption(
       old_identity_key: pending.old_identity_key,
       old_data_kek: pending.old_data_kek,
     });
+  }
+}
+
+async function re_encrypt_identity_scoped_data(
+  old_identity_key: string,
+  new_identity_key: string,
+  vault: EncryptedVault,
+): Promise<void> {
+  const [old_folder_hash_buf, old_tag_hash_buf] = await Promise.all([
+    crypto.subtle.digest(
+      HASH_ALG,
+      new TextEncoder().encode(old_identity_key + "astermail-labels-v1"),
+    ),
+    crypto.subtle.digest(
+      HASH_ALG,
+      new TextEncoder().encode(old_identity_key + "astermail-tags-v1"),
+    ),
+  ]);
+
+  const old_folder_hash = new Uint8Array(old_folder_hash_buf);
+  const old_tag_hash = new Uint8Array(old_tag_hash_buf);
+
+  await Promise.all([
+    append_legacy_key_raw_bytes(old_folder_hash),
+    append_legacy_key_raw_bytes(old_tag_hash),
+  ]);
+
+  zero_uint8_array(old_folder_hash);
+  zero_uint8_array(old_tag_hash);
+
+  try {
+    await re_encrypt_tags(old_identity_key, new_identity_key);
+    await re_encrypt_folders(old_identity_key, new_identity_key);
+    await re_encrypt_preferences(old_identity_key, new_identity_key, vault);
+    await re_encrypt_drafts(old_identity_key, new_identity_key);
+    await re_encrypt_dev_mode(old_identity_key, new_identity_key);
+    await re_encrypt_recovery_email(old_identity_key, new_identity_key);
+    await re_encrypt_onboarding_state(old_identity_key, new_identity_key);
+  } catch {
+    return;
   }
 }
