@@ -98,6 +98,7 @@ import { load_preferred_sender_from_server } from "@/lib/preferred_sender";
 import { show_toast } from "@/components/toast/simple_toast";
 import { hard_redirect } from "@/lib/hard_redirect";
 import { app_pathname } from "@/lib/account_index_url";
+import { panel_expected_user } from "@/pages/mail_panel/mail_panel_bridge";
 import {
   clear_app_lock_config,
   clear_session_unlock,
@@ -306,7 +307,7 @@ export function use_auth_account_state() {
 
         if (
           should_attempt_boot_handoff(current !== null) &&
-          (await try_sibling_handoff())
+          (await try_sibling_handoff(panel_expected_user() ?? undefined))
         ) {
           return;
         }
