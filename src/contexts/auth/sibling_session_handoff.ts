@@ -46,6 +46,7 @@ import {
 } from "@/lib/safe_storage";
 import { has_tauri_runtime } from "@/lib/tauri_runtime";
 import { api_client } from "@/services/api/client";
+import { API_BASE_URL } from "@/services/api/client/helpers";
 import { get_csrf_token_from_cookie } from "@/services/api/csrf";
 import { verify_auth_status } from "@/services/api/auth";
 import { get_app_lock_config } from "@/services/app_lock_store";
@@ -79,6 +80,7 @@ export interface SiblingSessionLogin {
   passphrase: string;
   encrypted_vault: string;
   vault_nonce: string;
+  access_token?: string;
 }
 
 export function can_attempt_sibling_handoff(pathname: string): boolean {
@@ -232,7 +234,53 @@ export function sibling_app_launch_url(target: string): string {
   return url.href;
 }
 
-async function verify_server_session(): Promise<string | null> {
+const ME_TIMEOUT_MS = 4000;
+
+export async function verify_token_session(
+  access_token: string,
+  expected_user_id: string,
+  fetch_me: typeof fetch = fetch,
+): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ME_TIMEOUT_MS);
+
+  try {
+    const response = await fetch_me(`${API_BASE_URL}/core/v1/auth/me`, {
+      method: "GET",
+      credentials: "omit",
+      cache: "no-store",
+      redirect: "error",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${access_token}`,
+        "X-Aster-Expected-User": expected_user_id,
+        "X-Aster-Client": "web",
+      },
+      signal: controller.signal,
+    });
+
+    if (response.status !== 200) return null;
+
+    const me = (await response.json()) as { user_id?: unknown } | null;
+
+    return typeof me?.user_id === "string" && me.user_id === expected_user_id
+      ? me.user_id
+      : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function verify_server_session(
+  access_token?: string,
+  expected_user_id?: string,
+): Promise<string | null> {
+  if (access_token && expected_user_id) {
+    return verify_token_session(access_token, expected_user_id);
+  }
+
   const valid = await verify_auth_status();
 
   if (!valid) return null;
@@ -254,7 +302,8 @@ export async function obtain_sibling_session(
     {
       origin: window.location.origin,
       has_session_cookie: has_sibling_session_cookie,
-      verify_server_session,
+      verify_server_session: (access_token) =>
+        verify_server_session(access_token, expected_user_id),
       has_local_lock: (user_id) => get_app_lock_config(user_id) !== null,
       open_channel: open_bridge_channel,
     },
@@ -284,5 +333,6 @@ export async function obtain_sibling_session(
     passphrase: session.passphrase,
     encrypted_vault: session.encrypted_vault,
     vault_nonce: session.vault_nonce,
+    access_token: session.access_token,
   };
 }

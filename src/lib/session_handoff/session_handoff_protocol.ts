@@ -57,6 +57,7 @@ export interface HandoffSession {
   passphrase: string;
   encrypted_vault: string;
   vault_nonce: string;
+  access_token?: string;
 }
 
 export type HandoffPortRequest =
@@ -89,6 +90,9 @@ function is_plain_record(value: unknown): value is Record<string, unknown> {
 
   return proto === Object.prototype || proto === null;
 }
+
+const MAX_ACCESS_TOKEN_LENGTH = 4096;
+const ACCESS_TOKEN_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 
 function has_only_keys(
   record: Record<string, unknown>,
@@ -201,6 +205,7 @@ export function parse_handoff_session(value: unknown): HandoffSession | null {
       "passphrase",
       "encrypted_vault",
       "vault_nonce",
+      "access_token",
     ])
   ) {
     return null;
@@ -217,12 +222,22 @@ export function parse_handoff_session(value: unknown): HandoffSession | null {
   if (!bounded_string(value.vault_nonce, MAX_VAULT_NONCE_LENGTH)) return null;
   if (!BASE64_PATTERN.test(value.vault_nonce)) return null;
 
-  return {
+  const session: HandoffSession = {
     user,
     passphrase: value.passphrase,
     encrypted_vault: value.encrypted_vault,
     vault_nonce: value.vault_nonce,
   };
+
+  if (value.access_token !== undefined) {
+    if (!bounded_string(value.access_token, MAX_ACCESS_TOKEN_LENGTH)) {
+      return null;
+    }
+    if (!ACCESS_TOKEN_PATTERN.test(value.access_token)) return null;
+    session.access_token = value.access_token;
+  }
+
+  return session;
 }
 
 export function parse_handoff_bridge_reply(

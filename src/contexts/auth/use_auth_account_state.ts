@@ -98,7 +98,12 @@ import { load_preferred_sender_from_server } from "@/lib/preferred_sender";
 import { show_toast } from "@/components/toast/simple_toast";
 import { hard_redirect } from "@/lib/hard_redirect";
 import { app_pathname } from "@/lib/account_index_url";
-import { panel_expected_user } from "@/pages/mail_panel/mail_panel_bridge";
+import {
+  allows_account_adoption,
+  needs_requested_handoff,
+  plan_boot_account,
+  requested_account,
+} from "./requested_account";
 import {
   clear_app_lock_config,
   clear_session_unlock,
@@ -177,6 +182,14 @@ export function use_auth_account_state() {
 
       if (!handoff || !sign_in_with) return false;
 
+      if (handoff.access_token) {
+        api_client.set_dev_token(
+          handoff.access_token,
+          undefined,
+          handoff.user.id,
+        );
+      }
+
       try {
         await sign_in_with(
           handoff.user,
@@ -251,7 +264,11 @@ export function use_auth_account_state() {
           )) !== null
         : false;
 
-      if (active_elsewhere && can_adopt) {
+      if (
+        active_elsewhere &&
+        can_adopt &&
+        allows_account_adoption(requested_account(), active_elsewhere.id)
+      ) {
         const adopted = await storage_switch_account(active_elsewhere.id).catch(
           () => null,
         );
@@ -303,13 +320,32 @@ export function use_auth_account_state() {
         );
         const data = await initialize_accounts();
 
-        const current = await get_current_account();
+        const requested = requested_account();
+        let current = await get_current_account();
 
         if (
-          should_attempt_boot_handoff(current !== null) &&
-          (await try_sibling_handoff(panel_expected_user() ?? undefined))
+          (should_attempt_boot_handoff(current !== null) ||
+            needs_requested_handoff(requested, current?.id ?? null)) &&
+          (await try_sibling_handoff(requested ?? undefined))
         ) {
           return;
+        }
+
+        const boot_plan = plan_boot_account(
+          requested,
+          current?.id ?? null,
+          data.accounts,
+        );
+
+        if (boot_plan.kind === "switch") {
+          current = await storage_switch_account(boot_plan.account_id).catch(
+            () => null,
+          );
+          data.current_account_id = current?.id ?? null;
+        } else if (boot_plan.kind === "sign_in") {
+          current = null;
+          data.current_account_id = null;
+          show_toast(t("errors.session_account_switched"), "info");
         }
 
         if (!current) {

@@ -2025,6 +2025,9 @@ export class ApiClient {
 
     if (this.dev_access_token && !cookie_identity) {
       headers["Authorization"] = `Bearer ${this.dev_access_token}`;
+      if (this.expected_user_id) {
+        headers["X-Aster-Expected-User"] = this.expected_user_id;
+      }
     }
 
     const method = options.method || "GET";
