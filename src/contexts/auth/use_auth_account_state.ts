@@ -36,6 +36,8 @@ import {
 import { decrypt_vault_with_lock } from "./vault_decryption";
 import {
   obtain_sibling_session,
+  start_handoff_renewal,
+  stop_handoff_renewal,
   should_attempt_boot_handoff,
   type SiblingSessionLogin,
 } from "./sibling_session_handoff";
@@ -206,6 +208,18 @@ export function use_auth_account_state() {
         return false;
       }
 
+      if (handoff.access_token) {
+        const renewed_email = handoff.user.email;
+
+        start_handoff_renewal(handoff.user.id, handoff.access_token, () => {
+          show_toast(
+            t("errors.session_sign_in_as", { email: renewed_email }),
+            "info",
+          );
+          window.dispatchEvent(new CustomEvent("astermail:identity-mismatch"));
+        });
+      }
+
       setTimeout(() => emit_auth_ready(), 50);
 
       if (app_pathname() === "/sign-in") {
@@ -214,7 +228,7 @@ export function use_auth_account_state() {
 
       return true;
     },
-    [navigate],
+    [navigate, t],
   );
 
 
@@ -280,6 +294,7 @@ export function use_auth_account_state() {
         }
       }
 
+      stop_handoff_renewal();
       api_client.clear_in_memory_token();
       api_client.set_expected_user_id(null);
       api_client.set_authenticated(false);

@@ -9977,6 +9977,7 @@ export interface ErrorTranslations {
   incorrect_password: string;
   no_keys_available: string;
   session_expired_login: string;
+  session_sign_in_as: string;
   session_account_switched: string;
   session_identity_mismatch: string;
   vault_rolled_back: string;

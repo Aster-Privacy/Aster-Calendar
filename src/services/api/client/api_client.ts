@@ -152,6 +152,7 @@ export class ApiClient {
   private has_ever_authenticated: boolean = false;
   private account_add_in_progress: boolean = false;
   private expected_user_id: string | null = null;
+  private session_renewer: (() => Promise<boolean>) | null = null;
   private identity_mismatch_dispatched: boolean = false;
   private identity_mismatch_user_id: string | null = null;
   private last_identity_check_timestamp: number = 0;
@@ -577,6 +578,10 @@ export class ApiClient {
   private release_request_hold(): void {
     this.request_hold?.release();
     this.request_hold = null;
+  }
+
+  set_session_renewer(renewer: (() => Promise<boolean>) | null): void {
+    this.session_renewer = renewer;
   }
 
   set_dev_token(
@@ -1041,6 +1046,20 @@ export class ApiClient {
   }
 
   private async refresh_session_impl(): Promise<void> {
+    if (this.session_renewer) {
+      if (await this.session_renewer()) {
+        this.last_refresh_timestamp = Date.now();
+
+        return;
+      }
+
+      this.session_renewer = null;
+      this.is_authenticated_flag = false;
+      this.session_expired_dispatched = true;
+
+      return;
+    }
+
     const max_retries = 3;
     const retry_delay_base = 2000;
 

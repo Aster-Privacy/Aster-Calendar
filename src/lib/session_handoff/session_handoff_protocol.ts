@@ -62,7 +62,8 @@ export interface HandoffSession {
 
 export type HandoffPortRequest =
   | { type: "probe"; grant: string; wait: boolean }
-  | { type: "request"; grant: string; user_id: string };
+  | { type: "request"; grant: string; user_id: string }
+  | { type: "renew"; user_id: string; access_token: string };
 
 export type HandoffBridgeReply =
   | { type: "probe_result"; available: boolean }
@@ -93,6 +94,14 @@ function is_plain_record(value: unknown): value is Record<string, unknown> {
 
 const MAX_ACCESS_TOKEN_LENGTH = 4096;
 const ACCESS_TOKEN_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+
+export function is_access_token(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length <= MAX_ACCESS_TOKEN_LENGTH &&
+    ACCESS_TOKEN_PATTERN.test(value)
+  );
+}
 
 function has_only_keys(
   record: Record<string, unknown>,
@@ -140,6 +149,20 @@ export function parse_handoff_port_request(
   value: unknown,
 ): HandoffPortRequest | null {
   if (!is_protocol_message(value)) return null;
+
+  if (
+    value.type === "renew" &&
+    has_only_keys(value, ["protocol", "type", "user_id", "access_token"]) &&
+    is_handoff_user_id(value.user_id) &&
+    is_access_token(value.access_token)
+  ) {
+    return {
+      type: "renew",
+      user_id: value.user_id,
+      access_token: value.access_token,
+    };
+  }
+
   if (!is_handoff_grant_id(value.grant)) return null;
 
   if (

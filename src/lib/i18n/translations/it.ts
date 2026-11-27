@@ -10508,6 +10508,8 @@ export const it = {
       "Il server ha avuto un intoppo dalla nostra parte. Un altro tentativo a breve di solito risolve. Ci stiamo lavorando.",
     invalid_request:
       "Non siamo riusciti a elaborare la richiesta. Aggiorna la pagina e riprova.",
+    session_sign_in_as:
+      "Per continuare a usare questo calendario, accedi come {{email}}.",
     session_account_switched:
       "Hai cambiato account in un'altra app Aster. Per usare quell'account qui, accedi con quell'account.",
     session_identity_mismatch:

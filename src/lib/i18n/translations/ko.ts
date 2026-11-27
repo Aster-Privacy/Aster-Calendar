@@ -9994,6 +9994,8 @@ export const ko = {
       "이 예약된 이메일은 이미 전송되었을 수 있어 취소되지 않았습니다. 보낸 편지함을 확인하세요.",
     no_keys_available:
       "암호화 키를 사용할 수 없습니다. 로그아웃 후 다시 로그인하면 됩니다.",
+    session_sign_in_as:
+      "이 캘린더를 계속 사용하려면 {{email}}(으)로 로그인하세요.",
     session_account_switched:
       "다른 Aster 앱에서 계정을 전환했습니다. 여기에서 해당 계정을 사용하려면 로그인하세요.",
     session_identity_mismatch:

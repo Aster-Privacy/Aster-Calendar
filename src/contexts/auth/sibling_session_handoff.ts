@@ -18,6 +18,10 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
+import {
+  create_session_renewal,
+  type SessionRenewal,
+} from "./session_renewal";
 import type { EncryptedVault } from "@/services/crypto/key_manager";
 import type { User } from "@/services/account_manager";
 
@@ -26,6 +30,7 @@ import { decrypt_vault_with_lock } from "./vault_decryption";
 import {
   await_sibling_approval,
   open_bridge_channel,
+  renew_sibling_session,
   request_sibling_session,
 } from "@/lib/session_handoff/session_handoff_client";
 import {
@@ -286,6 +291,75 @@ async function verify_server_session(
   if (!valid) return null;
 
   return api_client.get_cached_user_info()?.user_id ?? null;
+}
+
+let active_renewal: SessionRenewal | null = null;
+
+export async function renew_handoff_token(
+  user_id: string,
+  access_token: string,
+): Promise<string | null> {
+  const session = await renew_sibling_session(
+    {
+      origin: window.location.origin,
+      has_session_cookie: has_sibling_session_cookie,
+      verify_server_session: (token) => verify_token_session(token ?? "", user_id),
+      has_local_lock: (id) => get_app_lock_config(id) !== null,
+      open_channel: open_bridge_channel,
+    },
+    user_id,
+    access_token,
+  );
+
+  return session?.access_token ?? null;
+}
+
+export function stop_handoff_renewal(): void {
+  active_renewal?.stop();
+  active_renewal = null;
+  api_client.set_session_renewer(null);
+}
+
+export function start_handoff_renewal(
+  user_id: string,
+  access_token: string,
+  on_failure: () => void,
+): SessionRenewal {
+  stop_handoff_renewal();
+
+  const renewal = create_session_renewal(
+    {
+      now: () => Date.now(),
+      set_timer: (callback, delay_ms) => setTimeout(callback, delay_ms),
+      clear_timer: (handle) => clearTimeout(handle as number),
+      on_visible: (callback) => {
+        const listener = () => {
+          if (document.visibilityState === "visible") callback();
+        };
+
+        document.addEventListener("visibilitychange", listener);
+
+        return () => document.removeEventListener("visibilitychange", listener);
+      },
+      renew: renew_handoff_token,
+      is_active_user: (id) => api_client.get_expected_user_id() === id,
+      apply_token: (token, id) => api_client.set_dev_token(token, undefined, id),
+      on_failure: () => {
+        if (active_renewal === renewal) {
+          active_renewal = null;
+          api_client.set_session_renewer(null);
+        }
+        on_failure();
+      },
+    },
+    user_id,
+    access_token,
+  );
+
+  active_renewal = renewal;
+  api_client.set_session_renewer(() => renewal.renew_now());
+
+  return renewal;
 }
 
 export async function obtain_sibling_session(

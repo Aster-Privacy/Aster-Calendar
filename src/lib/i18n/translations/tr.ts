@@ -10293,6 +10293,8 @@ export const tr = {
       "Özel anahtarlarınız bu cihazda kilitli. Şifreniz onları açacaktır. Sunucudaki anahtarlarınız değişmedi.",
     session_expired_login:
       "Oturumunuz sona erdi. Devam etmek için tekrar giriş yapın. Verileriniz ve taslaklarınız sunucuda kayıtlı.",
+    session_sign_in_as:
+      "Bu takvimi kullanmaya devam etmek için {{email}} olarak oturum açın.",
     session_account_switched:
       "Başka bir Aster uygulamasında hesap değiştirdiniz. Bu hesabı burada kullanmak için hesaba giriş yapın.",
     session_identity_mismatch:

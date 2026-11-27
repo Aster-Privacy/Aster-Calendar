@@ -281,6 +281,8 @@ export async function answer_port_message(
 
   if (!request) return null;
 
+  if (request.type === "renew") return { type: "unavailable" };
+
   if (request.type === "probe") {
     const available = await handle_probe(
       deps,

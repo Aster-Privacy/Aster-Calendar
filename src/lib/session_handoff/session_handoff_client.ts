@@ -33,6 +33,7 @@ const FRAME_LOAD_TIMEOUT_MS = 3000;
 const PROBE_TIMEOUT_MS = 2500;
 const APPROVAL_TIMEOUT_MS = HANDOFF_GRANT_WAIT_MS + 5000;
 const REQUEST_TIMEOUT_MS = 7000;
+const RENEW_TIMEOUT_MS = 8000;
 
 export interface HandoffChannel {
   send(message: object): void;
@@ -139,6 +140,45 @@ export async function request_sibling_session(
     }
 
     return reply.session;
+  } catch {
+    return null;
+  } finally {
+    channel?.close();
+  }
+}
+
+export async function renew_sibling_session(
+  deps: HandoffConsumerDeps,
+  user_id: string,
+  access_token: string,
+): Promise<HandoffSession | null> {
+  const sibling_origin = get_handoff_sibling_origin(deps.origin);
+
+  if (!sibling_origin) return null;
+  if (!is_handoff_user_id(user_id)) return null;
+  if (deps.has_local_lock(user_id)) return null;
+
+  let channel: HandoffChannel | null = null;
+
+  try {
+    channel = await deps.open_channel(sibling_origin);
+    if (!channel) return null;
+
+    channel.send(build_handoff_message({ type: "renew", user_id, access_token }));
+
+    const reply = parse_handoff_bridge_reply(
+      await channel.next(RENEW_TIMEOUT_MS),
+    );
+
+    if (!reply || reply.type !== "session") return null;
+    if (reply.session.user.id !== user_id) return null;
+    if (!reply.session.access_token) return null;
+
+    const confirmed = await deps.verify_server_session(
+      reply.session.access_token,
+    );
+
+    return confirmed === user_id ? reply.session : null;
   } catch {
     return null;
   } finally {

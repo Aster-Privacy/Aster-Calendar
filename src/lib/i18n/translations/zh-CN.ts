@@ -9259,6 +9259,8 @@ export const zh_CN = {
       "您的私钥在此设备上被锁定。您的密码可以解锁它们。服务器上的密钥未受影响。",
     session_expired_login:
       "您的会话已结束。请重新登录以继续。您的数据和草稿已保存在服务器上。",
+    session_sign_in_as:
+      "要继续使用此日历，请以 {{email}} 身份登录。",
     session_account_switched:
       "你在另一个 Aster 应用中切换了账户。要在此处使用该账户，请登录。",
     session_identity_mismatch:

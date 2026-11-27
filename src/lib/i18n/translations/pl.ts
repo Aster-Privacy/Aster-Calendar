@@ -10636,6 +10636,8 @@ export const pl = {
       "Twoje prywatne klucze są zablokowane na tym urządzeniu. Hasło je odblokuje. Klucze na serwerze nie zostały zmienione.",
     session_expired_login:
       "Sesja wygasła. Zaloguj się ponownie, aby kontynuować. Dane i wersje robocze są zapisane na serwerze.",
+    session_sign_in_as:
+      "Aby nadal korzystać z tego kalendarza, zaloguj się jako {{email}}.",
     session_account_switched:
       "Przełączono konto w innej aplikacji Aster. Aby używać tego konta tutaj, zaloguj się na nie.",
     session_identity_mismatch:
