@@ -297,7 +297,7 @@ function top_bar_base({
         <Tooltip delay={1200} tip={brand_label}>
           <button
             aria-label={brand_label}
-            className="hidden sm:flex items-center select-none overflow-hidden px-2 py-2 -mx-2 outline-none focus:outline-none"
+            className="hidden sm:flex items-center select-none overflow-hidden px-2 py-2 -mx-2 rounded-[var(--aster-radius-item,8px)] outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)]"
             type="button"
             onClick={go_home}
           >
@@ -429,7 +429,7 @@ function top_bar_base({
             trigger={
               <button
                 aria-label={t("auth.your_accounts")}
-                className="account_avatar_button flex flex-shrink-0 items-center justify-center w-9 h-9 rounded-full p-0 leading-none outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0"
+                className="account_avatar_button flex flex-shrink-0 items-center justify-center w-9 h-9 rounded-full p-0 leading-none outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)]"
                 type="button"
                 onClick={close_account_tip}
               >
