@@ -1953,9 +1953,15 @@ label:has(> .aster_btn_spinner) > :not(.aster_btn_spinner) {
   opacity: 0;
 }
 
-html[data-input-modality="keyboard"] :focus-visible {
-  outline: 2px solid var(--accent-color);
-  outline-offset: 2px;
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html[data-input-modality="keyboard"] :focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+  }
 }
 
 html[data-input-modality="keyboard"]
@@ -5329,12 +5335,14 @@ html[data-input-modality="keyboard"]
   display: none;
 }
 
-:is(.calendar_surface, [data-calendar-surface]) [data-event-block]:hover {
-  background-color: color-mix(in srgb, var(--cal_color) 94%, #000000) !important;
-}
+@media (hover: hover) {
+  :is(.calendar_surface, [data-calendar-surface]) [data-event-block]:hover {
+    background-color: color-mix(in srgb, var(--cal_color) 94%, #000000) !important;
+  }
 
-:is(.calendar_surface, [data-calendar-surface]) [data-event-block][data-chip-row]:hover {
-  background-color: var(--bg-hover) !important;
+  :is(.calendar_surface, [data-calendar-surface]) [data-event-block][data-chip-row]:hover {
+    background-color: var(--bg-hover) !important;
+  }
 }
 
 button[data-event-id][data-state="open"] {
