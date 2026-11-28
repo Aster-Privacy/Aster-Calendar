@@ -37,7 +37,9 @@ import { MailPanelMiniMonth } from "@/pages/mail_panel/mail_panel_mini_month";
 import { use_mail_panel_delete } from "@/pages/mail_panel/use_mail_panel_delete";
 import { use_mail_panel_events } from "@/pages/mail_panel/use_mail_panel_events";
 import {
+  is_panel_account_allowed,
   open_in_new_tab,
+  panel_expected_user,
   post_to_host,
   read_host_message,
   set_panel_visible,
@@ -142,6 +144,9 @@ function use_panel_gate(): PanelGate {
 
   if (is_loading) return "loading";
   if (!is_authenticated || !has_keys || !account_id) return "signed_out";
+  if (!is_panel_account_allowed(panel_expected_user(), user?.id)) {
+    return "signed_out";
+  }
 
   const lock = get_app_lock_config(account_id);
 

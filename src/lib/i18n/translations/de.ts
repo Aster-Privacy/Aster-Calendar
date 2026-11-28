@@ -10584,6 +10584,8 @@ export const de = {
       "Der Server hat auf unserer Seite einen Fehler verursacht. Ein kurzer Versuch danach löst das Problem in der Regel. Wir untersuchen es.",
     invalid_request:
       "Diese Anfrage konnte nicht verarbeitet werden. Laden Sie die Seite neu und versuchen Sie es erneut.",
+    session_sign_in_as:
+      "Um diesen Kalender weiter zu verwenden, melden Sie sich als {{email}} an.",
     session_account_switched:
       "Sie haben in einer anderen Aster-App das Konto gewechselt. Um dieses Konto hier zu verwenden, melden Sie sich damit an.",
     session_identity_mismatch:

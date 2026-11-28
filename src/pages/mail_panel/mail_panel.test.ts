@@ -25,6 +25,8 @@ import { describe, expect, it } from "vitest";
 import {
   is_allowed_host_origin,
   is_mail_panel_path,
+  is_panel_account_allowed,
+  read_panel_expected_user,
   parse_panel_theme,
   read_host_message,
   read_initial_panel_appearance,
@@ -57,6 +59,55 @@ function make_event(
     ...overrides,
   } as DecryptedCalendarEvent;
 }
+
+describe("mail panel account binding", () => {
+  const findley = "0b6f1c2e-4a3d-4c8e-9f10-2a3b4c5d6e7f";
+  const hello = "7e6d5c4b-3a2b-4c1d-8e0f-9a8b7c6d5e4f";
+
+  it("reads the Mail account the panel must show", () => {
+    expect(read_panel_expected_user(`?theme=dark&account=${findley}`)).toBe(
+      findley,
+    );
+    expect(read_panel_expected_user(`?account=${findley.toUpperCase()}`)).toBe(
+      findley,
+    );
+  });
+
+  it("ignores a missing or malformed account", () => {
+    expect(read_panel_expected_user("?theme=dark")).toBeNull();
+    expect(read_panel_expected_user("")).toBeNull();
+    expect(read_panel_expected_user("?account=hello")).toBeNull();
+    expect(read_panel_expected_user(`?account=${findley}x`)).toBeNull();
+  });
+
+  it("refuses to show another account than the one Mail names", () => {
+    expect(is_panel_account_allowed(findley, hello)).toBe(false);
+    expect(is_panel_account_allowed(findley, null)).toBe(false);
+    expect(is_panel_account_allowed(findley, undefined)).toBe(false);
+    expect(is_panel_account_allowed(findley, "")).toBe(false);
+  });
+
+  it("shows the account Mail names", () => {
+    expect(is_panel_account_allowed(findley, findley)).toBe(true);
+    expect(is_panel_account_allowed(findley, findley.toUpperCase())).toBe(
+      true,
+    );
+  });
+
+  it("follows Mail when it switches accounts", () => {
+    const before = read_panel_expected_user(`?account=${findley}`);
+    const after = read_panel_expected_user(`?account=${hello}`);
+
+    expect(is_panel_account_allowed(before, findley)).toBe(true);
+    expect(is_panel_account_allowed(before, hello)).toBe(false);
+    expect(is_panel_account_allowed(after, hello)).toBe(true);
+    expect(is_panel_account_allowed(after, findley)).toBe(false);
+  });
+
+  it("keeps the panel usable when Mail names no account", () => {
+    expect(is_panel_account_allowed(null, hello)).toBe(true);
+  });
+});
 
 describe("mail_panel_bridge", () => {
   it("accepts only the Mail origin in production", () => {

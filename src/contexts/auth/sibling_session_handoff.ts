@@ -18,6 +18,10 @@
 // You should have received a copy of the AGPLv3
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
+import {
+  create_session_renewal,
+  type SessionRenewal,
+} from "./session_renewal";
 import type { EncryptedVault } from "@/services/crypto/key_manager";
 import type { User } from "@/services/account_manager";
 
@@ -26,6 +30,7 @@ import { decrypt_vault_with_lock } from "./vault_decryption";
 import {
   await_sibling_approval,
   open_bridge_channel,
+  renew_sibling_session,
   request_sibling_session,
 } from "@/lib/session_handoff/session_handoff_client";
 import {
@@ -46,6 +51,7 @@ import {
 } from "@/lib/safe_storage";
 import { has_tauri_runtime } from "@/lib/tauri_runtime";
 import { api_client } from "@/services/api/client";
+import { API_BASE_URL } from "@/services/api/client/helpers";
 import { get_csrf_token_from_cookie } from "@/services/api/csrf";
 import { verify_auth_status } from "@/services/api/auth";
 import { get_app_lock_config } from "@/services/app_lock_store";
@@ -79,6 +85,7 @@ export interface SiblingSessionLogin {
   passphrase: string;
   encrypted_vault: string;
   vault_nonce: string;
+  access_token?: string;
 }
 
 export function can_attempt_sibling_handoff(pathname: string): boolean {
@@ -232,12 +239,127 @@ export function sibling_app_launch_url(target: string): string {
   return url.href;
 }
 
-async function verify_server_session(): Promise<string | null> {
+const ME_TIMEOUT_MS = 4000;
+
+export async function verify_token_session(
+  access_token: string,
+  expected_user_id: string,
+  fetch_me: typeof fetch = fetch,
+): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ME_TIMEOUT_MS);
+
+  try {
+    const response = await fetch_me(`${API_BASE_URL}/core/v1/auth/me`, {
+      method: "GET",
+      credentials: "omit",
+      cache: "no-store",
+      redirect: "error",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${access_token}`,
+        "X-Aster-Expected-User": expected_user_id,
+        "X-Aster-Client": "web",
+      },
+      signal: controller.signal,
+    });
+
+    if (response.status !== 200) return null;
+
+    const me = (await response.json()) as { user_id?: unknown } | null;
+
+    return typeof me?.user_id === "string" && me.user_id === expected_user_id
+      ? me.user_id
+      : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function verify_server_session(
+  access_token?: string,
+  expected_user_id?: string,
+): Promise<string | null> {
+  if (access_token && expected_user_id) {
+    return verify_token_session(access_token, expected_user_id);
+  }
+
   const valid = await verify_auth_status();
 
   if (!valid) return null;
 
   return api_client.get_cached_user_info()?.user_id ?? null;
+}
+
+let active_renewal: SessionRenewal | null = null;
+
+export async function renew_handoff_token(
+  user_id: string,
+  access_token: string,
+): Promise<string | null> {
+  const session = await renew_sibling_session(
+    {
+      origin: window.location.origin,
+      has_session_cookie: has_sibling_session_cookie,
+      verify_server_session: (token) => verify_token_session(token ?? "", user_id),
+      has_local_lock: (id) => get_app_lock_config(id) !== null,
+      open_channel: open_bridge_channel,
+    },
+    user_id,
+    access_token,
+  );
+
+  return session?.access_token ?? null;
+}
+
+export function stop_handoff_renewal(): void {
+  active_renewal?.stop();
+  active_renewal = null;
+  api_client.set_session_renewer(null);
+}
+
+export function start_handoff_renewal(
+  user_id: string,
+  access_token: string,
+  on_failure: () => void,
+): SessionRenewal {
+  stop_handoff_renewal();
+
+  const renewal = create_session_renewal(
+    {
+      now: () => Date.now(),
+      set_timer: (callback, delay_ms) => setTimeout(callback, delay_ms),
+      clear_timer: (handle) => clearTimeout(handle as number),
+      on_visible: (callback) => {
+        const listener = () => {
+          if (document.visibilityState === "visible") callback();
+        };
+
+        document.addEventListener("visibilitychange", listener);
+
+        return () => document.removeEventListener("visibilitychange", listener);
+      },
+      renew: renew_handoff_token,
+      is_active_user: (id) => api_client.get_expected_user_id() === id,
+      apply_token: (token, id) => api_client.set_dev_token(token, undefined, id),
+      on_failure: () => {
+        if (active_renewal === renewal) {
+          active_renewal = null;
+          api_client.set_session_renewer(null);
+        }
+        on_failure();
+      },
+    },
+    user_id,
+    access_token,
+  );
+
+  active_renewal = renewal;
+  api_client.set_session_renewer(() => renewal.renew_now());
+
+  return renewal;
 }
 
 export async function obtain_sibling_session(
@@ -254,7 +376,8 @@ export async function obtain_sibling_session(
     {
       origin: window.location.origin,
       has_session_cookie: has_sibling_session_cookie,
-      verify_server_session,
+      verify_server_session: (access_token) =>
+        verify_server_session(access_token, expected_user_id),
       has_local_lock: (user_id) => get_app_lock_config(user_id) !== null,
       open_channel: open_bridge_channel,
     },
@@ -284,5 +407,6 @@ export async function obtain_sibling_session(
     passphrase: session.passphrase,
     encrypted_vault: session.encrypted_vault,
     vault_nonce: session.vault_nonce,
+    access_token: session.access_token,
   };
 }

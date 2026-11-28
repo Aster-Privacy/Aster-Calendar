@@ -10401,6 +10401,8 @@ export const nl = {
       "Je privésleutels zijn vergrendeld op dit apparaat. Je wachtwoord ontgrendelt ze. Je sleutels op de server zijn onaangetast.",
     session_expired_login:
       "Je sessie is beëindigd. Meld je opnieuw aan om verder te gaan. Je gegevens en concepten zijn op de server opgeslagen.",
+    session_sign_in_as:
+      "Meld je aan als {{email}} om deze agenda te blijven gebruiken.",
     session_account_switched:
       "Je bent in een andere Aster-app van account gewisseld. Meld je hier aan met dat account om het te gebruiken.",
     session_identity_mismatch:

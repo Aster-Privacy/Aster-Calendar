@@ -10566,6 +10566,8 @@ export const pt = {
       "O servidor teve um problema do nosso lado. Uma nova tentativa daqui a pouco costuma resolver. Estamos a tratar do assunto.",
     invalid_request:
       "Não foi possível processar esse pedido. Atualize a página e tente novamente.",
+    session_sign_in_as:
+      "Para continuar a utilizar este calendário, inicie sessão como {{email}}.",
     session_account_switched:
       "Mudou de conta noutra app Aster. Para utilizar essa conta aqui, inicie sessão com ela.",
     session_identity_mismatch:

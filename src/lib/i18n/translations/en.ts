@@ -10119,6 +10119,8 @@ export const en: Translations = {
       "Your private keys are locked on this device. Your password will unlock them. Your keys on the server are untouched.",
     session_expired_login:
       "Your session has ended. Sign in again to continue. Your data and drafts are saved on the server.",
+    session_sign_in_as:
+      "To keep using this calendar, sign in as {{email}}.",
     session_account_switched:
       "You switched accounts in another Aster app. To use that account here, sign in to it.",
     session_identity_mismatch:

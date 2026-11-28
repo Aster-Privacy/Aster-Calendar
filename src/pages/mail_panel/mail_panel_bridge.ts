@@ -21,10 +21,13 @@
 import { useSyncExternalStore } from "react";
 
 import { DARK_ONLY_COLOR_THEMES } from "@/lib/dark_mode";
+import { app_pathname } from "@/lib/account_index_url";
+import { is_handoff_user_id } from "@/lib/session_handoff/session_handoff_protocol";
 
 export const MAIL_PANEL_PATH = "/mail-panel";
 export const MAIL_PANEL_SOURCE = "aster-calendar-panel";
 export const MAIL_HOST_SOURCE = "aster-mail";
+export const PANEL_ACCOUNT_PARAM = "account";
 
 const PRODUCTION_HOST_ORIGINS: readonly string[] = [
   "https://app.astermail.org",
@@ -150,6 +153,33 @@ export function read_initial_panel_appearance(
   } catch {
     return null;
   }
+}
+
+export function read_panel_expected_user(search: string): string | null {
+  try {
+    const value = new URLSearchParams(search).get(PANEL_ACCOUNT_PARAM);
+
+    return is_handoff_user_id(value) ? value.toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
+export function panel_expected_user(): string | null {
+  if (typeof window === "undefined") return null;
+  if (!is_mail_panel_path(app_pathname())) return null;
+
+  return read_panel_expected_user(window.location.search);
+}
+
+export function is_panel_account_allowed(
+  expected_user_id: string | null,
+  user_id: string | null | undefined,
+): boolean {
+  if (expected_user_id === null) return true;
+  if (!user_id) return false;
+
+  return user_id.toLowerCase() === expected_user_id;
 }
 
 function host_window(): Window | null {
