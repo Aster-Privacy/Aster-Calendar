@@ -279,6 +279,29 @@ describe("parse_handoff_bridge_reply", () => {
     ).toEqual({ type: "session", session: valid_session });
   });
 
+  it("accepts a session reply that carries the account token", () => {
+    const session = { ...valid_session, access_token: "aGVhZGVy.Ym9keQ.c2ln" };
+
+    expect(
+      parse_handoff_bridge_reply(
+        build_handoff_message({ type: "session", session }),
+      ),
+    ).toEqual({ type: "session", session });
+  });
+
+  it("rejects a session reply with a malformed account token", () => {
+    for (const access_token of ["", "not-a-token", "a.b.c d", 7]) {
+      expect(
+        parse_handoff_bridge_reply(
+          build_handoff_message({
+            type: "session",
+            session: { ...valid_session, access_token },
+          }),
+        ),
+      ).toBeNull();
+    }
+  });
+
   it("rejects malformed replies", () => {
     expect(
       parse_handoff_bridge_reply(
